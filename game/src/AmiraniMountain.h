@@ -14,7 +14,7 @@ struct EnvironmentSettings;
 // The landmark the whole game is played in sight of: the mountain where Amirani is chained,
 // with the eagle at his liver and his dog at the chain, under the Caucasus night sky.
 //
-// Scenery only: no collision, not reachable in v0.1. Numbers are in GameConstants.h
+// Scenery: its only walkable part is the ledge (collision comes with the RoadToAmirani scene). Numbers are in GameConstants.h
 // ("night sky", "mountain of Amirani"). Assets: assets/Compiled/Landmarks/AmiraniMountain
 // (built by art/mountain) and assets/textures/caucasus (built by art/sky).
 //
@@ -29,6 +29,9 @@ namespace CaucasianEagle
         bool Initialize(Renderer& renderer, std::string& error);
         void Update(float realDeltaTime);
         void Draw(Renderer& renderer, DirectX::XMFLOAT3 cameraPosition, const DirectX::XMMATRIX& viewProjection) const;
+
+        void SetEagleAway(bool away) { mEagleAway = away; }   // he has left the wound to fight his daughter
+        void SetFreed(bool freed) { mFreed = freed; }          // the chain is open: no eagle, no chains
 
         // Moonlight and haze of the Caucasus night (IDoorwaysGame::AdjustEnvironment).
         static void StyleEnvironment(EnvironmentSettings& environment);
@@ -53,6 +56,7 @@ namespace CaucasianEagle
         float mMountainYaw = 0; // set at load so the cave ledge faces the play area
         float mTime = 0;
         bool mReady = false;
+        bool mEagleAway = false, mFreed = false;
     };
 
     AmiraniMountain& GetAmiraniMountain();

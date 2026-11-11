@@ -6,6 +6,7 @@
 #include "DoorwaysAssetPaths.h"
 #include "DoorwaysRenderContexts.h"
 #include "GameConstants.h"
+#include "Journey.h"
 #include "NyxaraHud.h"
 #include "NyxaraKit.h"
 #include "Renderer.h"
@@ -39,6 +40,7 @@ namespace CaucasianEagle
     void Game::Configure(DoorwaysGameSession& session)
     {
         session.SceneId = StartSceneId;
+        session.SceneCollision = true; // the road is the only ground: Nyxara cannot leave it
         session.WindowTitle = GameTitle;
         session.UserDataFolder = UserDataFolder;
     }
@@ -119,19 +121,25 @@ namespace CaucasianEagle
         OutputDebugStringA("[PASS] Caucasian Eagle: Nyxara (EagleV1) is the player and her combat kit started.\n");
 
         char demo[8] = {};
-        if (GetEnvironmentVariableA(DemoEnvironmentVariable, demo, sizeof(demo)) && demo[0] == '1')
-        {   // Scripted showcase for capture: starts play and drives the kit from its own timeline.
+        const bool unattended = GetEnvironmentVariableA(DemoEnvironmentVariable, demo, sizeof(demo)) && demo[0] == '1';
+        if (unattended)
+        {   // Scripted run for capture and testing: never reads the desktop.
             session.Unattended = true;
             char vista[8] = {};
             gVista = GetEnvironmentVariableA(VistaEnvironmentVariable, vista, sizeof(vista)) && vista[0] == '1';
-            host.StartGame();
         }
+        if (!GetJourney().Initialize(host.Render, host.World, error))
+        {
+            error = "Road to Amirani: " + error;
+            return false;
+        }
+        if (unattended) host.StartGame();
         return character.SampleAuthoredClip("Idle", 0, &error);
     }
 
     float Game::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
     {
-        return GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
+        return GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed) * GetJourney().TimeScale();
     }
 
     void Game::Update(DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed)
@@ -139,17 +147,20 @@ namespace CaucasianEagle
         GetAmiraniMountain().Update(realDeltaTime);
         if (gVista) { host.World.MainCamera.Yaw = 0; host.World.MainCamera.Pitch = VistaPitch; }
         GetNyxaraKit().Update(host.World, host.WorldRender, host.Combat, deltaTime, realDeltaTime, inputAllowed);
+        GetJourney().Update(host, deltaTime, realDeltaTime);
     }
 
     void Game::Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection)
     {
         GetAmiraniMountain().Draw(renderer, world.MainCamera.Position, viewProjection);
-        if (!gVista) GetNyxaraKit().Draw(renderer, world, viewProjection); // capture mode shows the scenery alone
+        GetJourney().Draw(renderer, world, viewProjection);
+        if (!gVista) GetNyxaraKit().Draw(renderer, world, viewProjection); // capture mode hides her effects
     }
 
     void Game::AdjustEnvironment(EnvironmentSettings& environment)
     {
         AmiraniMountain::StyleEnvironment(environment);
+        GetJourney().StyleEnvironment(environment);
     }
 
     bool Game::DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text)
@@ -157,6 +168,7 @@ namespace CaucasianEagle
         if (gVista) return true; // capture mode: no HUD
         if (!NyxaraHud().Valid || !context.World.CombatFeedback.MeleeActive) return false;
         DrawNyxaraHud(context, text);
+        GetJourney().DrawHud(context, text);
         return true;
     }
 }

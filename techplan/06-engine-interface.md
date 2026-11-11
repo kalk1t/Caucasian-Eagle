@@ -27,12 +27,13 @@ The whole contract between the game and the engine is one engine header, `engine
 
 | Option | Value in Caucasian Eagle | Set in | Read by (engine) |
 |---|---|---|---|
-| `SceneId` | `"MoonlitSanctuary"` | `Configure` | Scene selection |
+| `SceneId` | `"RoadToAmirani"` | `Configure` | Scene selection |
+| `SceneCollision` | `true` | `Configure` | Gameplay settings: the scene's walkable meshes and blockers are used, and the player cannot step off the walkable ground |
 | `WindowTitle` | `"Caucasian Eagle"` | `Configure` | Window creation and title updates |
 | `UserDataFolder` | `"CaucasianEagle"` | `Configure` | Settings and save paths |
 | `Active` | `true` once the kit initialises | `NyxaraKit::Initialize` | Gates every option below |
-| `Unattended` | `true` only in the showcase | `Prepare` | Input ownership without window focus |
-| `ScriptedMove`, `ScriptedFast` | Showcase travel keys | `NyxaraKit::ReadKeys` | Input map |
+| `Unattended` | `true` only in the showcase and the test pilot | `Prepare` | Input ownership without window focus |
+| `ScriptedMove`, `ScriptedFast` | Showcase and test-pilot travel keys | `NyxaraKit::ReadKeys`, `Journey::UpdatePilot` | Input map |
 | `SuppressedActions` | Interact (E), CycleDebugRenderMode (Q), ToggleTextureFilter (F), ToggleImportedAnimatedDebugSampling (V), ToggleImportedSkinningSideBySideComparison (C), BasicAttack (LMB), HeavyAttack (RMB) | `Prepare` | Input map: those engine actions never fire, so the kit owns the keys |
 | `SlowWalk`, `SlowWalkSpeed` | `true`, 1.38 m/s | `Prepare` | Movement |
 | `FastMultiplier` | 2.2 | `Prepare` | Movement (Shift) |
@@ -45,11 +46,11 @@ The whole contract between the game and the engine is one engine header, `engine
 
 | Object | What the game does with it |
 |---|---|
-| `host.World` (`WorldState`) | Reads the player and camera; writes the hero's visual offset and rotation; replaces the hero character asset |
+| `host.World` (`WorldState`) | Reads the player and camera; writes the hero's visual offset and rotation; replaces the hero character asset; the journey moves the player back onto the road, to checkpoints, and (test pilot only) turns the camera |
 | `host.WorldRender` (`WorldRenderer`) | Loads the hero's materials; shows and hides sword materials |
 | `host.Render` (`Renderer`) | Creates effect meshes and textures; draws effects |
-| `host.Combat` (`CombatSystem`) | Checks that the player may act; applies enemy damage to the player |
-| `host.StartGame()` | Starts play from the menu in the showcase |
+| `host.Combat` (`CombatSystem`) | Checks that the player may act; applies enemy damage to the player (`ApplyIncomingDamage`); heals the player (`RestorePlayerHealth`, added in engine `aec7057`) |
+| `host.StartGame()` | Starts play from the menu in the showcase and the test pilot |
 
 The game also includes engine headers directly (`WorldState.h`, `Renderer.h`, `WorldRenderer.h`, `CombatSystem.h`, `DoorwaysAssetPaths.h`, `DoorwaysRenderContexts.h`, `HudTextRenderer.h`, the asset loaders). These are not a stable interface: an engine update can break the game build. The plan to narrow this is D2 in [10-tech-debt-risks.md](10-tech-debt-risks.md).
 

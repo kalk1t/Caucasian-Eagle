@@ -44,7 +44,8 @@ flowchart LR
 | Skeletal animation playback | Engine | Game selects clips through the clip override and travel override hooks |
 | Hero character assets | Game | `game/assets/Compiled/Characters/Nyxara/EagleV1` |
 | Skills, combos, cooldowns, hit timing | Game | `NyxaraKit` |
-| Enemies (shades) and their orbs | Game | `NyxaraKit`; they are not engine monsters |
+| Enemies, bosses, chests, arenas, story cards, the ending, the journey save | Game | `Journey`; creatures live in the kit's enemy slots, they are not engine monsters |
+| Where the player may walk | Engine physics, with the game's scene collision (`SceneCollision`) | `Journey::Leash` adds the gates and the soft road edge |
 | Visual effects | Game | Meshes built in code, textures from `Effects/Nyxara` |
 | Gameplay HUD | Game | `NyxaraHud`; replaces the engine's text HUD during play |
 | Menus, settings, inventory, progression screens | Engine | Engine defaults in v0.1 |
@@ -57,7 +58,7 @@ One frame of play, in order [confirmed: `engine/src/DOORWAYS/App.cpp`, `AppGame.
 2. `Game::ScaleFrameTime` returns the simulation step. The kit returns 6% of real time during hit-stop.
 3. Engine applies respawn, then calls `Game::Update`. The kit reads keys, starts or cancels actions, fires hits, moves enemies and effects, and sets the animation clip override and session options (impulse, hold-facing, camera shake).
 4. Engine moves the player (reading those options), samples animation, updates the camera.
-5. Engine draws the world, then calls `Game::Draw` for effects and shades.
+5. Engine draws the world, then calls `Game::Draw` for the mountain, creatures, props and effects.
 6. Engine draws the HUD: `Game::DrawHud` draws the game HUD and returns true, so the engine's text HUD is skipped.
 
 ## 4.4 Runtime layout

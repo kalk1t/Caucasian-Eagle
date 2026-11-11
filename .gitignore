@@ -32,3 +32,9 @@ art/mountain/compiled_tmp/
 # Local runtime files written next to the staged game
 DoorwaysRuntimeSettings.ini
 _logs/
+
+# Road to Amirani: Meshy downloads and intermediate exports (rebuilt by the scripts)
+art/monsters/meshy/out/
+art/props/meshy/out/
+art/world/export/*.glb
+art/world/export/textures/

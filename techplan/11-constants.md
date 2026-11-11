@@ -4,7 +4,7 @@
 
 **How to read this table**
 
-- **Def** is where the value is defined, as `file:line` at v0.1.0. Paths are under `game/src/` unless they start with `art/` or `engine/`.
+- **Def** is where the value is defined, as `file:line`. Sections A to G were cited at v0.1.0 and their line numbers in `GameConstants.h` have since moved; section J was generated from the file at v0.2.0. Paths are under `game/src/` unless they start with `art/` or `engine/`.
 - **Config?** says how the value changes: "code" means a constant in source (edit, rebuild); "art" means a value in an art script (rerun the script and the asset pipeline); "player" means a setting the player changes in the game.
 - All values are [confirmed] by reading the cited line on 2026-11-10. Line numbers drift; the symbol name is the stable reference.
 
@@ -13,9 +13,9 @@
 | Name | Value | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|
 | `GameTitle` | `"Caucasian Eagle"` | Window title | `GameConstants.h:9` | code | Also written in the installer script (`tools/installer/CaucasianEagle.iss`) |
-| `GameVersion` | `"0.1.0"` | Version | `GameConstants.h:10` | code | Read by `tools/package.ps1`; must match the git tag and the changelog |
+| `GameVersion` | `"0.2.0"` | Version | `GameConstants.h:10` | code | Read by `tools/package.ps1`; must match the git tag and the changelog |
 | `UserDataFolder` | `"CaucasianEagle"` | Folder under `%LOCALAPPDATA%` for settings and saves | `GameConstants.h:11` | code | Changing it orphans existing players' settings and saves |
-| `StartSceneId` | `"MoonlitSanctuary"` | Scene loaded at start | `GameConstants.h:14` | code | `assets/Compiled/Scenes/<id>.dscene` must exist in the stage |
+| `StartSceneId` | `"RoadToAmirani"` | Scene loaded at start | `GameConstants.h:14` | code | `assets/Compiled/Scenes/<id>.dscene` must exist in the stage |
 | `HeroBundle` | `"Characters/Nyxara/EagleV1"` | Hero asset folder under `assets/Compiled` | `GameConstants.h:15` | code | Must contain the 31 clips listed in `Game::Prepare` |
 | `DemoEnvironmentVariable` | `"CAUCASIAN_EAGLE_DEMO"` | `=1` starts the scripted showcase | `GameConstants.h:16` | code | |
 | Rig signature | `DoorwaysRig_v1_74bb2d2053cd36e2` | Identity of the hero skeleton | printed by the character pipeline; stored in the bundle | art | Changes whenever the skeleton changes |
@@ -34,8 +34,8 @@
 | Glide wing-beat rate | 1.25 (1.8 boosting) | × clip speed | Playback rate of `FlightHover` while travelling | `NyxaraKit.cpp:662` | code | |
 | Lean pitch | 0.15 × clamp(forward speed / 5, −1, 1.7) | rad | Forward lean into travel | `NyxaraKit.cpp:655` | code | Spring: stiffness 70, damping 9.5 |
 | Lean roll | −0.17 × clamp(side speed / 5, ±1.3) − 0.035 × turn rate | rad | Bank into strafes and turns | `NyxaraKit.cpp:656` | code | Clamped to ±0.3 |
-| `CameraPitch` | −0.60 | rad | Starting view pitch (about 34° down) | `GameConstants.h:25` | code | Within `CameraMinPitch`..`CameraMaxPitch` |
-| `CameraDistance` | 6.5 | m | Follow distance | `GameConstants.h:26` | code | Engine pulls the camera in when blocked |
+| `CameraPitch` | −0.34 | rad | Starting view pitch (about 19° down) | `GameConstants.h:25` | code | Within `CameraMinPitch`..`CameraMaxPitch` |
+| `CameraDistance` | 7.4 | m | Follow distance | `GameConstants.h:26` | code | Engine pulls the camera in when blocked |
 | `CameraPivotHeight` | 1.35 | m | Orbit pivot above her feet | `GameConstants.h:27` | code | |
 | `CameraMinPitch` / `CameraMaxPitch` | −1.2 / 0.45 | rad | View pitch limits | `GameConstants.h:28-29` | code | |
 | Orbit floor | −0.04 | rad | Orbit never rises above this pitch, so the camera stays over the floor | `engine/src/DOORWAYS/DoorwaysGame.h` `CameraOrbitMaxPitch` | code (engine default) | |
@@ -89,7 +89,7 @@ Hit times were measured from the hand-speed peaks of each authored clip. If a cl
 | Hit-stop length | 0.035 + 0.075 × heaviness | s | Freeze per hit | `NyxaraKit.cpp:350` | code | heaviness is 0..1 from damage |
 | Camera shake | 0.03 + 0.13 × heaviness, decay e^(−8t) | m | Shake per hit | `NyxaraKit.cpp:351,810` | code | |
 
-## E. Enemies (shades)
+## E. Enemies (shades; switched off while the journey runs, see section J)
 
 | Name | Value | Units | Purpose | Def | Config? |
 |---|---|---|---|---|---|
@@ -142,14 +142,16 @@ Scenery drawn by `AmiraniMountain::Draw`. Values not listed here (yaw angles, wr
 | Name | Value | Units | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|---|
 | `LandmarkFolder` | "assets/Compiled/Landmarks/AmiraniMountain" |  | Folder of the four compiled meshes and their textures | `GameConstants.h:55` | code | Start-up fails if a file is missing |
-| `MountainX` | 0 | m | Peak centre in the world (X, Y, Z) | `GameConstants.h:56` | code | The play area is within 93 m of the origin; the mesh is 520 m square |
+| `MountainX`, `MountainZ` | 0, 1900 | m | Peak centre in the world | `GameConstants.h` | code | Must equal `MOUNTAIN` in `art/world/build_world.py`; the road ends on its ledge |
 | `LedgeHeight` | 78 | m | Cave ledge above the play floor | `GameConstants.h:57` | code | Must equal `ledgeY` in `art/mountain/export/Mountain.json` |
 | `LedgeHalfWidth` | 40 | m | Half the ledge width | `GameConstants.h:58` | code | Must equal `ledgeHalfWidth` in `Mountain.json` |
 | `LedgeBackZ` | 8 | m | Cave back wall relative to the peak centre | `GameConstants.h:59` | code | Must equal `ledgeBackZ` in `Mountain.json` |
-| `MountainTint` | 0.42 |  | Darkens the rock | `GameConstants.h:60` | code |  |
+| `MountainTint` | 0.42 |  | Darkens the rock | `GameConstants.h` | code |  |
+| `MountainFarDim` | 0.45 |  | How much the mountain and the figures darken when far away | `GameConstants.h` | code | The mountain takes no region fog (`ReceiveFog` off), so it is in view from the whole road; this dimming stands in for the fog |
+| `MountainDimStart`, `MountainDimEnd` | 150, 1700 | m | Distance range over which the dimming grows | `GameConstants.h` | code |  |
 | `FigureEmission` | 0.22 |  | Self-light of Amirani | `GameConstants.h:62` | code | Without it he is black at night |
 | `EagleEmission` | 0.40 |  | Self-light of the eagle and the dog | `GameConstants.h:63` | code |  |
-| `AmiraniHeight` | 50 | m | Height of Amirani | `GameConstants.h:64` | code | Sized to be read from the play area, 330 m away |
+| `AmiraniHeight` | 50 | m | Height of Amirani | `GameConstants.h:64` | code | Sized to be read from far down the road |
 | `AmiraniFromWall` | 10 | m | His distance in front of the cave wall | `GameConstants.h:65` | code |  |
 | `EagleHeight` | 30 | m | Height of the eagle | `GameConstants.h:69` | code |  |
 | `EagleSide` | -21 | m | Eagle offset to his right side | `GameConstants.h:72` | code | Negative = viewer's left |
@@ -171,3 +173,62 @@ Art build values for the mountain (`art/mountain/build_mountain.py`): footprint 
 | `CHIN_NECK`, `CHIN_HEAD` | −12°, −23° | Raises the head in standing and attack clips | `assemble.py:303` | art |
 | `GRADE` | body (gamma 0.74, gain 1.12, saturation 1.15); wings (0.70, 1.18, 1.25) | Brightens the textures so she reads on the dark map | `assemble.py:501` | art |
 | Sword lengths | Moonfeather 1.02 m, Talonshade 0.92 m | | `assemble.py` `make_sword` calls | art |
+
+## J. The journey (`Journey.cpp`, `GameConstants.h`)
+
+| Name | Value | Purpose | Def | Config? |
+|---|---|---|---|---|
+| `RoadFile` | `"assets/Compiled/World/Road.txt"` | Path, arenas, chests, props, lights | `GameConstants.h:20` | code |
+| `SaveFileName` | `"journey.sav"` | In the user data folder | `GameConstants.h:21` | code |
+| `PilotEnvironmentVariable` | `"CAUCASIAN_EAGLE_PILOT"` | =1 with the showcase: a test pilot plays the whole road | `GameConstants.h:22` | code |
+| `SpeedEnvironmentVariable` | `"CAUCASIAN_EAGLE_SPEED"` | Test pilot only: simulation speed 1..12 | `GameConstants.h:23` | code |
+| `MortalEnvironmentVariable` | `"CAUCASIAN_EAGLE_MORTAL"` | =1: the test pilot can die and asks for a respawn (tests death) | `GameConstants.h:24` | code |
+| `StartEnvironmentVariable` | `"CAUCASIAN_EAGLE_START"` | Start after this many arenas (testing; ignores the save) | `GameConstants.h:25` | code |
+| `SanctuaryRadius` | 97 | m, inside it the road rules do not apply | `GameConstants.h:26` | code |
+| `LedgeWalkFrontZ` | 1872 | m, front edge of the walkable ledge under Amirani (MountainZ - 28) | `GameConstants.h:27` | code |
+| `LedgeWalkBackZ` | 1889 | m, back edge of the walkable ledge | `GameConstants.h:28` | code |
+| `LedgeWalkHalfWidth` | 38 | m | `GameConstants.h:29` | code |
+| `MonsterHealthScale` | 1.8 | Health of every ordinary creature | `GameConstants.h:30` | code |
+| `BossHealthScale` | 1.0 | Health of the three region bosses and the Eagle | `GameConstants.h:31` | code |
+| `MonsterDamageScale` | 0.6 | Every monster's damage | `GameConstants.h:32` | code |
+| `LateWaveStage` | 3 | From this region on an arena has 4 waves instead of 3 | `GameConstants.h:33` | code |
+| `PatrolBudget` | 0.55 | A roaming pack costs this share of an arena's first wave | `GameConstants.h:34` | code |
+| `PatrolAhead` | 26 | m, a roaming pack appears this far ahead of her | `GameConstants.h:35` | code |
+| `PatrolGiveUp` | 70 | m, a pack left this far behind gives up | `GameConstants.h:36` | code |
+| `StageHealthGrowth` | 0.12 | + per stage (12 stages) | `GameConstants.h:37` | code |
+| `StageDamageGrowth` | 0.03 | + per stage | `GameConstants.h:38` | code |
+| `FeatherDamageBonus` | 0.03 | Nyxara's damage per Eagle Feather | `GameConstants.h:39` | code |
+| `EmberSeconds` | 20 | Soul Ember duration | `GameConstants.h:40` | code |
+| `EmberDamage` | 1.5 | Nyxara's damage multiplier while it burns | `GameConstants.h:41` | code |
+| `MercySeconds` | 1.0 | After a hit she cannot be hurt again for this long (a crowd cannot kill her in one moment) | `GameConstants.h:42` | code |
+| `MaxAttackers` | 2 | Ordinary creatures that may wind up a blow at the same time | `GameConstants.h:43` | code |
+| `RegenPerSecond` | 3 | Health per second outside fights | `GameConstants.h:44` | code |
+| `KillHealBase` | 4 | Health she takes back from every creature she fells... | `GameConstants.h:45` | code |
+| `KillHealPerCost` | 3 | ...plus this for each point of its cost (a Devi gives 34) | `GameConstants.h:46` | code |
+| `ArenaHeal` | 30 | Health for winning an arena | `GameConstants.h:47` | code |
+| `WaveHeal` | 20 | Health when a wave is beaten and another comes | `GameConstants.h:48` | code |
+| `MoonTearHeal` | 40 | Health from a Moon Tear | `GameConstants.h:49` | code |
+| `WaveDelay` | 1.4 | s between waves | `GameConstants.h:50` | code |
+| `SpawnInterval` | 0.3 | s between monsters of one wave | `GameConstants.h:51` | code |
+| `ChestWakeDistance` | 30 | m, a chest becomes breakable inside this distance | `GameConstants.h:52` | code |
+| `PropDrawDistance` | 260 | m, trees and rocks | `GameConstants.h:53` | code |
+| `TowerDrawDistance` | 600 | m, towers | `GameConstants.h:54` | code |
+| `LightDrawDistance` | 140 | m, lantern and crystal glows | `GameConstants.h:55` | code |
+| `PropTint` | 0.55 | Night tint of scenery props | `GameConstants.h:56` | code |
+| `MonsterTint` | 0.85 | Monsters read against the night | `GameConstants.h:57` | code |
+| `MonsterEmission` | 0.10 |  | `GameConstants.h:58` | code |
+
+Values inside `Journey.cpp` (symbol names are the reference):
+
+| Name | Value | Purpose | Config? |
+|---|---|---|---|
+| `Kinds[]` | 12 creatures, the chest and the chain anchor | Per creature: model, height, health, speed, melee reach / damage / cooldown / windup, orb range / damage / interval / volley, keep-distance, radius, push scale, cost, colour, boss flag, hover | code |
+| `Rosters[12]` | Up to three creature kinds per region | Who can appear in a region's arenas and roaming packs | code |
+| `StageBoss[12]` | Gveleshapi (region 9), Devi Lord (10), Rokapi (11) | Boss of a region's boss arena | code |
+| Wave budget | (4 + 1.4 x region) x (1 + 0.2 x arena number within the region) x (0.8 + 0.2 x wave) | Cost points a wave may spend on creatures; at most 11 creatures | code (`BuildWave`) |
+| Waves per arena | 2 in region 1 and in boss arenas, 3 otherwise, 4 from region `LateWaveStage` + 1 on | | code (`StartEncounter`) |
+| `Air[12]` | Fog colour, fog end, fog strength, ambient and light colour per region | Atmosphere blend | code |
+| `StageCards[12]`, `Lore[12]` | Region title cards and the twelve memories | Story text | code |
+| Kit slot limit `NyxaraKit::MaxEnemies` | 30 | Creatures, chests and anchors alive at once | code (`NyxaraKit.h`) |
+
+Art build values for the world (`art/world/build_world.py`, tables at the top of the file): road half width 6.5 m, arena radius 17 m, boss arena radius 24 m, path sample spacing 2 m, terrain grid 4 m, world bounds X -680..680 and Z -180..2010, mountain at (0, 1900), ledge 78 m high. Path length 6,346 m, 34 arenas, 81 chests, 664 props.

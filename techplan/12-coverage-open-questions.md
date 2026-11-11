@@ -12,6 +12,7 @@
 | Engine internals | Only the parts the game touches | The engine's own plan is in `engine/techplan/` |
 | Hero art scripts (`art/nyxara`) | `assemble.py` read in full; `build_base.py`, `meshy.py`, `make_vfx_textures.py` known from use, not re-read for this plan | |
 | Map art (`art/moonlit-sanctuary`) | Export script read; build scripts not read for this plan | |
+| World, creature and prop scripts (`art/world`, `art/monsters`, `art/props`) | All read | Written for v0.2.0 |
 | Story | Author's premise recorded; the rest is proposal | [story/STORY.md](../story/STORY.md) |
 
 ## 14.2 Open questions
@@ -27,15 +28,18 @@ Technical:
 | Q5 | Does the asset builder build and run from inside the `engine/` submodule? | Art workflow from the game repository (D14) | Try it |
 | Q6 | What is the frame time in the showcase on a mid-range GPU? | Minimum requirements for the store page | Measure |
 | Q7 | Under which Meshy plan and licence were the hero assets generated? | Commercial release (R5) | Author's Meshy account |
+| Q8 | Is the road winnable and fair for a person at the current health and damage scales? | The main unknown of v0.2.0 (D20) | Play it |
+| Q9 | Does death, respawn and the return to the last arena work as written? | Could not be tested unattended (D21) | Die on purpose in the first region |
+| Q10 | What is the frame rate at 1080p and above on the author's and on a mid-range GPU? | The pilot ran at the 60 fps cap in a 1280 x 720 window on the development PC; nothing else was measured | Measure |
 
 Product (for the author):
 
 | # | Question |
 |---|---|
-| P1 | The story questions in [story/STORY.md](../story/STORY.md) section 5 |
+| P1 | The story questions in [story/STORY.md](../story/STORY.md) section 6, and whether the road as built (section 5) is the story the author wants |
 | P2 | Is v1.0 a paid game, a free game or a demo, and where is it distributed (itch.io, Steam, own site)? This decides signing, store assets and legal pages. |
 | P3 | Languages: English only, or Georgian as well (text, voice)? The engine's font atlas covers ASCII 32 to 126 only, so Georgian text needs engine work. |
-| P4 | How long should v1.0 be: how many maps and how many hours? |
+| P4 | How long should v1.0 be? v0.2.0 is one road of about two hours. |
 | P5 | Should the engine's level, experience and inventory systems be part of the game or hidden? |
 | P6 | Publisher name and game icon for the installer. |
 

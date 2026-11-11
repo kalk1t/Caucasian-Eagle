@@ -4,7 +4,7 @@ A single-player action game for Windows, built on the Doorways engine.
 
 Amirani fought against God and is chained in a cave on the Caucasus Range, where an eagle feeds on his liver. Once every seven years the cave opens. On that day **Nyxara**, the eagle's daughter, sees him, and promises to spend seven years becoming strong enough to fight her father and break the chain. The game is her road to the mountain. Full story: [`story/STORY.md`](story/STORY.md).
 
-**Version 0.1.0** is the playable foundation: Nyxara, her sword and wing combat, one map (Moonlit Sanctuary) and shades to fight. There is no story delivery or installer yet. The road to v1.0 is in [`milestones/`](milestones/README.md).
+**Version 0.2.0** is the whole road in a first form: from Moonlit Sanctuary through twelve regions of the Caucasus, against ten creatures of its folklore and three bosses, to the fight with the Eagle and the breaking of the chain. It has been tested by an unattended test pilot, not yet played by hand. There is no sound and no installer yet. What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
 
 ## Build and run
 
@@ -33,6 +33,7 @@ The first build compiles the whole engine and takes several minutes. The runnabl
 | F, V or C, then left or right click | That skill's two combos |
 | Q | Swap the swords between hands |
 | E (hold) | Sword barrier |
+| F9 (hold 2 s) | Begin the journey again |
 
 More in the [player manual](docs/manual.md).
 

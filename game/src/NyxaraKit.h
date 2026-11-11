@@ -20,6 +20,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <array>
 #include <string>
 #include <vector>
@@ -50,7 +51,45 @@ namespace Doorways
             Combo1L, Combo1R, Combo2L, Combo2R, Combo3L, Combo3R, Guard, Swap, Count
         };
 
+        // A target of her attacks. Pos is the aim point (about chest height: feet + 1.3 m).
+        // With external enemies (the journey) the owner moves, draws and replaces them; the kit only
+        // applies damage, knock-back (Push) and launches (Lift).
+        struct Wraith
+        {
+            DirectX::XMFLOAT3 Anchor{}, Pos{}, Push{};
+            float Yaw = 0, Phase = 0, Flash = 0, Respawn = 0, Shoot = 3, Lift = 0, LiftVel = 0, Fade = 1;
+            int Health = 160, MaxHealth = 160;
+            bool Alive = true;
+            float Radius = .55f;     // m, body radius added to every hit test
+            float PushScale = 1;     // 0 = cannot be pushed, pulled or launched (bosses, chests)
+        };
+        struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
+        struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false; };
+
+        // ---- used by the journey, which owns the monsters of the road
+        static constexpr int MaxEnemies = 30;   // hit masks are 32-bit
+        std::vector<Wraith>& Enemies() { return mWraiths; }
+        void SetExternalEnemies(bool external);
+        void SpawnOrb(DirectX::XMFLOAT3 from, DirectX::XMFLOAT3 velocity, int damage, DirectX::XMFLOAT4 color, float life = 3.5f);
+        bool Blocks(const WorldState& world, const DirectX::XMFLOAT3& from); // barrier up and turned toward 'from'
+        void Notice(const wchar_t* text, float seconds) { mNotice = text; mNoticeTimer = seconds; }
+        void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
+        void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
+        void SetDamageScale(float scale) { mDamageScale = scale; }
+        void ResetCooldowns() { mSkillCooldown = {}; }
+        void Shake(float amount) { mShake = (std::max)(mShake, amount); }
+        // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing.
+        bool Hurt(WorldState& world, CombatSystem& combat, int damage);
+        void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
+        bool Busy() const { return mAct != Act::None; }
+        ID3D11ShaderResourceView* GlowTexture() const { return mGlowTex.Get(); }
+        const DoorwaysGpuMesh& QuadMesh() const { return mQuadMesh; }
+
     private:
+        bool mExternalEnemies = false;
+        float mDamageScale = 1;
+        float mMercy = 0;
+        const Keys* mAutoKeys = nullptr;
         enum class FxKind { Arc, ArcWave, Lance, Ring, RingWave, Pillar, Sigil, Feather, Spark, Cyclone };
         struct Fx
         {
@@ -65,15 +104,6 @@ namespace Doorways
             float Launch = 0;
             float Tick = 0;          // cyclone damage tick timer
         };
-        struct Wraith
-        {
-            DirectX::XMFLOAT3 Anchor{}, Pos{}, Push{};
-            float Yaw = 0, Phase = 0, Flash = 0, Respawn = 0, Shoot = 3, Lift = 0, LiftVel = 0, Fade = 1;
-            int Health = 160, MaxHealth = 160;
-            bool Alive = true;
-        };
-        struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; };
-        struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false; };
         Keys ReadKeys(bool inputAllowed) const;
         float mDemoClock = 0;
 

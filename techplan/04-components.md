@@ -2,7 +2,7 @@
 
 [← Index](TECHNICAL_DOCUMENTATION.md)
 
-All game code is in `game/src/` (about 1,800 lines in v0.1). Namespaces: `CaucasianEagle` for the game module and constants; `Doorways` for the kit and HUD, which were moved out of the engine and keep its namespace for now ([10-tech-debt-risks.md](10-tech-debt-risks.md), D3).
+All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle` for the game module and constants; `Doorways` for the kit and HUD, which were moved out of the engine and keep its namespace for now ([10-tech-debt-risks.md](10-tech-debt-risks.md), D3).
 
 ## 7.1 Files
 
@@ -14,6 +14,7 @@ All game code is in `game/src/` (about 1,800 lines in v0.1). Namespaces: `Caucas
 | `NyxaraKit.h/.cpp` | The combat kit: input, action state machine, hits and damage, shade enemies, projectiles, effects, the scripted showcase |
 | `NyxaraHud.h/.cpp` | HUD snapshot struct (`NyxaraHudState`) and the function that draws it |
 | `AmiraniMountain.h/.cpp` | Scenery: the night sky dome and moon, the mountain, chained Amirani, the eagle, the dog, the chains; also the moonlight and haze settings |
+| `Journey.h/.cpp` | The road to Amirani: the path, creatures and their behaviour, arenas and waves, bosses, chests, story cards, the ending, the save file, the test pilot |
 
 ## 7.2 `CaucasianEagle::Game`
 
@@ -21,9 +22,10 @@ All game code is in `game/src/` (about 1,800 lines in v0.1). Namespaces: `Caucas
 |---|---|---|
 | `Configure` | At registration, before the engine starts | Sets scene id, window title, user-data folder |
 | `Prepare` | Once, after engine initialisation, normal launches only | Loads the `EagleV1` bundle with its 31 clips; sets movement, camera and input options; starts `NyxaraKit`; starts the showcase if requested |
-| `ScaleFrameTime` | Every frame, before simulation | Forwards to the kit (hit-stop) |
-| `Update` | Every frame while gameplay runs | Forwards to the kit |
-| `Draw` | Every frame, after the world is drawn | Forwards to the kit |
+| `ScaleFrameTime` | Every frame, before simulation | Kit hit-stop factor times the journey's time scale (1 except in the test pilot) |
+| `Update` | Every frame while gameplay runs | Kit, then journey |
+| `Draw` | Every frame, after the world is drawn | Mountain, journey, then kit |
+| `AdjustEnvironment` | Every frame | Mountain's moonlight, then the journey's per-region fog and light |
 | `DrawHud` | Every frame, in the HUD pass | Draws the game HUD when a kit snapshot is valid and the engine's melee session is active; otherwise lets the engine draw its own |
 
 ## 7.3 `NyxaraKit`
@@ -83,7 +85,7 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 
 ## 7.5 `AmiraniMountain`
 
-Scenery only. It has no collision and no gameplay state except a clock for the animation.
+Scenery. Its collision (the walkable ledge) is part of the `RoadToAmirani` scene. Its only gameplay state is a clock for the animation and two flags set by the journey: `SetEagleAway` (the eagle has left the wound to fight) and `SetFreed` (no eagle, no chains).
 
 | Function | What it does |
 |---|---|
@@ -96,3 +98,47 @@ Scenery only. It has no collision and no gameplay state except a clock for the a
 
 **Capture mode.** `CAUCASIAN_EAGLE_VISTA=1` together with `CAUCASIAN_EAGLE_DEMO=1` holds the camera on the mountain and hides the combat effects and HUD.
 
+
+## 7.6 `Journey`
+
+One object, reached through `CaucasianEagle::GetJourney()`. It owns everything between the sanctuary gate and the ending.
+
+### How it shares work with the kit
+
+The kit keeps a list of up to `MaxEnemies` (30) enemy slots: position, health, radius, push scale. In "external enemies" mode (`SetExternalEnemies(true)`) the kit stops running and drawing its own shades, but still applies Nyxara's hits, pushes, pulls and launches to whatever is in the slots. The journey fills the slots (`Spawn`), moves them (`UpdateMonsters`), notices when the kit has set a slot's health to zero (`OnDeath`) and draws them. Chests and the two chain anchors are slots too, so every attack that can hit a creature can break them.
+
+| Kit function used by the journey | Purpose |
+|---|---|
+| `Enemies()`, `SetExternalEnemies` | The shared slot list |
+| `SpawnOrb` | Creature projectiles; the kit moves them, blocks them with the barrier and applies their damage |
+| `SetDamageScale` | Eagle Feathers and Soul Ember |
+| `ResetCooldowns` | Soul Ember |
+| `Effect`, `RingEffect`, `Shake`, `Notice` | Feedback |
+| `SetAutoKeys` | The test pilot's attack keys |
+| `GlowTexture`, `QuadMesh` | Glow cards (lanterns, barriers, telegraphs) |
+
+### Main functions
+
+| Function | What it does |
+|---|---|
+| `Initialize` | Reads `Road.txt`, loads creature and prop models, switches the kit to external enemies, reads the save (normal runs) or the test variables (unattended runs), queues the prologue cards |
+| `Update` | Per frame, in this order: place on the road, death and respawn handling, `Leash`, region card, `UpdateEncounter`, `UpdateFinale`, `UpdateChests`, `UpdateMonsters`, damage scale and regeneration, cards, F9 restart |
+| `Leash` | Keeps the player within the road's half width, inside the arena while a fight runs, behind the gate of the next unbeaten arena, and off the ledge until the Eagle has fallen |
+| `StartEncounter` / `BuildWave` / `ClearArena` | An arena fight: two or three waves bought from the region's roster with a cost budget that grows with region, arena and wave; a boss arena ends with the boss; winning heals, saves and opens the gate |
+| `UpdateMonsters` | Behaviour of every creature: approach, windup and strike, ranged volleys, leaps, keeping distance, separation from each other, staying on the road |
+| `UpdateBoss` | Extra moves: Rokapi blinks and summons; the Gveleshapi sends rings of orbs and summons Ali; the Devi Lord sends rings and summons Chinka; the Eagle dives and raises wing storms |
+| `UpdateChests` / `OpenChest` | Puts a chest into a slot when the player is within `ChestWakeDistance`; gives its reward when broken |
+| `UpdateFinale` | Words, the Eagle fight, the two chain anchors, the ending cards |
+| `Save` / `Load` | `journey.sav` ([05-data.md](05-data.md), 8.4) |
+| `StyleEnvironment` | Blends fog, ambient and moonlight colour toward the current region's values |
+| `Draw` | Props (distance-culled), chests, creatures (procedural bob, lean, strike lunge, death sink), then translucent glow cards sorted back to front |
+| `DrawHud` | Road panel, objective line, boss bar, story cards |
+| `UpdatePilot` | Test pilot ([03-workflows.md](03-workflows.md), 6.11) |
+
+### Creatures have no skeletons
+
+Creature models are static meshes. All motion is computed in `Draw`: a walking bob and sway, a lean into the strike during the windup, a lunge on the hit, a sink and fade on death, a hover for the spirits. This is the largest visual gap against the hero, who is fully animated ([10-tech-debt-risks.md](10-tech-debt-risks.md)).
+
+### Death and respawn
+
+The engine owns player death. When `CombatSystem::PlayerActionsAllowed()` turns false the journey removes the current fight; when it turns true again (the player chose respawn in the engine's screen, and the engine put her at the scene's spawn point) the journey moves her to the last arena won [inferred from the code; this path could not be exercised unattended because the respawn needs a click].

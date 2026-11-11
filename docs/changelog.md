@@ -4,14 +4,41 @@
 
 Newest first. Each version names the engine commit it was built against.
 
-## Unreleased
+## 0.2.0 · 2026-11-10 · The road to Amirani
 
-Engine: Doorways-D3D11 `22172eb` (adds the environment hook the sky uses).
+Engine: Doorways-D3D11 `d9028b6` (scene collision for games, play-area box off, player healing, environment hook).
 
-- **The mountain of Amirani** stands beyond the play area: Amirani chained in the cave, the eagle lunging at his liver, his dog at the ankle chain.
-- **New night sky**: stars, Milky Way, a green aurora, cloud and distant Caucasus ridges, with a large full moon beside the mountain. Still night.
-- Moonlight, ambient colour and haze retuned so the mountain reads from the play area.
-- Capture mode `CAUCASIAN_EAGLE_VISTA=1` holds the camera on the mountain.
+Not tagged yet: this version was tested by an unattended test pilot, not played by hand. See "Known gaps".
+
+**The journey**
+- **One road from Moonlit Sanctuary to the mountain**, 6.3 km through twelve regions: the Moonlit Causeway, the Whispering Wood, the Drowned Marsh, Ochokochi's Wood, the Stone Towers, the Snow Pass, Kajeti, the Giants' Valley, the Dragon Lake, Devi's Gorge, the Witches' Hill and the Chain Road. Each has its own ground, fog, light and landmarks.
+- **Ten creatures of Caucasian folklore** to fight: Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig, Devi, and the bosses Rokapi and the Gveleshapi, plus the Devi Lord. Melee blows show a warning ring first; spirits and witches keep away and throw orbs; goat-men leap.
+- **34 arenas** where the way shuts until every wave is beaten, and **65 roaming packs** between them.
+- **81 old gold chests** to break: coins, twelve memories of Amirani, Moon Tears (health), Eagle Feathers (permanent damage), Soul Embers (a burst of power).
+- **The ending**: the fight with the Eagle on the terrace under the cave, then the climb to the ledge to break the two chain anchors.
+- The story is told in short text cards: a prologue, a card for each region, boss lines, the ending.
+- **Saving**: progress is saved after every arena and chest; a new start continues from the last arena won. Hold F9 to begin again.
+- Health returns slowly outside fights; winning an arena heals.
+
+**The world**
+- The mountain of Amirani now stands at the end of the road, with a new night sky, moon and distant ridges. Its ledge can be walked on. The regions' fog does not cover it, so it is in view from the whole road.
+- The white disc in the middle of the sanctuary is gone (it was a leftover "arena seal" object).
+- The player stays on the road: the scene's own collision is used.
+
+**Interface**
+- Road panel (region, distance, gold, feathers, memories), objective line, boss health bar, story cards. What a chest held shows in a small panel at the right edge, so it does not cover the fight.
+- Camera a little further back and flatter, so the road ahead and the mountain are in view.
+
+**For development**
+- `CAUCASIAN_EAGLE_PILOT=1` (with `CAUCASIAN_EAGLE_DEMO=1`): the game plays the whole road by itself. `CAUCASIAN_EAGLE_SPEED` and `CAUCASIAN_EAGLE_START` shorten test runs; `CAUCASIAN_EAGLE_MORTAL=1` lets the pilot die, to test death and respawn.
+- `CAUCASIAN_EAGLE_VISTA=1` holds the camera on the mountain.
+
+**Known gaps**
+- Nobody has played this version with keyboard and mouse. Difficulty and length for a real player are estimates.
+- Death and respawn on the road are untested (the engine's respawn needs a click).
+- Creatures are rigid models moved by code; they have no animation.
+- No sound. No installer. Engine default menus.
+- The look is not at commercial "AAA" level: generated terrain and textures, single-pass generated models.
 
 ## 0.1.0 · 2026-11-10
 

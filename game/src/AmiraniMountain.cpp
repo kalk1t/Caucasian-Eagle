@@ -248,13 +248,19 @@ namespace CaucasianEagle
         const float wallZ = base.z + LedgeBackZ;                 // back wall of the cave
         const XMFLOAT3 feet{base.x, ledgeY, wallZ - AmiraniFromWall};
 
+        // The mountain must be in view from every region of the road, so the regions' fog does not touch it.
+        // The game dims it with distance instead (the fog colours are night colours, so dimming reads the same).
+        const float away = std::sqrt((eye.x - base.x) * (eye.x - base.x) + (eye.z - base.z) * (eye.z - base.z));
+        const float haze = 1 - MountainFarDim * Smooth(away, MountainDimStart, MountainDimEnd);
+        const auto dim = [haze](float r, float g, float b) { return XMFLOAT4{r * haze, g * haze, b * haze, 1}; };
+
         renderer.DrawDoorwaysGpuMesh(mMountain.Mesh, XMMatrixRotationY(mMountainYaw) * XMMatrixTranslation(base.x, base.y, base.z),
-                                     viewProjection, Surface(mMountain.Texture.Get(), {MountainTint, MountainTint, MountainTint, 1}, MountainEmission));
+                                     viewProjection, Surface(mMountain.Texture.Get(), dim(MountainTint, MountainTint, MountainTint), MountainEmission, false));
 
         // Amirani: breathing is the only motion a chained titan has left.
         const float breath = 1 + .006f * std::sin(mTime * .9f);
         renderer.DrawDoorwaysGpuMesh(mAmirani.Mesh, Place(mAmirani, AmiraniHeight * breath, AmiraniYaw, feet), viewProjection,
-                                     Surface(mAmirani.Texture.Get(), {1.15f, 1.1f, 1.05f, 1}, FigureEmission));
+                                     Surface(mAmirani.Texture.Get(), dim(1.15f, 1.1f, 1.05f), FigureEmission, false));
 
         // The eagle beats its wings at his right side and lunges at the wound every few seconds.
         const float cycle = std::fmod(mTime, EaglePeckPeriod) / EaglePeckPeriod;
@@ -262,16 +268,17 @@ namespace CaucasianEagle
         const float beat = std::sin(mTime * 5.0f);
         const XMFLOAT3 eagleFeet{feet.x + EagleSide * (1 - .40f * lunge), ledgeY + AmiraniHeight * EagleHeightOnBody + beat * 1.1f - lunge * 2.5f,
                                  feet.z - EagleFromBody * (1 - .45f * lunge)};
-        renderer.DrawDoorwaysGpuMesh(mEagle.Mesh, Place(mEagle, EagleHeight, EagleYaw, eagleFeet, EaglePitch + lunge * .40f), viewProjection,
-                                     Surface(mEagle.Texture.Get(), {1.5f, 1.6f, 1.6f, 1}, EagleEmission));
+        if (!mEagleAway && !mFreed)
+            renderer.DrawDoorwaysGpuMesh(mEagle.Mesh, Place(mEagle, EagleHeight, EagleYaw, eagleFeet, EaglePitch + lunge * .40f), viewProjection,
+                                         Surface(mEagle.Texture.Get(), dim(1.5f, 1.6f, 1.6f), EagleEmission, false));
 
         // The dog works at the ankle chain.
         const XMFLOAT3 dogFeet{feet.x + DogSide, ledgeY, feet.z - DogFromBody};
         renderer.DrawDoorwaysGpuMesh(mDog.Mesh, Place(mDog, DogHeight, DogYaw, dogFeet, .05f * std::sin(mTime * 2.6f)), viewProjection,
-                                     Surface(mDog.Texture.Get(), {1.5f, 1.5f, 1.5f, 1}, EagleEmission));
+                                     Surface(mDog.Texture.Get(), dim(1.5f, 1.5f, 1.5f), EagleEmission, false));
 
         // Chains: wrists to the cave wall, ankles to the ledge.
-        const Material iron = Surface(renderer.mWhiteTextureView.Get(), {.07f, .08f, .09f, 1}, .05f);
+        const Material iron = Surface(renderer.mWhiteTextureView.Get(), {.07f, .08f, .09f, 1}, .05f, false);
         const auto chain = [&](XMFLOAT3 from, XMFLOAT3 to, float sag)
         {
             const float length = XMVectorGetX(XMVector3Length(XMLoadFloat3(&to) - XMLoadFloat3(&from)));
@@ -290,6 +297,7 @@ namespace CaucasianEagle
         };
         for (const float side : {-1.f, 1.f})
         {
+            if (mFreed) break;
             const XMFLOAT3 wrist{feet.x + side * AmiraniHeight * WristOut, ledgeY + AmiraniHeight * WristUp, feet.z};
             chain(wrist, {feet.x + side * LedgeHalfWidth * .96f, ledgeY + AmiraniHeight * 1.18f, wallZ - 1.5f}, 3.5f);
             const XMFLOAT3 ankle{feet.x + side * AmiraniHeight * AnkleOut, ledgeY + AmiraniHeight * .07f, feet.z};

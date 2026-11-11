@@ -11,7 +11,9 @@ Caucasian Eagle v0.1 is an offline single-player game. Its security surface is s
 | Network | The game code opens no connections | [confirmed: no socket, HTTP or WinINet use in `game/src`] |
 | Accounts, telemetry, analytics | None | [confirmed: `game/src`] |
 | Engine menu items "Website" and "Forum" | Present in the engine's main menu; what they open has not been checked | [unknown] |
-| Files written | Only under `%LOCALAPPDATA%\CaucasianEagle\` | [confirmed: `engine/src/DOORWAYS/DoorwaysSettingsPaths.cpp`] |
+| Files written | Only under `%LOCALAPPDATA%\CaucasianEagle\` (engine settings and saves; the game's `journey.sav`) | [confirmed: `engine/src/DOORWAYS/DoorwaysSettingsPaths.cpp`, `Journey::Save`] |
+| Files read as data | `assets/Compiled/World/Road.txt` and `journey.sav`, both parsed with stream extraction into fixed fields; values are clamped (`Journey::Load`), a bad save is ignored | [confirmed: `Journey::LoadRoad`, `Journey::Load`] |
+| Environment variables | Five development switches; the test pilot cannot write the save | [confirmed: `Journey::Initialize`, `Journey::Save`] |
 | Administrator rights | Not needed to run | [inferred: user-profile writes only] |
 | Input | Keyboard and mouse state read with `GetAsyncKeyState` while the game owns input | [confirmed: `NyxaraKit::ReadKeys`] |
 

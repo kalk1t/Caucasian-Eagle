@@ -64,16 +64,47 @@ This is the story bible for the game. Everything the game shows or says should a
 | 8 | **Father and Daughter** | The fight with the Eagle. | The cave mouth |
 | 9 | **The Chain** | She opens the chain, or does not. | The cave |
 
-## 5. Open story questions for the author
+## 5. The road as built (v0.2)
+
+**[proposed]** throughout: this is what the game now tells, written to give the journey a shape. The author may replace any of it.
+
+The seven chapters became one unbroken road of twelve regions from Moonlit Sanctuary to the mountain. The regions carry the years: the first is marked Year One, the Snow Pass Year Four, the Chain Road Year Seven.
+
+| # | Region | Who lives there | What the card says |
+|---|---|---|---|
+| 1 | The Moonlit Causeway | Chinka | The gate stands open; the mountain waits at the end of the road |
+| 2 | The Whispering Wood | Chinka, Kudiani witches | Green witch fires in the dead branches |
+| 3 | The Drowned Marsh | Ali, Chinka | "Do not answer the women in the water" |
+| 4 | Ochokochi's Wood | Ochokochi, Chinka | The goat-man with the blade that grows from his chest |
+| 5 | The Stone Towers | Kudiani, Ochokochi, Almasty | The people of the towers left; the wild men did not |
+| 6 | The Snow Pass | Almasty, Chinka, Ali | The Almasty throw the mountain at those who climb it |
+| 7 | Kajeti | Kaji, Kudiani | The fortress of the Kaji smiths, whose hammers renew the chain every year |
+| 8 | The Giants' Valley | Uaig, Almasty, Ochokochi | One-eyed giants guarding the bones of their fathers |
+| 9 | The Dragon Lake | Ali, Chinka, Kudiani; boss: **the Gveleshapi** | The road crosses the dragon's back |
+| 10 | Devi's Gorge | Devi, Kaji, Chinka; boss: **the Devi Lord** | The Devi keep the gold of every traveller before her |
+| 11 | The Witches' Hill | Kudiani, Ali, Ochokochi; boss: **Rokapi** | The witch queen is chained to her hill as Amirani is to his |
+| 12 | The Chain Road | Kaji, Devi, Uaig; then **the Eagle** | The cave stands open; her father has seen her coming |
+
+**Decisions the game makes for now (each answers an open question in section 6 provisionally):**
+
+| Question | What the game does | Status |
+|---|---|---|
+| Who are the Smiths? | The Kaji of Kajeti, spirit smiths of Georgian folklore | **[proposed]** |
+| What replaces the shades? | Creatures of Caucasian folklore; the shades are gone from the journey | **[proposed]** |
+| Is Amirani honest? | Left open. Twelve "memories of Amirani" found in old gold chests show his charm and hint at doubt (Rokapi: "He charmed me too, girl. Look where I am."). The last card says his smile cannot be read. | **[proposed]** |
+| Does she kill her father? | The Eagle "folds his wings and is still" after saying "You fly as I taught you". Deliberately ambiguous. | **[proposed]** |
+| The chain | After the Eagle falls she climbs to the ledge and breaks two iron anchors. Amirani stands; the game ends there. | **[proposed]** |
+| The Dog | Seen at the chain; one memory says it has stopped licking and is waiting. No role in play. | **[proposed]** |
+| How it is told | Short English text cards on screen, in capitals (the engine's HUD font). No voice, no Georgian text yet. | **[proposed]** |
+
+The prologue (The Open Cave) is told in four text cards at the start, not played.
+
+## 6. Open story questions for the author
 
 1. Is Amirani honest with Nyxara, or is he using her? Does the player find out?
 2. Does Nyxara kill her father, defeat him without killing him, or is there a choice?
 3. What happens when the chain opens? Is freeing Amirani good for the world?
-4. What are the shades, and who sends them against her?
-5. Do the Dog and the Smiths appear as characters, and on whose side?
-6. How much is spoken aloud (dialogue, narration) and in which languages (English, Georgian, both)?
-7. Where exactly on the Caucasus Range is the mountain, and should real place names be used?
-
-## 6. What v0.1 contains of the story
-
-Nothing is told in the game yet. Version 0.1 is the playable foundation: Nyxara, her combat, one map (Moonlit Sanctuary) and shades to fight. Story delivery starts with milestone M3 ([milestones](../milestones/README.md)).
+4. Do the Dog and the Smiths appear as characters, and on whose side?
+5. How much is spoken aloud (dialogue, narration) and in which languages (English, Georgian, both)?
+6. Where exactly on the Caucasus Range is the mountain, and should real place names be used?
+7. Are the regions and creatures of section 5 the ones the author wants?

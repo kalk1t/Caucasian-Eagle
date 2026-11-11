@@ -86,6 +86,7 @@
     <ClCompile Include="src\CaucasianEagleGame.cpp" />
     <ClCompile Include="src\NyxaraKit.cpp" />
     <ClCompile Include="src\AmiraniMountain.cpp" />
+    <ClCompile Include="src\Journey.cpp" />
     <ClCompile Include="src\NyxaraHud.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -93,6 +94,7 @@
     <ClInclude Include="src\GameConstants.h" />
     <ClInclude Include="src\NyxaraKit.h" />
     <ClInclude Include="src\AmiraniMountain.h" />
+    <ClInclude Include="src\Journey.h" />
     <ClInclude Include="src\NyxaraHud.h" />
   </ItemGroup>
   <ItemGroup>

@@ -16,10 +16,30 @@ Everything under `game/assets/` is ready-to-run output of the asset pipeline (77
 | `Characters/Nyxara/EagleV1/Textures/*.png` | Base colour, normal, roughness, metallic and packed maps per material (163 MB) | same | PNG, 2048 px |
 | `Characters/Nyxara/EagleV1/ImportReport.md/.csv` | Pipeline report | Asset builder | Text |
 | `Effects/Nyxara/*.png` | Six effect textures: `SoulArc`, `Glow`, `Ring`, `Feather`, `Beam`, `MoonSigil` | `art/nyxara/tools/make_vfx_textures.py` | PNG |
-| `Scenes/MoonlitSanctuary.dscene` | Scene description for the map | `art/moonlit-sanctuary/Export/export_game_glb.py` + scene pipeline | Engine scene |
-| `StaticMeshes/MoonlitSanctuary/MoonlitSanctuary.dmesh` | Map geometry | same | Engine static mesh |
-| `Materials/MoonlitSanctuary/MoonlitSanctuary.dmat` | Map materials (dark-green palette colours, no textures) | same | Engine material table |
-| `Collision/MoonlitSanctuary/MoonlitSanctuary.dcoll` | Map collision | same | Engine collision |
+| `Scenes/RoadToAmirani.dscene` | Scene description for the world (sanctuary plus road) | `art/world/build_world.py` + scene pipeline | Engine scene |
+| `StaticMeshes/RoadToAmirani/` | World geometry (about 291,000 triangles, 39 MB) | same | Engine static mesh |
+| `Materials/RoadToAmirani/` | World materials: the sanctuary's palette colours plus 25 textured materials | same | Engine material table |
+| `Textures/RoadToAmirani/` | Generated 512 px ground, cobble and plank textures with normal maps (31 MB) | same | PNG |
+| `Collision/RoadToAmirani/` | World collision: the sanctuary's, plus 135 walkable road chunks, the ledge and its join | same | Engine collision |
+| `World/Road.txt` | Path samples, arenas, chests, props and lights (see 8.1a) | `art/world/build_world.py` | Text |
+| `Monsters/<Name>/<Name>.dmesh`, `<Name>BaseColor.png` | Ten creatures and the old gold chest (Meshy models, 1024 px colour maps, 42 MB) | `art/monsters/prepare_models.py` | Engine static mesh, PNG |
+| `Props/<Name>/...` | Svan tower, dead tree, fir, rock cluster (12 MB) | same script | same |
+
+### 8.1a `Road.txt`
+
+One record per line, fields separated by spaces. Coordinates are engine world metres.
+
+| Record | Fields | Meaning |
+|---|---|---|
+| `STEP d` | spacing | Distance between path samples (2 m) |
+| `S i name` | index, name with `_` for spaces | A region |
+| `P x y z w stage` | position, half width, region | One path sample; the road is the chain of these |
+| `A stage s kind r x y z` | region, distance along the road, kind (0 ambush, 1 boss, 2 the Eagle's terrace), radius, centre | An arena |
+| `C x y z yaw tier` | position, facing, tier (0 roadside, 1 arena, 2 boss hoard) | A chest |
+| `T type x y z yaw height` | `deadtree`, `fir`, `tower` or `rocks` | A scenery prop drawn by the game |
+| `L x y z r g b size` | position, colour, size | A glow (lantern, crystal, wisp, lava) |
+
+The game refuses to start if the file is missing or has no path [confirmed: `Journey::Initialize`].
 
 ### The 31 hero clips
 
@@ -59,6 +79,8 @@ These meshes have no `.dmat`: the game loads the colour map next to each mesh an
 | `art/nyxara/blender/Nyxara_base.blend`, `Nyxara_game.blend`, `Nyxara_game.glb` | Intermediate and final Blender files | about 1.1 GB | Size; rebuilt by the scripts from `meshy/out` |
 | `art/mountain/meshy/out/` | Meshy downloads for Amirani, the eagle and the dog: concept images, models, textures | about 110 MB | Size; regenerating costs Meshy credits, so **back this folder up** |
 | `art/mountain/export/*.glb`, `*.png` | Intermediate files for the asset builder | about 50 MB | Rebuilt by the two mountain scripts |
+| `art/monsters/meshy/out/`, `art/props/meshy/out/` | Meshy downloads for the creatures, the chest and the scenery props | about 620 MB | Size; regenerating costs Meshy credits, so **back these folders up** |
+| `art/world/export/RoadToAmirani.glb`, `textures/` | Intermediate world export | about 60 MB | Rebuilt by `build_world.py` |
 
 The scripts that turn those files into game assets are in git ([art/README.md](../art/README.md)). Moonlit Sanctuary's source (21 MB) is small enough to be fully in git.
 
@@ -68,12 +90,13 @@ Copied from the engine submodule by `tools/stage.ps1`: `assets/shaders`, `assets
 
 ## 8.4 Saved state
 
-The game defines no save data of its own in v0.1. The engine stores, under `%LOCALAPPDATA%\CaucasianEagle\`:
+Under `%LOCALAPPDATA%\CaucasianEagle\` the engine stores its files and the game stores one:
 
 | File | Content |
 |---|---|
 | `PlayerPreferences.ini` | Graphics, audio, controls and interface settings |
 | `CharacterSnapshot.txt` | Engine character progression (level, experience, equipment) |
 | `CharacterSnapshot.lock` | Prevents two running copies from sharing one save |
+| `journey.sav` | The game's own save: one text line with a format number, arenas won, gold, Eagle Feathers, memories found, deaths, whether the journey is complete, seconds played, and one character per chest (opened or not) |
 
-Skill cooldowns, enemy state and the player's position are not saved; every launch starts fresh in Moonlit Sanctuary.
+`journey.sav` is written after every arena won and every chest opened, and read at start. A launch continues at the last arena won. It is not written in unattended runs. Skill cooldowns, health and the exact position are not saved. A file that does not parse is ignored and the journey starts from the beginning [inferred from `Journey::Load`; not tested with a damaged file].

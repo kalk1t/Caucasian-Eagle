@@ -271,6 +271,38 @@ namespace Doorways
         return true;
     }
 
+    void NyxaraKit::SetExternalEnemies(bool external)
+    {
+        mExternalEnemies = external;
+        if (external) { mWraiths.clear(); mOrbs.clear(); }
+    }
+
+    void NyxaraKit::SpawnOrb(XMFLOAT3 from, XMFLOAT3 velocity, int damage, XMFLOAT4 color, float life)
+    {
+        if (mOrbs.size() >= 40) return;
+        Orb o; o.Pos = from; o.Vel = velocity; o.Life = life; o.Damage = damage; o.Color = color;
+        mOrbs.push_back(o);
+    }
+
+    bool NyxaraKit::Blocks(const WorldState& world, const XMFLOAT3& from)
+    {
+        if (mBarrier <= .5f) return false;
+        const XMFLOAT3 facing = Forward(world.MainPlayer.Yaw);
+        XMFLOAT3 rel = Sub(from, world.MainPlayer.Position); rel.y = 0; rel = Norm(rel);
+        if (rel.x * facing.x + rel.z * facing.z < -.3f) return false;
+        mBlockFlash = .25f;
+        const XMFLOAT3 at = Add(world.MainPlayer.Position, Add(Mul(facing, 1.2f), {0, 1.2f, 0}));
+        Burst(at, MoonWhite, 14, 4.f, .2f); Burst(at, Talonshade, 8, 3.f, .18f);
+        mNotice = L"BLOCKED"; mNoticeTimer = .5f;
+        return true;
+    }
+
+    void NyxaraKit::RingEffect(const XMFLOAT3& at, float size, XMFLOAT4 color, float life)
+    {
+        Fx ring; ring.Kind = FxKind::Ring; ring.Pos = at; ring.Size = size; ring.Life = life; ring.Color = color;
+        mFx.push_back(ring);
+    }
+
     void NyxaraKit::ApplySwordVisibility(WorldRenderer& worldRenderer)
     {
         worldRenderer.SetCharacterMaterialVisible("Slot_sword_right__Moonfeather", !mSwapped);
@@ -282,6 +314,7 @@ namespace Doorways
     NyxaraKit::Keys NyxaraKit::ReadKeys(bool inputAllowed) const
     {
         Keys k;
+        if (GameSession().Unattended && mAutoKeys) return *mAutoKeys; // the journey's test pilot
         if (GameSession().Unattended)
         {   // Scripted showcase: (start, end, key) windows on the kit clock; never reads the desktop.
             struct Step { float A, B; char Key; };
@@ -385,10 +418,11 @@ namespace Doorways
     {
         auto& w = mWraiths[index];
         if (!w.Alive) return;
+        damage = (std::max)(1, static_cast<int>(std::lround(static_cast<float>(damage) * mDamageScale)));
         w.Health -= damage; w.Flash = .16f;
         XMFLOAT3 away = Sub(w.Pos, from); away.y = 0; away = Norm(away);
-        w.Push = Add(w.Push, Mul(away, push));
-        if (launch > 0) w.LiftVel = (std::max)(w.LiftVel, launch);
+        w.Push = Add(w.Push, Mul(away, push * w.PushScale));
+        if (launch > 0 && w.PushScale > .5f) w.LiftVel = (std::max)(w.LiftVel, launch);
         Impact(Add(w.Pos, {0, w.Lift, 0}), damage, color);
         if (w.Health <= 0)
         {
@@ -413,7 +447,7 @@ namespace Doorways
             if (std::abs(d.y - 1.2f) > 2.6f) continue;
             d.y = 0;
             const float dist = Len(d);
-            if (dist > radius + .55f) continue;
+            if (dist > radius + w.Radius) continue;
             if (dist > .6f && (d.x * f.x + d.z * f.z) / dist < cosLimit) continue;
             DamageWraith(i, damage, p.Position, 3.5f, launch, color);
         }
@@ -428,7 +462,7 @@ namespace Doorways
             XMFLOAT3 d = Sub(w.Pos, center);
             if (std::abs(d.y) > 3.5f) continue;
             d.y = 0;
-            if (Len(d) <= radius + .5f) DamageWraith(i, damage, center, 4.f, launch, color);
+            if (Len(d) <= radius + w.Radius) DamageWraith(i, damage, center, 4.f, launch, color);
         }
     }
 
@@ -512,7 +546,7 @@ namespace Doorways
                 fe.Vel = Add(Mul(f, 9.f), Add(Mul(r, side * 4.f), {0, 3.f, 0}));
                 fe.Target = NearestWraith(fe.Pos, 22.f, mask);
                 if (fe.Target >= 0) mask |= 1 << fe.Target;
-                if (mask == (1 << static_cast<int>(mWraiths.size())) - 1) mask = 0;
+                if (static_cast<unsigned>(mask) == (1u << (std::min)(static_cast<int>(mWraiths.size()), 31)) - 1) mask = 0;
                 mFx.push_back(fe);
             }
         };
@@ -537,7 +571,7 @@ namespace Doorways
             break;
         case Act::Skill2:
             for (auto& w : mWraiths) // the carried cyclone drags shades into her blades
-                if (w.Alive && LenXZ(Sub(w.Pos, p.Position)) < 8.f) { XMFLOAT3 in = Sub(p.Position, w.Pos); in.y = 0; w.Push = Add(w.Push, Mul(Norm(in), 7.f)); }
+                if (w.Alive && LenXZ(Sub(w.Pos, p.Position)) < 8.f) { XMFLOAT3 in = Sub(p.Position, w.Pos); in.y = 0; w.Push = Add(w.Push, Mul(Norm(in), 7.f * w.PushScale)); }
             Area(p.Position, 3.6f, 12, hit == 3 ? 3.f : 0, hit % 2 ? cL : cR);
             ring(p.Position, 3.6f, hit % 2 ? cL : cR, .4f);
             if (hit == 0)
@@ -797,7 +831,7 @@ namespace Doorways
             const auto& p = world.MainPlayer;
             if (mDashDamage > 0)
                 for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
-                    if (mWraiths[i].Alive && !(mDashMask & (1u << i)) && LenXZ(Sub(mWraiths[i].Pos, p.Position)) < 2.f)
+                    if (mWraiths[i].Alive && !(mDashMask & (1u << i)) && LenXZ(Sub(mWraiths[i].Pos, p.Position)) < 1.45f + mWraiths[i].Radius)
                     { mDashMask |= 1u << i; DamageWraith(i, mDashDamage, p.Position, 9.f, 2.f, Talonshade); }
             for (int i = 0; i < 3; ++i)
             {
@@ -830,6 +864,15 @@ namespace Doorways
         {
             w.Phase += dt;
             w.Flash = (std::max)(0.f, w.Flash - dt);
+            if (mExternalEnemies)
+            {   // the journey moves its monsters; the kit keeps knock-back and launches working
+                if (!w.Alive) continue;
+                w.Pos = Add(w.Pos, Mul(w.Push, dt));
+                w.Push = Mul(w.Push, std::exp(-4.f * dt));
+                w.LiftVel -= 11.f * dt; w.Lift = (std::max)(0.f, w.Lift + w.LiftVel * dt);
+                if (w.Lift <= 0 && w.LiftVel < 0) w.LiftVel = 0;
+                continue;
+            }
             if (!w.Alive)
             {
                 w.Respawn -= dt;
@@ -884,15 +927,24 @@ namespace Doorways
             }
             else if (distance < .65f && combat.PlayerActionsAllowed())
             {
-                o.Life = 0; combat.ApplyIncomingDamage(world, 6);
-                Burst(o.Pos, ShadeViolet, 16, 3.f, .22f);
+                o.Life = 0; Hurt(world, combat, o.Damage);
+                Burst(o.Pos, o.Color, 16, 3.f, .22f);
             }
         }
         mOrbs.erase(std::remove_if(mOrbs.begin(), mOrbs.end(), [](const Orb& o) { return o.Life <= 0; }), mOrbs.end());
     }
 
+    bool NyxaraKit::Hurt(WorldState& world, CombatSystem& combat, int damage)
+    {
+        if (mMercy > 0 || !combat.PlayerActionsAllowed()) return false;
+        mMercy = CaucasianEagle::MercySeconds;
+        combat.ApplyIncomingDamage(world, damage);
+        return true;
+    }
+
     void NyxaraKit::UpdateEffects(WorldState& world, float dt)
     {
+        mMercy = (std::max)(0.f, mMercy - dt);
         const auto& player = world.MainPlayer;
         for (auto& f : mFx)
         {
@@ -908,7 +960,7 @@ namespace Doorways
                 {
                     if (!mWraiths[i].Alive || (f.HitMask & (1u << i))) continue;
                     const XMFLOAT3 d = Sub(mWraiths[i].Pos, f.Pos);
-                    if (LenXZ(d) < (f.Kind == FxKind::Lance ? 1.1f : f.Size * .75f) && std::abs(d.y) < 2.f)
+                    if (LenXZ(d) < (f.Kind == FxKind::Lance ? 1.1f : f.Size * .75f) + mWraiths[i].Radius - .55f && std::abs(d.y) < 2.f)
                     {
                         f.HitMask |= 1u << i; DamageWraith(i, f.Damage, Sub(f.Pos, f.Vel), 4.f, f.Launch, f.Color);
                     }
@@ -926,18 +978,18 @@ namespace Doorways
                 {
                     if (!mWraiths[i].Alive || (f.HitMask & (1u << i))) continue;
                     const float d = LenXZ(Sub(mWraiths[i].Pos, f.Pos));
-                    if (d < radius + .4f) { f.HitMask |= 1u << i; DamageWraith(i, f.Damage, f.Pos, 6.f, 3.f, f.Color); }
+                    if (d < radius + mWraiths[i].Radius) { f.HitMask |= 1u << i; DamageWraith(i, f.Damage, f.Pos, 6.f, 3.f, f.Color); }
                 }
                 break;
             }
             case FxKind::Feather:
                 if (f.Target == -2) { f.Pos = Add(f.Pos, Mul(f.Vel, dt)); f.Vel.y -= 9.f * dt; break; }
-                if (f.Target >= 0 && mWraiths[f.Target].Alive)
+                if (f.Target >= 0 && f.Target < static_cast<int>(mWraiths.size()) && mWraiths[f.Target].Alive)
                 {
                     const XMFLOAT3 want = Mul(Norm(Sub(mWraiths[f.Target].Pos, f.Pos)), 15.f);
                     const float t = (std::min)(1.f, 5.f * dt);
                     f.Vel = Add(Mul(f.Vel, 1 - t), Mul(want, t));
-                    if (Len(Sub(mWraiths[f.Target].Pos, f.Pos)) < .7f)
+                    if (Len(Sub(mWraiths[f.Target].Pos, f.Pos)) < .15f + mWraiths[f.Target].Radius)
                     {
                         DamageWraith(f.Target, f.Damage, Sub(f.Pos, f.Vel), 2.5f, 0, f.Color);
                         f.Life = 0;
@@ -957,8 +1009,8 @@ namespace Doorways
                     if (!w.Alive) continue;
                     XMFLOAT3 in = Sub(f.Pos, w.Pos); in.y = 0;
                     const float d = Len(in);
-                    if (d < 6.f && d > .8f) w.Pos = Add(w.Pos, Mul(Norm(in), (f.Damage > 0 ? 5.f : 2.5f) * dt));
-                    if (tick && d < f.Size + .6f) DamageWraith(i, f.Damage, f.Pos, 0, 1.2f, f.Color);
+                    if (d < 6.f && d > .8f) w.Pos = Add(w.Pos, Mul(Norm(in), (f.Damage > 0 ? 5.f : 2.5f) * dt * w.PushScale));
+                    if (tick && d < f.Size + w.Radius) DamageWraith(i, f.Damage, f.Pos, 0, 1.2f, f.Color);
                 }
                 break;
             }
@@ -1006,7 +1058,7 @@ namespace Doorways
             auto& h = NyxaraHud(); h.EnemyCount = 0;
             for (const auto& w : mWraiths)
             {
-                if (h.EnemyCount >= 8) break;
+                if (h.EnemyCount >= 8 || mExternalEnemies) break;
                 auto& e = h.Enemies[h.EnemyCount++];
                 const XMVECTOR clip = XMVector4Transform(XMVectorSet(w.Pos.x, w.Pos.y + w.Lift + 1.35f, w.Pos.z, 1), viewProjection);
                 const float cw = XMVectorGetW(clip);
@@ -1058,7 +1110,7 @@ namespace Doorways
         // Shade wraiths (opaque core) and their bars.
         for (const auto& w : mWraiths)
         {
-            if (!w.Alive) continue;
+            if (!w.Alive || mExternalEnemies) continue;
             const XMFLOAT3 p = Add(w.Pos, {0, w.Lift, 0});
             const float wob = std::sin(w.Phase * 2.3f) * .08f, s = .35f + .65f * w.Fade;
             const XMMATRIX root = XMMatrixRotationY(w.Yaw) * XMMatrixTranslation(p.x, p.y, p.z);
@@ -1092,9 +1144,9 @@ namespace Doorways
         for (const auto& o : mOrbs)
         {
             renderer.DrawDoorwaysGpuMesh(mSphereMesh, XMMatrixScaling(.14f, .14f, .14f) * XMMatrixTranslation(o.Pos.x, o.Pos.y, o.Pos.z),
-                viewProjection, material({.75f, .5f, 1.f, 1}, nullptr, 1, false));
-            billboard(o.Pos, .9f, Alpha(ShadeViolet, .8f), mGlowTex.Get());
-            streak(mFeatherMesh, o.Pos, Mul(o.Vel, -1), .9f, .35f, Alpha(ShadeViolet, .45f), mGlowTex.Get());
+                viewProjection, material({.5f + .5f * o.Color.x, .5f + .5f * o.Color.y, .5f + .5f * o.Color.z, 1}, nullptr, 1, false));
+            billboard(o.Pos, .9f, Alpha(o.Color, .8f), mGlowTex.Get());
+            streak(mFeatherMesh, o.Pos, Mul(o.Vel, -1), .9f, .35f, Alpha(o.Color, .45f), mGlowTex.Get());
         }
 
         // Barrier: two spectral swords rise crossed in front of Nyxara, with a moonlit dome.

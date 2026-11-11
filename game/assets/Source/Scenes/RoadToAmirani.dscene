@@ -1,0 +1,24 @@
+scene RoadToAmirani
+{
+    object RoadToAmirani
+    {
+        mesh = StaticMeshes/RoadToAmirani/RoadToAmirani.dmesh
+        material_set = Materials/RoadToAmirani/RoadToAmirani.dmat
+        material_base_index = 0
+        collision = Collision/RoadToAmirani/RoadToAmirani.dcoll
+
+        position = 0.0 0.0 0.0
+
+        rotation = 0.0 0.0 0.0
+
+        scale = 1.0 1.0 1.0
+
+        visible = true
+
+        material_diffuse = 1.0 1.0 1.0 1.0
+        material_tex_transform = 1.0 1.0 0.0 0.0
+        material_specular = 1.0 1.0 1.0 1.0
+        material_specular_power = 32.0
+        material_emissive_strength = 0.0
+    }
+}

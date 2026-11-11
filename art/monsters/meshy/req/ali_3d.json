@@ -1,0 +1,13 @@
+{
+ "image_url": "https://assets.meshy.ai/720c345f-800c-46ee-899c-3c361d2b5443/uploads/image_01a1c863-5d73-7131-a925-d9c9b2705c6c_0.png?Expires=1794622546&Signature=Z3MMrK74ConLADAx81vymfKMBsQCo3qE4mgEwMWhgqIv4olwlqeG-mfIdouNuAtXdys-7wOdnu4wqSzkZScE~a0IWRTdtHOITgVHQ-UY1pZR4yykBqZoQIqYBASNpqeW2p2QsPrGjImdQbaFPPKW79Rm6VJ2dSCgTO5geD0OYO9MA0ZeHJy8Cw99WThwDF9ihcXT6wINkU~EhPqA~1KY0MRjBWUjl20tQMyVN9k~qTNFWb1MJT2lfNFQAdh4WWfU1SVW7-fmJNZfwPyjlIsAm~YiXsUPqCJHwBzWfJ8TJtrTNVbgJXdoHOiwqnXaJUQ38O~-PkHa6xGlFC0bDW8XKA__&Key-Pair-Id=K1VGYTHIYLM9UM",
+ "ai_model": "latest",
+ "should_texture": true,
+ "enable_pbr": true,
+ "texture_resolution": "2k",
+ "should_remesh": true,
+ "topology": "triangle",
+ "target_polycount": 14000,
+ "target_formats": [
+  "glb"
+ ]
+}

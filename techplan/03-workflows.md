@@ -63,7 +63,7 @@ tools\build.ps1 -Run
 
 The pipeline must print `[PASS] Native character pipeline; signature=DoorwaysRig_v1_74bb2d2053cd36e2`. A different signature means the skeleton changed and the clip list or the kit may need updating. The asset builder is an engine tool and is built from the engine repository's solution [confirmed for the engine repository checkout; building it inside the submodule has not been tried].
 
-## 6.5 Rebuild the map (Moonlit Sanctuary)
+## 6.5 Rebuild the map (Moonlit Sanctuary alone; superseded by 6.10)
 
 ```powershell
 & "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b art\moonlit-sanctuary\Moonlit_Sanctuary_v01.blend `
@@ -112,6 +112,37 @@ Copy-Item art\mountain\export\MountainBaseColor.png game\assets\Compiled\Landmar
 ```
 
 `static-pipeline` refuses an output folder that already exists; delete `build\landmark` first. After step 1, copy `ledgeY`, `ledgeHalfWidth` and `ledgeBackZ` from `Mountain.json` into `GameConstants.h` if they changed. The importer only accepts render nodes whose names start with `Doorways_`.
+
+## 6.10 Rebuild the world (sanctuary plus the road), creatures and props
+
+```powershell
+# 1. World: geometry, collision, textures, Road.txt  (about 2 minutes)
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b art\moonlit-sanctuary\Moonlit_Sanctuary_v01.blend `
+    -P art\world\build_world.py -- art\world\export\RoadToAmirani.glb art\world\export\Road.txt art\world\export\textures
+
+# 2. Delete the old compiled world, then compile
+foreach ($d in 'StaticMeshes','Materials','Collision','Textures') { Remove-Item -Recurse -Force game\assets\Compiled\$d\RoadToAmirani -ErrorAction SilentlyContinue }
+Remove-Item game\assets\Compiled\Scenes\RoadToAmirani.dscene -ErrorAction SilentlyContinue
+<asset builder> scene-pipeline art\world\export\RoadToAmirani.glb game\assets\Compiled RoadToAmirani
+Copy-Item art\world\export\Road.txt game\assets\Compiled\World\Road.txt
+
+# 3. Creatures and props (only when a Meshy model changes; needs the meshy\out folders)
+python art\monsters\prepare_models.py art\monsters\meshy\out game\assets\Compiled\Monsters <asset builder> Chinka=chinka Ali=ali ...
+```
+
+`<asset builder>` is `DoorwaysAssetBuilder.exe` from the engine repository checkout (`Tools\DoorwaysAssetBuilder\x64\Debug`). The world script is deterministic (fixed random seeds). Everything that shapes the road is in the tables at the top of `build_world.py`: the twelve regions (`STAGES`), the waypoints (`W`), the arenas (`ARENAS`) and the sizes. The game reads positions from `Road.txt`, so the code does not change when the road does, except `MountainZ` and the `LedgeWalk*` constants if the mountain moves.
+
+## 6.11 Test the journey without playing it (test pilot)
+
+```powershell
+$env:CAUCASIAN_EAGLE_DEMO = '1'; $env:CAUCASIAN_EAGLE_PILOT = '1'
+$env:CAUCASIAN_EAGLE_SPEED = '8'     # optional: simulation speed, 1 to 12
+$env:CAUCASIAN_EAGLE_START = '24'    # optional: start as if this many arenas were already won (34 or more: start at the chain, after the Eagle)
+$env:CAUCASIAN_EAGLE_MORTAL = '1'    # optional: the pilot can die; it then asks the engine for a respawn (tests death and the return to the last arena)
+build\stage\CaucasianEagle\CaucasianEagle.exe
+```
+
+The game plays itself: it leaves the sanctuary, follows the road, fights every wave, breaks every chest in reach, fights the bosses and the Eagle, breaks the chain. Unless `CAUCASIAN_EAGLE_MORTAL` is set the pilot cannot die (its health is refilled every frame), so it tests the journey's logic and gives a lower bound for its length; it says nothing about difficulty. It never reads or writes `journey.sav` and never sends input to the desktop. Progress goes to the debugger output as `[JOURNEY]` and `[PILOT]` lines (view with Sysinternals DebugView or a debugger); the run is finished when `[JOURNEY] COMPLETE` appears.
 
 ## 6.7 Release a version
 
