@@ -56,8 +56,8 @@ See [techplan/08-testing.md](../techplan/08-testing.md), section 11.2, for exact
 
 | Item | Why it is open |
 |---|---|
-| Difficulty for a real player | Tuned by calculation and by a pilot that cannot die. Health and damage are two constants (`MonsterHealthScale`, `MonsterDamageScale`). |
-| Death and respawn | Needs a click in the engine's death screen, so it could not be tested unattended. |
+| Difficulty and length for a real player | Tuned with the test pilot only. A pilot that cannot die finishes in 125 minutes; a pilot that can die and never dodges gets through the first eleven arenas without dying and cannot win the late ones. Nobody has played it by hand. |
+| The death screen's button | Death, respawn and the return to the last arena are tested by the pilot; the click on the engine's screen is not. |
 | Creature animation | Creatures are rigid models moved by code. |
 | Sound | None. |
 | "AAA" look | Not reached. Terrain and architecture are generated shapes with generated textures; models are single Meshy generations. |

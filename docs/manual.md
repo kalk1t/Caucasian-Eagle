@@ -45,7 +45,8 @@ A bright ring under a creature means its blow is about to land. Move out of it.
 
 ### Dying, saving and starting again
 
-- Health comes back slowly whenever you are not in a fight.
+- Health comes back slowly whenever you are not in a fight. In a fight, every creature you fell gives some back, and so does every wave you beat.
+- After you are hit, nothing can hurt you for one second. Use it to get out of the crowd.
 - If you die, choose respawn; you return to the last arena you won, and the fight you lost starts again.
 - The game saves after every arena and every chest. Starting the game again continues from the last arena you won.
 - Hold **F9** for two seconds to begin the whole journey again.

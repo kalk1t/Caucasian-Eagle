@@ -18,7 +18,8 @@ Not tagged yet: this version was tested by an unattended test pilot, not played 
 - **The ending**: the fight with the Eagle on the terrace under the cave, then the climb to the ledge to break the two chain anchors.
 - The story is told in short text cards: a prologue, a card for each region, boss lines, the ending.
 - **Saving**: progress is saved after every arena and chest; a new start continues from the last arena won. Hold F9 to begin again.
-- Health returns slowly outside fights; winning an arena heals.
+- Health returns slowly outside fights; every creature felled, every wave beaten and every arena won gives health back.
+- After a hit she cannot be hurt again for one second, and only two creatures strike at the same time.
 
 **The world**
 - The mountain of Amirani now stands at the end of the road, with a new night sky, moon and distant ridges. Its ledge can be walked on. The regions' fog does not cover it, so it is in view from the whole road.
@@ -35,7 +36,8 @@ Not tagged yet: this version was tested by an unattended test pilot, not played 
 
 **Known gaps**
 - Nobody has played this version with keyboard and mouse. Difficulty and length for a real player are estimates.
-- Death and respawn on the road are untested (the engine's respawn needs a click).
+- Length: the test pilot, which never dies or stops, needs 125 minutes for the road. A person's time is not measured.
+- Death and respawn were tested by the test pilot, not by clicking the death screen.
 - Creatures are rigid models moved by code; they have no animation.
 - No sound. No installer. Engine default menus.
 - The look is not at commercial "AAA" level: generated terrain and textures, single-pass generated models.

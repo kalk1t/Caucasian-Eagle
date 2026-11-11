@@ -1045,6 +1045,7 @@ namespace CaucasianEagle
                 goal = std::abs(p.x) > 5 && p.z < 60 ? XMFLOAT3{0, 0, p.z} : XMFLOAT3{0, 0, 96};
             if (mFinale == Finale::Chains) goal = {MountainX, LedgeHeight, LedgeWalkBackZ - 4};
             session.ScriptedMove = 'W'; session.ScriptedFast = true;
+            if (mCompleted) { goal = {MountainX, LedgeHeight, MountainZ}; session.ScriptedMove = 0; }   // the road is walked: stand and look at Amirani
         }
         world.MainCamera.Yaw = std::atan2(goal.x - p.x, goal.z - p.z);
         static int frames = 0; static float span = 0;

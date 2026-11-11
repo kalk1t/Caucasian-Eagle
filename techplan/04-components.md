@@ -141,4 +141,13 @@ Creature models are static meshes. All motion is computed in `Draw`: a walking b
 
 ### Death and respawn
 
-The engine owns player death. When `CombatSystem::PlayerActionsAllowed()` turns false the journey removes the current fight; when it turns true again (the player chose respawn in the engine's screen, and the engine put her at the scene's spawn point) the journey moves her to the last arena won [inferred from the code; this path could not be exercised unattended because the respawn needs a click].
+The engine owns player death. When `CombatSystem::PlayerActionsAllowed()` turns false the journey removes the current fight; when it turns true again (the player chose respawn in the engine's screen, and the engine put her at the scene's spawn point) the journey moves her to the last arena won. If the game was not updated while she was dead, a second check catches it: she was far down the road and is suddenly in the sanctuary. Verified with the mortal test pilot ([08-testing.md](08-testing.md), 11.2a).
+
+### Staying alive
+
+Four rules keep a crowd from killing her at once, all in `GameConstants.h`:
+
+- **Mercy time.** Every hit goes through `NyxaraKit::Hurt`; after a hit, further hits do nothing for `MercySeconds`.
+- **Attack turns.** At most `MaxAttackers` ordinary creatures wind up a blow at the same time; the others wait. Bosses are not counted.
+- **Health from the fallen.** Each creature killed gives `KillHealBase + KillHealPerCost x cost` health; a beaten wave gives `WaveHeal`, a won arena `ArenaHeal`.
+- **Rest.** Outside fights health returns at `RegenPerSecond`.

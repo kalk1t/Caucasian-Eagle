@@ -10,7 +10,7 @@
 | Character pipeline gate | `DoorwaysAssetBuilder character-pipeline ...` prints `[PASS]` and the rig signature | yes | Mesh, skeleton and clips are consistent; altered-bind and reordered-joint rejection |
 | Start-up | Run the staged exe; debug output contains `[PASS] Caucasian Eagle: Nyxara (EagleV1) is the player and her combat kit started.` | manual | Assets found, hero loaded, kit started |
 | Scripted showcase | `CAUCASIAN_EAGLE_DEMO=1`, watch or capture frames | manual review | Skills, combos, barrier, swap, travel, HUD on screen |
-| **Test pilot** | `CAUCASIAN_EAGLE_DEMO=1` and `CAUCASIAN_EAGLE_PILOT=1`; read the `[JOURNEY]` lines in the debugger output ([03-workflows.md](03-workflows.md), 6.11) | unattended; a person reads the log | The whole journey: road, gates, every arena and wave, roaming packs, chests, bosses, the Eagle, the chain, the ending. Not difficulty (the pilot cannot die), not death and respawn, not saving. |
+| **Test pilot** | `CAUCASIAN_EAGLE_DEMO=1` and `CAUCASIAN_EAGLE_PILOT=1`; read the `[JOURNEY]` lines in the debugger output ([03-workflows.md](03-workflows.md), 6.11) | unattended; a person reads the log | The whole journey: road, gates, every arena and wave, roaming packs, chests, bosses, the Eagle, the chain, the ending. With `CAUCASIAN_EAGLE_MORTAL=1` also death, respawn and the return to the last arena. Not saving, not real input. |
 | Engine sandbox | Build and run `Doorways.exe` in the engine repository | manual | The engine still works without a game |
 | Engine unit tests | `DoorwaysRuntimeTests` in the engine repository | yes | Engine logic only; nothing game-specific |
 
@@ -27,7 +27,19 @@ There are **no unit tests of game code**. The test pilot is the only automated e
 
 ## 11.2a What was verified for v0.2.0
 
-PILOT_RESULTS
+All of this was verified by the test pilot on the development PC (1280 x 720 window), not by a person playing.
+
+| What | Result |
+|---|---|
+| Whole journey, one run from the sanctuary, pilot that cannot die, speed 8 | `[JOURNEY] COMPLETE` at **7517 s played (125 minutes)**: 34 arenas, three bosses, the Eagle (fight began at 7256 s), both chain anchors, ending. No stall. 60 fps (the cap) in every `[PILOT]` line. |
+| The same with the first tuning (three waves until region 6, creature health 1.5) | Complete at 6385 s played (106 minutes). The tuning was then lengthened. |
+| The same with four waves from region 3 and creature health 1.6 | Complete at 6888 s played (115 minutes). Creature health was then raised to 1.8. |
+| Death, respawn, return to the last arena (`CAUCASIAN_EAGLE_MORTAL=1`) | Works: each death removes the fight, the respawn puts her at the last arena won, the arena starts again. Seen more than 40 times in the log. The respawn is asked for in code (`CombatSystem::RequestRespawn`), the same request the death screen's button makes; the button itself was not clicked. |
+| Difficulty, measured with a pilot that can die and never dodges or guards | From the start: no death in arenas 0 to 11, first death in arena 12 (Stone Towers), then it wins. In arena 28 (Witches' Hill, six witches) it lasts 70 to 100 s and does not win. Before the mercy time, the attack turns and the healing on kills were added it died there in 10 s. |
+| Mountain in view from the sanctuary, 1.9 km away | Yes (camera held on it with `CAUCASIAN_EAGLE_VISTA=1`). |
+| Chest panel at the right edge, road panel, boss bar | Seen in captured frames; no overlap found. |
+
+**Length.** 125 minutes is the time of a pilot that never stops, never dies, never looks around and always knows the way. A person will take longer; how much longer is not measured.
 
 Problems the pilot found, all fixed in this version:
 
@@ -42,8 +54,8 @@ Problems the pilot found, all fixed in this version:
 | A save made after the Eagle fell but before the chain broke could not continue | The chain phase was only entered from the fight | `Journey::Initialize` resumes it |
 
 - [not verified] **Playing with keyboard and mouse.** Nobody has played v0.2.0 by hand.
-- [not verified] **Difficulty.** The pilot's health is refilled every frame. Whether a person survives the later regions at `MonsterDamageScale` 0.8 is not known.
-- [not verified] **Death, respawn and the return to the last arena.** The engine's respawn needs a click, and no input is sent to the desktop in testing.
+- [not verified] **Difficulty for a person.** The only measure is the pilot that stands still (table above). A person who dodges and guards should do better than it; nobody has tried.
+- [not verified] **The death screen's respawn button.** The respawn itself is tested (table above); the click on the engine's screen is not, because no input is sent to the desktop in testing.
 - [not verified] **Save and load in a normal run.** Unattended runs never write the save. The load path was exercised only through the test start variable, which sets the same fields.
 - [not verified] **F9 restart**, for the same reason.
 - [not verified] **Frame rate** beyond "the pilot's log showed the 60 fps cap in a 1280 x 720 window on the development PC".
