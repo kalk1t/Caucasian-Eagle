@@ -84,6 +84,35 @@ build\stage\CaucasianEagle\CaucasianEagle.exe
 
 The game plays a fixed sequence of skills, combos and movement for about 30 seconds. It is the quickest visual check after a change.
 
+To capture the mountain instead, also set `$env:CAUCASIAN_EAGLE_VISTA = '1'`: the camera is held on it and the combat effects and HUD are hidden. The run only advances while the game window is in front.
+
+## 6.8 Rebuild the night sky
+
+```powershell
+python art\sky\make_sky_textures.py game\assets\textures\caucasus
+```
+
+Writes `NightSky.jpg` and `Moon.jpg`. Needs Python with numpy and Pillow. The result is deterministic.
+
+## 6.9 Rebuild the mountain of Amirani
+
+```powershell
+# 1. Mountain mesh, colour map and Mountain.json
+& "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -P art\mountain\build_mountain.py -- art\mountain\export
+
+# 2. Figures: rename mesh nodes for the importer, write 1024 px colour maps (needs art\mountain\meshy\out)
+python art\mountain\prepare_models.py art\mountain\meshy\out art\mountain\export game\assets\Compiled\Landmarks\AmiraniMountain
+
+# 3. Compile each mesh into a fresh folder, then copy the .dmesh next to the colour maps
+foreach ($n in 'Mountain','Amirani','Eagle','Dog') {
+    engine\Tools\DoorwaysAssetBuilder\x64\Debug\DoorwaysAssetBuilder.exe static-pipeline art\mountain\export\$n.glb build\landmark\$n
+    Copy-Item build\landmark\$n\$n.dmesh game\assets\Compiled\Landmarks\AmiraniMountain\
+}
+Copy-Item art\mountain\export\MountainBaseColor.png game\assets\Compiled\Landmarks\AmiraniMountain\
+```
+
+`static-pipeline` refuses an output folder that already exists; delete `build\landmark` first. After step 1, copy `ledgeY`, `ledgeHalfWidth` and `ledgeBackZ` from `Mountain.json` into `GameConstants.h` if they changed. The importer only accepts render nodes whose names start with `Doorways_`.
+
 ## 6.7 Release a version
 
 See [09-build-package-release.md](09-build-package-release.md).

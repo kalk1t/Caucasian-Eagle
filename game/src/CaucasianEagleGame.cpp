@@ -1,5 +1,7 @@
 #include "CaucasianEagleGame.h"
 
+#include "AmiraniMountain.h"
+
 #include "CombatSystem.h"
 #include "DoorwaysAssetPaths.h"
 #include "DoorwaysRenderContexts.h"
@@ -28,6 +30,11 @@
 namespace CaucasianEagle
 {
     using namespace Doorways;
+
+    namespace
+    {
+        bool gVista = false; // capture mode: the camera looks level toward the mountain
+    }
 
     void Game::Configure(DoorwaysGameSession& session)
     {
@@ -99,6 +106,11 @@ namespace CaucasianEagle
         host.World.MainCamera.Pitch = CameraPitch;
         host.World.MainCamera.FollowDistance = CameraDistance;
 
+        if (!GetAmiraniMountain().Initialize(host.Render, error))
+        {
+            error = "Mountain of Amirani: " + error;
+            return false;
+        }
         if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error))
         {
             error = "Nyxara combat kit: " + error;
@@ -110,6 +122,8 @@ namespace CaucasianEagle
         if (GetEnvironmentVariableA(DemoEnvironmentVariable, demo, sizeof(demo)) && demo[0] == '1')
         {   // Scripted showcase for capture: starts play and drives the kit from its own timeline.
             session.Unattended = true;
+            char vista[8] = {};
+            gVista = GetEnvironmentVariableA(VistaEnvironmentVariable, vista, sizeof(vista)) && vista[0] == '1';
             host.StartGame();
         }
         return character.SampleAuthoredClip("Idle", 0, &error);
@@ -122,16 +136,25 @@ namespace CaucasianEagle
 
     void Game::Update(DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed)
     {
+        GetAmiraniMountain().Update(realDeltaTime);
+        if (gVista) { host.World.MainCamera.Yaw = 0; host.World.MainCamera.Pitch = VistaPitch; }
         GetNyxaraKit().Update(host.World, host.WorldRender, host.Combat, deltaTime, realDeltaTime, inputAllowed);
     }
 
     void Game::Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection)
     {
-        GetNyxaraKit().Draw(renderer, world, viewProjection);
+        GetAmiraniMountain().Draw(renderer, world.MainCamera.Position, viewProjection);
+        if (!gVista) GetNyxaraKit().Draw(renderer, world, viewProjection); // capture mode shows the scenery alone
+    }
+
+    void Game::AdjustEnvironment(EnvironmentSettings& environment)
+    {
+        AmiraniMountain::StyleEnvironment(environment);
     }
 
     bool Game::DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text)
     {
+        if (gVista) return true; // capture mode: no HUD
         if (!NyxaraHud().Valid || !context.World.CombatFeedback.MeleeActive) return false;
         DrawNyxaraHud(context, text);
         return true;

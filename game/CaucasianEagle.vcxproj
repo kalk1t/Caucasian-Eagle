@@ -85,12 +85,14 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\CaucasianEagleGame.cpp" />
     <ClCompile Include="src\NyxaraKit.cpp" />
+    <ClCompile Include="src\AmiraniMountain.cpp" />
     <ClCompile Include="src\NyxaraHud.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\CaucasianEagleGame.h" />
     <ClInclude Include="src\GameConstants.h" />
     <ClInclude Include="src\NyxaraKit.h" />
+    <ClInclude Include="src\AmiraniMountain.h" />
     <ClInclude Include="src\NyxaraHud.h" />
   </ItemGroup>
   <ItemGroup>

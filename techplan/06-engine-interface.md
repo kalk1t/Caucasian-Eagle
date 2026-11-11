@@ -17,6 +17,7 @@ The whole contract between the game and the engine is one engine header, `engine
 |---|---|---|
 | `Configure(DoorwaysGameSession&)` | `Game::Configure` | yes |
 | `Prepare(DoorwaysGameHost&, std::string& error)` | `Game::Prepare` | yes |
+| `AdjustEnvironment(EnvironmentSettings&)` | `Game::AdjustEnvironment` | yes (moonlight, haze; switches the engine sky off) |
 | `ScaleFrameTime(float, bool)` | `Game::ScaleFrameTime` | yes (hit-stop) |
 | `Update(DoorwaysGameHost&, float, float, bool)` | `Game::Update` | yes |
 | `Draw(Renderer&, const WorldState&, const XMMATRIX&)` | `Game::Draw` | yes |

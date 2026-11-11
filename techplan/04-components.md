@@ -13,6 +13,7 @@ All game code is in `game/src/` (about 1,800 lines in v0.1). Namespaces: `Caucas
 | `GameConstants.h` | Names and tuning values shared across the game |
 | `NyxaraKit.h/.cpp` | The combat kit: input, action state machine, hits and damage, shade enemies, projectiles, effects, the scripted showcase |
 | `NyxaraHud.h/.cpp` | HUD snapshot struct (`NyxaraHudState`) and the function that draws it |
+| `AmiraniMountain.h/.cpp` | Scenery: the night sky dome and moon, the mountain, chained Amirani, the eagle, the dog, the chains; also the moonlight and haze settings |
 
 ## 7.2 `CaucasianEagle::Game`
 
@@ -79,3 +80,19 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 ## 7.4 `NyxaraHud`
 
 `NyxaraHudState` is a plain snapshot: skill cooldowns, combo availability and names, current action flags, the banner text and timer, and up to eight projected enemy bars. `DrawNyxaraHud` reads it plus the engine's vitals text (`"HP %d EN %d"`) and draws everything with the engine's rectangle and text primitives. It holds no gameplay state.
+
+## 7.5 `AmiraniMountain`
+
+Scenery only. It has no collision and no gameplay state except a clock for the animation.
+
+| Function | What it does |
+|---|---|
+| `Initialize` | Builds the sky dome, moon sphere and halo quad; loads `Mountain`, `Amirani`, `Eagle`, `Dog` (`.dmesh` plus `<Name>BaseColor.png`) from `LandmarkFolder`. Finds the flat ledge in the mountain mesh and turns it toward the play area, because the importer may mirror Z. |
+| `Update` | Advances the animation clock with real time, so the scene keeps moving during hit-stop. |
+| `Draw` | Sky dome and moon first (centred on the camera, so they never come closer), then the mountain, Amirani (slow breathing), the eagle (wing-beat bob and a lunge at the wound every `EaglePeckPeriod`), the dog (small head motion), and four chains made of box links. |
+| `StyleEnvironment` | Called from `Game::AdjustEnvironment` every frame: switches the engine's own sky panels and moon off, and sets moonlight direction and colour, ambient colour and haze. |
+
+**Why the game draws the sky itself.** The engine lights its sky panels like scenery (ambient, directional, image-based light), which washes a painted sky out and lights each panel differently. The dome here gives every vertex the same normal, pointing along the moonlight, so the directional light adds nothing and the ambient term is equal everywhere. The moon uses the same trick and therefore always shows as a full moon.
+
+**Capture mode.** `CAUCASIAN_EAGLE_VISTA=1` together with `CAUCASIAN_EAGLE_DEMO=1` holds the camera on the mountain and hides the combat effects and HUD.
+

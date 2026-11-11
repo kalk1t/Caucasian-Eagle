@@ -17,14 +17,20 @@ This folder holds what the game's assets are built from. The scripts are in git.
 | `nyxara/blender/*.blend`, `*.glb` | **no** (about 1.1 GB) | Intermediate and final Blender files; rebuilt by the two scripts |
 | `nyxara/tools/make_vfx_textures.py` | yes | Generates the six effect textures in `game/assets/Compiled/Effects/Nyxara` |
 | `moonlit-sanctuary/` | yes (21 MB) | The map: Blender scene, build scripts, export script, reference renders |
+| `sky/make_sky_textures.py` | yes | Generates the night sky and moon textures in `game/assets/textures/caucasus` |
+| `mountain/build_mountain.py` | yes | Blender script: the mountain mesh, its colour map and `Mountain.json` |
+| `mountain/prepare_models.py` | yes | Prepares the Meshy models of Amirani, the eagle and the dog for the asset builder |
+| `mountain/meshy/req/*.json` | yes | The requests sent to Meshy for the three figures |
+| `mountain/meshy/out/` | **no** (about 110 MB) | Meshy downloads for the three figures |
+| `mountain/export/` | only `Mountain.json` | Intermediate `.glb` and `.png` files; rebuilt by the scripts |
 
 ## Back up the files that are not in git
 
-`nyxara/meshy/out/` cannot be rebuilt without spending Meshy credits again (230 were used). Keep a copy of `art/nyxara/meshy/out` and `art/nyxara/blender/*.blend` on a second disk or a cloud drive. A fresh clone of this repository does not contain them, so the hero cannot be rebuilt from a clone alone; the compiled hero in `game/assets` is enough to build and run the game.
+`nyxara/meshy/out/` and `mountain/meshy/out/` cannot be rebuilt without spending Meshy credits again (347 were used). Keep a copy of `art/nyxara/meshy/out`, `art/mountain/meshy/out` and `art/nyxara/blender/*.blend` on a second disk or a cloud drive. A fresh clone of this repository does not contain them, so the hero cannot be rebuilt from a clone alone; the compiled hero in `game/assets` is enough to build and run the game.
 
 ## Building assets
 
-The commands are in [`techplan/03-workflows.md`](../techplan/03-workflows.md), sections 6.4 (hero) and 6.5 (map). In short:
+The commands are in [`techplan/03-workflows.md`](../techplan/03-workflows.md), sections 6.4 (hero), 6.5 (map), 6.8 (sky) and 6.9 (mountain). In short:
 
 1. Blender script produces a `.glb`.
 2. The engine's asset builder compiles the `.glb` into `game/assets/Compiled/`.
@@ -35,4 +41,6 @@ The commands are in [`techplan/03-workflows.md`](../techplan/03-workflows.md), s
 | Item | Value |
 |---|---|
 | Credits used for Nyxara | 230 |
+| Credits used for Amirani, the eagle and the dog | 117 (of the 300 allowed for the mountain) |
+| Balance on 2026-11-10 | 604 |
 | Limit set by the author | 900 |

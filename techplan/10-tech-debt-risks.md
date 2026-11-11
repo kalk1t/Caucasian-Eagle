@@ -22,6 +22,11 @@ Each item has an id, what it is, why it matters, and the milestone that addresse
 | D12 | **The showcase script uses the old key letters internally** (`'1'`, `'2'`, `'3'` for the skill steps). | Harmless, but misleading when reading the script. | Low | M4 |
 | D13 | **Facing snaps** back to the travel direction when an action ends. | Visible pop. | Low | M5 |
 | D14 | **The asset builder is not built by this repository.** Rebuilding art needs the builder from an engine checkout. | Extra setup step for art changes. | Low | M4 |
+| D15 | **The game draws its own sky and moon** because the engine lights its sky panels like scenery. The engine's panels are still drawn, in black. | Wasted draw calls; two sky systems. | Low | Engine: an unlit sky option, then delete the dome trick |
+| D16 | **The cave is a rectangular cut in a height field.** Its walls are flat and the mountain has no overhang. | The landmark looks artificial up close. | Medium | M3: sculpted cave mesh |
+| D17 | **Amirani, the eagle and the dog are rigid models** moved by code (breathing, bob, lunge). No skeleton, no wing flap. | Stiff when seen up close; unusable for the final fight. | High for the finale | M3/M5: rig and animate |
+| D18 | **The mountain cannot be reached.** No collision, no path. | It is a backdrop only. | By design in v0.1 | Later chapters |
+| D19 | **Moonlight direction does not match the moon's position.** The light is aimed to show the mountain face. | Shadows point slightly wrong for anyone who checks. | Low | Accept, or move the moon behind the viewer |
 
 ## 13.2 Risks
 

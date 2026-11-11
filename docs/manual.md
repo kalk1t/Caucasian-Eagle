@@ -62,6 +62,10 @@ Right after a skill, the gold **COMBO** prompt shows two follow-ups. Press left 
 
 Shades hover, shoot violet orbs at you and come back about 8 seconds after you destroy them. Block the orbs with the barrier (E) or keep moving.
 
+## The mountain
+
+Move the mouse up to raise the view. Beyond the sanctuary stands the mountain where Amirani is chained, with the eagle at his side and his dog at the chain. You cannot reach it yet.
+
 ## Settings
 
 Graphics, audio, controls and interface settings are in the main menu under **Settings**. They are saved for your Windows user and survive reinstalling the game.

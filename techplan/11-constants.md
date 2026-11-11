@@ -113,6 +113,54 @@ Hit times were measured from the hand-speed peaks of each authored clip. If a cl
 
 Colours: soul green (0.22, 1.0, 0.52), moon silver (0.80, 0.90, 1.0), moon white (0.86, 0.97, 1.0), shade violet (0.62, 0.28, 1.0), gold (0.85, 0.73, 0.45) [`NyxaraKit.cpp:31-34`, `NyxaraHud.cpp:30-33`].
 
+## H. Night sky
+
+Drawn by `AmiraniMountain::DrawSky`; light and haze set in `AmiraniMountain::StyleEnvironment`.
+
+| Name | Value | Units | Purpose | Def | Config? | Limits / dependencies |
+|---|---|---|---|---|---|---|
+| `SkyTexture` | "assets/textures/caucasus/NightSky.jpg" |  | Painted night sky, wraps horizontally | `GameConstants.h:34` | code | Built by `art/sky/make_sky_textures.py` |
+| `MoonTexture` | "assets/textures/caucasus/Moon.jpg" |  | Moon surface, equirectangular | `GameConstants.h:35` | code | Same script |
+| `MoonGlowTexture` | "assets/Compiled/Effects/Nyxara/Glow.png" |  | Soft disc used for the moon halo | `GameConstants.h:36` | code | Shared with the combat effects |
+| `SkyRadius` | 3000 | m | Radius of the sky dome around the camera | `GameConstants.h:37` | code | Must stay below the engine far plane (5400 m) |
+| `SkyTextureWraps` | 2 |  | Times the sky texture repeats around the horizon | `GameConstants.h:38` | code | Whole numbers only, or a seam shows |
+| `SkyBrightness` | 0.46 |  | Dome tint | `GameConstants.h:39` | code | The engine's ambient light multiplies it |
+| `MoonAzimuth` | -0.46 | rad | Moon direction, from +Z toward +X | `GameConstants.h:41` | code | Negative = left of the mountain |
+| `MoonElevation` | 0.47 | rad | Moon height above the horizon | `GameConstants.h:42` | code |  |
+| `MoonAngularSize` | 0.125 | rad | Apparent moon diameter | `GameConstants.h:43` | code | The real moon is 0.009 rad |
+| `MoonBrightness` | 1.05 |  | Moon tint | `GameConstants.h:45` | code |  |
+| `MoonHaloSize` | 4.2 |  | Halo width in moon diameters | `GameConstants.h:47` | code |  |
+| `MoonlightX` | 0.72 |  | Direction the moonlight travels (X, Y, Z) | `GameConstants.h:49` | code | Not the true direction from the moon: chosen so the mountain face is lit |
+| `HazeStart` | 40 | m | Distance where haze begins | `GameConstants.h:50` | code |  |
+| `HazeEnd` | 900 | m | Distance where haze is complete | `GameConstants.h:51` | code | Must exceed the mountain distance or it disappears |
+| `HazeStrength` | 0.62 |  | Haze strength | `GameConstants.h:52` | code |  |
+
+## I. Mountain of Amirani
+
+Scenery drawn by `AmiraniMountain::Draw`. Values not listed here (yaw angles, wrist and ankle fractions, halo colour) are in the same block of `GameConstants.h`.
+
+| Name | Value | Units | Purpose | Def | Config? | Limits / dependencies |
+|---|---|---|---|---|---|---|
+| `LandmarkFolder` | "assets/Compiled/Landmarks/AmiraniMountain" |  | Folder of the four compiled meshes and their textures | `GameConstants.h:55` | code | Start-up fails if a file is missing |
+| `MountainX` | 0 | m | Peak centre in the world (X, Y, Z) | `GameConstants.h:56` | code | The play area is within 93 m of the origin; the mesh is 520 m square |
+| `LedgeHeight` | 78 | m | Cave ledge above the play floor | `GameConstants.h:57` | code | Must equal `ledgeY` in `art/mountain/export/Mountain.json` |
+| `LedgeHalfWidth` | 40 | m | Half the ledge width | `GameConstants.h:58` | code | Must equal `ledgeHalfWidth` in `Mountain.json` |
+| `LedgeBackZ` | 8 | m | Cave back wall relative to the peak centre | `GameConstants.h:59` | code | Must equal `ledgeBackZ` in `Mountain.json` |
+| `MountainTint` | 0.42 |  | Darkens the rock | `GameConstants.h:60` | code |  |
+| `FigureEmission` | 0.22 |  | Self-light of Amirani | `GameConstants.h:62` | code | Without it he is black at night |
+| `EagleEmission` | 0.40 |  | Self-light of the eagle and the dog | `GameConstants.h:63` | code |  |
+| `AmiraniHeight` | 50 | m | Height of Amirani | `GameConstants.h:64` | code | Sized to be read from the play area, 330 m away |
+| `AmiraniFromWall` | 10 | m | His distance in front of the cave wall | `GameConstants.h:65` | code |  |
+| `EagleHeight` | 30 | m | Height of the eagle | `GameConstants.h:69` | code |  |
+| `EagleSide` | -21 | m | Eagle offset to his right side | `GameConstants.h:72` | code | Negative = viewer's left |
+| `EaglePeckPeriod` | 3.6 | s | Time between lunges at the wound | `GameConstants.h:75` | code |  |
+| `DogHeight` | 13 | m | Height of the dog | `GameConstants.h:76` | code |  |
+| `ChainLinkLength` | 2.6 | m | Length of one chain link | `GameConstants.h:80` | code |  |
+| `ChainLinkWidth` | 1.5 | m | Width of one chain link | `GameConstants.h:81` | code |  |
+| `VistaPitch` | 0.24 | rad | Camera pitch in the mountain capture mode | `GameConstants.h:31` | code | Only with `CAUCASIAN_EAGLE_VISTA=1` |
+
+Art build values for the mountain (`art/mountain/build_mountain.py`): footprint 520 m, grid 261 x 261 (2 m cells), peak 250 m above a base 90 m below the play floor, ledge 80 m wide and 36 m deep.
+
 ## G. Art build values (`art/nyxara/blender/assemble.py`)
 
 | Name | Value | Purpose | Def | Config? |

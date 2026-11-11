@@ -38,6 +38,9 @@ Names used in the story, the code and the assets. One name per thing.
 | Name | Meaning |
 |---|---|
 | **Moonlit Sanctuary** | The v0.1 map; scene id `MoonlitSanctuary` |
+| **Mountain of Amirani** | The landmark beyond the play area: peak, cave ledge, Amirani, the eagle, the dog, the chains. Code: `AmiraniMountain` |
+| **Ledge** | The flat shelf of the cave where Amirani stands, 78 m above the play floor |
+| **Sky dome** | The painted night sky drawn around the camera by the game |
 | **EagleV1** | Nyxara's compiled character bundle, `Characters/Nyxara/EagleV1` |
 | **Bundle** | One folder holding a character's mesh, skeleton, materials, textures and clips |
 | **Clip** | One authored animation, a `.danim` file |

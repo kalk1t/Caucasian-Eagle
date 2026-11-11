@@ -1,0 +1,13 @@
+{
+  "axes": "engine: metres, Y up, ledge faces -Z, origin = peak centre at play-floor height",
+  "size": 520.0,
+  "peakY": 206.17757740254433,
+  "baseY": -90.0,
+  "ledgeY": 78.0,
+  "ledgeHalfWidth": 40.0,
+  "ledgeFrontZ": -28.0,
+  "ledgeBackZ": 8.0,
+  "wallTopY": 154.07211890026454,
+  "vertices": 68121,
+  "triangles": 135200
+}

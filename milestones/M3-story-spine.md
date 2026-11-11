@@ -12,7 +12,8 @@ The game tells the start of its story and can carry the rest: the player sees Am
 - [ ] Approve or change the chapter structure in `story/STORY.md` section 4.
 
 ### 2. The map (You + Claude)
-- [ ] Rework Moonlit Sanctuary so the chained mountain, with Amirani and the eagle, is visible from the play area. This is the story's fixed image.
+- [x] The chained mountain, with Amirani, the eagle and the dog, is visible from the play area under a new night sky and moon. First version: scenery only, rigid figures (debt D16-D18).
+- [ ] Rework the Moonlit Sanctuary play area itself into the first stretch of her road.
 - [ ] Decide what the sanctuary is in the story (her training ground in Year One is the proposal).
 - [ ] Rebuild and recompile the scene ([techplan/03-workflows.md](../techplan/03-workflows.md) section 6.5).
 

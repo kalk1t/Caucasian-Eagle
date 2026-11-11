@@ -4,6 +4,15 @@
 
 Newest first. Each version names the engine commit it was built against.
 
+## Unreleased
+
+Engine: Doorways-D3D11 `22172eb` (adds the environment hook the sky uses).
+
+- **The mountain of Amirani** stands beyond the play area: Amirani chained in the cave, the eagle lunging at his liver, his dog at the ankle chain.
+- **New night sky**: stars, Milky Way, a green aurora, cloud and distant Caucasus ridges, with a large full moon beside the mountain. Still night.
+- Moonlight, ambient colour and haze retuned so the mountain reads from the play area.
+- Capture mode `CAUCASIAN_EAGLE_VISTA=1` holds the camera on the mountain.
+
 ## 0.1.0 · 2026-11-10
 
 First version as its own project. Engine: Doorways-D3D11, see `git submodule status` at the `v0.1.0` tag.

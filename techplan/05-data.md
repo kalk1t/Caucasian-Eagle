@@ -40,12 +40,25 @@ The clip names are a contract between three places: the pipeline command line ([
 
 The mesh carries each sword twice, once per hand: `Slot_sword_right__Moonfeather`, `Slot_sword_left__Talonshade`, `Slot_sword_left__Moonfeather`, `Slot_sword_right__Talonshade`. The kit shows two of the four at a time; Q toggles which pair [confirmed: `NyxaraKit::ApplySwordVisibility`].
 
+### Mountain of Amirani and night sky
+
+| Path under `game/assets/` | Content | Built from |
+|---|---|---|
+| `Compiled/Landmarks/AmiraniMountain/Mountain.dmesh`, `MountainBaseColor.png` | The peak with the cave ledge (135,200 triangles) and its 2048 px colour map | `art/mountain/build_mountain.py` |
+| `Compiled/Landmarks/AmiraniMountain/Amirani.dmesh`, `Eagle.dmesh`, `Dog.dmesh` and `<Name>BaseColor.png` | The three figures (Meshy models) and 1024 px colour maps | `art/mountain/prepare_models.py` |
+| `textures/caucasus/NightSky.jpg` | 4096 x 2048 painted sky: stars, Milky Way, aurora, cloud, three ridge lines; wraps horizontally | `art/sky/make_sky_textures.py` |
+| `textures/caucasus/Moon.jpg` | 2048 x 1024 moon surface | same |
+
+These meshes have no `.dmat`: the game loads the colour map next to each mesh and builds the material in code.
+
 ## 8.2 Source art not in git
 
 | Path | Content | Size | Why it is outside git |
 |---|---|---|---|
 | `art/nyxara/meshy/out/` | Meshy downloads: concept images, body, wing and sword meshes, the rig, animation clips | about 980 MB | Size; regenerating costs Meshy credits, so **back this folder up** |
 | `art/nyxara/blender/Nyxara_base.blend`, `Nyxara_game.blend`, `Nyxara_game.glb` | Intermediate and final Blender files | about 1.1 GB | Size; rebuilt by the scripts from `meshy/out` |
+| `art/mountain/meshy/out/` | Meshy downloads for Amirani, the eagle and the dog: concept images, models, textures | about 110 MB | Size; regenerating costs Meshy credits, so **back this folder up** |
+| `art/mountain/export/*.glb`, `*.png` | Intermediate files for the asset builder | about 50 MB | Rebuilt by the two mountain scripts |
 
 The scripts that turn those files into game assets are in git ([art/README.md](../art/README.md)). Moonlit Sanctuary's source (21 MB) is small enough to be fully in git.
 

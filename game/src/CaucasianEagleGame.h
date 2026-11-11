@@ -13,6 +13,7 @@ namespace CaucasianEagle
         float ScaleFrameTime(float realDeltaTime, bool inputAllowed) override;
         void Update(Doorways::DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed) override;
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection) override;
+        void AdjustEnvironment(EnvironmentSettings& environment) override;
         bool DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text) override;
     };
 }

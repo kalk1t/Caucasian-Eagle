@@ -23,6 +23,10 @@ art/nyxara/meshy/task_log.jsonl
 art/nyxara/blender/*.blend
 art/nyxara/blender/*.blend1
 art/nyxara/blender/*.glb
+art/mountain/meshy/out/
+art/mountain/export/*.glb
+art/mountain/export/*.png
+art/mountain/compiled_tmp/
 *.blend1
 
 # Local runtime files written next to the staged game
