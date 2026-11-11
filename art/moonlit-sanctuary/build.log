@@ -1,0 +1,13 @@
+C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\build_sanctuary.py:19: DeprecationWarning: 'Material.use_nodes' is expected to be removed in Blender 6.0
+  m=bpy.data.materials.new(name); m.diffuse_color=(*color,1); m.use_nodes=True
+C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\build_sanctuary.py:186: DeprecationWarning: 'World.use_nodes' is expected to be removed in Blender 6.0
+  world=scene.world; world.use_nodes=True; bg=world.node_tree.nodes['Background']; bg.inputs['Color'].default_value=(.025,.04,.085,1); bg.inputs['Strength'].default_value=.35
+00:25.578  render           | Saved: 'C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\sanctuary-overview.png'
+00:38.500  render           | Saved: 'C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\sanctuary-top.png'
+01:03.906  render           | Saved: 'C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\sanctuary-temple-view.png'
+01:03.937  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_16332_83a3ab95d128101058b69f3701e3316b.png.png"
+Info: Saved as "Moonlit_Sanctuary_v01.blend"
+BUILD_COMPLETE 1363
+Blender 5.2.3 LTS (hash e13b728c6880 built 2026-10-22 01:37:16)
+
+Blender quit

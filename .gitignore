@@ -1,0 +1,30 @@
+# Build output (stage folder, object files, installer output)
+build/
+dist/
+x64/
+.vs/
+*.user
+*.suo
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.lib
+*.exp
+
+# Python
+__pycache__/
+*.pyc
+
+# Heavy source art stays on the workstation (see art/README.md).
+# The scripts that build the game assets from it are tracked; the binaries are not.
+art/nyxara/meshy/out/
+art/nyxara/meshy/task_log.jsonl
+art/nyxara/blender/*.blend
+art/nyxara/blender/*.blend1
+art/nyxara/blender/*.glb
+*.blend1
+
+# Local runtime files written next to the staged game
+DoorwaysRuntimeSettings.ini
+_logs/

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="engine/src/Doorways/DoorwaysEngine.vcxproj" Id="5b0c6f5e-2f4b-4c8e-9a53-d0a7e1c0e001" />
+  <Project Path="game/CaucasianEagle.vcxproj" Id="c4e7a1d2-6b3f-4e0a-8c51-9f2d7b6a0e11" />
+</Solution>

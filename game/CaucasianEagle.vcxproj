@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Caucasian Eagle game executable.
+  Compiles game/src and links the Doorways engine static library from the engine submodule.
+  Output goes straight into the runtime stage folder (build/stage/CaucasianEagle); assets are
+  synced there by tools/stage.ps1. See techplan/09-build-package-release.md.
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{c4e7a1d2-6b3f-4e0a-8c51-9f2d7b6a0e11}</ProjectGuid>
+    <RootNamespace>CaucasianEagle</RootNamespace>
+    <ProjectName>CaucasianEagle</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <RepoRoot>$(MSBuildThisFileDirectory)..\</RepoRoot>
+    <EngineRoot>$(RepoRoot)engine\</EngineRoot>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>false</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(EngineRoot)Direct3D.props" />
+  </ImportGroup>
+  <PropertyGroup>
+    <OutDir Condition="'$(Configuration)'=='Release'">$(RepoRoot)build\stage\CaucasianEagle\</OutDir>
+    <OutDir Condition="'$(Configuration)'=='Debug'">$(RepoRoot)build\stage-debug\CaucasianEagle\</OutDir>
+    <IntDir>$(RepoRoot)build\obj\$(Configuration)\$(ProjectName)\</IntDir>
+    <TargetName>CaucasianEagle</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatSpecificWarningsAsErrors>4101;4189;4244;4267;4456;4457;4458;4459</TreatSpecificWarningsAsErrors>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <AdditionalIncludeDirectories>$(EngineRoot)src\DOORWAYS;$(EngineRoot)Source;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>shell32.lib;ole32.lib;uuid.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>$(EngineRoot)src\DOORWAYS\Doorways.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\CaucasianEagleGame.cpp" />
+    <ClCompile Include="src\NyxaraKit.cpp" />
+    <ClCompile Include="src\NyxaraHud.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\CaucasianEagleGame.h" />
+    <ClInclude Include="src\GameConstants.h" />
+    <ClInclude Include="src\NyxaraKit.h" />
+    <ClInclude Include="src\NyxaraHud.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(EngineRoot)src\DOORWAYS\DoorwaysEngine.vcxproj">
+      <Project>{5b0c6f5e-2f4b-4c8e-9a53-d0a7e1c0e001}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(EngineRoot)packages\directxtk_desktop_win10.2026.5.8.1\build\native\directxtk_desktop_win10.targets" Condition="Exists('$(EngineRoot)packages\directxtk_desktop_win10.2026.5.8.1\build\native\directxtk_desktop_win10.targets')" />
+  </ImportGroup>
+  <Target Name="EnsureEnginePackages" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(EngineRoot)packages\directxtk_desktop_win10.2026.5.8.1\build\native\directxtk_desktop_win10.targets')" Text="Engine NuGet packages are missing. Run tools\build.ps1 (it restores them into engine\packages)." />
+  </Target>
+</Project>

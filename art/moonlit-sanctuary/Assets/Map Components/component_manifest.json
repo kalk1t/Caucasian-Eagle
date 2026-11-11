@@ -1,0 +1,62 @@
+[
+  {
+    "file": "arena_floor.blend",
+    "mesh_objects": 151
+  },
+  {
+    "file": "outer_ring_floor.blend",
+    "mesh_objects": 291
+  },
+  {
+    "file": "radial_bridge.blend",
+    "mesh_objects": 24
+  },
+  {
+    "file": "district_platform.blend",
+    "mesh_objects": 2
+  },
+  {
+    "file": "soul_lamp.blend",
+    "mesh_objects": 2
+  },
+  {
+    "file": "wall_section.blend",
+    "mesh_objects": 2
+  },
+  {
+    "file": "paving_slab.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "bridge_parapet.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "bridge_merlon.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "outlook_platform.blend",
+    "mesh_objects": 2
+  },
+  {
+    "file": "arena_seal.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "soul_flame.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "torch_sconce.blend",
+    "mesh_objects": 2
+  },
+  {
+    "file": "floating_foundation.blend",
+    "mesh_objects": 1
+  },
+  {
+    "file": "scale_figure.blend",
+    "mesh_objects": 4
+  }
+]

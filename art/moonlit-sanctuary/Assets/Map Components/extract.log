@@ -1,0 +1,78 @@
+00:01.266  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:01.547  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_5786760df6e39186a8e6f87aaef10d41.png.png"
+00:01.547  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:01.813  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_063748320b1066d0fabeb18103c69ff7.png.png"
+00:01.813  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:02.078  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_bc4f189a3f2a346918c9e9ae2d225787.png.png"
+00:02.078  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:02.344  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_85ff3ddf91a6581674e01abcba421396.png.png"
+00:02.344  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:02.609  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_83d6fa0bafb30f576f00e24145dc126c.png.png"
+00:02.625  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:02.891  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_80d60de3ea1307884122f9d10103185d.png.png"
+00:02.891  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:03.219  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_74dbc3a8aad8c27e061b89e2d8f86323.png.png"
+00:03.219  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:03.516  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_a9ab47fb1d748e2b4b94dcc43c629f9b.png.png"
+00:03.516  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:03.828  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_ea2ded7925a87f9c4846f5b57e579090.png.png"
+00:03.828  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:04.156  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_6e4df93b129fadeb8bd36a1870ab5984.png.png"
+00:04.156  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:04.469  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_dc74a64335784b31db736d2d86594d07.png.png"
+00:04.469  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:04.750  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_2eb8b56efe3771746ee31f9d75844cc5.png.png"
+00:04.750  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:05.031  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_d8793c5809ecb65295b55491efbb519f.png.png"
+00:05.031  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:05.328  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_1ab960ca9c14a20b9735407f293da63c.png.png"
+00:05.344  blend            | Read blend: "C:\Users\User\OneDrive\Documents\ChatGPT\Doorways\Moonlit Sanctuary\Moonlit_Sanctuary_v01.blend"
+00:05.641  image.write      | ERROR OpenImageIO write failed: Could not open file "C:\Users\User\.thumbnails\large\blender_6148_0427c5bd4689a12d726ae9750f62a1e6.png.png"
+Info: Deleted 1208 data-block(s)
+Info: Saved as "arena_floor.blend"
+EXTRACTED arena_floor.blend 151
+Info: Deleted 1070 data-block(s)
+Info: Saved as "outer_ring_floor.blend"
+EXTRACTED outer_ring_floor.blend 291
+Info: Deleted 1336 data-block(s)
+Info: Saved as "radial_bridge.blend"
+EXTRACTED radial_bridge.blend 24
+Info: Deleted 1364 data-block(s)
+Info: Saved as "district_platform.blend"
+EXTRACTED district_platform.blend 2
+Info: Deleted 1364 data-block(s)
+Info: Saved as "soul_lamp.blend"
+EXTRACTED soul_lamp.blend 2
+Info: Deleted 1364 data-block(s)
+Info: Saved as "wall_section.blend"
+EXTRACTED wall_section.blend 2
+Info: Deleted 1366 data-block(s)
+Info: Saved as "paving_slab.blend"
+EXTRACTED paving_slab.blend 1
+Info: Deleted 1366 data-block(s)
+Info: Saved as "bridge_parapet.blend"
+EXTRACTED bridge_parapet.blend 1
+Info: Deleted 1366 data-block(s)
+Info: Saved as "bridge_merlon.blend"
+EXTRACTED bridge_merlon.blend 1
+Info: Deleted 1364 data-block(s)
+Info: Saved as "outlook_platform.blend"
+EXTRACTED outlook_platform.blend 2
+Info: Deleted 1366 data-block(s)
+Info: Saved as "arena_seal.blend"
+EXTRACTED arena_seal.blend 1
+Info: Deleted 1366 data-block(s)
+Info: Saved as "soul_flame.blend"
+EXTRACTED soul_flame.blend 1
+Info: Deleted 1364 data-block(s)
+Info: Saved as "torch_sconce.blend"
+EXTRACTED torch_sconce.blend 2
+Info: Deleted 1366 data-block(s)
+Info: Saved as "floating_foundation.blend"
+EXTRACTED floating_foundation.blend 1
+Info: Deleted 1363 data-block(s)
+Info: Saved as "scale_figure.blend"
+EXTRACTED scale_figure.blend 4
+Blender 5.2.3 LTS (hash e13b728c6880 built 2026-10-22 01:37:16)
+
+Blender quit
