@@ -1,0 +1,35 @@
+// Program icon and version information of CaucasianEagle.exe.
+// The icon is drawn by art/ui/build_icon.py. The numbers here must match GameVersion in
+// src/GameConstants.h (release checklist, techplan/09-build-package-release.md).
+#include <winver.h>
+
+1 ICON "CaucasianEagle.ico"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 0,3,0,0
+PRODUCTVERSION 0,3,0,0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Giorgi Samkharadze"
+            VALUE "FileDescription", "Caucasian Eagle"
+            VALUE "FileVersion", "0.3.0"
+            VALUE "InternalName", "CaucasianEagle"
+            VALUE "LegalCopyright", "(C) 2026 Giorgi Samkharadze"
+            VALUE "OriginalFilename", "CaucasianEagle.exe"
+            VALUE "ProductName", "Caucasian Eagle"
+            VALUE "ProductVersion", "0.3.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

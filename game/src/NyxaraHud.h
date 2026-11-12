@@ -3,7 +3,7 @@
 // Caucasian Eagle gameplay HUD: snapshot published by NyxaraKit, drawn by DrawNyxaraHud.
 
 struct DoorwaysHudRenderContext;
-class HudTextRenderer;
+namespace CaucasianEagle { class Ui; }
 
 namespace Doorways
 {
@@ -26,6 +26,6 @@ namespace Doorways
         return state;
     }
 
-    // Draws the full gameplay HUD (vitals, skill bar, combo prompt, enemy bars, banner).
-    void DrawNyxaraHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text);
+    // Draws Nyxara's part of the HUD: vitals, skill bar, combo prompt, enemy bars and the move name.
+    void DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderContext& context);
 }

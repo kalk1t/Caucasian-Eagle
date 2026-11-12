@@ -19,7 +19,7 @@
    - initialises `NyxaraKit` (effect meshes and textures)
    - initialises `AmiraniMountain` (sky, mountain, figures) and `Journey` (reads `Road.txt`, loads creature and prop models, reads `journey.sav`)
    - if the environment variable `CAUCASIAN_EAGLE_DEMO` is `1`, starts the scripted showcase
-5. The engine shows its main menu. **Play** starts the session in Moonlit Sanctuary, or at the last arena won if a save exists.
+5. The start screen is the game's own (`GameSession().OwnStartScreen`, set in `Game::Prepare`): while the engine's main menu root would show, the engine builds no buttons for it and calls `Game::DrawStartScreen` every frame, which calls `StartScreen::Draw` (`StartScreen.cpp`). That draws the picture `assets/ui/Menu/StartScreen.png` (rendered in Blender by `art/ui/render_cover.py`, titled by `art/ui/build_start_screen.py`) scaled to cover the window, a panel at the left with five rows, and the makers' line along the bottom; it reads the keyboard and the mouse itself (the game's `Update` does not run on the start screen). **Begin / Continue** sets `StartRequest = Play` (the session starts in Moonlit Sanctuary, or at the last arena won if a save exists), **Settings** sets `StartRequest = Settings` (the engine's settings screens; Back returns), **Leave** sets `StartRequest = Exit`. **Guide** and **Credits** open `Guide::Draw` over the start screen (page 1 and the last page) without starting a session. `Menu*` fields are still set, so the engine's own Credits screen and menu would be right if `OwnStartScreen` were turned off.
 
 If `Prepare` fails, the engine shows the error in a message box and exits with code 1.
 
@@ -29,9 +29,9 @@ If `Prepare` fails, the engine shows the error in a message box and exits with c
 |---|---|---|---|
 | Game identity, start scene, hero bundle, camera, movement tuning | `game/src/GameConstants.h` | Edit and rebuild | Listed in [11-constants.md](11-constants.md) |
 | Skill timings, damage, cooldowns, enemy stats | `game/src/NyxaraKit.cpp`, `NyxaraKit.h` | Edit and rebuild | Listed in [11-constants.md](11-constants.md) |
-| Key bindings for skills (F, V, C), swap (Q), barrier (E), mouse buttons | `NyxaraKit::ReadKeys` in `game/src/NyxaraKit.cpp` | Edit and rebuild | Read directly with `GetAsyncKeyState`; not yet rebindable by the player |
-| Movement keys (WASD, Space, Ctrl, Shift) | Engine input map and the engine Controls settings screen | Player setting | Engine-owned |
-| Graphics, audio, interface settings | Engine settings screens | Player setting, stored in `%LOCALAPPDATA%\CaucasianEagle\PlayerPreferences.ini` | Engine-owned [confirmed: `engine/src/DOORWAYS/DoorwaysSettingsPaths.cpp`] |
+| Key bindings for skills (F, V, C), swap (Q), barrier (E), mouse buttons | `NyxaraKit::ReadKeys` in `game/src/NyxaraKit.cpp` | Edit and rebuild | Read with the engine's `IsDoorwaysKeyDown` (keyboard, mouse, or the controller button bound to the key); not yet rebindable by the player |
+| Movement keys (WASD, Space, Ctrl, Shift) | Engine input map defaults; the game offers no rebinding | Fixed | Engine-owned |
+| Window, vertical sync, shadows, volumes, mouse speed, reversed look, interface size, frame counter | The game's settings window (`Settings.cpp`), through `GameSession().Settings` | Player setting, stored by the engine in `%LOCALAPPDATA%\CaucasianEagle\PlayerPreferences.ini` | Game shows and asks; engine validates, applies, saves [confirmed: `engine/src/DOORWAYS/AppSettings.cpp` `UpdateGameSettings`] |
 | Character save | `%LOCALAPPDATA%\CaucasianEagle\CharacterSnapshot.txt` | Written by the engine | Engine progression system; the game adds nothing to it |
 | Journey save | `%LOCALAPPDATA%\CaucasianEagle\journey.sav` | Written by the game after every arena and chest | Delete it, or hold F9 in the game, to start again ([05-data.md](05-data.md), 8.4) |
 | Journey tuning (creature health and damage scales, rewards, draw distances) | `game/src/GameConstants.h`, journey block | Edit and rebuild | [11-constants.md](11-constants.md), section J |

@@ -1,6 +1,6 @@
 # Caucasian Eagle: Technical Documentation
 
-> **Scope.** This documents the game **as it is** at version **0.2.0** (2026-11-10): the first version with the whole road to Amirani.
+> **Scope.** This documents the game **as it is** at version **0.3.0** (2026-11-11): the living road, and the first version with an installer.
 > **Audience.** Whoever maintains, extends, packages or releases the game.
 > **Repository.** `C:\Users\User\Projects\Caucasian-Eagle` (git remote `kalk1t/Caucasian-Eagle`, branch `main`). All paths are relative to the repository root unless stated otherwise.
 > **Engine.** The Doorways engine lives in its own repository (`kalk1t/Doorways-D3D11`) and is included here as the git submodule `engine/`. Engine internals are documented there, in `engine/techplan/`. This plan documents the game and the line between the two.
@@ -55,18 +55,20 @@ Other documents in this repository:
 
 **Caucasian Eagle** is a single-player third-person action game for Windows. The player is **Nyxara**, daughter of the eagle that feeds on the chained hero Amirani in the Georgian legend. The story is her seven-year road to the mountain to fight her father and free Amirani ([story](../story/STORY.md)).
 
-What version 0.2.0 contains:
+What version 0.3.0 contains:
 
 - **One hero.** Nyxara: a winged fighter with two swords, 31 authored animation clips, built from Meshy-generated parts in Blender [confirmed: `art/nyxara/blender/assemble.py`, `game/src/CaucasianEagleGame.cpp`].
-- **One world.** Moonlit Sanctuary and a 6.3 km road through twelve regions to the mountain of Amirani, as one scene [confirmed: `game/src/GameConstants.h` `StartSceneId`, `game/assets/Compiled/Scenes/RoadToAmirani.dscene`, `art/world/build_world.py`].
+- **One world.** A 6.3 km road through twelve regions to the mountain of Amirani, as one scene [confirmed: `game/src/GameConstants.h` `StartSceneId`, `game/assets/Compiled/Scenes/RoadToAmirani.dscene`, `art/world/build_world.py`].
 - **Combat kit.** Alternating left/right sword slashes, a charged slash, three skills, six skill-plus-click combos, a sword swap, a two-sword barrier and a wing boost [confirmed: `game/src/NyxaraKit.cpp` `Acts` table].
 - **Enemies.** Ten creatures of Caucasian folklore, three region bosses and the Eagle, in 34 arenas and 65 roaming packs; 81 breakable chests [confirmed: `game/src/Journey.cpp` `Kinds`, `Road.txt`]. The kit's original shade enemies remain in the code but are switched off.
 - **The journey.** Gates, waves, rewards, story cards, the ending, a save file and an unattended test pilot [confirmed: `game/src/Journey.cpp`].
 - **HUD.** Health and soul bars, an eight-slot skill bar with cooldowns, a combo prompt, enemy health bars and a skill-name banner [confirmed: `game/src/NyxaraHud.cpp`].
-- **Story as text cards only.** No voice, cutscenes or dialogue choices. The engine's main menu, settings, character progression and inventory screens are still the engine's defaults [confirmed by running the game].
-- **No sound.**
+- **Story as text cards only.** No voice acting, cutscenes or dialogue choices. The start screen, her menu, the guide and the growth window are the game's own; and so is the settings window (the engine still applies and saves the values) [confirmed by running the game].
+- **Placeholder sound.** Music, effects, ambience and a storyteller play from `game/assets/sounds` [confirmed: `game/src/Sound.cpp`]; every file is made by a script, not recorded.
+- **Things she carries.** Creature charms, chain links, feathers of her father, city keepsakes and blade runes are picked up, saved and shown on the second page of her window [confirmed: `game/src/Collection.cpp`, `game/src/Journey.cpp`]; not yet played through.
+- **Grass, trees and clouds.** Planted by rule round the camera from a height map of the land [confirmed: `game/src/Nature.cpp`, `art/world/build_nature.py`]; no collision.
 
-**Status.** v0.2.0 builds and runs from the stage folder; its journey was run end to end by the test pilot ([08-testing.md](08-testing.md)). It is not yet packaged as an installer; that is milestone M2 ([milestones](../milestones/README.md)).
+**Status.** v0.3.0 builds and runs from the stage folder and is released as an installer and a zip ([09-build-package-release.md](09-build-package-release.md)). The journey was run end to end by the test pilot at v0.2.0 and in parts since ([08-testing.md](08-testing.md)). The installer was tried on the development PC only; the rest of milestone M2 is open ([milestones](../milestones/README.md)).
 
 ## 2. Technology stack
 
@@ -94,7 +96,7 @@ Caucasian-Eagle/
 │   └── assets/Compiled/       ready-to-run game assets (see 05-data.md)
 ├── art/                       scripts that build the assets; heavy source files are not in git
 │   ├── nyxara/                hero: Meshy requests, Blender assembly, effect textures
-│   └── moonlit-sanctuary/     map: Blender scene, build and export scripts
+│   └── moonlit-sanctuary/     the v0.1 map (not in the game any more): Blender scene, build and export scripts
 ├── tools/
 │   ├── build.ps1              restore, build, stage (one command)
 │   └── stage.ps1              assemble the runtime folder

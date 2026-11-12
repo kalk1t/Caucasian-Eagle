@@ -16,13 +16,15 @@ Everything under `game/assets/` is ready-to-run output of the asset pipeline (77
 | `Characters/Nyxara/EagleV1/Textures/*.png` | Base colour, normal, roughness, metallic and packed maps per material (163 MB) | same | PNG, 2048 px |
 | `Characters/Nyxara/EagleV1/ImportReport.md/.csv` | Pipeline report | Asset builder | Text |
 | `Effects/Nyxara/*.png` | Six effect textures: `SoulArc`, `Glow`, `Ring`, `Feather`, `Beam`, `MoonSigil` | `art/nyxara/tools/make_vfx_textures.py` | PNG |
-| `Scenes/RoadToAmirani.dscene` | Scene description for the world (sanctuary plus road) | `art/world/build_world.py` + scene pipeline | Engine scene |
+| `Scenes/RoadToAmirani.dscene` | Scene description for the world (the road and the land) | `art/world/build_world.py` + scene pipeline | Engine scene |
 | `StaticMeshes/RoadToAmirani/` | World geometry (about 291,000 triangles, 39 MB) | same | Engine static mesh |
-| `Materials/RoadToAmirani/` | World materials: the sanctuary's palette colours plus 25 textured materials | same | Engine material table |
-| `Textures/RoadToAmirani/` | Generated 512 px ground, cobble and plank textures with normal maps (31 MB) | same | PNG |
-| `Collision/RoadToAmirani/` | World collision: the sanctuary's, plus 135 walkable road chunks, the ledge and its join | same | Engine collision |
+| `Materials/RoadToAmirani/` | World materials: 25 textured materials | same | Engine material table |
+| `../sounds/` (`game/assets/sounds`) | 106 WAV files in `nyxara`, `creatures`, `combat`, `world`, `ui`, `music`, `voice` (39 MB). Listed in its `README.md` | `art/sounds/build_sounds.py`, `art/sounds/build_voice.py` | WAV, PCM 16-bit |
+| `Textures/RoadToAmirani/` | Generated 512 px ground, earth-road, cobble and plank textures with normal maps (31 MB) | same | PNG |
+| `Collision/RoadToAmirani/` | World collision: 133 walkable road chunks, the ledge, and 748 pieces of land | same | Engine collision |
 | `World/Road.txt` | Path samples, arenas, chests, props and lights (see 8.1a) | `art/world/build_world.py` | Text |
-| `Monsters/<Name>/<Name>.dmesh`, `<Name>BaseColor.png` | Ten creatures and the old gold chest (Meshy models, 1024 px colour maps, 42 MB) | `art/monsters/prepare_models.py` | Engine static mesh, PNG |
+| `Monsters/<Name>/<Name>.dmesh`, `<Name>BaseColor.png` | Ten creatures and the old gold chest (Meshy models, 1024 px colour maps, 42 MB) | `art/monsters/prepare_models.py`; joint weights added by `art/monsters/rig_models.py` | Engine static mesh with joint weights, PNG |
+| `Monsters/<Name>.rig`, `Landmarks/AmiraniMountain/Eagle.rig` | Creature skeleton: `TYPE biped|robed|serpent|winged`, then `J joint parent x y z` (pivot in mesh units) for 19 joints | `art/monsters/rig_models.py` | Text |
 | `Props/<Name>/...` | Svan tower, dead tree, fir, rock cluster (12 MB) | same script | same |
 
 ### 8.1a `Road.txt`
@@ -71,6 +73,17 @@ The mesh carries each sword twice, once per hand: `Slot_sword_right__Moonfeather
 
 These meshes have no `.dmat`: the game loads the colour map next to each mesh and builds the material in code.
 
+### Land and plants (`Nature`)
+
+| File | Content |
+|---|---|
+| `game/assets/Compiled/World/Terrain.bin` | `"CETR"`, int32 columns (341) and rows (548), float32 x and z of the first sample, float32 grid (4 m), then for every sample row by row: float32 height, then one byte each metres beyond the road's edge (0..255), then one byte each region (0..11) |
+| `game/assets/textures/nature/Grass.png`, `Leaves.png` | 1024 x 256, four cut-out pictures side by side, with alpha |
+| `game/assets/textures/nature/Bark.png` | Tiling bark |
+| `game/assets/textures/nature/Clouds.png` | 1024 x 1024 tiling cloud with alpha |
+
+All four pictures and `Terrain.bin` are written by `art/world/build_nature.py`. `Terrain.bin` repeats the terrain formula of `build_world.py`, so it must be rebuilt whenever the world is.
+
 ## 8.2 Source art not in git
 
 | Path | Content | Size | Why it is outside git |
@@ -97,6 +110,8 @@ Under `%LOCALAPPDATA%\CaucasianEagle\` the engine stores its files and the game 
 | `PlayerPreferences.ini` | Graphics, audio, controls and interface settings |
 | `CharacterSnapshot.txt` | Engine character progression (level, experience, equipment) |
 | `CharacterSnapshot.lock` | Prevents two running copies from sharing one save |
-| `journey.sav` | The game's own save: one text line with a format number, arenas won, gold, Eagle Feathers, memories found, deaths, whether the journey is complete, seconds played, and one character per chest (opened or not) |
+| `journey.sav` | The game's own save: one text line with a format number, arenas won, gold, Eagle Feathers, memories found, deaths, whether the journey is complete, seconds played, one character per chest (opened or not), and on a last line a number with one bit per city entered (absent in saves made before the cities; such a save counts every city behind the last arena won as entered) |
 
-`journey.sav` is written after every arena won and every chest opened, and read at start. A launch continues at the last arena won. It is not written in unattended runs. Skill cooldowns, health and the exact position are not saved. A file that does not parse is ignored and the journey starts from the beginning [inferred from `Journey::Load`; not tested with a damaged file].
+`journey.sav` is written after every arena won, every chest opened, every purchase in Nyxara's window and every potion drunk, and read at start. Its last line is her growth: crystals, potions, then the five levels (wings, swords, armour, power, defence). A launch continues at the last arena won. It is not written in unattended runs. Skill cooldowns, health and the exact position are not saved. A file that does not parse is ignored and the journey starts from the beginning [inferred from `Journey::Load`; not tested with a damaged file].
+
+The line after her growth in `journey.sav` is what she carries: eight charm counts, links, the feather bits, three rune counts and the rune set in her blades (-1 none). Saves from before it load with nothing carried.

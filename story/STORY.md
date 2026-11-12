@@ -64,9 +64,23 @@ This is the story bible for the game. Everything the game shows or says should a
 | 8 | **Father and Daughter** | The fight with the Eagle. | The cave mouth |
 | 9 | **The Chain** | She opens the chain, or does not. | The cave |
 
-## 5. The road as built (v0.2)
+## 5. The road as built (v0.3)
 
 **[proposed]** throughout: this is what the game now tells, written to give the journey a shape. The author may replace any of it.
+
+### The seven cities **[proposed]**
+
+The road passes through seven real Georgian cities, each shown by what it is known for. Their order follows the road, not the map of Georgia. The texts are in `game/src/Story.cpp` (`Story::Cities`).
+
+| # | City | Land | Known for | What it gives Nyxara |
+|---|---|---|---|---|
+| 1 | Telavi | Kakheti | Wine made in clay jars (qvevri) | Kakhetian wine |
+| 2 | Tbilisi | Kartli | The warm sulphur springs the city is named for; Narikala fortress | Warm springs |
+| 3 | Mtskheta | Kartli | Svetitskhoveli cathedral and Jvari church on the rock | Blessing of the pillar |
+| 4 | Gori | Shida Kartli | Gori fortress; the cave town of Uplistsikhe nearby | Heart of stone |
+| 5 | Kutaisi | Colchis | The kingdom of the Golden Fleece | Gold of Colchis |
+| 6 | Batumi | Adjara | The Black Sea port | Sea wind |
+| 7 | Mestia | Svaneti | The Svan towers | Svan steel |
 
 The seven chapters became one unbroken road of twelve regions from Moonlit Sanctuary to the mountain. The regions carry the years: the first is marked Year One, the Snow Pass Year Four, the Chain Road Year Seven.
 
@@ -95,7 +109,7 @@ The seven chapters became one unbroken road of twelve regions from Moonlit Sanct
 | Does she kill her father? | The Eagle "folds his wings and is still" after saying "You fly as I taught you". Deliberately ambiguous. | **[proposed]** |
 | The chain | After the Eagle falls she climbs to the ledge and breaks two iron anchors. Amirani stands; the game ends there. | **[proposed]** |
 | The Dog | Seen at the chain; one memory says it has stopped licking and is waiting. No role in play. | **[proposed]** |
-| How it is told | Short English text cards on screen, in capitals (the engine's HUD font). No voice, no Georgian text yet. | **[proposed]** |
+| How it is told | In a journal the player opens with F1: the legend, the twelve regions, the twelve memories and the ending, in English, filling in as the road is walked. On screen during play there are only region titles. No voice, no Georgian text yet. | **[proposed]** |
 
 The prologue (The Open Cave) is told in four text cards at the start, not played.
 

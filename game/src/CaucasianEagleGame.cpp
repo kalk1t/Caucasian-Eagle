@@ -1,14 +1,19 @@
 #include "CaucasianEagleGame.h"
 
 #include "AmiraniMountain.h"
+#include "Nature.h"
 
 #include "CombatSystem.h"
 #include "DoorwaysAssetPaths.h"
+#include "DoorwaysGamepad.h"
 #include "DoorwaysRenderContexts.h"
 #include "GameConstants.h"
+#include "GameUi.h"
 #include "Journey.h"
 #include "NyxaraHud.h"
 #include "NyxaraKit.h"
+#include "Sound.h"
+#include "StartScreen.h"
 #include "Renderer.h"
 #include "WorldRenderer.h"
 #include "WorldState.h"
@@ -26,7 +31,8 @@
 //            rigged eagle wings, Moonfeather / Talonshade swords, 31 authored clips; built by
 //            art/nyxara/assemble.py), sets the camera / input / movement options and starts
 //            her combat kit. Collision, physics, jump and hold-Space flight stay engine rules.
-// Update / Draw / DrawHud forward to NyxaraKit and the gameplay HUD.
+// Update / Draw forward to NyxaraKit and the journey; DrawHud makes the frame's Ui (GameUi.h) and
+// hands it to the hero HUD, the journey HUD and the story journal.
 
 namespace CaucasianEagle
 {
@@ -95,6 +101,8 @@ namespace CaucasianEagle
         session.SlowWalk = true; session.SlowWalkSpeed = WalkSpeed; // hold Ctrl to walk
         session.FastMultiplier = WingBoostMultiplier;               // Shift wing boost
         session.OrbitCamera = true;
+        session.LookScale = CameraLookScale;                        // a calmer camera than the engine's own
+        session.Cursor = PointerFile;                               // her own pointer, wherever the pointer shows
         session.CameraPitch = CameraPitch; session.CameraDistance = CameraDistance; session.CameraPivotHeight = CameraPivotHeight;
         session.CameraMinPitch = CameraMinPitch; session.CameraMaxPitch = CameraMaxPitch;
         session.SuppressedActions = {
@@ -104,10 +112,28 @@ namespace CaucasianEagle
             DoorwaysInputAction::ToggleImportedAnimatedDebugSampling,        // V = Feather Cyclone
             DoorwaysInputAction::ToggleImportedSkinningSideBySideComparison, // C = Moon Leap
             DoorwaysInputAction::BasicAttack,                                // LMB = slashes / combos
-            DoorwaysInputAction::HeavyAttack};                               // RMB = heavy / combos
+            DoorwaysInputAction::HeavyAttack,                                // RMB = heavy / combos
+            DoorwaysInputAction::ToggleRuntimeObjectBounds,                  // F1 = story journal
+            DoorwaysInputAction::ToggleImportedGpuSkinnedPreview,            // M = world map
+            DoorwaysInputAction::ToggleInventory,                            // I = Nyxara's own window (Growth.h), not the engine inventory
+            DoorwaysInputAction::Dodge};                                     // no dodge: she guards, dashes and flies instead
+        session.OwnPauseMenu = true;                                         // Esc = her own menu (Journey), not the engine's pause menu
+        // Game controller (engine: DoorwaysGamepad.h). The engine's defaults stay: left stick moves, right stick looks,
+        // A jump / fly, B dodge, X slash, Y heavy, LT wing boost, left stick click walk, Start pause.
+        // Nyxara's own keys go on what is left.
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // Talon Dash
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // Feather Cyclone
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // Moon Leap
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::LeftShoulder, 'E');     // sword barrier
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadLeft, 'Q');         // sword swap
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadRight, 'M');        // world map
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadDown, VK_F1);       // story journal
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::Back, 'I');             // Nyxara's window
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightThumb, 'Z');       // drink a potion
         host.World.MainCamera.Pitch = CameraPitch;
         host.World.MainCamera.FollowDistance = CameraDistance;
 
+        if (!Ui::LoadArt(host.Render, error)) return false;
         if (!GetAmiraniMountain().Initialize(host.Render, error))
         {
             error = "Mountain of Amirani: " + error;
@@ -128,11 +154,34 @@ namespace CaucasianEagle
             char vista[8] = {};
             gVista = GetEnvironmentVariableA(VistaEnvironmentVariable, vista, sizeof(vista)) && vista[0] == '1';
         }
+        if (!GetNature().Initialize(host.Render, error))
+        {
+            error = "Nature: " + error;
+            return false;
+        }
         if (!GetJourney().Initialize(host.Render, host.World, error))
         {
             error = "Road to Amirani: " + error;
             return false;
         }
+        // The start screen: the engine's main menu with this game's words, at the left of the painted picture.
+        session.MenuTitle = L"CAUCASIAN EAGLE";
+        session.MenuSubtitle = L"The road to Amirani";
+        // she begins on the road itself (and returns there when she falls before the first arena is won)
+        session.OwnSpawn = true; session.SpawnPosition = GetJourney().StartPoint(); session.SpawnYaw = 0;
+        host.World.MainPlayerSpawn.Position = session.SpawnPosition; host.World.MainPlayerSpawn.Yaw = 0;
+        session.MenuPlayLabel = GetJourney().HasProgress() ? L"Continue the journey" : L"Begin the journey";
+        // who made it; these also show on the engine's Credits screen should the game's own start screen ever be off
+        session.MenuCredits = {L"Caucasian Eagle", L"A game by Giorgi Samkharadze", L"Built in Doorways, a custom engine",
+                               L"founded by Giorgi Samkharadze", L"in February 2026"};
+        session.MenuHideLinks = true;
+        session.MenuGuideLabel = L"Guide";                                   // how to play and what the game needs (Guide.cpp)
+        session.OwnSettings = true;                                          // and so is the settings window (Settings.cpp); the engine's screens never open
+        session.OwnStartScreen = true;                                       // the start screen is the game's own (StartScreen.cpp)
+        Sound::Initialize();
+        Sound::StartMusic("music/menu");   // the start screen's music; the journey fades into its own when play begins
+        session.MenuBackdrop = StartScreenPicture;
+        session.MenuPanelSide = -1;
         if (unattended) host.StartGame();
         return character.SampleAuthoredClip("Idle", 0, &error);
     }
@@ -145,14 +194,17 @@ namespace CaucasianEagle
     void Game::Update(DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed)
     {
         GetAmiraniMountain().Update(realDeltaTime);
+        GetNature().Update(realDeltaTime);
         if (gVista) { host.World.MainCamera.Yaw = 0; host.World.MainCamera.Pitch = VistaPitch; }
         GetNyxaraKit().Update(host.World, host.WorldRender, host.Combat, deltaTime, realDeltaTime, inputAllowed);
-        GetJourney().Update(host, deltaTime, realDeltaTime);
+        GetJourney().Update(host, deltaTime, realDeltaTime, inputAllowed);
     }
 
     void Game::Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection)
     {
         GetAmiraniMountain().Draw(renderer, world.MainCamera.Position, viewProjection);
+        GetNature().DrawClouds(renderer, world.MainCamera.Position, viewProjection);
+        GetNature().Draw(renderer, world.MainCamera.Position, viewProjection);
         GetJourney().Draw(renderer, world, viewProjection);
         if (!gVista) GetNyxaraKit().Draw(renderer, world, viewProjection); // capture mode hides her effects
     }
@@ -163,12 +215,18 @@ namespace CaucasianEagle
         GetJourney().StyleEnvironment(environment);
     }
 
+    void Game::DrawStartScreen(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused)
+    {
+        StartScreen::Draw(context, text, focused);
+    }
+
     bool Game::DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text)
     {
         if (gVista) return true; // capture mode: no HUD
         if (!NyxaraHud().Valid || !context.World.CombatFeedback.MeleeActive) return false;
-        DrawNyxaraHud(context, text);
-        GetJourney().DrawHud(context, text);
+        Ui ui(context, text);
+        DrawNyxaraHud(ui, context);
+        GetJourney().DrawHud(ui, context.World);
         return true;
     }
 }

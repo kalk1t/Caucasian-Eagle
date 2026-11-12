@@ -1,14 +1,15 @@
-# Builds the game world "RoadToAmirani": the Moonlit Sanctuary plus the long road to the mountain of Amirani.
+# Builds the game world "RoadToAmirani": the long road to the mountain of Amirani and the land round it.
+# The journey begins at the first stone of the road (the Moonlit Sanctuary of version 0.1 is no longer part of the world).
 #
 # Usage (from art/world):
-#   blender -b ../moonlit-sanctuary/Moonlit_Sanctuary_v01.blend -P build_world.py -- <out.glb> <Road.txt> <texture folder>
+#   blender -b -P build_world.py -- <out.glb> <Road.txt> <texture folder>
 #
 # All numbers below are in ENGINE coordinates: metres, X right, Y up, Z forward (toward the mountain).
-# Blender position = (x, -z, y). The source .blend is not modified.
+# Blender position = (x, -z, y).
 #
 # Output:
-#   <out.glb>    render nodes Doorways_MS_* (sanctuary), Doorways_RD_* (road world) and collision
-#                COL_Walkable_MoonlitGround, COL_MoonlitBlockers, COL_Walkable_Road_### (one per road chunk)
+#   <out.glb>    render nodes Doorways_RD_* (road world) and collision
+#                COL_Walkable_Road_### (one per road chunk), COL_Walkable_Land_#### (the land)
 #   <Road.txt>   what the game needs to know: path samples, arenas, chests, props, lights (see write_data)
 #   <textures>   tiling ground textures referenced by the GLB (also embedded in it)
 import bpy, bmesh, sys, re, math, os
@@ -25,6 +26,7 @@ ARENA_R = 17.0           # m, half width of the road inside an arena
 BOSS_R = 24.0
 STEP = 2.0               # m between path samples
 GRID = 4.0               # m terrain cell
+LAND_CHUNK = 16          # terrain cells per side of one piece of land collision
 XMIN, XMAX, ZMIN, ZMAX = -680.0, 680.0, -180.0, 2010.0
 MOUNTAIN = (0.0, 1900.0) # x, z of the peak of Amirani's mountain (GameConstants.h MountainX/Z)
 LEDGE_Y, LEDGE_HALF, LEDGE_FRONT, LEDGE_BACK = 78.0, 38.0, 1872.0, 1889.0
@@ -118,6 +120,14 @@ arenas.append((11, LENGTH - 26.0, 2, 21.0))  # the terrace below Amirani: the Ea
 PW = np.full(N, ROAD_HALF)
 for st, s0, kind, r in arenas:
     PW = np.maximum(PW, ROAD_HALF + (r - ROAD_HALF) * smooth(1.6 - np.abs(S - s0) / (r * 0.95)))
+# The land is shaped round the road and round a short apron behind its first stone: there the ground lies level
+# with the road, so the journey begins on open ground and not at the end of a bank. (build_nature.py uses this too.)
+APRON = np.arange(PZ[0] - 36.0, PZ[0] - 1.0, 6.0)
+def land_path():
+    sub = slice(None, None, 3)
+    n = len(APRON)
+    return (np.concatenate([np.full(n, PX[0]), PX[sub]]), np.concatenate([APRON, PZ[sub]]), np.concatenate([np.full(n, PY[0]), PY[sub]]),
+            np.concatenate([np.full(n, ROAD_HALF + 5.0), PW[sub]]), np.concatenate([np.zeros(n, int), PSTAGE[sub]]))
 print("PATH length %.0f m, %d samples, %d arenas" % (LENGTH, N, len(arenas)))
 for st in range(len(STAGES)):
     print("  stage %2d %-18s %5.0f .. %5.0f m" % (st, STAGES[st][0], *stage_s[st]))
@@ -194,6 +204,45 @@ def cobble_texture(name, base, seed, n=512, stones=190, moss=None, snow=None, bu
     height = stone * (0.75 + 0.25 * smooth(gap / 0.06)) + 0.08 * fine
     return save_image(name, rgb), save_image(name + "_N", normal_from_height(height, bump), 'Non-Color')
 
+def earth_texture(name, a, b, seed, n=512, grass=None, snow=None, bump=6.0):
+    # An old road: earth packed by feet, hooves and cart wheels. Streaks run along the road (v), stones
+    # lie in it, and grass (or snow) has crept in where nobody walks.
+    r = np.random.default_rng(seed)
+    big = fbm(n, 1.6, seed); fine = fbm(n, 0.6, seed + 1); mid = fbm(n, 1.1, seed + 2)
+    # wheel and hoof tracks: fine noise averaged along the road, so it becomes long lines
+    raw = fbm(n, 0.5, seed + 3)
+    track = np.zeros((n, n))
+    for shift in range(0, 70):
+        track += np.roll(raw, shift, axis=0)
+    track = (track - track.min()) / (track.max() - track.min())
+    track = smooth((track - 0.30) / 0.40)
+    rgb = np.array(a)[None, None, :] * (1 - big[:, :, None]) + np.array(b)[None, None, :] * big[:, :, None]
+    rgb = rgb * (0.72 + 0.50 * track[:, :, None]) * (0.86 + 0.28 * fine[:, :, None])
+    # stones trodden into the earth
+    v, u = np.mgrid[0:n, 0:n] / n
+    stone = np.zeros((n, n)); tone = np.ones((n, n))
+    for k in range(150):
+        cu, cv, rad, t = r.uniform(), r.uniform(), r.uniform(0.006, 0.020), r.uniform(0.7, 1.25)
+        du = np.abs(u - cu); du = np.minimum(du, 1 - du)
+        dv = np.abs(v - cv); dv = np.minimum(dv, 1 - dv)
+        d = np.sqrt(du * du + (dv * r.uniform(0.7, 1.4)) ** 2) / rad
+        dome = np.clip(1 - d * d, 0, 1)
+        tone = np.where(dome > stone, t, tone); stone = np.maximum(stone, dome)
+    sm = smooth(stone / 0.25)[:, :, None]
+    rgb = rgb * (1 - sm) + np.array((0.27, 0.27, 0.25))[None, None, :] * (tone * (0.55 + 0.45 * stone) * (0.85 + 0.3 * fine))[:, :, None] * sm
+    height = 0.35 * mid + 0.20 * fine + 0.30 * track + 0.9 * stone
+    cover = fbm(n, 1.25, seed + 5)
+    if grass:
+        blades = smooth((fbm(n, 0.45, seed + 6) - 0.42) / 0.2)            # broken into tufts
+        m = (smooth((cover - 0.60) / 0.07) * (0.35 + 0.65 * blades) * (1 - sm[:, :, 0]))[:, :, None]
+        rgb = rgb * (1 - m) + np.array(grass)[None, None, :] * (0.7 + 0.6 * fine[:, :, None]) * m
+        height = height + 0.35 * m[:, :, 0] * blades
+    if snow:
+        m = smooth((cover - 0.52) / 0.08)[:, :, None]
+        rgb = rgb * (1 - m) + np.array(snow)[None, None, :] * (0.9 + 0.2 * fine[:, :, None]) * m
+        height = height + 0.3 * m[:, :, 0]
+    return save_image(name, rgb), save_image(name + "_N", normal_from_height(height, bump), 'Non-Color')
+
 def plank_texture(name, base, seed, n=512, boards=7):
     r = np.random.default_rng(seed)
     v, u = np.mgrid[0:n, 0:n] / n
@@ -242,9 +291,13 @@ def make_materials():
     material("BareRock", g("BareRock", (0.145, 0.155, 0.17), (0.25, 0.26, 0.275), 12, grain=0.14, bump=8.0))
     material("Rock", g("Rock", (0.095, 0.11, 0.12), (0.19, 0.205, 0.215), 13, grain=0.15, bump=9.0))
     material("SnowRock", g("SnowRock", (0.22, 0.25, 0.30), (0.44, 0.49, 0.56), 14, grain=0.10, bump=6.0))
-    material("Road", cobble_texture("Road", (0.27, 0.29, 0.29), 3, moss=(0.11, 0.17, 0.10)))
-    material("RoadDark", cobble_texture("RoadDark", (0.17, 0.155, 0.15), 9))
-    material("RoadSnow", cobble_texture("RoadSnow", (0.25, 0.27, 0.30), 5, snow=(0.46, 0.51, 0.59)))
+    # The road is an old earth road: there was no paving in those times. Only the bridge out of the sanctuary
+    # and the last climb to the mountain are laid stone.
+    material("Road", earth_texture("Road", (0.17, 0.13, 0.085), (0.29, 0.225, 0.15), 3, grass=(0.12, 0.19, 0.085)))
+    material("RoadDark", earth_texture("RoadDark", (0.10, 0.085, 0.075), (0.19, 0.155, 0.13), 9))
+    material("RoadSnow", earth_texture("RoadSnow", (0.17, 0.14, 0.11), (0.27, 0.23, 0.19), 5, snow=(0.46, 0.51, 0.59)))
+    material("RoadMud", earth_texture("RoadMud", (0.10, 0.095, 0.065), (0.19, 0.165, 0.105), 21, grass=(0.11, 0.17, 0.085)), rough=0.6)
+    material("RoadStone", cobble_texture("RoadStone", (0.27, 0.29, 0.29), 3, moss=(0.11, 0.17, 0.10)))
     material("Wood", plank_texture("Wood", (0.21, 0.155, 0.10), 20), rough=0.8)
     material("Stone", g("Stone", (0.17, 0.195, 0.195), (0.28, 0.305, 0.30), 15, grain=0.12, bump=8.0))
     material("DarkIron", g("DarkIron", (0.06, 0.06, 0.07), (0.13, 0.115, 0.115), 16), rough=0.5, metal=0.5)
@@ -254,7 +307,9 @@ def make_materials():
     material("Water", None, (0.012, 0.045, 0.060), rough=0.08)
     material("Lava", None, (0.95, 0.32, 0.05), rough=0.5)
 
-ROAD_MAT = ["Road", "Road", "Wood", "Road", "Road", "RoadSnow", "RoadDark", "Road", "Road", "RoadDark", "RoadDark", "Road"]
+ROAD_MAT = ["Road", "Road", "RoadMud", "Road", "Road", "RoadSnow", "RoadDark", "Road", "Road", "RoadDark", "RoadDark", "RoadStone"]
+def road_mat(i):
+    return "RoadStone" if S[i] < 95.0 else ROAD_MAT[PSTAGE[i]]
 
 # ------------------------------------------------------------------ mesh bags (engine coordinates)
 class Bag:
@@ -320,8 +375,7 @@ def build_object(name, b, mat=None, smooth_shade=False):
 def build_terrain():
     xs = np.arange(XMIN, XMAX + .1, GRID); zs = np.arange(ZMIN, ZMAX + .1, GRID)
     GX, GZ = np.meshgrid(xs, zs)            # [iz, ix]
-    sub = slice(None, None, 3)
-    px, pz, py, pw, pst = PX[sub], PZ[sub], PY[sub], PW[sub], PSTAGE[sub]
+    px, pz, py, pw, pst = land_path()
     bankA = np.array([STAGES[s][2] for s in pst]); bankN = np.array([STAGES[s][3] for s in pst])
     shape = GX.shape
     base = np.zeros(shape); A = np.zeros(shape); Nn = np.zeros(shape); dmin = np.zeros(shape); wn = np.zeros(shape); stn = np.zeros(shape, int)
@@ -338,17 +392,18 @@ def build_terrain():
     noise = fbm(shape[0], 1.9, 101, shape[1]) * 2 - 1
     detail = fbm(shape[0], 1.2, 102, shape[1]) * 2 - 1
     ridged = 1 - np.abs(fbm(shape[0], 2.0, 103, shape[1]) * 2 - 1)
+    rolling = fbm(shape[0], 2.7, 104, shape[1]) * 2 - 1     # long soft swells: fields and low hills beside the road
     out = dmin - wn
     h = base + A * smooth((out - 1.0) / 30.0) + Nn * (noise * 1.6 + detail * 0.5) * smooth(out / 55.0)
+    h += (2.5 + 0.9 * Nn) * rolling * smooth((out - 2.0) / 45.0)
     # distant ridgelines ring the world, but leave Amirani's mountain alone
     dm = np.hypot(GX - MOUNTAIN[0], GZ - MOUNTAIN[1])
     far = smooth((out - 110.0) / 320.0) * smooth((dm - 330.0) / 220.0)
     h += far * (30 + 150 * ridged ** 2)
     # the corridor itself sits just under the road ribbon
     h = np.where(out < 1.0, base - 0.4, h)
-    # the sanctuary floats over a chasm
-    r = np.hypot(GX, GZ)
-    h = h * smooth((r - 100.0) / 70.0) + (-70.0) * (1 - smooth((r - 100.0) / 70.0))
+    # the apron behind the first stone has no road ribbon over it: there the ground itself is at road height
+    h = np.where((out < 1.0) & (GZ < PZ[0] - 1.0), base, h)
     # nothing pokes through the ledge and the terrace of the mountain
     near_ledge = (np.abs(GX) < 60) & (GZ > 1790)
     h = np.where(near_ledge, np.minimum(h, 30.0), h)
@@ -384,7 +439,38 @@ def build_terrain():
         for z, x in zip(cz, cx):
             x0, z0 = xs[x], zs[z]
             b.add([(x0, level, z0), (x0 + GRID, level, z0), (x0 + GRID, level, z0 + GRID), (x0, level, z0 + GRID)], [(0, 1, 2, 3)], [((0, 0), (1, 0), (1, 1), (0, 1))])
+    LAND.update(GX=GX, GZ=GZ, h=h, out=out, base=base, stn=stn)
     return xs, zs, h, dmin - wn
+
+LAND = {}
+
+def build_land_collision():
+    """The whole land as walkable ground: every terrain cell of the map, except
+    water and the foot of the mountain. In the road's corridor it lies level
+    with the road, so stepping off the road and back on has no step. Cliffs are in it too: the engine does
+    not let her stand on a face that is too steep, so they hold her by themselves."""
+    GX, GZ, h, out, base, stn = (LAND[k] for k in ("GX", "GZ", "h", "out", "base", "stn"))
+    hc = np.where(out < 1.0, base, h)
+    ok = ~((GZ > 1770.0) & (np.abs(GX) < 130.0))
+    for st, level in WATER.items():
+        ok &= ~((stn == st) & (h < level + 0.25))
+    cell = ok[:-1, :-1] & ok[:-1, 1:] & ok[1:, :-1] & ok[1:, 1:]
+    nz, nx = cell.shape
+    count = 0; faces = 0
+    for z0 in range(0, nz, LAND_CHUNK):
+        for x0 in range(0, nx, LAND_CHUNK):
+            cz, cx = np.where(cell[z0:z0 + LAND_CHUNK, x0:x0 + LAND_CHUNK])
+            if len(cz) == 0:
+                continue
+            b = Bag(sheet=True)
+            for z, x in zip(cz + z0, cx + x0):
+                # wound like the road's collision (seen from above)
+                b.add([(GX[z, x], hc[z, x], GZ[z, x]), (GX[z, x + 1], hc[z, x + 1], GZ[z, x + 1]),
+                       (GX[z + 1, x + 1], hc[z + 1, x + 1], GZ[z + 1, x + 1]), (GX[z + 1, x], hc[z + 1, x], GZ[z + 1, x])],
+                      [(0, 1, 2, 3)], [((0, 0),) * 4])
+            build_object("COL_Walkable_Land_%04d" % count, b)
+            count += 1; faces += len(cz)
+    print("LAND COLLISION pieces", count, "cells", faces)
 
 def sampler(xs, zs, field):
     def at(x, z):
@@ -404,7 +490,7 @@ def is_bridge(i):
 def build_road():
     for i in range(N - 1):
         st = PSTAGE[i]
-        b = bag("Road_" + ROAD_MAT[st], sheet=True)
+        b = bag("Road_" + road_mat(i), sheet=True)
         cols = [-1.0, -0.5, 0.0, 0.5, 1.0]
         rows = []
         for j in (i, i + 1):
@@ -415,7 +501,8 @@ def build_road():
                   [((u0, S[i] / 4.0), (u1, S[i] / 4.0), (u1, S[i + 1] / 4.0), (u0, S[i + 1] / 4.0))])
         # skirts hide the seam with the terrain; bridges get a deep stone side
         deep = 5.0 if is_bridge(i) else 1.6
-        sk = bag("Stone" if is_bridge(i) else "Road_" + ROAD_MAT[st])
+        # across the marsh and the lake the road runs on an earth bank, not on a stone bridge
+        sk = bag("Stone" if is_bridge(i) and st not in WATER else "Road_" + road_mat(i))
         for side in (-1, 1):
             a0, a1 = edge(i, side), edge(i + 1, side)
             out0, out1 = edge(i, side, 0.0 if is_bridge(i) else 1.8), edge(i + 1, side, 0.0 if is_bridge(i) else 1.8)
@@ -442,29 +529,53 @@ def build_collision():
     # starts 5 m before the ledge so it overlaps the end of the terrace (no gap to step over)
     b.add([(-LEDGE_HALF, LEDGE_Y, LEDGE_FRONT - 5), (LEDGE_HALF, LEDGE_Y, LEDGE_FRONT - 5), (LEDGE_HALF, LEDGE_Y, LEDGE_BACK), (-LEDGE_HALF, LEDGE_Y, LEDGE_BACK)], [(0, 1, 2, 3)], [((0, 0),) * 4])
     build_object("COL_Walkable_Road_Ledge", b)
-    # the sanctuary south district to the first road sample
-    b = Bag(sheet=True)
-    b.add([(-ROAD_HALF, 0, 90.0), (ROAD_HALF, 0, 90.0), (ROAD_HALF, 0, 94.0), (-ROAD_HALF, 0, 94.0)], [(0, 1, 2, 3)], [((0, 0),) * 4])
-    build_object("COL_Walkable_Road_Join", b)
-    print("COLLISION chunks", count + 2)
+    print("COLLISION chunks", count + 1)
 
 # ------------------------------------------------------------------ props baked into the scene
 LIGHTS, PROPS, CHESTS = [], [], []
+OBSTACLES = []           # (x, z, radius): boulders, props and gate piers she walks round off the road
+PROP_RADIUS = {"deadtree": 0.045, "fir": 0.04, "tower": 0.17, "rocks": 0.42}   # of the prop's height
 
 def yaw_of(i):
     return math.atan2(tx[i], tz[i])
 
 def gate(i, mat="Stone", height=9.0):
+    """The gate at the start of a region: two buttressed piers on stepped plinths, a round arch of wedge stones
+    with a keystone springing from their capitals, a wall over it and a row of merlons. 'height' is where the
+    arch springs; the road passes under it with room to fly."""
     w = PW[i] + 1.6; yaw = yaw_of(i); b = bag(mat)
+    def at(u, y, along=0.0):   # u across the road, y above it, along it
+        return (PX[i] + NXv[i] * u + tx[i] * along, PY[i] + y, PZ[i] + NZv[i] * u + tz[i] * along)
     for side in (-1, 1):
-        c = (PX[i] + NXv[i] * w * side, PY[i] + height / 2 - 0.5, PZ[i] + NZv[i] * w * side)
-        b.box(c, (2.4, height + 1, 2.4), yaw)
-        b.box((c[0], PY[i] + height + 0.6, c[2]), (3.2, 0.9, 3.2), yaw)
-        b.box((c[0], PY[i] + 0.4, c[2]), (3.4, 1.4, 3.4), yaw)
-    # lintel of three stones
-    b.box((PX[i], PY[i] + height + 1.6, PZ[i]), (2 * w + 3.4, 1.5, 2.6), yaw)
-    b.box((PX[i], PY[i] + height + 2.9, PZ[i]), (2 * w * 0.6, 1.2, 2.2), yaw)
-    b.box((PX[i], PY[i] + height + 4.0, PZ[i]), (2.2, 1.4, 1.8), yaw)
+        OBSTACLES.append((at(side * w, 0)[0], at(side * w, 0)[2], 2.0))
+        b.box(at(side * w, 0.3), (4.2, 1.4, 4.2), yaw)                       # plinth, two steps
+        b.box(at(side * w, 1.3), (3.5, 0.8, 3.5), yaw)
+        b.box(at(side * w, height / 2 + 0.8), (2.6, height - 1.6, 2.6), yaw)   # shaft
+        for q in (0.34, 0.67):                                               # two bands round the shaft
+            b.box(at(side * w, height * q + 0.8), (2.9, 0.35, 2.9), yaw)
+        b.box(at(side * (w + 1.9), height * 0.3), (1.6, height * 0.75, 2.0), yaw, 0, side * 0.2)   # buttress leaning in
+        b.box(at(side * w, height + 0.15), (3.3, 0.5, 3.3), yaw)             # capital
+        b.box(at(side * w, height + 0.6), (3.8, 0.45, 3.6), yaw)
+    spring = height + 0.8
+    inner = w - 1.3                                                          # the clear half span
+    ring = inner + 0.75                                                      # middle of the wedge stones
+    stones = 15
+    for k in range(stones):
+        theta = math.pi * (k + 0.5) / stones
+        key = k == stones // 2
+        radial = 2.3 if key else 1.5
+        b.box(at(math.cos(theta) * (ring + (0.3 if key else 0)), spring + math.sin(theta) * (ring + (0.3 if key else 0))),
+              (math.pi * ring / stones + (0.5 if key else 0.06), radial, 3.0 if key else 2.4), yaw, 0, theta + math.pi / 2)
+    top = spring + inner + 1.5                                               # top of the ring
+    for side in (-1, 1):                                                     # the wall beside the ring, in two steps
+        b.box(at(side * (w + 0.2), spring + (top - spring) * 0.5), (2.8, top - spring, 2.0), yaw)
+        b.box(at(side * (w - 2.4), spring + (top - spring) * 0.78), (2.6, (top - spring) * 0.44, 1.9), yaw)
+    b.box(at(0, top + 0.55), (2 * w + 4.4, 1.1, 2.7), yaw)                   # the course over the arch
+    b.box(at(0, top + 1.3), (2 * w + 3.4, 0.5, 2.2), yaw)
+    merlons = 7
+    for k in range(merlons):
+        u = (k - (merlons - 1) / 2) * (2 * w + 2.2) / (merlons - 1)
+        b.box(at(u, top + 2.1 + (0.5 if k == merlons // 2 else 0)), (1.3, 1.2 + (1.0 if k == merlons // 2 else 0), 2.0), yaw)
 
 def lantern(i, side, color):
     w = PW[i] + 0.9
@@ -493,6 +604,8 @@ def boulders(xs, zs, height_at, clear_at):
             verts = np.column_stack([verts[:, 0] * ca - verts[:, 2] * sa, verts[:, 1], verts[:, 0] * sa + verts[:, 2] * ca])
             verts += np.array([x, height_at(x, z) + sc[1] * 0.25, z])
             target = bs if st == 5 else b
+            if size > 0.9:
+                OBSTACLES.append((x, z, min(0.75 * float(max(sc[0], sc[2])), clear_at(x, z) + 0.4)))   # never reaches onto the road
             target.add([tuple(p) for p in verts], ifc, [tuple((float(verts[k][0] / 3), float(verts[k][2] / 3 + verts[k][1] / 3)) for k in f) for f in ifc])
             count += 1
     print("BOULDERS", count)
@@ -530,8 +643,8 @@ def scatter(xs, zs, height_at, clear_at):
 
 def decorate(xs, zs, height_at, clear_at):
     stone = bag("Stone")
-    # gates at the sanctuary and at every stage border; lanterns along the whole road
-    gate(2)
+    # gates where the road begins and at every stage border; lanterns along the whole road
+    gate(6)
     for st in range(1, len(STAGES)):
         gate(int(stage_s[st][0] / STEP), "DarkIron" if st in (6, 7) else "Stone", 9.0 + (3 if st in (6, 11) else 0))
     for k, i in enumerate(range(8, N - 20, 22)):
@@ -555,7 +668,7 @@ def decorate(xs, zs, height_at, clear_at):
                 LIGHTS.append((x, PY[i] + hgt + 0.3, z, *col, 2.2 if kind else 1.6))
     # bridges: parapets and pillars
     for i in range(0, N - 1):
-        if not is_bridge(i) or PW[i] > ROAD_HALF + 0.5:
+        if not is_bridge(i) or PW[i] > ROAD_HALF + 0.5 or PSTAGE[i] in WATER:   # an earth bank has no parapet
             continue
         seg = math.hypot(PX[i + 1] - PX[i], PZ[i + 1] - PZ[i])
         wood = PSTAGE[i] == 2
@@ -659,7 +772,13 @@ def decorate(xs, zs, height_at, clear_at):
         i = int(s0 / STEP)
         CHESTS.append((PX[i] + NXv[i] * (r - 2.5), PY[i], PZ[i] + NZv[i] * (r - 2.5), yaw_of(i) - 1.57, 1 + kind))
 
-# ------------------------------------------------------------------ sanctuary (same preparation as Export/export_game_glb.py)
+# ------------------------------------------------------------------ an empty scene to build in
+def clear_scene():
+    for o in list(bpy.data.objects):
+        bpy.data.objects.remove(o, do_unlink=True)
+
+# The Moonlit Sanctuary of version 0.1 is no longer exported. Its preparation is kept for reference only
+# (it needs art/moonlit-sanctuary/Moonlit_Sanctuary_v01.blend as the open file) and is not called.
 def prepare_sanctuary():
     WALKABLE = re.compile(r"^(Arena surface|Arena foundation|Radial bridge|Outer circular foundations|District |Outlook foundation|Outlook paving|MS_Temple_step|MS_Temple_foundation|MS_Temple_inner_floor)")
     BLOCKER = re.compile(r"^(Bridge parapet|Ring outer battlement|MS_Arch_left_pier|MS_Arch_right_pier|MS_Arch_plinth|MS_Bench_|MS_Broken_column|MS_Column_base|MS_Column_foot|MS_Temple_column|MS_Temple_rear_wall|MS_Temple_side_wall|MS_Temple_side_bay|MS_Temple_tower|MS_Temple_tower_base|Nature_DeadTree|Nature_Grave|Soul lantern plinth)")
@@ -728,7 +847,7 @@ def prepare_sanctuary():
 def write_data():
     with open(OUT_DATA, "w", encoding="ascii") as f:
         f.write("# Road to Amirani: written by art/world/build_world.py. Engine coordinates, metres.\n")
-        f.write("# S index name | P x y z halfwidth stage | A stage s kind radius x y z | C x y z yaw tier | T type x y z yaw height | L x y z r g b size\n")
+        f.write("# S index name | P x y z halfwidth stage | A stage s kind radius x y z | C x y z yaw tier | T type x y z yaw height | L x y z r g b size | O x z radius\n")
         f.write("STEP %.3f\n" % STEP)
         for st, s in enumerate(STAGES):
             f.write("S %d %s\n" % (st, s[0].replace(" ", "_")))
@@ -741,15 +860,19 @@ def write_data():
             f.write("C %.3f %.3f %.3f %.3f %d\n" % c)
         for p in PROPS:
             f.write("T %s %.3f %.3f %.3f %.3f %.3f\n" % p)
+            OBSTACLES.append((p[1], p[3], max(0.35, min(PROP_RADIUS[p[0]] * p[5], CLEAR_AT(p[1], p[3]) + 0.4))))
+        for o in OBSTACLES:
+            f.write("O %.2f %.2f %.2f\n" % o)
         for l in LIGHTS:
             f.write("L %.3f %.3f %.3f %.2f %.2f %.2f %.2f\n" % l)
     print("DATA chests %d props %d lights %d" % (len(CHESTS), len(PROPS), len(LIGHTS)))
 
 # ------------------------------------------------------------------ main
-prepare_sanctuary()
+clear_scene()
 make_materials()
 xs, zs, H, CLEAR = build_terrain()
 height_at, clear_at = sampler(xs, zs, H), sampler(xs, zs, CLEAR)
+CLEAR_AT = clear_at
 build_road()
 boulders(xs, zs, height_at, clear_at)
 scatter(xs, zs, height_at, clear_at)
@@ -759,6 +882,7 @@ for name, b in BAGS.items():
     build_object("Doorways_RD_" + name, b, MATS[mat], smooth_shade=name in ("Rock", "SnowRock"))
     print("BAG", name, len(b.f))
 build_collision()
+build_land_collision()
 write_data()
 tris = sum(len(o.data.polygons) for o in bpy.context.scene.objects)
 print("OBJECTS", len(bpy.context.scene.objects), "FACES", tris)

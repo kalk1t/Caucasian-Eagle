@@ -49,6 +49,7 @@ The whole contract between the game and the engine is one engine header, `engine
 | `host.World` (`WorldState`) | Reads the player and camera; writes the hero's visual offset and rotation; replaces the hero character asset; the journey moves the player back onto the road, to checkpoints, and (test pilot only) turns the camera |
 | `host.WorldRender` (`WorldRenderer`) | Loads the hero's materials; shows and hides sword materials |
 | `host.Render` (`Renderer`) | Creates effect meshes and textures; draws effects |
+| `Renderer::LoadUiTexture`, `Renderer::DrawUiSprite` | Load the HUD atlas and draw parts of it in `DrawHud` (used only by `GameUi.cpp`) |
 | `host.Combat` (`CombatSystem`) | Checks that the player may act; applies enemy damage to the player (`ApplyIncomingDamage`); heals the player (`RestorePlayerHealth`, added in engine `aec7057`) |
 | `host.StartGame()` | Starts play from the menu in the showcase and the test pilot |
 
@@ -57,6 +58,17 @@ The game also includes engine headers directly (`WorldState.h`, `Renderer.h`, `W
 ## 9.5 Engine version in use
 
 The submodule pointer is the single source of truth: `git submodule status` prints the engine commit. Each engine bump is its own commit in this repository and is noted in [`docs/changelog.md`](../docs/changelog.md).
+
+## 9.5a Game controller
+
+The start screen is the game's own: `DoorwaysGameSession::OwnStartScreen` with `IDoorwaysGame::DrawStartScreen` and `StartRequest` (engine `techplan/06-game-interface.md`). `MenuTitle`, `MenuSubtitle`, `MenuPlayLabel`, `MenuCredits`, `MenuHideLinks`, `MenuBackdrop` and `MenuPanelSide` are still set for the engine's menu, which shows only if `OwnStartScreen` is turned off. The engine's settings screens are used as they are. The engine's `ToggleInventory` action is suppressed; I opens the game's own window.
+The settings window is the game's own too: `OwnSettings` with `GameSession().Settings` (`Active`, `Resolutions`, `BorderlessSize`, `Confirming`, `SecondsRemaining`; `Ask`, `DisplayAnswer`). Also used: `Cursor` (the pointer file), `FreeCursor` (pointer free while her windows are open), `LookScale` (camera turning speed, `CameraLookScale`), `OwnSpawn` / `SpawnPosition` / `SpawnYaw` (she begins on the road).
+
+The engine reads XInput controllers (`DoorwaysGamepad.h`). A button is bound to a virtual key and then counts as that key. The game keeps the engine's defaults (left stick = movement keys, right stick = camera, A jump, B dodge (suppressed by the game, so B does nothing in play), X / Y mouse buttons, LT fast, left stick click slow, Back inventory, Start Escape) and binds its own keys in `Game::Prepare` with `BindDoorwaysGamepadButton`: RB `F`, RT `V`, D-pad up `C`, LB `E`, D-pad left `Q`, D-pad right `M`, D-pad down `F1`. The game reads its own keys with `IsDoorwaysKeyDown` (kit, journal, map) so they answer to both devices. `Ui::KeyLabel` shows the button name instead of the key name while `IsDoorwaysGamepadInUse()` is true. Hold-F9 restart reads the keyboard only.
+
+## 9.5b Sound files
+
+`Doorways::GameAudio()` (`DoorwaysGameAudio.h`) plays the game's WAV files: `Play(file, volume, pitch, channel)` for one-shots, `Loop(slot, file, volume, channel)` and `Say(slot, file, volume, channel)` for six slots that hold one file each, `Stop(slot)`, `Playing(slot)`. Paths are relative to the content root (`assets/sounds/...`). Only `Sound.cpp` calls it.
 
 ## 9.6 Rules
 

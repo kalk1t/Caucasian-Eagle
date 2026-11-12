@@ -28,7 +28,7 @@ Caucasian Eagle v0.1 is an offline single-player game. Its security surface is s
 | Item | Status |
 |---|---|
 | Code-signed executable and installer | Not done. Unsigned builds trigger the Windows SmartScreen warning. Planned for M6. |
-| Checksums published with each release | Not done. Planned for M2 with the first package. |
+| Checksums published with each release | Done since v0.3.0: `tools/package.ps1` writes a `.sha256` file for the zip and for the Setup file; both are attached to the release. |
 | Engine diagnostics and validation modes disabled for players | The engine has an access model (player / developer audiences). How a release build is locked to the player audience has not been verified for the game. [unknown] |
 
 ## 10.4 Third-party content and licences

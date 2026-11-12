@@ -14,7 +14,8 @@ work = pathlib.Path(tempfile.mkdtemp(prefix="ce_models_"))
 for pair in sys.argv[4:]:
     name, meshy = pair.split("=")
     folder = src / f"{meshy}_3d"
-    data = (folder / "model_url.glb").read_bytes()
+    refined = pathlib.Path(__file__).resolve().parents[1] / "refine" / "out" / f"{name}.glb"   # art/refine/refine_assets.py
+    data = (refined if refined.exists() else folder / "model_url.glb").read_bytes()
     json_len = struct.unpack_from("<I", data, 12)[0]
     doc = json.loads(data[20:20 + json_len])
     rest = data[20 + json_len:]
@@ -35,5 +36,5 @@ for pair in sys.argv[4:]:
         continue
     shutil.copy(meshes[0], dest / f"{name}.dmesh")
     Image.open(folder / "texture_urls_0_base_color.png").convert("RGB").resize((1024, 1024), Image.LANCZOS).save(dest / f"{name}BaseColor.png")
-    print(name, "mesh nodes:", count, "bytes:", meshes[0].stat().st_size)
+    print(name, "refined" if refined.exists() else "raw", "mesh nodes:", count, "bytes:", meshes[0].stat().st_size)
 shutil.rmtree(work, ignore_errors=True)

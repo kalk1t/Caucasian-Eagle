@@ -1,9 +1,8 @@
+#define NOMINMAX
 #include "NyxaraHud.h"
-#include "HudTextRenderer.h"
-#include "DoorwaysHudTextLayout.h"
+
 #include "DoorwaysRenderContexts.h"
-#include "DoorwaysUiTheme.h"
-#include "Renderer.h"
+#include "GameUi.h"
 #include "WorldState.h"
 
 #include <algorithm>
@@ -13,123 +12,153 @@
 #include <sstream>
 #include <string>
 
-// Caucasian Eagle gameplay HUD: vitals bars, an eight-slot skill bar with cooldown sweeps and key badges,
-// a combo prompt, shade health bars and a centred action banner. Presentation only: it reads
-// the NyxaraHud() snapshot and the combat vitals text; it owns no gameplay state.
-void Doorways::DrawNyxaraHud(const DoorwaysHudRenderContext& context, HudTextRenderer& mTextRenderer)
+// Nyxara's part of the HUD. Presentation only: it reads the NyxaraHud() snapshot and the combat
+// vitals text and owns no gameplay state (the little it keeps is for animation: the health trail,
+// the hit flash and the flash of a skill that has just come back).
+//
+//   bottom left    emblem, health with a trail of what was just lost, energy, which sword is in which hand
+//   bottom centre  eight skill slots in three groups (attacks, eagle skills, utility) with key badges
+//   above the bar  the combo prompt and the name of the move just made
+//   in the world   health bars over enemies
+//   screen edge    red when health is low or she was just hit
+void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderContext& context)
 {
-    using namespace Doorways;
+    using namespace CaucasianEagle;
+    using namespace CaucasianEagle::Palette;
     const auto& hud = NyxaraHud();
-    const auto& world = context.World;
-    const int cw = context.ClientWidth, ch = context.ClientHeight;
-    const float W = static_cast<float>(cw), H = static_cast<float>(ch);
-    const float s = CalculateDoorwaysUiScale({cw, ch, context.Dpi, context.Interface.UiScale});
+    const float W = ui.W, H = ui.H, S = ui.S;
 
-    const auto mat = [&](float r, float g, float b, float a = 1.f) -> Material
-    { return {{r, g, b, a}, {1, 1, 0, 0}, context.Renderer.mWhiteTextureView.Get(), {0, 0, 0, 0}, 1, 1}; };
-    const Material panel = mat(.035f, .070f, .062f, .86f), panelEdge = mat(.16f, .30f, .26f), ink = mat(.90f, .97f, .95f),
-        dim = mat(.52f, .64f, .62f), silver = mat(.80f, .90f, 1.f), soul = mat(.22f, 1.f, .52f), gold = mat(.85f, .73f, .45f),
-        dark = mat(.012f, .028f, .024f, .92f), shadow = mat(0, 0, 0, .85f), red = mat(.95f, .30f, .32f), violet = mat(.62f, .28f, 1.f),
-        moon = mat(.55f, .82f, 1.f), white = mat(1, 1, 1);
-    const auto rect = [&](float x, float y, float w, float h, const Material& m)
-    { if (w > 0 && h > 0) context.Renderer.DrawScreenRect(x, y, w, h, cw, ch, m); };
-    const auto frame = [&](float x, float y, float w, float h, const Material& fill, const Material& edge, float t)
-    { rect(x - t, y - t, w + 2 * t, h + 2 * t, edge); rect(x, y, w, h, fill); };
-    const auto text = [&](const wchar_t* value, float x, float y, float pixels, const Material& m)
-    { mTextRenderer.DrawTextWithShadow(context.Renderer, value, x, y, pixels, cw, ch, m, shadow); };
-    const auto width = [&](const wchar_t* value, float pixels) { return MeasureDoorwaysHudTextWidth(value, pixels); };
-    const auto centered = [&](const wchar_t* value, float cx, float y, float pixels, const Material& m)
-    { text(value, cx - width(value, pixels) * .5f, y, pixels, m); };
-    const float tiny = 2.f * s, body = 2.5f * s, line = DoorwaysHudTextHeight(body);
+    // ---- layout, in layout units
+    constexpr float Margin = 22, Emblem = 92, HealthWidth = 214, HealthHeight = 17, EnergyWidth = 168, EnergyHeight = 10;
+    constexpr float SlotSize = 62, SlotGap = 7, GroupGap = 17, IconSize = 38, KeyHeight = 19, BelowSlots = 26;
+    constexpr float LowHealth = .3f, TrailPerSecond = .35f, TrailDelay = .45f, ReadyFlash = .5f, HitFlash = .45f;
+    constexpr float TextTiny = 1.55f, TextSmall = 1.9f, TextName = 2.05f;
 
-    // ---------------------------------------------------------------- vitals (bottom left)
+    // soft shade under the HUD so it reads over bright ground
+    ui.Sprite(HudArt::GradV, 0, H - 190 * S, W, 190 * S, Black.Fade(.62f));
+
+    // ---------------------------------------------------------------- vitals
     int hp = 100, en = 100;
-    swscanf_s(world.CombatFeedback.Vitals.c_str(), L"HP %d EN %d", &hp, &en);
-    const float hpFraction = std::clamp(hp / 100.f, 0.f, 1.f), enFraction = std::clamp(en / 100.f, 0.f, 1.f);
-    const float m = 20 * s, vw = 330 * s, vh = 104 * s, vx = m, vy = H - m - vh, pad = 10 * s;
-    frame(vx, vy, vw, vh, panel, panelEdge, 1.5f * s);
-    rect(vx, vy, 4 * s, vh, soul);
-    text(L"NYXARA", vx + pad + 4 * s, vy + pad * .7f, body, silver);
-    const std::wstring swords = hud.Swapped ? L"R TALONSHADE   L MOONFEATHER" : L"R MOONFEATHER   L TALONSHADE";
-    const float bx = vx + pad + 4 * s, bw = vw - 2 * pad - 4 * s, by = vy + pad + line + 6 * s, bh = 18 * s;
-    rect(bx, by, bw, bh, dark);
-    rect(bx, by, bw * hpFraction, bh, hpFraction < .3f ? red : soul);
-    rect(bx, by, bw * hpFraction, 3 * s, mat(1, 1, 1, .35f));
-    const std::wstring hpText = std::to_wstring(hp) + L" / 100";
-    centered(hpText.c_str(), bx + bw * .5f, by + (bh - DoorwaysHudTextHeight(tiny)) * .5f, tiny, ink);
-    const float ey = by + bh + 6 * s, eh = 9 * s;
-    rect(bx, ey, bw, eh, dark); rect(bx, ey, bw * enFraction, eh, moon);
-    text(swords.c_str(), bx, ey + eh + 6 * s, tiny, dim);
+    swscanf_s(context.World.CombatFeedback.Vitals.c_str(), L"HP %d EN %d", &hp, &en);
+    const float health = std::clamp(hp / 100.f, 0.f, 1.f), energy = std::clamp(en / 100.f, 0.f, 1.f);
+    static float trail = 1, trailHold = 0, hit = 0, lastHealth = 1;
+    if (health < lastHealth - .001f) { hit = HitFlash; trailHold = TrailDelay; }
+    lastHealth = health;
+    trailHold = std::max(0.f, trailHold - ui.Delta);
+    if (trail < health) trail = health;
+    else if (trailHold <= 0) trail = std::max(health, trail - TrailPerSecond * ui.Delta);
+    hit = std::max(0.f, hit - ui.Delta);
+    const bool low = health < LowHealth;
+    const float pulse = .5f + .5f * std::sin(ui.Time * 6.f);
 
-    // ---------------------------------------------------------------- skill bar (bottom centre)
-    struct Slot { const wchar_t* Key; const wchar_t* Name; float Cooldown, Max; bool Active, Glow; const Material* Accent; };
+    const float edge = (low ? .22f + .16f * pulse : 0) + .45f * hit / HitFlash;
+    if (edge > 0) ui.Sprite(HudArt::Vignette, 0, 0, W, H, Red.Fade(std::min(edge, .7f)));
+
+    const float ex = Margin * S, ey = H - (Margin + Emblem) * S, es = Emblem * S;
+    if (low) ui.Icon(HudArt::Glow, ex + es * .5f, ey + es * .5f, es * 1.7f, Red.Fade(.35f + .3f * pulse));
+    ui.Sprite(HudArt::Medallion, ex, ey, es, es);
+    ui.Icon(HudArt::IconWings, ex + es * .5f, ey + es * .5f, es * .66f, low ? Color{1.f, .62f, .58f, 1} : Silver);
+
+    const float vx = ex + es + 12 * S;
+    ui.Spaced(L"NYXARA", vx, ey + 9 * S, TextName * S, 3 * S, Silver);
+    const float hy = ey + 34 * S;
+    ui.Bar(vx, hy, HealthWidth * S, HealthHeight * S, health, low ? Red : Soul, trail);
+    ui.Centered(std::to_wstring(hp), vx + HealthWidth * S * .5f, hy + (HealthHeight * S - ui.Height(TextTiny * S)) * .5f, TextTiny * S, Ink);
+    const float ny = hy + (HealthHeight + 6) * S;
+    ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, energy, Moon, 0, true);
+    // which sword is in the right hand (the one that leads)
+    const wchar_t* right = hud.Swapped ? L"TALONSHADE" : L"MOONFEATHER";
+    const wchar_t* left = hud.Swapped ? L"MOONFEATHER" : L"TALONSHADE";
+    const float wy = ny + (EnergyHeight + 7) * S;
+    ui.Text(right, vx, wy, TextTiny * S, Ink);
+    ui.Text(left, vx + ui.Width(right, TextTiny * S) + 12 * S, wy, TextTiny * S, Faint);
+
+    // ---------------------------------------------------------------- skill bar
+    struct Slot { const wchar_t* Key; const wchar_t* Name; const HudArt::Sprite* Art; float Cooldown, Max; bool Active, Glow; Color Accent; int Group; };
     const Slot slots[] = {
-        {L"LMB", L"SLASH", 0, 1, hud.Slashing, hud.ComboOpen, &silver}, {L"RMB", L"HEAVY", 0, 1, hud.Heavy, hud.ComboOpen, &silver},
-        {L"F", L"DASH", hud.Cooldown[0], hud.CooldownMax[0], false, false, &soul},
-        {L"V", L"STORM", hud.Cooldown[1], hud.CooldownMax[1], false, false, &soul},
-        {L"C", L"LEAP", hud.Cooldown[2], hud.CooldownMax[2], false, false, &soul},
-        {L"Q", L"SWAP", 0, 1, hud.Swapping, false, &moon}, {L"E", L"GUARD", 0, 1, hud.Guarding, false, &moon},
-        {L"SHIFT", L"BOOST", 0, 1, hud.Boosting, false, &moon}};
+        {Ui::KeyLabel(L"LMB", VK_LBUTTON), L"SLASH", &HudArt::IconSlash, 0, 1, hud.Slashing, hud.ComboOpen, Silver, 0},
+        {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"HEAVY", &HudArt::IconHeavy, 0, 1, hud.Heavy, hud.ComboOpen, Silver, 0},
+        {Ui::KeyLabel(L"F", 'F'), L"DASH", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
+        {Ui::KeyLabel(L"V", 'V'), L"STORM", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
+        {Ui::KeyLabel(L"C", 'C'), L"LEAP", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},
+        {Ui::KeyLabel(L"Q", 'Q'), L"SWAP", &HudArt::IconSwap, 0, 1, hud.Swapping, false, Moon, 2},
+        {Ui::KeyLabel(L"E", 'E'), L"GUARD", &HudArt::IconGuard, 0, 1, hud.Guarding, false, Moon, 2},
+        {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
     const int count = static_cast<int>(std::size(slots));
-    const float size = 80 * s, gap = 8 * s, barWidth = count * size + (count - 1) * gap;
-    const float sx = (std::max)(vx + vw + 16 * s, (W - barWidth) * .5f), sy = H - m - size;
+    const float size = SlotSize * S;
+    const float barWidth = (count * SlotSize + (count - 3) * SlotGap + 2 * GroupGap) * S;
+    const float vitalsRight = vx + HealthWidth * S + 16 * S;
+    const float sx = std::max(vitalsRight, (W - barWidth) * .5f), sy = H - (Margin + BelowSlots) * S - size;
+    static float ready[8] = {}, lastCooldown[8] = {};
+    float x = sx;
     for (int i = 0; i < count; ++i)
     {
         const auto& slot = slots[i];
-        const float x = sx + i * (size + gap);
+        if (i > 0) x += (slot.Group != slots[i - 1].Group ? GroupGap : SlotGap) * S;
         const bool cooling = slot.Cooldown > 0;
-        frame(x, sy, size, size, panel, slot.Glow ? gold : slot.Active ? *slot.Accent : panelEdge, (slot.Glow || slot.Active ? 3.f : 1.5f) * s);
-        rect(x, sy + size - 4 * s, size, 4 * s, cooling ? dim : *slot.Accent);
+        if (lastCooldown[i] > 0 && !cooling) ready[i] = ReadyFlash;
+        lastCooldown[i] = slot.Cooldown;
+        ready[i] = std::max(0.f, ready[i] - ui.Delta);
+
+        if (slot.Glow) ui.Sprite(HudArt::SlotGlow, x, sy, size, size, GoldLight.Fade(.55f + .35f * pulse));
+        else if (slot.Active) ui.Sprite(HudArt::SlotGlow, x, sy, size, size, slot.Accent.Fade(.9f));
+        if (ready[i] > 0) ui.Sprite(HudArt::SlotGlow, x, sy, size, size, White.Fade(ready[i] / ReadyFlash));
+        ui.Sprite(HudArt::Slot, x, sy, size, size);
+        const float grow = slot.Active ? 1.08f : 1.f;
+        ui.Icon(*slot.Art, x + size * .5f, sy + size * .47f, IconSize * S * grow, cooling ? Faint : slot.Active || slot.Glow ? White : slot.Accent);
         if (cooling)
-        {   // cooldown sweep drains downwards
-            const float f = std::clamp(slot.Cooldown / slot.Max, 0.f, 1.f);
-            rect(x, sy, size, (size - 4 * s) * f, dark);
+        {   // the well darkens from the top and clears as the skill comes back
+            const float rim = 5 * S, f = std::clamp(slot.Cooldown / slot.Max, 0.f, 1.f);
+            ui.Rect(x + rim, sy + rim, size - 2 * rim, (size - 2 * rim) * f, Black.Fade(.62f));
             std::wostringstream seconds; seconds << std::fixed << std::setprecision(slot.Cooldown < 1 ? 1 : 0) << slot.Cooldown;
-            centered(seconds.str().c_str(), x + size * .5f, sy + size * .34f, 3.5f * s, ink);
+            ui.Centered(seconds.str(), x + size * .5f, sy + (size - ui.Height(3.f * S)) * .5f - 2 * S, 3.f * S, Ink);
         }
-        const float keyWidth = width(slot.Key, tiny) + 6 * s;
-        rect(x + 4 * s, sy + 4 * s, keyWidth, DoorwaysHudTextHeight(tiny) + 4 * s, slot.Glow ? gold : dark);
-        text(slot.Key, x + 7 * s, sy + 6 * s, tiny, slot.Glow ? dark : gold);
-        centered(slot.Name, x + size * .5f, sy + size - 8 * s - DoorwaysHudTextHeight(tiny), tiny, cooling ? dim : ink);
-    }
-    if (hud.ComboOpen)
-    {   // combo prompt above the mouse slots
-        const std::wstring left = std::wstring(L"LMB  ") + hud.ComboLeft, right = std::wstring(L"RMB  ") + hud.ComboRight;
-        const float pw = (std::max)(width(left.c_str(), body), width(right.c_str(), body)) + 2 * pad, ph = 2 * line + 3 * pad;
-        const float px = sx, py = sy - ph - 10 * s;
-        frame(px, py, pw, ph, panel, gold, 2 * s);
-        text(L"COMBO", px + pad, py - DoorwaysHudTextHeight(tiny) - 4 * s, tiny, gold);
-        text(left.c_str(), px + pad, py + pad, body, ink);
-        text(right.c_str(), px + pad, py + pad + line + pad * .6f, body, ink);
-        rect(px, py + ph - 3 * s, pw * std::clamp(hud.ComboWindow, 0.f, 1.f), 3 * s, gold);
+        ui.Key(slot.Key, x + size * .5f, sy + size - KeyHeight * S * .45f, KeyHeight * S, slot.Glow ? GoldLight : White);
+        ui.Centered(slot.Name, x + size * .5f, sy + size + KeyHeight * S * .62f, 1.4f * S, cooling ? Faint : Dim);
+        x += size;
     }
 
-    // ---------------------------------------------------------------- shade health bars
+    // ---------------------------------------------------------------- combo prompt and move name
+    float noticeY = sy - 36 * S;
+    if (hud.ComboOpen)
+    {
+        const float key = 20 * S, pad = 12 * S, row = 26 * S;
+        const float keyColumn = std::max(ui.KeyWidth(L"LMB", key), ui.KeyWidth(L"RMB", key));
+        const float pw = keyColumn + 10 * S + std::max(ui.Width(hud.ComboLeft, TextSmall * S), ui.Width(hud.ComboRight, TextSmall * S)) + 2 * pad;
+        const float ph = 2 * row + 2 * pad + 6 * S, px = sx, py = sy - ph - 16 * S;
+        ui.Nine(HudArt::Panel, px, py, pw, ph);
+        ui.Spaced(L"COMBO", px + 2 * S, py - ui.Height(TextTiny * S) - 5 * S, TextTiny * S, 3 * S, GoldLight);
+        const wchar_t* keys[2] = {Ui::KeyLabel(L"LMB", VK_LBUTTON), Ui::KeyLabel(L"RMB", VK_RBUTTON)}; const wchar_t* names[2] = {hud.ComboLeft, hud.ComboRight};
+        for (int i = 0; i < 2; ++i)
+        {
+            const float ry = py + pad + static_cast<float>(i) * row;
+            ui.Key(keys[i], px + pad + keyColumn * .5f, ry, key, GoldLight);
+            ui.Text(names[i], px + pad + keyColumn + 10 * S, ry + (key * .86f - ui.Height(TextSmall * S)) * .5f, TextSmall * S, Ink);
+        }
+        const float timer = std::clamp(hud.ComboWindow, 0.f, 1.f);                    // time left to follow up
+        ui.Rect(px + pad, py + ph - pad * .5f - 3 * S, (pw - 2 * pad), 3 * S, Well);
+        ui.Rect(px + pad, py + ph - pad * .5f - 3 * S, (pw - 2 * pad) * timer, 3 * S, GoldLight);
+        noticeY = std::min(noticeY, py - 34 * S);
+    }
+    if (hud.NoticeTimer > 0 && hud.Notice && hud.Notice[0])
+    {
+        const float fade = std::clamp(hud.NoticeTimer / .25f, 0.f, 1.f), cx = sx + barWidth * .5f;
+        ui.SpacedCentered(hud.Notice, cx, noticeY, TextSmall * S, 3 * S, Ink.Fade(fade));
+        ui.Sprite(HudArt::Divider, cx - 120 * S, noticeY + ui.Height(TextSmall * S) + 1 * S, 240 * S, 15 * S, White.Fade(.8f * fade));
+    }
+
+    // ---------------------------------------------------------------- enemy health bars
     for (int i = 0; i < hud.EnemyCount; ++i)
     {
         const auto& e = hud.Enemies[i];
         if (!e.Visible) continue;
-        const float w = 78 * s, h = 7 * s, x = e.X * W - w * .5f, y = e.Y * H - h;
-        frame(x, y, w, h, dark, shadow, 1.5f * s);
-        rect(x, y, w * std::clamp(e.Health, 0.f, 1.f), h, e.Flash > 0 ? white : violet);
+        const float w = 78 * S, h = 9 * S;
+        ui.Bar(e.X * W - w * .5f, e.Y * H - h, w, h, e.Health, e.Flash > 0 ? White : Red, 0, true);
     }
 
-    // ---------------------------------------------------------------- action banner (top centre)
-    if (hud.NoticeTimer > 0 && hud.Notice && hud.Notice[0])
-    {
-        const float pixels = 4.5f * s, tw = width(hud.Notice, pixels), th = DoorwaysHudTextHeight(pixels);
-        const float bxc = W * .5f, byc = H * .13f;
-        rect(bxc - tw * .5f - 22 * s, byc + th + 6 * s, tw + 44 * s, 2 * s, soul);
-        centered(hud.Notice, bxc, byc, pixels, ink);
-    }
-
-    // ---------------------------------------------------------------- performance / hints
     if (context.ShowPerformance && context.Performance.Valid)
     {
         std::wostringstream fps; fps << std::fixed << std::setprecision(0) << context.Performance.Fps << L" FPS";
-        text(fps.str().c_str(), W - m - width(fps.str().c_str(), tiny), m, tiny, dim);
+        ui.RightAligned(fps.str(), W - (Margin + 172) * S, 10 * S, TextTiny * S, Dim); // left of the minimap
     }
-    const wchar_t* hint = L"WASD FLY   SPACE JUMP / HOLD RISE   SKILL THEN LMB / RMB = COMBO   I INVENTORY";
-    if (context.Interface.ShowInteractionPrompts)
-        text(hint, m, m, tiny, dim);
 }

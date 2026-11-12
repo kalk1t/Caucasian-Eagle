@@ -48,7 +48,8 @@ flowchart LR
 | Where the player may walk | Engine physics, with the game's scene collision (`SceneCollision`) | `Journey::Leash` adds the gates and the soft road edge |
 | Visual effects | Game | Meshes built in code, textures from `Effects/Nyxara` |
 | Gameplay HUD | Game | `NyxaraHud`; replaces the engine's text HUD during play |
-| Menus, settings, inventory, progression screens | Engine | Engine defaults in v0.1 |
+| Menus, settings | Game (drawing and input), engine (applies and saves the values) | Start screen `StartScreen.cpp`, her menu `Journey::DrawPause`, settings window `Settings.cpp`; `DoorwaysGameSession::OwnStartScreen`, `OwnPauseMenu`, `OwnSettings` |
+| Growth window (crystals, evolutions, training, potions) | Game | `Growth.h/.cpp`; replaces the engine inventory, whose key the game suppresses |
 
 ## 4.3 Frame order
 

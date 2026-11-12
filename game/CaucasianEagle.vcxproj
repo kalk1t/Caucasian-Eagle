@@ -88,6 +88,17 @@
     <ClCompile Include="src\AmiraniMountain.cpp" />
     <ClCompile Include="src\Journey.cpp" />
     <ClCompile Include="src\NyxaraHud.cpp" />
+    <ClCompile Include="src\GameUi.cpp" />
+    <ClCompile Include="src\Story.cpp" />
+    <ClCompile Include="src\CreatureRig.cpp" />
+    <ClCompile Include="src\Collection.cpp" />
+    <ClCompile Include="src\Nature.cpp" />
+    <ClCompile Include="src\Growth.cpp" />
+    <ClCompile Include="src\Guide.cpp" />
+    <ClCompile Include="src\Settings.cpp" />
+    <ClCompile Include="src\StartScreen.cpp" />
+    <ClCompile Include="src\Sound.cpp" />
+    <ClCompile Include="src\WorldMap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\CaucasianEagleGame.h" />
@@ -96,6 +107,21 @@
     <ClInclude Include="src\AmiraniMountain.h" />
     <ClInclude Include="src\Journey.h" />
     <ClInclude Include="src\NyxaraHud.h" />
+    <ClInclude Include="src\GameUi.h" />
+    <ClInclude Include="src\Story.h" />
+    <ClInclude Include="src\CreatureRig.h" />
+    <ClInclude Include="src\Collection.h" />
+    <ClInclude Include="src\Nature.h" />
+    <ClInclude Include="src\Growth.h" />
+    <ClInclude Include="src\Sound.h" />
+    <ClInclude Include="src\Guide.h" />
+    <ClInclude Include="src\Settings.h" />
+    <ClInclude Include="src\StartScreen.h" />
+    <ClInclude Include="src\WorldMap.h" />
+    <ClInclude Include="src\HudAtlas.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CaucasianEagle.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(EngineRoot)src\DOORWAYS\DoorwaysEngine.vcxproj">

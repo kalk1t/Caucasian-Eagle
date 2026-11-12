@@ -38,3 +38,6 @@ art/monsters/meshy/out/
 art/props/meshy/out/
 art/world/export/*.glb
 art/world/export/textures/
+
+# Refined models and their before / after pictures are rebuilt by art/refine/refine_assets.py
+art/refine/out/

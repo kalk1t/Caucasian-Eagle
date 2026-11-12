@@ -16,7 +16,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **The Smiths** | Blacksmiths appointed by God who renew the chain each year on the Thursday of Passion week |
 | **The Dog** | Amirani's faithful dog, licking the chain thin; named Q'ursha in the legend |
 | **Shade** | The dark wraith enemy of v0.1; not part of the journey |
-| **The Road to Amirani** | The journey: one road of twelve regions from Moonlit Sanctuary to the mountain |
+| **The Road to Amirani** | The journey: one road of twelve regions from its first gate to the mountain |
 | **Region** (code: stage) | One of the twelve named parts of the road, each with its own ground, weather and creatures |
 | **Memory of the cave** | One of twelve short recollections of Amirani, found in old gold chests |
 | **Kajeti** | The fortress of the Kaji, who in this game are the Smiths |
@@ -54,8 +54,8 @@ Names used in the story, the code and the assets. One name per thing.
 | **Hit-stop** | The brief freeze when a blow lands |
 | **Arena** | A round clearing on the road where creatures ambush her; the way on stays shut until they are beaten |
 | **Wave** | One group of creatures in an arena fight; two or three per arena |
-| **Old gold chest** | A breakable chest; holds coins and a memory, a Moon Tear, an Eagle Feather or a Soul Ember |
-| **Moon Tear** | Chest reward: restores health |
+| **Old gold chest** | A breakable chest; holds coins, a potion and a memory, a Moon Shard, an Eagle Feather or a Soul Ember |
+| **Moon Shard** | Chest reward: 15 crystals (until November 2026 a Moon Tear, which healed) |
 | **Eagle Feather** | Chest reward: each one raises her damage by 3% for the rest of the journey |
 | **Soul Ember** | Chest reward: resets skill cooldowns and raises her damage by half for 20 seconds |
 | **Windup** | The moment before a creature's blow lands, shown by a bright ring; the time to step away |
@@ -64,11 +64,11 @@ Names used in the story, the code and the assets. One name per thing.
 
 | Name | Meaning |
 |---|---|
-| **Moonlit Sanctuary** | The walled garden where the road begins; the v0.1 map |
-| **RoadToAmirani** | Scene id of the world: the sanctuary plus the whole road |
+| **Moonlit Sanctuary** | The walled garden of version 0.1. No longer part of the world: the journey begins on the road (its Blender source is still in `art/moonlit-sanctuary`) |
+| **RoadToAmirani** | Scene id of the world: the whole road and the land round it |
 | **Road.txt** | Data file written by the world builder: the path, arenas, chests, props and lights |
 | **Mountain of Amirani** | The landmark at the end of the road: peak, cave ledge, Amirani, the eagle, the dog, the chains. Code: `AmiraniMountain` |
-| **Ledge** | The flat shelf of the cave where Amirani stands, 78 m above the sanctuary floor; reachable only after the Eagle falls |
+| **Ledge** | The flat shelf of the cave where Amirani stands, 78 m above where the road begins; reachable only after the Eagle falls |
 | **Sky dome** | The painted night sky drawn around the camera by the game |
 | **EagleV1** | Nyxara's compiled character bundle, `Characters/Nyxara/EagleV1` |
 | **Bundle** | One folder holding a character's mesh, skeleton, materials, textures and clips |

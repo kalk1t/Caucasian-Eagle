@@ -62,6 +62,7 @@ namespace Doorways
             bool Alive = true;
             float Radius = .55f;     // m, body radius added to every hit test
             float PushScale = 1;     // 0 = cannot be pushed, pulled or launched (bosses, chests)
+            float Weak = 1;          // her blows against it are multiplied by this (the journey: a complete charm set)
         };
         struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
         struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false; };
@@ -73,13 +74,16 @@ namespace Doorways
         void SpawnOrb(DirectX::XMFLOAT3 from, DirectX::XMFLOAT3 velocity, int damage, DirectX::XMFLOAT4 color, float life = 3.5f);
         bool Blocks(const WorldState& world, const DirectX::XMFLOAT3& from); // barrier up and turned toward 'from'
         void Notice(const wchar_t* text, float seconds) { mNotice = text; mNoticeTimer = seconds; }
+        bool Airborne() const { return mGlideLift > .05f || mAir > .05f; }   // gliding, or in a leap
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
+        void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
         // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing.
         bool Hurt(WorldState& world, CombatSystem& combat, int damage);
+        void SetInputBlocked(bool blocked) { mInputBlocked = blocked; } // the story journal is open: no attacks or skills
         void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
         bool Busy() const { return mAct != Act::None; }
         ID3D11ShaderResourceView* GlowTexture() const { return mGlowTex.Get(); }
@@ -87,9 +91,10 @@ namespace Doorways
 
     private:
         bool mExternalEnemies = false;
-        float mDamageScale = 1;
+        float mDamageScale = 1, mCooldownScale = 1;
         float mMercy = 0;
         const Keys* mAutoKeys = nullptr;
+        bool mInputBlocked = false;
         enum class FxKind { Arc, ArcWave, Lance, Ring, RingWave, Pillar, Sigil, Feather, Spark, Cyclone };
         struct Fx
         {
@@ -136,7 +141,10 @@ namespace Doorways
         float mChainWindow = 0;
         int mComboSkill = 0;                // 1..3 while a combo can follow
         float mComboWindow = 0;
-        bool mBuffered = false;             // LMB pressed during the tail of a slash
+        bool mBuffered = false;             // LMB pressed during a slash or the heavy blow: the next slash follows
+        bool mHeavyBuffered = false;        // RMB pressed during a slash: the heavy blow follows
+        int mComboBuffer = 0;               // 1 LMB, 2 RMB pressed during a skill before its combo opened
+        float mComboBufferTimer = 0;
         float mBarrier = 0;                 // 0..1 barrier swords risen
         float mGuardHeld = 0;
         std::array<float, 3> mSkillCooldown{};

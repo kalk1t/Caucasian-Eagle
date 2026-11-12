@@ -39,9 +39,9 @@ Product (for the author):
 | P1 | The story questions in [story/STORY.md](../story/STORY.md) section 6, and whether the road as built (section 5) is the story the author wants |
 | P2 | Is v1.0 a paid game, a free game or a demo, and where is it distributed (itch.io, Steam, own site)? This decides signing, store assets and legal pages. |
 | P3 | Languages: English only, or Georgian as well (text, voice)? The engine's font atlas covers ASCII 32 to 126 only, so Georgian text needs engine work. |
-| P4 | How long should v1.0 be? v0.2.0 is one road of about two hours. |
-| P5 | Should the engine's level, experience and inventory systems be part of the game or hidden? |
-| P6 | Publisher name and game icon for the installer. |
+| P4 | How long should v1.0 be? The road of v0.2.0 and v0.3.0 is about two hours. |
+| P5 | (Answered November 2026 for the inventory: the game has its own growth window and suppresses the engine's.) Should the engine's level and experience system be hidden too? |
+| P6 | (Set for v0.3.0, to be approved: publisher "Giorgi Samkharadze"; icon the Eagle before the moon.) Publisher name and game icon for the installer. |
 
 ## 14.3 Keeping this plan true
 

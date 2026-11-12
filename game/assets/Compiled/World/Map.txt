@@ -1,0 +1,4 @@
+# The part of the world that assets/ui/Map/WorldMap.png shows: written by art/map/build_map.py.
+# EXTENT minX maxX minZ maxZ (world metres; +z is right, +x is down) | SIZE width height (pixels)
+EXTENT -626.06 626.06 -150.00 2076.00
+SIZE 2048 1152

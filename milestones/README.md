@@ -6,7 +6,8 @@ Follow the milestones in order, and tick the boxes as you go. Each file ends wit
 |---|---|---|---|---|
 | [M1](M1-engine-game-split.md) | Engine and game split, own repository, documentation | v0.1 | Claude | ✅ 2026-11-10 |
 | [R1](R1-road-to-amirani.md) | The road to Amirani: a complete playable journey with ten folklore creatures, chests, bosses and the ending | v0.2 | Claude | ✅ 2026-11-10 (not yet played by hand) |
-| [M2](M2-installable.md) | Installable build: installer, smaller package, game title and icon, clean-PC test | v0.2 | Claude + you (install Inno Setup, test on a second PC) | ⬜ next |
+| [R2](R2-living-road.md) | The living road: seven cities, maps, sound, what she carries, her own windows and menu, guide, open land, attack timing, refined models | v0.3.0 | Claude | ✅ released 2026-11-11 (only partly played by hand) |
+| [M2](M2-installable.md) | Installable build: installer, smaller package, game title and icon, clean-PC test | v0.3.0 | Claude + you (test on a second PC) | 🔶 installer, icon and release done 2026-11-11; smaller package and clean-PC test open |
 | [M3](M3-story-spine.md) | Story spine: the map with the chained mountain, the Open Cave prologue, dialogue, saving, real enemies | v0.3 | You (story decisions) + Claude | ⬜ |
 | [M4](M4-data-and-structure.md) | Tuning in data files, kit split into testable parts, narrow engine interface | v0.4 | Claude | ⬜ |
 | [M5](M5-content-and-feel.md) | The seven years: maps, enemies, the Eagle fight, audio, game menus, key rebinding | v0.5 to v0.9 | You + Claude | ⬜ |

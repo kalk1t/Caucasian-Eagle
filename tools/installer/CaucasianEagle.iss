@@ -4,7 +4,7 @@
 ; %LOCALAPPDATA%\CaucasianEagle and are left in place on uninstall.
 
 #ifndef AppVersion
-  #define AppVersion "0.2.0"
+  #define AppVersion "0.3.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\CaucasianEagle-" + AppVersion + "-win64"
@@ -17,7 +17,7 @@
 AppId={{7E3C1B52-9A4D-4F6E-8B21-CA0CA51A0E61}
 AppName=Caucasian Eagle
 AppVersion={#AppVersion}
-AppPublisher=kalk1t
+AppPublisher=Giorgi Samkharadze
 DefaultDirName={localappdata}\Programs\Caucasian Eagle
 DefaultGroupName=Caucasian Eagle
 DisableProgramGroupPage=yes
@@ -30,6 +30,10 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=Caucasian Eagle
+UninstallDisplayIcon={app}\CaucasianEagle.exe
+SetupIconFile=..\..\game\CaucasianEagle.ico
+AppPublisherURL=https://github.com/kalk1t/Caucasian-Eagle
+VersionInfoVersion={#AppVersion}.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

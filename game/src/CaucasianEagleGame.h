@@ -15,5 +15,6 @@ namespace CaucasianEagle
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection) override;
         void AdjustEnvironment(EnvironmentSettings& environment) override;
         bool DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text) override;
+        void DrawStartScreen(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused) override;
     };
 }

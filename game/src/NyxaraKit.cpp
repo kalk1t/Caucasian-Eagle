@@ -1,9 +1,12 @@
 #include "NyxaraKit.h"
 
+#include "DoorwaysGamepad.h"
+
 #include "CombatSystem.h"
 #include "DoorwaysGame.h"
 #include "GameConstants.h"
 #include "NyxaraHud.h"
+#include "Sound.h"
 #include "DoorwaysRuntimePathResolver.h"
 #include "Renderer.h"
 #include "WorldRenderer.h"
@@ -314,6 +317,7 @@ namespace Doorways
     NyxaraKit::Keys NyxaraKit::ReadKeys(bool inputAllowed) const
     {
         Keys k;
+        if (mInputBlocked) return k;
         if (GameSession().Unattended && mAutoKeys) return *mAutoKeys; // the journey's test pilot
         if (GameSession().Unattended)
         {   // Scripted showcase: (start, end, key) windows on the kit clock; never reads the desktop.
@@ -340,7 +344,7 @@ namespace Doorways
             return k;
         }
         if (!inputAllowed) return k;
-        const auto down = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
+        const auto down = [](int vk) { return IsDoorwaysKeyDown(vk); };   // the key, or the controller button bound to it
         return {down(VK_LBUTTON), down(VK_RBUTTON), down('Q'), down('E'), down('F'), down('V'), down('C'), down(VK_SHIFT)};
     }
 
@@ -418,12 +422,14 @@ namespace Doorways
     {
         auto& w = mWraiths[index];
         if (!w.Alive) return;
-        damage = (std::max)(1, static_cast<int>(std::lround(static_cast<float>(damage) * mDamageScale)));
+        damage = (std::max)(1, static_cast<int>(std::lround(static_cast<float>(damage) * mDamageScale * w.Weak)));
         w.Health -= damage; w.Flash = .16f;
         XMFLOAT3 away = Sub(w.Pos, from); away.y = 0; away = Norm(away);
         w.Push = Add(w.Push, Mul(away, push * w.PushScale));
         if (launch > 0 && w.PushScale > .5f) w.LiftVel = (std::max)(w.LiftVel, launch);
         Impact(Add(w.Pos, {0, w.Lift, 0}), damage, color);
+        CaucasianEagle::Sound::Play("combat/hit", .75f, .12f);
+        if (w.Health > 0 && Random() < .4f) CaucasianEagle::Sound::Play("creatures/hurt", .6f, .15f);
         if (w.Health <= 0)
         {
             w.Alive = false; w.Respawn = 8.f; w.Health = 0;
@@ -468,7 +474,7 @@ namespace Doorways
 
     void NyxaraKit::StartAction(WorldState& world, Act act)
     {
-        mAct = act; mActTime = 0; mNextHit = 0; mBuffered = false; mDived = false;
+        mAct = act; mActTime = 0; mNextHit = 0; mBuffered = false; mHeavyBuffered = false; mDived = false;
         auto& player = world.MainPlayer;
         // Aim: camera direction, snapped onto a shade in front when one is close.
         float yaw = world.MainCamera.Yaw;
@@ -505,6 +511,16 @@ namespace Doorways
             }
         }
         mNotice = Def(act).Name; mNoticeTimer = act == Act::Slash1 || act == Act::Slash2 ? .5f : 1.2f;
+        switch (act)
+        {
+        case Act::Slash1: case Act::Slash2: case Act::Combo1L: case Act::Combo1R: case Act::Combo2L: case Act::Combo2R: CaucasianEagle::Sound::Play("nyxara/swing", .7f); break;
+        case Act::Heavy: CaucasianEagle::Sound::Play("nyxara/swing_heavy", .85f); CaucasianEagle::Sound::Play("nyxara/effort", .8f); break;
+        case Act::Skill1: CaucasianEagle::Sound::Play("nyxara/dash", .85f); break;
+        case Act::Skill2: case Act::Skill3: case Act::Combo3L: case Act::Combo3R: CaucasianEagle::Sound::Play("nyxara/skill", .85f); CaucasianEagle::Sound::Play("nyxara/effort", .8f); break;
+        case Act::Guard: CaucasianEagle::Sound::Play("nyxara/guard", .7f); break;
+        case Act::Swap: CaucasianEagle::Sound::Play("nyxara/swap", .6f); break;
+        default: break;
+        }
     }
 
     void NyxaraKit::OnHit(WorldState& world, Act act, int hit)
@@ -727,29 +743,45 @@ namespace Doorways
         }
         else
         {
-            const auto canStart = [&] { return mAct == Act::None; };
+            // The recovery of a skill or combo (everything after its last hit, once CaucasianEagle::RecoveryCancel has passed) can be
+            // cut by a slash, the heavy blow, the barrier or the swap, so a long flourish never leaves her helpless.
+            const auto recovered = [&]
+            {
+                if (mAct < Act::Skill1 || mAct > Act::Combo3R) return false;
+                const auto& d = Def(mAct);
+                return mNextHit >= d.HitCount && mActTime * d.Rate >= d.Hits[d.HitCount - 1] + CaucasianEagle::RecoveryCancel;
+            };
+            const auto canStart = [&] { return mAct == Act::None || recovered(); };
+            // the barrier is her only defence on the ground: it also cuts a sword attack or the swap at any moment
+            const auto canGuard = [&] { return canStart() || mAct == Act::Slash1 || mAct == Act::Slash2 || mAct == Act::Heavy || mAct == Act::Swap; };
             // Skills fire the moment they are pressed: they cancel sword attacks, the swap and the guard at any
             // point, and cut into the recovery of another skill or combo once its last hit has landed.
             // A press that cannot fire yet is remembered briefly and fires at the first opening.
             const auto canSkill = [&] { return mAct == Act::None || mAct == Act::Slash1 || mAct == Act::Slash2 || mAct == Act::Heavy ||
                 mAct == Act::Swap || mAct == Act::Guard || mNextHit >= Def(mAct).HitCount; };
             const int skillKey = k1 ? 0 : k2 ? 1 : k3 ? 2 : -1;
-            if (skillKey >= 0) { mSkillBuffer = skillKey; mSkillBufferTimer = .45f; }
+            if (skillKey >= 0) { mSkillBuffer = skillKey; mSkillBufferTimer = CaucasianEagle::SkillBufferSeconds; }
             else if (mSkillBufferTimer > 0 && (mSkillBufferTimer -= realDt) <= 0) mSkillBuffer = -1;
             const auto skillPressed = mSkillBuffer;
-            const bool comboOpen = mComboSkill > 0 && (mComboWindow > 0 ||
-                (mAct >= Act::Skill1 && mAct <= Act::Skill3 && mActTime * Def(mAct).Rate > Def(mAct).End * .55f));
-            if ((lmb || rmb) && comboOpen)
+            // A combo follows its skill once the skill's last hit has landed (never before: the skill keeps every hit),
+            // and until CaucasianEagle::ComboWindowSeconds after the skill ends. A click made earlier in the skill is remembered.
+            const bool inSkill = mAct >= Act::Skill1 && mAct <= Act::Skill3;
+            const bool comboOpen = mComboSkill > 0 && (mComboWindow > 0 || (inSkill && mNextHit >= Def(mAct).HitCount));
+            if (inSkill && mComboSkill > 0 && !comboOpen && (lmb || rmb) && mNextHit >= 1) { mComboBuffer = rmb ? 2 : 1; mComboBufferTimer = CaucasianEagle::ComboBufferSeconds; }
+            else if (mComboBufferTimer > 0 && (mComboBufferTimer -= realDt) <= 0) mComboBuffer = 0;
+            if (!inSkill && mComboWindow <= 0) mComboBuffer = 0;
+            if ((lmb || rmb || mComboBuffer != 0) && comboOpen)
             {
                 static const Act combos[3][2] = {{Act::Combo1L, Act::Combo1R}, {Act::Combo2L, Act::Combo2R}, {Act::Combo3L, Act::Combo3R}};
-                const Act combo = combos[mComboSkill - 1][rmb ? 1 : 0];
-                mComboSkill = 0; mComboWindow = 0;
+                const bool right = lmb || rmb ? rmb : mComboBuffer == 2;
+                const Act combo = combos[mComboSkill - 1][right ? 1 : 0];
+                mComboSkill = 0; mComboWindow = 0; mComboBuffer = 0; mComboBufferTimer = 0;
                 StartAction(world, combo);
             }
             else if (skillPressed >= 0 && canSkill() && mSkillCooldown[skillPressed] <= 0)
             {
                 mSkillBuffer = -1; mSkillBufferTimer = 0; mDashTime = 0;
-                mSkillCooldown[skillPressed] = SkillCooldown[skillPressed];
+                mSkillCooldown[skillPressed] = SkillCooldown[skillPressed] * mCooldownScale;
                 mComboSkill = skillPressed + 1;
                 StartAction(world, static_cast<Act>(static_cast<int>(Act::Skill1) + skillPressed));
             }
@@ -758,7 +790,7 @@ namespace Doorways
                 mSkillBuffer = -1; mSkillBufferTimer = 0;
                 mNotice = L"SKILL RECOVERING"; mNoticeTimer = .5f;
             }
-            else if (e && canStart() && mGuardCooldown <= 0)
+            else if (e && canGuard() && mGuardCooldown <= 0)
             {
                 mGuardHeld = 0; StartAction(world, Act::Guard);
             }
@@ -777,8 +809,9 @@ namespace Doorways
                     StartAction(world, mChainWindow > 0 && mSlashChain == 0 ? Act::Slash2 : Act::Slash1);
                     mSlashChain = mAct == Act::Slash1 ? 0 : 1;
                 }
-                else if (mAct == Act::Slash1 || mAct == Act::Slash2) mBuffered = true;
+                else if (mAct == Act::Slash1 || mAct == Act::Slash2 || mAct == Act::Heavy) mBuffered = true;
             }
+            else if (rmb && (mAct == Act::Slash1 || mAct == Act::Slash2)) mHeavyBuffered = true;   // slash, slash, heavy
         }
 
         if (mAct != Act::None)
@@ -795,16 +828,21 @@ namespace Doorways
             while (mNextHit < def.HitCount && clipTime >= def.Hits[mNextHit]) OnHit(world, mAct, mNextHit++);
             if (mSwapPending) { ApplySwordVisibility(worldRenderer); mSwapPending = false; }
             const bool slash = mAct == Act::Slash1 || mAct == Act::Slash2;
-            if (slash && mBuffered && clipTime >= def.Hits[0] + .12f)
+            if (slash && mHeavyBuffered && clipTime >= def.Hits[0] + CaucasianEagle::SlashChainAfterHit) StartAction(world, Act::Heavy);
+            else if (slash && mBuffered && clipTime >= def.Hits[0] + CaucasianEagle::SlashChainAfterHit)
             {
                 const Act next = mAct == Act::Slash1 ? Act::Slash2 : Act::Slash1;
                 StartAction(world, next); mSlashChain = next == Act::Slash1 ? 0 : 1;
             }
+            else if (mAct == Act::Heavy && mBuffered && clipTime >= def.Hits[0] + CaucasianEagle::HeavyChainAfterHit)
+            {
+                StartAction(world, Act::Slash1); mSlashChain = 0;
+            }
             else if (clipTime >= def.End)
             {
-                if (slash) { mChainWindow = 1.5f; } // LMB alternates left, right, left ... while clicks keep coming
-                if (mAct >= Act::Skill1 && mAct <= Act::Skill3) mComboWindow = 1.f;
-                if (mAct == Act::Guard) mGuardCooldown = .6f;
+                if (slash) { mChainWindow = CaucasianEagle::SlashChainSeconds; } // LMB alternates left, right, left ... while clicks keep coming
+                if (mAct >= Act::Skill1 && mAct <= Act::Skill3) mComboWindow = CaucasianEagle::ComboWindowSeconds;
+                if (mAct == Act::Guard) mGuardCooldown = CaucasianEagle::GuardCooldownSeconds;
                 mAct = Act::None;
             }
             if (mAct != Act::None)
@@ -939,6 +977,7 @@ namespace Doorways
         if (mMercy > 0 || !combat.PlayerActionsAllowed()) return false;
         mMercy = CaucasianEagle::MercySeconds;
         combat.ApplyIncomingDamage(world, damage);
+        CaucasianEagle::Sound::Play("combat/blow", .9f); CaucasianEagle::Sound::Play("nyxara/hurt", .9f);
         return true;
     }
 
@@ -1039,10 +1078,11 @@ namespace Doorways
         // Graphical HUD snapshot (HudRenderer::DrawNyxaraHud).
         auto& h = NyxaraHud();
         h.Valid = true;
-        for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i]; }
+        for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         static const Act combos[3][2] = {{Act::Combo1L, Act::Combo1R}, {Act::Combo2L, Act::Combo2R}, {Act::Combo3L, Act::Combo3R}};
-        h.ComboOpen = mComboSkill > 0 && (mComboWindow > 0 || (mAct >= Act::Skill1 && mAct <= Act::Skill3));
-        h.ComboWindow = mAct == Act::None ? mComboWindow : 1.f;
+        // shown from the skill's first hit (a click is remembered from then on) until the window closes
+        h.ComboOpen = mComboSkill > 0 && (mComboWindow > 0 || (mAct >= Act::Skill1 && mAct <= Act::Skill3 && mNextHit >= 1));
+        h.ComboWindow = mAct == Act::None ? mComboWindow / CaucasianEagle::ComboWindowSeconds : 1.f;
         h.ComboLeft = h.ComboOpen ? Def(combos[mComboSkill - 1][0]).Name : L"";
         h.ComboRight = h.ComboOpen ? Def(combos[mComboSkill - 1][1]).Name : L"";
         h.Action = mAct != Act::None ? Def(mAct).Name : L"";
