@@ -66,9 +66,9 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     ui.Centered(std::to_wstring(hp), vx + HealthWidth * S * .5f, hy + (HealthHeight * S - ui.Height(TextTiny * S)) * .5f, TextTiny * S, Ink);
     const float ny = hy + (HealthHeight + 6) * S;
     ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, energy, Moon, 0, true);
-    // which sword is in the right hand (the one that leads)
-    const wchar_t* right = hud.Swapped ? L"TALONSHADE" : L"MOONFEATHER";
-    const wchar_t* left = hud.Swapped ? L"MOONFEATHER" : L"TALONSHADE";
+    // which axe is in the right hand (the one that leads)
+    const wchar_t* right = hud.Bow ? L"ELDRITCH BOW" : hud.Swapped ? L"SERPENTCOIL" : L"INFERNO";
+    const wchar_t* left = hud.Bow ? L"AXES ON HER BACK" : hud.Swapped ? L"INFERNO" : L"SERPENTCOIL";
     const float wy = ny + (EnergyHeight + 7) * S;
     ui.Text(right, vx, wy, TextTiny * S, Ink);
     ui.Text(left, vx + ui.Width(right, TextTiny * S) + 12 * S, wy, TextTiny * S, Faint);
@@ -76,12 +76,13 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     // ---------------------------------------------------------------- skill bar
     struct Slot { const wchar_t* Key; const wchar_t* Name; const HudArt::Sprite* Art; float Cooldown, Max; bool Active, Glow; Color Accent; int Group; };
     const Slot slots[] = {
-        {Ui::KeyLabel(L"LMB", VK_LBUTTON), L"SLASH", &HudArt::IconSlash, 0, 1, hud.Slashing, hud.ComboOpen, Silver, 0},
-        {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"HEAVY", &HudArt::IconHeavy, 0, 1, hud.Heavy, hud.ComboOpen, Silver, 0},
+        {Ui::KeyLabel(L"LMB", VK_LBUTTON), hud.Bow ? L"SHOOT" : L"SLASH", hud.Bow ? &HudArt::IconArrow : &HudArt::IconSlash, 0, 1, hud.Bow ? hud.Shooting : hud.Slashing, hud.ComboOpen, Silver, 0},
+        {Ui::KeyLabel(L"RMB", VK_RBUTTON), hud.Bow ? L"AIM" : L"HEAVY", &HudArt::IconHeavy, 0, 1, hud.Bow ? hud.Aim > .5f : hud.Heavy, hud.ComboOpen, Silver, 0},
         {Ui::KeyLabel(L"F", 'F'), L"DASH", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
         {Ui::KeyLabel(L"V", 'V'), L"STORM", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
         {Ui::KeyLabel(L"C", 'C'), L"LEAP", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},
-        {Ui::KeyLabel(L"Q", 'Q'), L"SWAP", &HudArt::IconSwap, 0, 1, hud.Swapping, false, Moon, 2},
+        {Ui::KeyLabel(L"Q", 'Q'), hud.Bow ? L"AXES" : L"BOW", &HudArt::IconArrow, 0, 1, hud.Bow, false, Moon, 2},
+        {Ui::KeyLabel(L"G", 'G'), L"SWAP", &HudArt::IconSwap, 0, 1, hud.Swapping, false, Moon, 2},
         {Ui::KeyLabel(L"E", 'E'), L"GUARD", &HudArt::IconGuard, 0, 1, hud.Guarding, false, Moon, 2},
         {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
     const int count = static_cast<int>(std::size(slots));
@@ -89,7 +90,7 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     const float barWidth = (count * SlotSize + (count - 3) * SlotGap + 2 * GroupGap) * S;
     const float vitalsRight = vx + HealthWidth * S + 16 * S;
     const float sx = std::max(vitalsRight, (W - barWidth) * .5f), sy = H - (Margin + BelowSlots) * S - size;
-    static float ready[8] = {}, lastCooldown[8] = {};
+    static float ready[12] = {}, lastCooldown[12] = {};
     float x = sx;
     for (int i = 0; i < count; ++i)
     {
@@ -145,6 +146,46 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         const float fade = std::clamp(hud.NoticeTimer / .25f, 0.f, 1.f), cx = sx + barWidth * .5f;
         ui.SpacedCentered(hud.Notice, cx, noticeY, TextSmall * S, 3 * S, Ink.Fade(fade));
         ui.Sprite(HudArt::Divider, cx - 120 * S, noticeY + ui.Height(TextSmall * S) + 1 * S, 240 * S, 15 * S, White.Fade(.8f * fade));
+    }
+
+    // ---------------------------------------------------------------- the bow's mark, at the middle of the screen
+    if (hud.Bow)
+    {
+        const Color hot{1.f, .36f, .30f, 1};
+        const auto bar = [&](float bx, float by, float bw, float bh, Color c)
+        { ui.Rect(bx - S, by - S, bw + 2 * S, bh + 2 * S, Black.Fade(.5f * c.A)); ui.Rect(bx, by, bw, bh, c); };
+        if (hud.TargetVisible)
+        {   // four corners round the enemy the arrows will go to: red with the mark on it, pale when she is not aiming
+            const float cx = hud.TargetX * W, cy = hud.TargetY * H, r = std::max(16 * S, hud.TargetSize * H), arm = r * .45f, t = 2 * S;
+            const Color c = hud.OnTarget ? hot : Soul.Fade(.75f);
+            for (const float kx : {-1.f, 1.f})
+                for (const float ky : {-1.f, 1.f})
+                {
+                    const float px = cx + kx * r, py = cy + ky * r;
+                    bar(kx < 0 ? px : px - arm, py - t * .5f, arm, t, c); bar(px - t * .5f, ky < 0 ? py : py - arm, t, arm, c);
+                }
+        }
+        if (hud.Aim > .05f)
+        {   // the mark at the middle of the screen: it closes as she draws, and is red on an enemy
+            const float cx = W * .5f, cy = H * .5f, gap = (hud.OnTarget ? 3 : 5 + 9 * (1 - hud.Aim)) * S, len = 9 * S, t = 2 * S;
+            const Color mark = (hud.OnTarget ? hot : White).Fade(.9f * hud.Aim);
+            bar(cx - gap - len, cy - t * .5f, len, t, mark); bar(cx + gap, cy - t * .5f, len, t, mark);
+            bar(cx - t * .5f, cy - gap - len, t, len, mark); bar(cx - t * .5f, cy + gap, t, len, mark);
+            bar(cx - t * .5f, cy - t * .5f, t, t, mark);
+        }
+        if (hud.HitMark > 0)
+        {   // an arrow hit: four slanting ticks at the middle (round the enemy when she is not aiming), gold when it felled it
+            const float cx = hud.Aim > .5f || !hud.TargetVisible ? W * .5f : hud.TargetX * W, cy = hud.Aim > .5f || !hud.TargetVisible ? H * .5f : hud.TargetY * H;
+            const Color c = (hud.HitKill ? GoldLight : White).Fade(hud.HitMark);
+            const float d = 3 * S, grow = (hud.HitKill ? 13 : 9) * S + 6 * S * (1 - hud.HitMark);
+            for (const float kx : {-1.f, 1.f})
+                for (const float ky : {-1.f, 1.f})
+                    for (int i = 0; i < 4; ++i)
+                    {
+                        const float o = grow + static_cast<float>(i) * d;
+                        ui.Rect(cx + kx * o - d * .5f, cy + ky * o - d * .5f, d, d, c);
+                    }
+        }
     }
 
     // ---------------------------------------------------------------- enemy health bars

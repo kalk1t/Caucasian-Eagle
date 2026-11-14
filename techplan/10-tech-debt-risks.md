@@ -21,7 +21,7 @@ Each item has an id, what it is, why it matters, and the milestone that addresse
 | D12 | **The showcase script uses the old key letters internally** (`'1'`, `'2'`, `'3'` for the skill steps). | Harmless, but misleading when reading the script. | Low | M4 |
 | D13 | **Facing snaps** back to the travel direction when an action ends. | Visible pop. | Low | M5 |
 | D14 | **The asset builder is not built by this repository.** Rebuilding art needs the builder from an engine checkout. | Extra setup step for art changes. | Low | M4 |
-| D15 | **The game draws its own sky and moon** because the engine lights its sky panels like scenery. The engine's panels are still drawn, in black. | Wasted draw calls; two sky systems. | Low | Engine: an unlit sky option, then delete the dome trick |
+| D15 | **The game draws its own sky** because the engine lights its sky panels like scenery. The engine's panels are still drawn, in black. | Wasted draw calls; two sky systems. | Low | Engine: an unlit sky option, then delete the dome trick |
 | D16 | **The cave is a rectangular cut in a height field.** Its walls are flat and the mountain has no overhang. | The landmark looks artificial up close. | Medium | M3: sculpted cave mesh |
 | D17 | **Amirani, the chained eagle and the dog are rigid models** moved by code. The road creatures and the Eagle boss have skeletons since November 2026, but computed from the model shape and posed by code (`CreatureRig`), not rigged and animated by an artist: skin stretches at shoulders and hips, no fingers or feet joints, feet slide. | The biggest visual gap: the hero is fully animated and nothing else is. Most visible in the Eagle fight. | High | M5: rig and animate, starting with the Eagle and the bosses |
 | D19 | **Moonlight direction does not match the moon's position.** The light is aimed to show the mountain face. | Shadows point slightly wrong for anyone who checks. | Low | Accept, or move the moon behind the viewer |
@@ -36,6 +36,9 @@ Each item has an id, what it is, why it matters, and the milestone that addresse
 
 - **Nature draws without culling or instancing.** Every tree within 240 m is two draw calls each frame, every grass square within 80 m one; nothing is tested against the view. It holds 60 frames per second on the development machine. If it does not elsewhere, lower `TreeDistance` and `GrassDistance` first, then draw trees instanced.
 - **`Terrain.bin` repeats the terrain formula.** `art/world/build_nature.py` copies the height formula of `build_world.py` instead of exporting the built mesh. The script checks itself against `Road.txt`, but a change to the formula must be made in both.
+- **The ground has a rim she can get under.** The walkable sheet (`build_land_collision`) is level with the road in its corridor and follows the land beyond; where the land is lower the joining cells are too steep for the engine to count as ground, and she can pass under the sheet from the low side. The game lifts her back (`UnderLand`, `Journey.cpp`), which shows as a dip of under a metre. The repair is in the world: slope the joining cells gently over several metres, or give the corridor a skirt down to the land, then rebuild the world's collision.
+- **Traps are code.** The nine traps are a table and six branches in `Journey.cpp` (`TrapTable`, `UpdateTraps`, the trap part of `Draw`), about 900 lines. A tenth trap of a new kind means another branch in each; data-driven traps would need a file format first.
+- **The save of traps and places is not tested end to end.** Both lines are written and read by code that was run, but no test reads a saved trap line back, and no format 1 save has been converted in a test.
 
 ## 13.2 Risks
 

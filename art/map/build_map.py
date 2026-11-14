@@ -108,6 +108,7 @@ def main():
 
     # ---- arenas: rings on the road (the game marks the next one)
     for x, z, radius, kind in arenas:
+        if kind == 3: continue                      # an open clearing: no fight, no ring
         ax, ay = px(x, z); r = max(radius * k, 9 if kind else 7) * SS
         d.ellipse([ax - r, ay - r, ax + r, ay + r], fill=(18, 20, 22, 255), outline=(236, 200, 120, 255) if kind else (150, 150, 140, 255), width=2 * SS)
 

@@ -31,12 +31,6 @@ namespace CaucasianEagle
             return XMVector3Normalize(XMVectorSet(MoonlightX, MoonlightY, MoonlightZ, 0));
         }
 
-        XMVECTOR MoonDirection() // from the viewer toward the moon
-        {
-            return XMVectorSet(std::sin(MoonAzimuth) * std::cos(MoonElevation), std::sin(MoonElevation),
-                               std::cos(MoonAzimuth) * std::cos(MoonElevation), 0);
-        }
-
         Material Surface(ID3D11ShaderResourceView* texture, XMFLOAT4 tint, float emission, bool fog = true)
         {
             Material m{};
@@ -159,27 +153,7 @@ namespace CaucasianEagle
             }
         if (!dome.Upload(renderer, mDome, error)) return false;
 
-        MeshBuilder moon; // unit sphere, equirectangular UV; dome normals, so it shows as a full moon
-        const int mr = 24, ms = 48;
-        for (int y = 0; y <= mr; ++y)
-            for (int x = 0; x <= ms; ++x)
-            {
-                const float v = static_cast<float>(y) / mr, u = static_cast<float>(x) / ms, th = v * Pi, ph = u * 2 * Pi;
-                const XMFLOAT3 p{std::sin(th) * std::sin(ph), std::cos(th), std::sin(th) * std::cos(ph)};
-                moon.Vertex(p, n, u, v);
-                if (y && x) { const Doorways::u32 w = ms + 1, i = y * w + x; moon.Quad(i - w - 1, i - w, i, i - 1); }
-            }
-        if (!moon.Upload(renderer, mMoon, error)) return false;
-
-        MeshBuilder quad; // unit quad in XY, centred
-        quad.Vertex({-.5f, -.5f, 0}, n, 0, 1); quad.Vertex({-.5f, .5f, 0}, n, 0, 0);
-        quad.Vertex({.5f, .5f, 0}, n, 1, 0); quad.Vertex({.5f, -.5f, 0}, n, 1, 1);
-        quad.Quad(0, 1, 2, 3);
-        if (!quad.Upload(renderer, mQuad, error)) return false;
-
-        return LoadTexture(renderer, Doorways::ResolveDoorwaysRuntimePath(SkyTexture), mSkyTexture, error) &&
-               LoadTexture(renderer, Doorways::ResolveDoorwaysRuntimePath(MoonTexture), mMoonTexture, error) &&
-               LoadTexture(renderer, Doorways::ResolveDoorwaysRuntimePath(MoonGlowTexture), mGlowTexture, error);
+        return LoadTexture(renderer, Doorways::ResolveDoorwaysRuntimePath(SkyTexture), mSkyTexture, error);
     }
 
     bool AmiraniMountain::Initialize(Renderer& renderer, std::string& error)
@@ -205,35 +179,10 @@ namespace CaucasianEagle
 
     void AmiraniMountain::DrawSky(Renderer& renderer, XMFLOAT3 eye, const XMMATRIX& viewProjection) const
     {
-        // The dome and the moon travel with the camera: they are infinitely far away.
+        // The dome travels with the camera: it is infinitely far away. There is no moon in this sky.
         const XMMATRIX centre = XMMatrixTranslation(eye.x, eye.y, eye.z);
         renderer.DrawDoorwaysGpuMesh(mDome, XMMatrixScaling(SkyRadius, SkyRadius, SkyRadius) * centre, viewProjection,
                                      Surface(mSkyTexture.Get(), {SkyBrightness, SkyBrightness, SkyBrightness, 1}, SkyEmission, false));
-
-        const XMVECTOR toMoon = MoonDirection();
-        const float distance = SkyRadius * .93f, radius = distance * std::tan(MoonAngularSize * .5f);
-        const XMVECTOR position = XMLoadFloat3(&eye) + toMoon * distance;
-
-        // Halo: a camera-facing quad just behind the moon.
-        const XMVECTOR right = XMVector3Normalize(XMVector3Cross(XMVectorSet(0, 1, 0, 0), toMoon));
-        const XMVECTOR up = XMVector3Cross(toMoon, right);
-        XMMATRIX facing = XMMatrixIdentity();
-        facing.r[0] = right; facing.r[1] = up; facing.r[2] = toMoon;
-        Material halo = Surface(mGlowTexture.Get(), {MoonHaloR, MoonHaloG, MoonHaloB, MoonHaloAlpha}, 1, false);
-        halo.AlphaMode = Doorways::DoorwaysMaterialAlphaMode::Blend;
-        const float haloSize = radius * 2 * MoonHaloSize;
-        renderer.BindDoorwaysMaterialTexture(halo);
-        renderer.SetAlphaBlendingEnabled(true);
-        renderer.SetDepthWriteEnabled(false);
-        for (const auto& submesh : mQuad.Submeshes)
-            renderer.DrawDoorwaysGpuSubmesh(mQuad, submesh, XMMatrixScaling(haloSize, haloSize, 1) * facing *
-                                            XMMatrixTranslationFromVector(position + toMoon * (radius * 1.5f)), viewProjection, halo, false, true);
-        renderer.ResetDefaultWorldRenderState();
-        renderer.BindDoorwaysSkinningDisabled();
-
-        renderer.DrawDoorwaysGpuMesh(mMoon, XMMatrixScaling(radius, radius, radius) * XMMatrixRotationY(MoonFaceYaw) *
-                                     XMMatrixTranslationFromVector(position), viewProjection,
-                                     Surface(mMoonTexture.Get(), {MoonBrightness, MoonBrightness * 1.04f, MoonBrightness * 1.02f, 1}, MoonEmission, false));
     }
 
     void AmiraniMountain::Draw(Renderer& renderer, XMFLOAT3 eye, const XMMATRIX& viewProjection) const
@@ -311,14 +260,12 @@ namespace CaucasianEagle
     {
         e.ClearColor = {.004f, .010f, .020f, 1};
 
-        // The engine's sky panels and moon are switched off; DrawSky replaces them.
+        // The engine's sky panels are switched off; DrawSky replaces them.
         e.Sky.PanelDiffuse = {0, 0, 0, 1};
         e.Sky.PanelEmissiveStrength = 0;
         e.Sky.HorizonDiffuse = {0, 0, 0, 0};
-        e.Moon.BodyScale = {.001f, .001f, .001f};
-        e.Moon.GlowScale = {.001f, .001f, .001f};
 
-        // Moonlight sweeps across the mountain face from the moon's side.
+        // Moonlight sweeps across the mountain face (the moon itself is not drawn).
         XMStoreFloat4(&e.Lighting.DirectionalLight.Direction, MoonlightDirection());
         e.Lighting.DirectionalLight.Color = {.50f, .68f, .74f, 1};
         e.Lighting.AmbientLight.Color = {.060f, .100f, .115f, 1};

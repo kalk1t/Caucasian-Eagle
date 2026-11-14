@@ -1,0 +1,540 @@
+# Doorways GLB Asset Contract Report
+
+Source: `delivery\assets\Nyxara_Rodin_Doorways_candidate.glb`
+
+## Executive Summary
+
+| Severity | Count |
+|---|---:|
+| Blocking | 0 |
+| Warning | 33 |
+| Info | 17 |
+| Total | 50 |
+
+## Priority Fixes for Artist
+
+1. Fix all `Warning` rows before the next production export.
+2. Keep `Info` rows as review notes unless they point to intentional source cleanup.
+3. Do not change runtime assets from this report; fix Blender/source export settings first.
+
+## Blocking Errors
+
+No blocking errors were reported.
+
+## Warnings
+
+### Naming Warnings
+
+#### W-1 — Naming / Node: `Chest`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-2 — Naming / Node: `Hand_L`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-3 — Naming / Node: `Hand_R`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-4 — Naming / Node: `Head`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-5 — Naming / Node: `Hips`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-6 — Naming / Node: `LeftFoot`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-7 — Naming / Node: `LeftLeg`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-8 — Naming / Node: `LeftShoulder`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-9 — Naming / Node: `LeftToeBase`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-10 — Naming / Node: `LowerArm_L`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-11 — Naming / Node: `LowerArm_R`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-12 — Naming / Node: `NyxaraRig`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-13 — Naming / Node: `NyxaraRodinCandidate`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-14 — Naming / Node: `RightFoot`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-15 — Naming / Node: `RightLeg`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-16 — Naming / Node: `RightShoulder`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-17 — Naming / Node: `RightToeBase`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-18 — Naming / Node: `Root`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-19 — Naming / Node: `Spine01`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-20 — Naming / Node: `Spine02`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-21 — Naming / Node: `UpperArm_L`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-22 — Naming / Node: `UpperArm_R`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-23 — Naming / Node: `UpperLeg_L`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-24 — Naming / Node: `UpperLeg_R`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-25 — Naming / Node: `WingL_1`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-26 — Naming / Node: `WingL_2`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-27 — Naming / Node: `WingL_3`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-28 — Naming / Node: `WingR_1`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-29 — Naming / Node: `WingR_2`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-30 — Naming / Node: `WingR_3`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-31 — Naming / Node: `head_end`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-32 — Naming / Node: `headfront`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+#### W-33 — Naming / Node: `neck`
+
+**Severity:** Warning
+
+**Message:** Render/source node does not use the Doorways_ prefix.
+
+**Suggested fix:** Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming.
+
+---
+
+## Informational Notes
+
+### Gameplay Authoring Markers
+
+#### I-1 — GameplayAuthoring / GLB: `GameplayMarkers`
+
+**Severity:** Info
+
+**Message:** INFO: No gameplay authoring markers were found in this source GLB.
+
+**Suggested fix:** This is valid for the current main-scene baseline. Add TRN_, DOOR_, SPAWN_, or BLK_ source nodes only when authoring transition/spawn contracts.
+
+---
+
+### Texture Path Validation
+
+#### I-1 — TexturePath / CompiledTexturePath: `Textures`
+
+**Severity:** Info
+
+**Message:** PASS: Configured compiled texture path is a safe relative path; no texture write was performed.
+
+**Suggested fix:** Configure a relative compiled texture path that remains beneath the compiled asset root.
+
+---
+
+#### I-2 — TexturePath / Material: `NyxaraBody_RodinCandidate`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-3 — TexturePath / Material: `NyxaraBody_RodinCandidate`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-4 — TexturePath / Material: `NyxaraBody_RodinCandidate`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: BaseColor. Texture index: 1. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-5 — TexturePath / Material: `NyxaraWings`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: MetallicRoughness. Texture index: 5. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-6 — TexturePath / Material: `NyxaraWings`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-7 — TexturePath / Material: `NyxaraWings`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+### Packed Map Validation
+
+#### I-1 — PackedMap / Material: `NyxaraBody_RodinCandidate`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Texture index: 2. Image source: texture_metallic-texture_roughness (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-2 — PackedMap / Material: `NyxaraWings`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Texture index: 5. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+### Source Scene Bounds
+
+#### I-1 — SceneBounds / Scene: `Nyxara_Rodin_Doorways_candidate.glb`
+
+**Severity:** Info
+
+**Message:** PASS: Source-scene bounds Min=(-1.32019, 1.78814e-07, -0.424764), Max=(1.32019, 1.75786, 0.198921), Size=(2.64037, 1.75786, 0.623685); contributors=1, invalid/missing=0.
+
+**Suggested fix:** Use the aggregate as source-validation evidence only; no arbitrary world-size limits are imposed.
+
+---
+
+## Full Raw Issue Table
+
+| # | Severity | Category | Object Type | Object Name | Message | Suggested Fix |
+|---:|---|---|---|---|---|---|
+| 1 | Warning | Naming | Node | Chest | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 2 | Warning | Naming | Node | Hand_L | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 3 | Warning | Naming | Node | Hand_R | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 4 | Warning | Naming | Node | Head | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 5 | Warning | Naming | Node | Hips | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 6 | Warning | Naming | Node | LeftFoot | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 7 | Warning | Naming | Node | LeftLeg | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 8 | Warning | Naming | Node | LeftShoulder | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 9 | Warning | Naming | Node | LeftToeBase | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 10 | Warning | Naming | Node | LowerArm_L | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 11 | Warning | Naming | Node | LowerArm_R | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 12 | Warning | Naming | Node | NyxaraRig | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 13 | Warning | Naming | Node | NyxaraRodinCandidate | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 14 | Warning | Naming | Node | RightFoot | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 15 | Warning | Naming | Node | RightLeg | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 16 | Warning | Naming | Node | RightShoulder | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 17 | Warning | Naming | Node | RightToeBase | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 18 | Warning | Naming | Node | Root | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 19 | Warning | Naming | Node | Spine01 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 20 | Warning | Naming | Node | Spine02 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 21 | Warning | Naming | Node | UpperArm_L | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 22 | Warning | Naming | Node | UpperArm_R | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 23 | Warning | Naming | Node | UpperLeg_L | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 24 | Warning | Naming | Node | UpperLeg_R | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 25 | Warning | Naming | Node | WingL_1 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 26 | Warning | Naming | Node | WingL_2 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 27 | Warning | Naming | Node | WingL_3 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 28 | Warning | Naming | Node | WingR_1 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 29 | Warning | Naming | Node | WingR_2 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 30 | Warning | Naming | Node | WingR_3 | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 31 | Warning | Naming | Node | head_end | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 32 | Warning | Naming | Node | headfront | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 33 | Warning | Naming | Node | neck | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
+| 34 | Info | Summary | GLB | Nyxara_Rodin_Doorways_candidate.glb | Asset contract report generated successfully. | Review warnings and blocking errors before sending the source asset to runtime import. |
+| 35 | Info | Summary | GLB | Nyxara_Rodin_Doorways_candidate.glb | GLB contains 33 nodes, 1 meshes, and 2 materials. | Use this count to compare source exports between revisions. |
+| 36 | Info | PolicyHit | ImportPolicy | GenericGltf | glTF import policy selected explicitly for this import. | Generic assets should use GenericGltf. Doorways main-scene assets may use DoorwaysMainScene for documented compatibility rules. |
+| 37 | Info | GameplayAuthoring | GLB | GameplayMarkers | INFO: No gameplay authoring markers were found in this source GLB. | This is valid for the current main-scene baseline. Add TRN_, DOOR_, SPAWN_, or BLK_ source nodes only when authoring transition/spawn contracts. |
+| 38 | Info | PBRValidation | Material | NyxaraBody_RodinCandidate | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 39 | Info | PBRValidation | Material | NyxaraWings | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 40 | Info | PBRValidation | MaterialSet | Nyxara_Rodin_Doorways_candidate.glb | PBR validation summary: valid texture references=6, non-fatal fallback references=4, fatal corrupt references=0, unsupported appearance extensions=0. | Fatal corrupt references must be zero before committing compiled assets. |
+| 41 | Info | TexturePath | CompiledTexturePath | Textures | PASS: Configured compiled texture path is a safe relative path; no texture write was performed. | Configure a relative compiled texture path that remains beneath the compiled asset root. |
+| 42 | Info | TexturePath | Material | NyxaraBody_RodinCandidate | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 43 | Info | TexturePath | Material | NyxaraBody_RodinCandidate | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 44 | Info | TexturePath | Material | NyxaraBody_RodinCandidate | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Slot: BaseColor. Texture index: 1. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 45 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: MetallicRoughness. Texture index: 5. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 46 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 47 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 48 | Info | PackedMap | Material | NyxaraBody_RodinCandidate | PASS: Valid packed metallic-roughness source. Source nodes: NyxaraRodinCandidate. Material: NyxaraBody_RodinCandidate. Texture index: 2. Image source: texture_metallic-texture_roughness (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 49 | Info | PackedMap | Material | NyxaraWings | PASS: Valid packed metallic-roughness source. Source nodes: NyxaraRodinCandidate. Material: NyxaraWings. Texture index: 5. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 50 | Info | SceneBounds | Scene | Nyxara_Rodin_Doorways_candidate.glb | PASS: Source-scene bounds Min=(-1.32019, 1.78814e-07, -0.424764), Max=(1.32019, 1.75786, 0.198921), Size=(2.64037, 1.75786, 0.623685); contributors=1, invalid/missing=0. | Use the aggregate as source-validation evidence only; no arbitrary world-size limits are imposed. |
+
+## Artist Fix Notes
+
+- `Doorways_` names are expected for render/source nodes.
+- `COL_` or `UCX_` names are expected for collision proxy nodes.
+- Walkable proxies should use explicit names such as `COL_Walk_Field`, `COL_Walk_Temple`, or `COL_Walkable_Stairs_Main`.
+- Gameplay authoring markers use `TRN_`, `DOOR_`, `SPAWN_`, or `BLK_`; these are validation-only and do not implement runtime story transitions.
+- Foliage/card materials should usually use `MASK`, a useful alpha cutoff, and `doubleSided=true` until sorted transparency exists.
+- AO textures should be connected to glTF `occlusionTexture`, not only placed in the source texture folder.

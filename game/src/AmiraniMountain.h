@@ -18,9 +18,9 @@ struct EnvironmentSettings;
 // ("night sky", "mountain of Amirani"). Assets: assets/Compiled/Landmarks/AmiraniMountain
 // (built by art/mountain) and assets/textures/caucasus (built by art/sky).
 //
-// The sky dome and the moon are drawn here, not by the engine: the engine lights its sky
-// panels like scenery, which washes out a painted sky. The engine's own sky and moon are
-// switched off in StyleEnvironment.
+// The sky dome is drawn here, not by the engine: the engine lights its sky panels like
+// scenery, which washes out a painted sky. The engine's own sky is switched off in
+// StyleEnvironment. No moon is drawn: the night is lit by moonlight from off the picture.
 namespace CaucasianEagle
 {
     class AmiraniMountain
@@ -51,8 +51,8 @@ namespace CaucasianEagle
                                        float pitch = 0);
 
         Model mMountain, mAmirani, mEagle, mDog;
-        Doorways::DoorwaysGpuMesh mDome, mMoon, mQuad;
-        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mSkyTexture, mMoonTexture, mGlowTexture;
+        Doorways::DoorwaysGpuMesh mDome;
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mSkyTexture;
         float mMountainYaw = 0; // set at load so the cave ledge faces the play area
         float mTime = 0;
         bool mReady = false;

@@ -53,7 +53,10 @@ namespace CaucasianEagle
 
     bool Game::Prepare(DoorwaysGameHost& host, std::string& error)
     {
-        const std::filesystem::path bundle = GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundle;
+        char hero[32] = {};   // CAUCASIAN_EAGLE_HERO=<bundle>: another of her bodies (EagleV1, RodinV1)
+        const bool other = GetEnvironmentVariableA(HeroEnvironmentVariable, hero, sizeof(hero)) > 0 && hero[0] && std::string(hero).find_first_of("/\.") == std::string::npos &&
+            std::filesystem::exists(GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundleFolder / hero / "Character.dmesh");
+        const std::filesystem::path bundle = GetDoorwaysAssetPathRegistry().CompiledRoot / (other ? (std::filesystem::path(HeroBundleFolder) / hero) : std::filesystem::path(HeroBundle));
 
         struct Clip { const char* Name; bool Loop; float GroundSpeed; };
         // Ground speeds are the measured planted-foot treadmill speeds of the authored clips.
@@ -66,11 +69,11 @@ namespace CaucasianEagle
             {"Skill1", false, 0}, {"Skill2", false, 0}, {"Skill3", false, 0},
             {"Combo1L", false, 0}, {"Combo1R", false, 0}, {"Combo2L", false, 0},
             {"Combo2R", false, 0}, {"Combo3L", false, 0}, {"Combo3R", false, 0},
-            {"Guard", false, 0}, {"SwordSwap", false, 0},
+            {"Guard", false, 0}, {"SwordSwap", false, 0}, {"BowShot", false, 0}, {"Finisher", false, 0},
             {"FlightTakeoff", false, 0}, {"FlightHover", true, 0}, {"FlightTravel", true, 0}, {"FlightLanding", false, 0}};
 
         DoorwaysAnimatedCharacterAssetLoadDesc desc;
-        desc.Name = "Nyxara EagleV1 (daughter of the eagle)";
+        desc.Name = "Nyxara (daughter of the eagle)";
         desc.MeshPath = bundle / "Character.dmesh";
         desc.SkeletonPath = bundle / "Character.dskel";
         desc.IdleAnimationPath = bundle / "Idle.danim";
@@ -100,17 +103,25 @@ namespace CaucasianEagle
         auto& session = GameSession();
         session.SlowWalk = true; session.SlowWalkSpeed = WalkSpeed; // hold Ctrl to walk
         session.FastMultiplier = WingBoostMultiplier;               // Shift wing boost
+        session.FreeFlight = true;                                  // R takes her up and lands her (Journey)
+        session.FreeFlightCeiling = FlightCeiling;
+        session.FreeFlightHoldSeconds = 1.0e9f; session.FreeFlightKeyClimb = true; session.FreeFlightKeepAloft = true;   // Space never takes off (on foot it jumps); in flight Space climbs, X sinks
+        session.FreeFlightTakeoffHeight = FlightTakeoffHeight; session.FreeFlightTakeoffSeconds = FlightTakeoffSeconds;
+        session.FreeFlightSteer = true; session.FreeFlightLevelPitch = CameraPitch; session.FreeFlightSteerGain = FlightSteerGain;
         session.OrbitCamera = true;
         session.LookScale = CameraLookScale;                        // a calmer camera than the engine's own
         session.Cursor = PointerFile;                               // her own pointer, wherever the pointer shows
         session.CameraPitch = CameraPitch; session.CameraDistance = CameraDistance; session.CameraPivotHeight = CameraPivotHeight;
         session.CameraMinPitch = CameraMinPitch; session.CameraMaxPitch = CameraMaxPitch;
         session.SuppressedActions = {
+            DoorwaysInputAction::ResetPlayer,                                // R = land from flight
             DoorwaysInputAction::Interact,                                   // E = sword barrier
-            DoorwaysInputAction::CycleDebugRenderMode,                       // Q = sword swap
+            DoorwaysInputAction::CycleDebugRenderMode,                       // Q = bow or axes
+            DoorwaysInputAction::ToggleDebugAnimationSampling,               // G = the axes change hands
             DoorwaysInputAction::ToggleTextureFilter,                        // F = Talon Dash
             DoorwaysInputAction::ToggleImportedAnimatedDebugSampling,        // V = Feather Cyclone
             DoorwaysInputAction::ToggleImportedSkinningSideBySideComparison, // C = Moon Leap
+            DoorwaysInputAction::RuntimeSceneSummary,                        // F8 = save the game here
             DoorwaysInputAction::BasicAttack,                                // LMB = slashes / combos
             DoorwaysInputAction::HeavyAttack,                                // RMB = heavy / combos
             DoorwaysInputAction::ToggleRuntimeObjectBounds,                  // F1 = story journal
@@ -125,12 +136,14 @@ namespace CaucasianEagle
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // Feather Cyclone
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // Moon Leap
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::LeftShoulder, 'E');     // sword barrier
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadLeft, 'Q');         // sword swap
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadLeft, 'Q');         // bow or axes
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadRight, 'M');        // world map
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadDown, VK_F1);       // story journal
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::Back, 'I');             // Nyxara's window
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightThumb, 'Z');       // drink a potion
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::B, 'X');                // sink in free flight (B was the dodge)
         host.World.MainCamera.Pitch = CameraPitch;
+        host.World.MainCamera.MaxFollowDistance = CameraMaxDistance;   // before the distance: the engine holds it under this
         host.World.MainCamera.FollowDistance = CameraDistance;
 
         if (!Ui::LoadArt(host.Render, error)) return false;
@@ -144,7 +157,7 @@ namespace CaucasianEagle
             error = "Nyxara combat kit: " + error;
             return false;
         }
-        OutputDebugStringA("[PASS] Caucasian Eagle: Nyxara (EagleV1) is the player and her combat kit started.\n");
+        OutputDebugStringA(("[PASS] Caucasian Eagle: Nyxara (" + bundle.filename().string() + ") is the player and her combat kit started.\n").c_str());
 
         char demo[8] = {};
         const bool unattended = GetEnvironmentVariableA(DemoEnvironmentVariable, demo, sizeof(demo)) && demo[0] == '1';
@@ -168,6 +181,7 @@ namespace CaucasianEagle
         session.MenuTitle = L"CAUCASIAN EAGLE";
         session.MenuSubtitle = L"The road to Amirani";
         // she begins on the road itself (and returns there when she falls before the first arena is won)
+        session.OwnDeath = true;   // no engine panel when she falls: she lies a moment and wakes at the last saved point (Journey)
         session.OwnSpawn = true; session.SpawnPosition = GetJourney().StartPoint(); session.SpawnYaw = 0;
         host.World.MainPlayerSpawn.Position = session.SpawnPosition; host.World.MainPlayerSpawn.Yaw = 0;
         session.MenuPlayLabel = GetJourney().HasProgress() ? L"Continue the journey" : L"Begin the journey";

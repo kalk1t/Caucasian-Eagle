@@ -114,7 +114,7 @@ namespace CaucasianEagle::StartScreen
             {L"Settings", L"picture, sound, mouse"}, {L"Guide", L"how to play, what it needs"},
             {L"Credits", L"who made it"}, {L"Leave the game", L""}};
         const float w = Width * S, h = (Head + Rows * (Row + Gap) + Foot) * S;
-        const float x = 64 * S, y = (ui.H - h) * .46f;
+        const float x = ui.W - w - 64 * S, y = (ui.H - h) * .56f;   // at the right: the picture's eagle shrine is at the left, its summit at the top right
         ui.Rect(x, y, w, h, Black.Fade(.45f));
         ui.Nine(HudArt::Panel, x, y, w, h, White);
         ui.Icon(HudArt::IconWings, x + w * .5f, y + 40 * S, 46 * S, Silver);

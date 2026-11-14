@@ -1,6 +1,6 @@
 # Doorways GLB Asset Contract Report
 
-Source: `Nyxara/blender/Nyxara_game.glb`
+Source: `art/nyxara/blender/Nyxara_game.glb`
 
 ## Executive Summary
 
@@ -8,8 +8,8 @@ Source: `Nyxara/blender/Nyxara_game.glb`
 |---|---:|
 | Blocking | 0 |
 | Warning | 33 |
-| Info | 37 |
-| Total | 70 |
+| Info | 62 |
+| Total | 95 |
 
 ## Priority Fixes for Artist
 
@@ -385,7 +385,7 @@ No blocking errors were reported.
 
 **Severity:** Info
 
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
 
 **Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
 
@@ -395,7 +395,7 @@ No blocking errors were reported.
 
 **Severity:** Info
 
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
 
 **Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
 
@@ -425,7 +425,7 @@ No blocking errors were reported.
 
 **Severity:** Info
 
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
 
 **Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
 
@@ -435,13 +435,163 @@ No blocking errors were reported.
 
 **Severity:** Info
 
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
 
 **Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
 
 ---
 
-#### I-8 — TexturePath / Material: `Slot_sword_left__Moonfeather`
+#### I-8 — TexturePath / Material: `Slot_axe_back__Moonfeather`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: MetallicRoughness. Texture index: 29. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-9 — TexturePath / Material: `Slot_axe_back__Moonfeather`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: Normal. Texture index: 27. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-10 — TexturePath / Material: `Slot_axe_back__Moonfeather`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: BaseColor. Texture index: 28. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-11 — TexturePath / Material: `Slot_axe_back__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: MetallicRoughness. Texture index: 32. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-12 — TexturePath / Material: `Slot_axe_back__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: Normal. Texture index: 30. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-13 — TexturePath / Material: `Slot_axe_back__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: BaseColor. Texture index: 31. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-14 — TexturePath / Material: `Slot_bow_back`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: Normal. Texture index: 24. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-15 — TexturePath / Material: `Slot_bow_back`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: MetallicRoughness. Texture index: 26. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-16 — TexturePath / Material: `Slot_bow_back`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: BaseColor. Texture index: 25. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-17 — TexturePath / Material: `Slot_bow_hand`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: BaseColor. Texture index: 19. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-18 — TexturePath / Material: `Slot_bow_hand`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: MetallicRoughness. Texture index: 20. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-19 — TexturePath / Material: `Slot_bow_hand`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: Normal. Texture index: 18. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-20 — TexturePath / Material: `Slot_bow_string`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: Normal. Texture index: 21. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-21 — TexturePath / Material: `Slot_bow_string`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: BaseColor. Texture index: 22. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-22 — TexturePath / Material: `Slot_bow_string`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: MetallicRoughness. Texture index: 23. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-23 — TexturePath / Material: `Slot_sword_left__Moonfeather`
 
 **Severity:** Info
 
@@ -451,17 +601,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-9 — TexturePath / Material: `Slot_sword_left__Moonfeather`
-
-**Severity:** Info
-
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: Normal. Texture index: 12. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
-
-**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
-
----
-
-#### I-10 — TexturePath / Material: `Slot_sword_left__Moonfeather`
+#### I-24 — TexturePath / Material: `Slot_sword_left__Moonfeather`
 
 **Severity:** Info
 
@@ -471,27 +611,17 @@ No blocking errors were reported.
 
 ---
 
-#### I-11 — TexturePath / Material: `Slot_sword_left__Talonshade`
+#### I-25 — TexturePath / Material: `Slot_sword_left__Moonfeather`
 
 **Severity:** Info
 
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: MetallicRoughness. Texture index: 11. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: Normal. Texture index: 12. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
 
 **Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
 
 ---
 
-#### I-12 — TexturePath / Material: `Slot_sword_left__Talonshade`
-
-**Severity:** Info
-
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: Normal. Texture index: 9. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
-
-**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
-
----
-
-#### I-13 — TexturePath / Material: `Slot_sword_left__Talonshade`
+#### I-26 — TexturePath / Material: `Slot_sword_left__Talonshade`
 
 **Severity:** Info
 
@@ -501,7 +631,27 @@ No blocking errors were reported.
 
 ---
 
-#### I-14 — TexturePath / Material: `Slot_sword_right__Moonfeather`
+#### I-27 — TexturePath / Material: `Slot_sword_left__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: Normal. Texture index: 9. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-28 — TexturePath / Material: `Slot_sword_left__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: MetallicRoughness. Texture index: 11. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-29 — TexturePath / Material: `Slot_sword_right__Moonfeather`
 
 **Severity:** Info
 
@@ -511,7 +661,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-15 — TexturePath / Material: `Slot_sword_right__Moonfeather`
+#### I-30 — TexturePath / Material: `Slot_sword_right__Moonfeather`
 
 **Severity:** Info
 
@@ -521,7 +671,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-16 — TexturePath / Material: `Slot_sword_right__Moonfeather`
+#### I-31 — TexturePath / Material: `Slot_sword_right__Moonfeather`
 
 **Severity:** Info
 
@@ -531,17 +681,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-17 — TexturePath / Material: `Slot_sword_right__Talonshade`
-
-**Severity:** Info
-
-**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: MetallicRoughness. Texture index: 17. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
-
-**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
-
----
-
-#### I-18 — TexturePath / Material: `Slot_sword_right__Talonshade`
+#### I-32 — TexturePath / Material: `Slot_sword_right__Talonshade`
 
 **Severity:** Info
 
@@ -551,7 +691,17 @@ No blocking errors were reported.
 
 ---
 
-#### I-19 — TexturePath / Material: `Slot_sword_right__Talonshade`
+#### I-33 — TexturePath / Material: `Slot_sword_right__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: MetallicRoughness. Texture index: 17. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid.
+
+**Suggested fix:** Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder.
+
+---
+
+#### I-34 — TexturePath / Material: `Slot_sword_right__Talonshade`
 
 **Severity:** Info
 
@@ -583,7 +733,57 @@ No blocking errors were reported.
 
 ---
 
-#### I-3 — PackedMap / Material: `Slot_sword_left__Moonfeather`
+#### I-3 — PackedMap / Material: `Slot_axe_back__Moonfeather`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Texture index: 29. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-4 — PackedMap / Material: `Slot_axe_back__Talonshade`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Texture index: 32. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-5 — PackedMap / Material: `Slot_bow_back`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_back. Texture index: 26. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-6 — PackedMap / Material: `Slot_bow_hand`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_hand. Texture index: 20. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-7 — PackedMap / Material: `Slot_bow_string`
+
+**Severity:** Info
+
+**Message:** PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_string. Texture index: 23. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured.
+
+**Suggested fix:** Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R.
+
+---
+
+#### I-8 — PackedMap / Material: `Slot_sword_left__Moonfeather`
 
 **Severity:** Info
 
@@ -593,7 +793,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-4 — PackedMap / Material: `Slot_sword_left__Talonshade`
+#### I-9 — PackedMap / Material: `Slot_sword_left__Talonshade`
 
 **Severity:** Info
 
@@ -603,7 +803,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-5 — PackedMap / Material: `Slot_sword_right__Moonfeather`
+#### I-10 — PackedMap / Material: `Slot_sword_right__Moonfeather`
 
 **Severity:** Info
 
@@ -613,7 +813,7 @@ No blocking errors were reported.
 
 ---
 
-#### I-6 — PackedMap / Material: `Slot_sword_right__Talonshade`
+#### I-11 — PackedMap / Material: `Slot_sword_right__Talonshade`
 
 **Severity:** Info
 
@@ -629,7 +829,7 @@ No blocking errors were reported.
 
 **Severity:** Info
 
-**Message:** PASS: Source-scene bounds Min=(-1.32019, 1.49297e-07, -0.424764), Max=(1.32019, 1.85786, 0.847538), Size=(2.64037, 1.85786, 1.2723); contributors=1, invalid/missing=0.
+**Message:** PASS: Source-scene bounds Min=(-1.32019, 1.49297e-07, -0.617013), Max=(1.32019, 1.78323, 0.844668), Size=(2.64037, 1.78323, 1.46168); contributors=1, invalid/missing=0.
 
 **Suggested fix:** Use the aggregate as source-validation evidence only; no arbitrary world-size limits are imposed.
 
@@ -672,43 +872,68 @@ No blocking errors were reported.
 | 31 | Warning | Naming | Node | head_end | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
 | 32 | Warning | Naming | Node | headfront | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
 | 33 | Warning | Naming | Node | neck | Render/source node does not use the Doorways_ prefix. | Rename render nodes to Doorways_<DescriptiveName>. Collision nodes should use COL_ or UCX_ naming. |
-| 34 | Info | Summary | GLB | Nyxara_game.glb | Asset contract report generated successfully. | Review warnings and blocking errors before sending the source asset to runtime import. |
-| 35 | Info | Summary | GLB | Nyxara_game.glb | GLB contains 33 nodes, 1 meshes, and 6 materials. | Use this count to compare source exports between revisions. |
+| 34 | Info | Summary | GLB | Nyxara_game.glb | GLB contains 33 nodes, 1 meshes, and 11 materials. | Use this count to compare source exports between revisions. |
+| 35 | Info | Summary | GLB | Nyxara_game.glb | Asset contract report generated successfully. | Review warnings and blocking errors before sending the source asset to runtime import. |
 | 36 | Info | PolicyHit | ImportPolicy | GenericGltf | glTF import policy selected explicitly for this import. | Generic assets should use GenericGltf. Doorways main-scene assets may use DoorwaysMainScene for documented compatibility rules. |
 | 37 | Info | GameplayAuthoring | GLB | GameplayMarkers | INFO: No gameplay authoring markers were found in this source GLB. | This is valid for the current main-scene baseline. Add TRN_, DOOR_, SPAWN_, or BLK_ source nodes only when authoring transition/spawn contracts. |
 | 38 | Info | PBRValidation | Material | NyxaraBody | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
 | 39 | Info | PBRValidation | Material | NyxaraWings | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
-| 40 | Info | PBRValidation | Material | Slot_sword_left__Moonfeather | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
-| 41 | Info | PBRValidation | Material | Slot_sword_left__Talonshade | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
-| 42 | Info | PBRValidation | Material | Slot_sword_right__Moonfeather | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
-| 43 | Info | PBRValidation | Material | Slot_sword_right__Talonshade | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
-| 44 | Info | PBRValidation | MaterialSet | Nyxara_game.glb | PBR validation summary: valid texture references=18, non-fatal fallback references=12, fatal corrupt references=0, unsupported appearance extensions=0. | Fatal corrupt references must be zero before committing compiled assets. |
-| 45 | Info | TexturePath | CompiledTexturePath | Textures | PASS: Configured compiled texture path is a safe relative path; no texture write was performed. | Configure a relative compiled texture path that remains beneath the compiled asset root. |
-| 46 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 47 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 48 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: BaseColor. Texture index: 1. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 49 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: MetallicRoughness. Texture index: 5. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 50 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 51 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 52 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: MetallicRoughness. Texture index: 14. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 53 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: Normal. Texture index: 12. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 54 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: BaseColor. Texture index: 13. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 55 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: MetallicRoughness. Texture index: 11. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 56 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: Normal. Texture index: 9. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 57 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: BaseColor. Texture index: 10. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 58 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: MetallicRoughness. Texture index: 8. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 59 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: Normal. Texture index: 6. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 60 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: BaseColor. Texture index: 7. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 61 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: MetallicRoughness. Texture index: 17. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 62 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: BaseColor. Texture index: 16. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 63 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: Normal. Texture index: 15. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
-| 64 | Info | PackedMap | Material | NyxaraBody | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: NyxaraBody. Texture index: 2. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 65 | Info | PackedMap | Material | NyxaraWings | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: NyxaraWings. Texture index: 5. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 66 | Info | PackedMap | Material | Slot_sword_left__Moonfeather | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Texture index: 14. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 67 | Info | PackedMap | Material | Slot_sword_left__Talonshade | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Texture index: 11. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 68 | Info | PackedMap | Material | Slot_sword_right__Moonfeather | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Texture index: 8. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 69 | Info | PackedMap | Material | Slot_sword_right__Talonshade | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Texture index: 17. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
-| 70 | Info | SceneBounds | Scene | Nyxara_game.glb | PASS: Source-scene bounds Min=(-1.32019, 1.49297e-07, -0.424764), Max=(1.32019, 1.85786, 0.847538), Size=(2.64037, 1.85786, 1.2723); contributors=1, invalid/missing=0. | Use the aggregate as source-validation evidence only; no arbitrary world-size limits are imposed. |
+| 40 | Info | PBRValidation | Material | Slot_axe_back__Moonfeather | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 41 | Info | PBRValidation | Material | Slot_axe_back__Talonshade | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 42 | Info | PBRValidation | Material | Slot_bow_back | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 43 | Info | PBRValidation | Material | Slot_bow_hand | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 44 | Info | PBRValidation | Material | Slot_bow_string | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 45 | Info | PBRValidation | Material | Slot_sword_left__Moonfeather | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 46 | Info | PBRValidation | Material | Slot_sword_left__Talonshade | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 47 | Info | PBRValidation | Material | Slot_sword_right__Moonfeather | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 48 | Info | PBRValidation | Material | Slot_sword_right__Talonshade | PBR material validation: BaseColor=Valid/SRGB/2048x2048x4/8bit/Sampler=Explicit, Normal=Valid/Linear/2048x2048x4/8bit/Sampler=Explicit, MetallicRoughness=Valid/Linear/2048x2048x4/8bit/G=Roughness,B=Metallic/Sampler=Explicit, AO=MissingOptional/Fallback, Emissive=MissingOptional/Fallback. | Use this row to confirm color-space expectations, packed metallic-roughness channel usage, sampler source, and fallback behavior. |
+| 49 | Info | PBRValidation | MaterialSet | Nyxara_game.glb | PBR validation summary: valid texture references=33, non-fatal fallback references=22, fatal corrupt references=0, unsupported appearance extensions=0. | Fatal corrupt references must be zero before committing compiled assets. |
+| 50 | Info | TexturePath | CompiledTexturePath | Textures | PASS: Configured compiled texture path is a safe relative path; no texture write was performed. | Configure a relative compiled texture path that remains beneath the compiled asset root. |
+| 51 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: Normal. Texture index: 0. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 52 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: MetallicRoughness. Texture index: 2. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 53 | Info | TexturePath | Material | NyxaraBody | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraBody. Slot: BaseColor. Texture index: 1. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 54 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: MetallicRoughness. Texture index: 5. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 55 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: BaseColor. Texture index: 4. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 56 | Info | TexturePath | Material | NyxaraWings | PASS: Texture path validation. Source nodes: Nyxara. Material: NyxaraWings. Slot: Normal. Texture index: 3. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 57 | Info | TexturePath | Material | Slot_axe_back__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: MetallicRoughness. Texture index: 29. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 58 | Info | TexturePath | Material | Slot_axe_back__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: Normal. Texture index: 27. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 59 | Info | TexturePath | Material | Slot_axe_back__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Slot: BaseColor. Texture index: 28. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 60 | Info | TexturePath | Material | Slot_axe_back__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: MetallicRoughness. Texture index: 32. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 61 | Info | TexturePath | Material | Slot_axe_back__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: Normal. Texture index: 30. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 62 | Info | TexturePath | Material | Slot_axe_back__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Slot: BaseColor. Texture index: 31. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 63 | Info | TexturePath | Material | Slot_bow_back | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: Normal. Texture index: 24. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 64 | Info | TexturePath | Material | Slot_bow_back | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: MetallicRoughness. Texture index: 26. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 65 | Info | TexturePath | Material | Slot_bow_back | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_back. Slot: BaseColor. Texture index: 25. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 66 | Info | TexturePath | Material | Slot_bow_hand | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: BaseColor. Texture index: 19. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 67 | Info | TexturePath | Material | Slot_bow_hand | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: MetallicRoughness. Texture index: 20. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 68 | Info | TexturePath | Material | Slot_bow_hand | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_hand. Slot: Normal. Texture index: 18. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 69 | Info | TexturePath | Material | Slot_bow_string | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: Normal. Texture index: 21. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 70 | Info | TexturePath | Material | Slot_bow_string | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: BaseColor. Texture index: 22. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 71 | Info | TexturePath | Material | Slot_bow_string | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_bow_string. Slot: MetallicRoughness. Texture index: 23. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 72 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: MetallicRoughness. Texture index: 14. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 73 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: BaseColor. Texture index: 13. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 74 | Info | TexturePath | Material | Slot_sword_left__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Slot: Normal. Texture index: 12. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 75 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: BaseColor. Texture index: 10. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 76 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: Normal. Texture index: 9. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 77 | Info | TexturePath | Material | Slot_sword_left__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Slot: MetallicRoughness. Texture index: 11. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 78 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: MetallicRoughness. Texture index: 8. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 79 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: Normal. Texture index: 6. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 80 | Info | TexturePath | Material | Slot_sword_right__Moonfeather | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Slot: BaseColor. Texture index: 7. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 81 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: BaseColor. Texture index: 16. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 82 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: MetallicRoughness. Texture index: 17. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 83 | Info | TexturePath | Material | Slot_sword_right__Talonshade | PASS: Texture path validation. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Slot: Normal. Texture index: 15. Source URI: <embedded/no URI>. Problem/status: embedded GLB image is valid. | Use an embedded GLB image or an existing source-relative image path that stays inside the source asset folder. |
+| 84 | Info | PackedMap | Material | NyxaraBody | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: NyxaraBody. Texture index: 2. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 85 | Info | PackedMap | Material | NyxaraWings | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: NyxaraWings. Texture index: 5. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 86 | Info | PackedMap | Material | Slot_axe_back__Moonfeather | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_axe_back__Moonfeather. Texture index: 29. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 87 | Info | PackedMap | Material | Slot_axe_back__Talonshade | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_axe_back__Talonshade. Texture index: 32. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 88 | Info | PackedMap | Material | Slot_bow_back | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_back. Texture index: 26. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 89 | Info | PackedMap | Material | Slot_bow_hand | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_hand. Texture index: 20. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 90 | Info | PackedMap | Material | Slot_bow_string | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_bow_string. Texture index: 23. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 91 | Info | PackedMap | Material | Slot_sword_left__Moonfeather | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_left__Moonfeather. Texture index: 14. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 92 | Info | PackedMap | Material | Slot_sword_left__Talonshade | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_left__Talonshade. Texture index: 11. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 93 | Info | PackedMap | Material | Slot_sword_right__Moonfeather | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_right__Moonfeather. Texture index: 8. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 94 | Info | PackedMap | Material | Slot_sword_right__Talonshade | PASS: Valid packed metallic-roughness source. Source nodes: Nyxara. Material: Slot_sword_right__Talonshade. Texture index: 17. Image source: Image_1 (embedded). Required channels: at least 3; G=roughness, B=metallic. No glTF occlusion texture is configured. | Provide a decodable metallic-roughness image with at least RGB channels; preserve G=roughness and B=metallic, and verify AO uses R. |
+| 95 | Info | SceneBounds | Scene | Nyxara_game.glb | PASS: Source-scene bounds Min=(-1.32019, 1.49297e-07, -0.617013), Max=(1.32019, 1.78323, 0.844668), Size=(2.64037, 1.78323, 1.46168); contributors=1, invalid/missing=0. | Use the aggregate as source-validation evidence only; no arbitrary world-size limits are imposed. |
 
 ## Artist Fix Notes
 

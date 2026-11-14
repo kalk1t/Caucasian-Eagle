@@ -41,3 +41,16 @@ art/world/export/textures/
 
 # Refined models and their before / after pictures are rebuilt by art/refine/refine_assets.py
 art/refine/out/
+
+# Places beside the road: reduced models and their pictures are rebuilt by art/places/prepare_places.py
+art/places/out/
+
+# Development labs (Map Lab, Character Lab) and their source material: kept on the development PC, not in git
+testing/
+Test-Map.cmd
+Test-Characters.cmd
+tools/map-lab.ps1
+tools/character-lab.ps1
+tools/open-character-lab.ps1
+art/map/MapA_MapLab_Package/
+art/nyxara/classic-nyxara/

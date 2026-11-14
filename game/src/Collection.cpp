@@ -39,7 +39,7 @@ namespace CaucasianEagle::Collection
     float Boost(const State& s) { return 1 + FatherFeatherBoost * static_cast<float>(FeathersFound(s)); }
     float Crystals(int cities) { return cities >= CityCount ? SongCrystals : 1.f; }
     float CreaturePace(const State& s) { return 1 + FrostRunePace * static_cast<float>(RuneLevel(s, Frost)); }
-    int KillHeal(const State& s) { return MoonRuneHeal * RuneLevel(s, MoonRune); }
+    int WinHeal(const State& s) { return MoonRuneHeal * RuneLevel(s, MoonRune); }
 
     // Two panels, left and right, the same size and place as the Grow page, so Nyxara stays in view between them.
     void Draw(Ui& ui, const View& v)
@@ -125,14 +125,14 @@ namespace CaucasianEagle::Collection
             }
 
             cy += 6 * S;
-            heading(L"RUNES FOR HER BLADES");
+            heading(L"RUNES FOR HER AXES");
             ui.Text(L"From old gold chests. One kind is set.", x + Pad * S, cy, Tiny * S, Dim.Fade(a));
             cy += line + 2 * S;
             const Color runeColor[RuneCount] = {{1.f, .55f, .25f, 1}, {.55f, .85f, 1.f, 1}, {.85f, .80f, 1.f, 1}};
             const std::wstring gives[RuneCount] = {
                 L"blows +" + Percent(FireRuneDamage) + L" each",
                 L"creatures strike " + Percent(FrostRunePace) + L" slower each",
-                L"+" + std::to_wstring(MoonRuneHeal) + L" health a kill, each"};
+                L"+" + std::to_wstring(MoonRuneHeal) + L" health a wave won, each"};
             const float cardHeight = 40 * S;
             for (int rune = 0; rune < RuneCount; ++rune)
             {
@@ -170,7 +170,7 @@ namespace CaucasianEagle::Collection
             { const float from = x; key(L"A", L"GROW"); Pointer::Add(Pointer::PageKey, 0, from, y, x - from - 22 * S, h); }
             key(L"W", L""); x -= 20 * S;
             key(L"S", L"CHOOSE RUNE");
-            key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"SET IN BLADES");
+            key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"SET IN AXES");
             key(Ui::KeyLabel(L"I", 'I'), L"CLOSE");
         }
     }

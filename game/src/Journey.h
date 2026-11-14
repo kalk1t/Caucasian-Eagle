@@ -47,6 +47,21 @@ namespace CaucasianEagle
     {
     public:
         bool Initialize(Renderer& renderer, WorldState& world, std::string& error);
+        // Isolated test fixture. Uses the campaign roster, AI and creature rigs;
+        // never loads or updates the journey, loot, saves or encounters.
+        struct CreatureStation
+        {
+            std::wstring Name;
+            DirectX::XMFLOAT3 Anchor{};
+            float Height=0, Radius=0, Windup=0, Strike=0;
+            int Health=0, MaximumHealth=0, Shots=0;
+        };
+        bool InitializeCreatureStations(Renderer& renderer, std::string& error);
+        void ResetCreatureStations();
+        void UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks=true);
+        void DrawCreatureStations(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
+        std::vector<CreatureStation> CreatureStations() const;
+        bool CreatureStationAnchorsValid() const;
         void Update(Doorways::DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed);
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         void DrawHud(Ui& ui, const WorldState& world);
@@ -58,18 +73,23 @@ namespace CaucasianEagle
         float TimeScale() const { return mJournalOpen || mMapOpen || mGrowthOpen || mPauseOpen || mGuideOpen ? JournalTimeScale : mTimeScale; }
 
     private:
+        bool mCreatureStations = false;
         struct Sample { DirectX::XMFLOAT3 P{}; float W = 0; int Stage = 0; float Tx = 0, Tz = 1, Nx = 1, Nz = 0; };
         struct Arena { int Stage = 0; float S = 0; int Kind = 0; float R = 0; DirectX::XMFLOAT3 P{}; };
         struct Chest { DirectX::XMFLOAT3 P{}; float Yaw = 0; int Tier = 0; int Arena = -1; bool Opened = false; int Slot = -1; float Open = 0; };
         struct Prop { int Type = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Height = 1; };
         struct Light { DirectX::XMFLOAT3 P{}; DirectX::XMFLOAT4 Color{}; float Size = 1; };
         struct City { float S0 = 0, S1 = 0; DirectX::XMFLOAT3 P{}; bool Visited = false; };   // S0..S1: metres of road inside its gates
-        struct Building { int Model = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Height = 1; };
+        struct Building { int Model = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Height = 1, Far = CityDrawDistance; };   // Far: m it is drawn from
+        // A place beside the road (assets/Compiled/World/Places.txt, written by art/places/build_places.py): the things
+        // that stand there are Buildings; she finds it by coming within R of P. Its words are Story::Places[index].
+        struct Site { DirectX::XMFLOAT3 P{}; float S = 0, R = 20; bool Found = false; };
         struct Model
         {
             Doorways::DoorwaysGpuMesh Mesh;
             Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Texture;
             DirectX::XMFLOAT3 Min{}, Max{};
+            std::vector<float> Top;              // buildings only: the highest surface of the mesh on a RoofGrid x RoofGrid map of its footprint (model space; -1e9 = none)
             CreatureRig Rig;                     // creatures only: the joints written by art/monsters/rig_models.py
         };
         struct Monster
@@ -83,6 +103,9 @@ namespace CaucasianEagle
             int Shots = 0;          // volleys fired (every few are a different pattern)
             float Slam = 0, SlamWait = 3;   // giants: seconds until the marked ground is struck; until the next mark
             float Dodge = 0, Hop = 0, Round = 0;   // until it may dodge again; jump running; running round her guard
+            float Air = 0;          // m its feet are over the ground (spirits and witches that follow her up; a leap)
+            float Leap = 0, LeapWait = 2, LeapHigh = 0, LeapSpeed = 0;   // s left of a leap at her; until the next; its height; its speed over the ground
+            bool LeapHit = false;   // this leap has struck her
             DirectX::XMFLOAT3 HopDir{};
             int Index = 0;          // nearest road sample
             int Chest = -1;         // chest index when this slot is a chest
@@ -98,6 +121,9 @@ namespace CaucasianEagle
 
         bool LoadRoad(std::string& error);
         bool LoadCities(Renderer& renderer, std::string& error);
+        bool LoadPlaces(Renderer& renderer, std::string& error);
+        void UpdatePlaces(WorldState& world);
+        unsigned long long PlaceBits() const;   // bit per place she has found
         // The texture is 'sharedTexture' when given, else <textureBase or base>BaseColor.png
         bool LoadModel(Renderer& renderer, const std::string& base, Model& out, std::string& error, ID3D11ShaderResourceView* sharedTexture = nullptr,
                        const std::string& textureBase = {});
@@ -147,22 +173,46 @@ namespace CaucasianEagle
         std::vector<Chest> mChests;
         std::vector<Prop> mProps;
         // what she walks round off the road: boulders, props, gate piers (Road.txt "O"), in 16 m squares
-        struct Obstacle { float X = 0, Z = 0, R = 0; };
+        struct Obstacle { float X = 0, Z = 0, R = 0; bool House = false; };   // House: a building, which she may stand on (TopAt)
         std::vector<Obstacle> mObstacles;
         std::unordered_map<long long, std::vector<int>> mObstacleGrid;
-        void AddObstacle(float x, float z, float radius);
+        void AddObstacle(float x, float z, float radius, bool house = false);
+        float TopAt(float x, float z) const;   // the highest surface of a city building over (x, z), world height; -1e9 where there is none
         float mLateral = 0;                // m to the right of the road's middle, from Leash
         bool mPilotHold = false;           // testing: the pilot stands still (TroubleEnvironmentVariable)
         bool mPastWall = false;            // she went round the wall of an unwon arena: it does not pull her back
         // trouble on the road between the fights: 0 cursed ground, 1 falling stones, 2 wisps
         struct Trouble { int Kind = 0; DirectX::XMFLOAT3 P{}; float R = 0, Tx = 0, Tz = 1, Nx = 1, Nz = 0, Clock = 0, Phase = 0, Next = 0, S = 0; };
-        struct Strike { DirectX::XMFLOAT3 P{}; float T = 0; };
+        struct Strike { DirectX::XMFLOAT3 P{}; float T = 0; int Trap = -1; float Drop = 18; };   // Trap: the seal trap that sent it; Drop: m it falls
         std::vector<Trouble> mTroubles;
         std::vector<Strike> mStrikes;      // stones on their way down
         int mTroubleNear = -1;             // the one she is coming to (the HUD names it)
         void BuildTroubles();
         void UpdateTroubles(WorldState& world, CombatSystem& combat, float dt);
         DirectX::XMFLOAT3 WispAt(const Trouble& trouble, int which) const;
+        // Traps (BuildTraps; the kinds and where they stand are in the table at the top of Journey.cpp). They are made
+        // for a traveller on the wing: each reaches past her ceiling. One that is beaten stays beaten (the save keeps it).
+        struct Trap
+        {
+            int Kind = 0;
+            float S = 0, Length = 0;                     // m along the road of its middle (the gate run: of its switch); m of road it takes
+            DirectX::XMFLOAT3 P{}, End{};                // on the road at S; the gate run: where the gate stands
+            float Tx = 0, Tz = 1, Nx = 1, Nz = 0, W = 6; // the road's direction there, and half the width of the way through
+            float Ex = 0, Ez = 1;                        // the gate run: the road's direction at the gate
+            bool Won = false, In = false, Entered = false;   // In: she is in it now; Entered: she came in at one of its ends
+            int State = 0, Count = 0, Slot = -1, Look = 0;   // gate run: 1 while a run lasts; hits on the seal / the last gust; the press: its link's enemy slot; which statue
+            float Clock = 0, Timer = 0, Full = 1, Next = 0, Side = 0;
+            DirectX::XMFLOAT3 Post[3]{};                 // its stones or statues
+            float Fire[3] = {};                          // rune stones: s until each throws; watchers: where each sheet began
+        };
+        std::vector<Trap> mTraps;
+        int mTrapNear = -1;                // the one she is at (the HUD names it)
+        void BuildTraps();
+        void UpdateTraps(WorldState& world, CombatSystem& combat, float dt);
+        void WinTrap(Trap& trap, const wchar_t* name, const wchar_t* line);
+        unsigned TrapBits() const;         // bit per trap she has beaten
+        int Stand(const char* model, DirectX::XMFLOAT3 at, float yaw, float height, float seenFrom);   // one more thing of the places' models; -1: no such model
+        std::vector<int> mArenaRows;       // the kind of every "A" row of Road.txt in file order (3 = an open clearing, a fight in older versions)
         // the way: shown when she is off the road, or has gone past a fight that still waits
         void UpdateWay(const WorldState& world, float realDt);
         float mWayShow = 0, mWayDistance = 0;
@@ -177,6 +227,10 @@ namespace CaucasianEagle
         std::vector<City> mCities;         // in road order; the words of city i are Story::Cities[i]
         std::vector<Building> mBuildings;
         std::vector<Model> mCityModels;
+        std::vector<Site> mSites;          // the places beside the road, in road order
+        std::unordered_map<std::string, int> mPlaceModel;   // "Archway" -> its index in mCityModels (the traps stand some of them too)
+        struct Glade { float X = 0, Z = 0, R = 0; };
+        std::vector<Glade> mGlades;        // nothing grows where a place stands, and the world's own scenery is taken away
         int mCity = -1;                    // the city she is in, or -1
         bool mCitiesInSave = false;        // the save file said which cities she has entered
 
@@ -186,9 +240,16 @@ namespace CaucasianEagle
         int mStage = 0, mShownStage = -1;
         int mArenasCleared = 0;
         int mGold = 0, mFeathers = 0, mLore = 0, mDeaths = 0;
-        float mRegen = 0;                  // seconds toward the next point of health that returns by itself
         float mEmber = 0;                  // seconds of Soul Ember left
         bool mWasDead = false, mPendingTeleport = false;
+        // The save point: where she stood when the game was last saved outside a fight. She wakes there after a death
+        // and at the start of a session. (Saves made during a fight keep the point they had.)
+        mutable DirectX::XMFLOAT3 mSavePoint{}; mutable bool mHasSavePoint = false;
+        DirectX::XMFLOAT3 mHere{};       // where she is this frame
+        bool mAlive = true, mSaveKey = false;
+        float mDeadFor = 0, mRespawnAsk = 0;
+        bool CanMark() const;            // the save point may be moved to where she is
+        void WakeAtSavePoint(WorldState& world);
         float mPlaySeconds = 0;
 
         // encounter
@@ -221,6 +282,11 @@ namespace CaucasianEagle
         bool mJournalKeys[JournalKeyCount] = {};
         std::vector<Doorways::DoorwaysInputAction> mSuppressedInPlay; // the session's list while the journal is closed
         float mTime = 0;
+        bool mFlying = false, mLanding = false, mLandAsk = false;   // free flight: in the air; R is bringing her down; a test asks to land
+        bool mOnFoot = false, mModeKey = false;   // R: on foot (walks, Space jumps) or on the wing (the camera aims her); R last frame
+        float mWingSpeed = 0;            // her travel speed on the wing, kept while she is on foot
+        float mLandTime = 0;             // s left of the landing
+        float mRageAt = -100;            // mTime of her last cry of fury on a kill
         float mEnv[12] = {};               // blended stage weights
         bool mMapOpen = false, mMapForced = false;   // world map (M); forced: capture mode (MapEnvironmentVariable)
         float mMapFade = 0;

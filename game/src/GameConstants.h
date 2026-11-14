@@ -23,7 +23,7 @@ namespace CaucasianEagle
     constexpr float RuneChance = .35f;          // that an old gold chest holds a rune (a king's hoard always does)
     constexpr float FireRuneDamage = .06f;      // per fire rune set in her blades: all her blows, more by this share
     constexpr float FrostRunePace = .08f;       // per frost rune: creatures wait this share longer between attacks
-    constexpr int MoonRuneHeal = 2;             // per moon rune: health for every creature felled
+    constexpr int MoonRuneHeal = 4;             // per moon rune: health for every wave and every arena won
 
     // ---- sound (Sound.cpp; the files are in game/assets/sounds)
     constexpr const char* SoundFolder = "assets/sounds";
@@ -37,23 +37,34 @@ namespace CaucasianEagle
     constexpr float StepLength = 1.7f;        // metres on the ground between two footsteps
     constexpr float StepVolume = .4f;
     constexpr float SoundRepeatSeconds = .07f; // the same sound is not started again sooner than this
-    constexpr const char* GameVersion = "0.3.0";
+    constexpr const char* GameVersion = "0.4.0";
     constexpr const wchar_t* UserDataFolder = L"CaucasianEagle"; // %LOCALAPPDATA%\CaucasianEagle: settings and saves
 
     // ---- content
     constexpr const char* StartSceneId = "RoadToAmirani";                   // assets/Compiled/Scenes/<id>.dscene
-    constexpr const char* HeroBundle = "Characters/Nyxara/EagleV1";         // under assets/Compiled
+    constexpr const char* HeroBundle = "Characters/Nyxara/EagleV3";         // under assets/Compiled: her body, weapons apart (NyxaraEquipment.h), hands closed (EagleV2: the same with open hands)
+    constexpr const char* HeroBundleBefore = "Characters/Nyxara/EagleV1";   // the body before it, weapons part of the mesh: kept whole, the way back
+    constexpr const char* HeroBundleFolder = "Characters/Nyxara";           // CAUCASIAN_EAGLE_HERO names another bundle in this folder
+    constexpr const char* HeroEnvironmentVariable = "CAUCASIAN_EAGLE_HERO"; // =EagleV1: the body before, weapons in the mesh. =RodinV1: the generated body (candidate; less detail)
+    constexpr const char* BowAimJoint = "Spine02";    // with the bow up, her body from this joint up pitches to where the arrow goes
+    constexpr float BowAimPitchMax = 1.0f;            // rad, the most it pitches up or down
+    constexpr float BowAimPitchRate = 14.f;           // 1/s, how fast it follows
+    constexpr const char* HeroEquipment = "Characters/Nyxara/Equipment";    // under assets/Compiled: the weapons of the new body
     constexpr const char* DemoEnvironmentVariable = "CAUCASIAN_EAGLE_DEMO"; // =1: scripted showcase run
     constexpr const char* VistaEnvironmentVariable = "CAUCASIAN_EAGLE_VISTA"; // =1 with the showcase: camera held on the mountain
 
     // ---- journey: the road to Amirani (Journey.cpp; world built by art/world/build_world.py)
     constexpr const char* RoadFile = "assets/Compiled/World/Road.txt";   // path, arenas, chests, props, lights
     constexpr const char* SaveFileName = "journey.sav";                   // in the user data folder
+    constexpr const char* SaveEnvironmentVariable = "CAUCASIAN_EAGLE_SAVE";   // testing: this file is the save, read and written in unattended runs too
+    constexpr const char* SaveKeyEnvironmentVariable = "CAUCASIAN_EAGLE_SAVEKEY"; // testing, unattended: F8 is pressed after this many seconds
+    constexpr float DeathSeconds = 3.5f;         // s she lies where she fell before she wakes at the last saved point
     constexpr const char* PilotEnvironmentVariable = "CAUCASIAN_EAGLE_PILOT"; // =1 with the showcase: a test pilot plays the whole road
     constexpr const char* SpeedEnvironmentVariable = "CAUCASIAN_EAGLE_SPEED"; // test pilot only: simulation speed 1..12
     constexpr const char* MortalEnvironmentVariable = "CAUCASIAN_EAGLE_MORTAL"; // =1: the test pilot can die and asks for a respawn (tests death)
-    constexpr const char* JournalEnvironmentVariable = "CAUCASIAN_EAGLE_JOURNAL"; // testing: hold the story journal open on page 1..4 (11..14: everything unlocked)
+    constexpr const char* JournalEnvironmentVariable = "CAUCASIAN_EAGLE_JOURNAL"; // testing: hold the story journal open on page 1..5 (11..15: everything unlocked)
     constexpr const char* StartEnvironmentVariable = "CAUCASIAN_EAGLE_START"; // start after this many arenas (testing; ignores the save)
+    constexpr const char* AtEnvironmentVariable = "CAUCASIAN_EAGLE_AT";       // testing, with the pilot: =N stands her N metres along the road (CAUCASIAN_EAGLE_GO=1: and lets her go on from there)
     // ---- the timing of her attacks (NyxaraKit). "Clip seconds" are seconds of the animation, before its rate.
     constexpr float ComboWindowSeconds = 1.2f;   // s after a skill ends in which its combo can still be started
     constexpr float ComboBufferSeconds = .6f;    // s a mouse press during a skill is remembered; the combo starts when the skill's last hit has landed
@@ -62,6 +73,16 @@ namespace CaucasianEagle
     constexpr float SlashChainAfterHit = .12f;   // clip s after a slash lands: the next buffered slash or heavy blow starts
     constexpr float HeavyChainAfterHit = .30f;   // clip s after the heavy blow lands: a buffered slash starts
     constexpr float SlashChainSeconds = 1.5f;    // s after a slash in which the next click swings the other sword
+    // ---- the finishing blow: an enemy brought this low is broken (a gold ring pulses under it), and the right button
+    // near it is no longer the heavy blow but the finishing blow, which always fells it
+    constexpr float FinisherHealthPart = .30f;   // of its full health, for an enemy that can be thrown
+    constexpr float FinisherBossPart = .12f;     // for one that cannot (bosses)
+    constexpr int FinisherMinHealth = 40;        // full health below this is never broken (chests)
+    constexpr float FinisherReach = 8.f;         // m, how far she goes to it
+    constexpr int FinisherHeal = 12;             // health she gets back for it
+    constexpr float FinisherCooldownPart = .5f;  // her skills' remaining wait is multiplied by this
+    constexpr float FinisherMercy = 2.2f;        // s she cannot be hurt from its start
+    constexpr float SlashStringSeconds = 1.6f;   // s after a slash starts in which the next one counts on in the string (the third is the flurry)
     constexpr float GuardCooldownSeconds = .6f;  // s after the barrier drops before it can rise again
     constexpr float WallReach = 12.f;            // m beyond the road's edge: within it the wall of an unwon arena stops her; farther out she walks round it
     constexpr float CityReach = 25.f;            // m beyond the road's edge: within it she is "in" a city (its name, healing, gift)
@@ -90,6 +111,76 @@ namespace CaucasianEagle
     constexpr float WispSpeed = 1.15f;           // radians a second of their swing across the road
     constexpr float WispTouch = 1.15f;           // m
     constexpr float WispDamage = 10.f;
+
+    // ---- traps (Journey::BuildTraps). They are made for a traveller on the wing: each reaches from the ground to
+    //      past her ceiling, each is beaten once (the save keeps it) and then stands quiet.
+    constexpr const char* TrapEnvironmentVariable = "CAUCASIAN_EAGLE_TRAP";   // testing, with the pilot: =N stands her before trap N, =-N in its middle (CAUCASIAN_EAGLE_GO=1: and she goes on; =2: and fights nothing on the way)
+    constexpr float TrapHeight = 70.f;           // m over the road up to which a trap reaches (her ceiling is 45)
+    constexpr float TrapSide = 26.f;             // m beyond the way through it within which it still reaches her
+    constexpr float TrapHalf = 7.f;              // m, half width of the way through one (a clearing's road is wider than that)
+    constexpr float TrapWarn = 30.f;             // m before one at which the line under the compass names it
+    constexpr int TrapCrystals = 30;             // crystals for beating one
+    // the gate run: a light over the road opens a gate far ahead, for as long as a fast flight there takes
+    constexpr float GateRunLength = 195.f;       // m from the switch to the gate
+    constexpr float GateSwitchHeight = 4.5f;     // m over the road
+    constexpr float GateSwitchTouch = 3.6f;      // m
+    constexpr float GateRunPace = 1.45f;         // the time allows for this multiple of her cruising speed (the wing boost is 2.2)...
+    constexpr float GateRunGrace = 3.f;          // ...and this many seconds more
+    constexpr float GateRetry = 3.f;             // s the switch sleeps after a run that failed
+    constexpr float GateArchTall = 22.f;         // m, the arch that holds the gate
+    constexpr float GateHalf = 8.f;              // m, half width of the door in it
+    constexpr float GateTall = 14.f;             // m, its height
+    constexpr float GateDoor = 1.2f;             // m before and behind the shut door at which she is stopped
+    constexpr int GateBars = 5;                  // bars of fire across the course while a run lasts
+    constexpr float GateBarLow = 2.f;            // m over the road between which each rises and falls
+    constexpr float GateBarHigh = 15.f;
+    constexpr float GateBarOut = 9.f;            // m beyond the road's edge that a bar reaches
+    constexpr float GateBarDamage = 12.f;
+    constexpr int GateGuards = 4;                // creatures that wake on the course
+    // wind teeth: gusts throw her across a way between two walls of ice wind
+    constexpr float WindLength = 56.f;
+    constexpr float WindEdge = 3.f;              // m beyond the way's edge where the walls stand
+    constexpr float WindCalm = 2.4f;             // s the next gust gathers (its streaks show which way)
+    constexpr float WindBlow = 1.8f;             // s it blows
+    constexpr float WindPush = 1.1f;             // its speed, times her cruising speed (on foot: half)
+    constexpr float WindWall = 1.0f;             // m, half thickness of a wall
+    constexpr float WindDamage = 11.f;
+    // rune stones: three stones throw fire at her in turn
+    constexpr float LauncherLength = 60.f;
+    constexpr float LauncherTall = 5.5f;
+    constexpr float LauncherEvery = 2.6f;        // s between a stone's volleys
+    constexpr float LauncherSpeed = 13.f;        // m/s
+    constexpr float LauncherDamage = 9.f;
+    // watchers: two statues turn a sheet of light each, from the ground to the sky
+    constexpr float WatchLength = 50.f;
+    constexpr float WatchTall = 9.f;
+    constexpr float WatchTurn = 0.75f;           // rad/s
+    constexpr float WatchReach = 36.f;           // m, length of a sheet
+    constexpr float WatchWidth = 1.3f;           // m, half its thickness
+    constexpr float WatchDamage = 14.f;
+    constexpr float WatchGuardEvery = 9.f;       // s at least between two times they wake guards
+    // the cracked seal: stones fall on her; one that lands on the seal cracks it
+    constexpr float SealLength = 48.f;
+    constexpr float SealRadius = 4.5f;
+    constexpr int SealCracks = 3;
+    constexpr float SealEvery = 1.3f;            // s between stones
+    constexpr float SealWarn = 1.25f;            // s from the ring to the stone
+    // the Kaji press: a hammer across the road; a link over it can be broken only just after each blow
+    constexpr float PressLength = 44.f;
+    constexpr float PressTall = 11.f;            // m, its frame
+    constexpr float PressHead = 2.6f;            // m, height of the hammer
+    constexpr float PressDepth = 3.4f;           // m, along the road
+    constexpr float PressPillarOut = 1.6f;       // m beyond the way's edge where its pillars stand
+    constexpr float PressEvery = 3.6f;           // s from blow to blow
+    constexpr float PressWarn = 1.0f;            // s the hammer shakes before it falls
+    constexpr float PressFall = 0.25f;           // s of the fall
+    constexpr float PressOpen = 1.4f;            // s after the blow the link can be broken
+    constexpr float PressDamage = 28.f;          // under the hammer
+    constexpr float PressOrbDamage = 8.f;        // the fire the blow throws out, also upward
+    constexpr float PressLinkUp = 3.4f;          // m over the frame where the link hangs
+    constexpr float RoofStep = .5f;              // m she steps up onto a building's surface; lower than this under it, its wall stops her
+    constexpr int RoofGrid = 96;                 // cells per side of a building's top-height map
+    constexpr const char* RoofEnvironmentVariable = "CAUCASIAN_EAGLE_ROOF"; // unattended test: she is dropped over building N-1
     constexpr float RoamBody = .45f;             // m, her radius against trees, boulders and gate piers
     constexpr float TrunkRadius = .045f;         // of a tree's width: its trunk, which she walks round
     constexpr float StartS = 2.f;                // m along the road where a new journey begins (and where she returns before the first arena is won)
@@ -102,16 +193,39 @@ namespace CaucasianEagle
     constexpr float MonsterAttackPace = 0.8f;    // every ordinary creature's time between blows, times this (lower = they strike more often)
     constexpr float MonsterSpeedScale = 1.2f;    // every ordinary creature's speed
     constexpr float MonsterSprintDistance = 14.f; // m, farther from her than this a creature sprints to catch up
-    constexpr float MonsterSprint = 1.45f;       // ...at this multiple of its speed
+    constexpr float MonsterSprint = 1.6f;        // ...at this multiple of its speed
     constexpr float MonsterTurnRate = 9.f;       // rad/s a creature turns to face her
     constexpr float MonsterLeadSeconds = 0.45f;  // creatures run to where she will be this far ahead, not to where she is
     constexpr float MonsterFlank = 0.65f;        // how strongly melee creatures swing out to the sides as they close in (0 = straight at her)
     constexpr float MonsterFlankDistance = 7.f;  // m beyond striking distance where the swing begins
     constexpr float MonsterCircleSpeed = 0.55f;  // share of its speed a creature circles her with between its blows
     constexpr int LateWaveStage = 3;             // from this region on an arena has 4 waves instead of 3
-    constexpr float PatrolBudget = 0.55f;        // a roaming pack costs this share of an arena's first wave
+    constexpr float PatrolBudget = 0.8f;         // a roaming pack costs this share of an arena's first wave
+    constexpr float PatrolEvery = 55.f;          // m of open road between two arenas for every roaming pack in it (at most six)
     constexpr float PatrolAhead = 26.f;          // m, a roaming pack appears this far ahead of her
     constexpr float PatrolGiveUp = 70.f;         // m, a pack left this far behind gives up
+    constexpr float PackLost = 130.f;            // m, a pack this far from her in any direction gives up
+    constexpr float UnderLand = .8f;            // m, deeper than this under the land (and the road) and not on ground: she is lifted back: there is no ground down there
+    constexpr float CorridorRim = 8.f;           // m beyond the road's edge where the ground may still lie level with the road (she is lifted to the higher of the two)
+    constexpr float PackRoam = 40.f;             // m beyond the road's edge that a roaming pack follows her over the land
+    constexpr float PackDrop = 3.f;              // m below the road: lower land (water, a chasm) a pack does not go down to...
+    constexpr float PackClimb = 7.f;             // ...nor up land this far above it
+    constexpr float PackFlank = 11.f;            // m beyond the road's edge where part of a pack comes out of the land
+    // ---- creatures against a traveller in the air (UpdateMonsters)
+    constexpr float MeleeReachUp = 1.2f;         // m over its own height that a creature's blow still reaches
+    constexpr float FlyerCeiling = 22.f;         // m over the ground that spirits and witches follow her up
+    constexpr float FlyerClimb = 5.5f;           // m/s
+    constexpr float LeapReach = 15.f;            // m over its feet that a small creature can leap to
+    constexpr float LeapRange = 11.f;            // m along the ground from which it leaps
+    constexpr float LeapSeconds = 0.95f;         // up and down again
+    constexpr float LeapEvery = 4.5f;            // s between leaps, about
+    constexpr float LeapTouch = 1.5f;            // m beyond its radius within which the leap strikes her
+    constexpr float LeapDamage = 1.2f;           // times its blow
+    constexpr float ThrowReach = 34.f;           // m over its feet up to which a giant throws stones at her
+    constexpr float ThrowRange = 28.f;           // m along the ground
+    constexpr float ThrowSpeed = 15.f;           // m/s
+    constexpr float ThrowEvery = 3.2f;           // s, about
+    constexpr float ThrowDamage = 0.8f;          // times its blow
     constexpr float StageHealthGrowth = 0.20f;   // + per stage (12 stages): creatures of the last stage have 3.2 times the health
     constexpr float StageDamageGrowth = 0.07f;   // + per stage: creatures of the last stage hit 1.77 times as hard
     constexpr float FeatherDamageBonus = 0.03f;  // Nyxara's damage per Eagle Feather
@@ -119,9 +233,6 @@ namespace CaucasianEagle
     constexpr float EmberDamage = 1.5f;          // Nyxara's damage multiplier while it burns
     constexpr float MercySeconds = 1.0f;         // after a hit she cannot be hurt again for this long (a crowd cannot kill her in one moment)
     constexpr int MaxAttackers = 3;              // ordinary creatures that may wind up a blow at the same time
-    constexpr int KillHeal = 10;                 // health she takes back from every creature she fells
-    constexpr float RegenSeconds = 2.f;          // while she lives her health comes back by itself: RegenHealth every this many seconds
-    constexpr int RegenHealth = 1;
 
     // ---- how ordinary creatures fight (Journey.cpp UpdateMonsters)
     constexpr float HeavyBlowChance = 0.28f;     // share of a creature's blows that are heavy: slower, wider, harder
@@ -193,35 +304,79 @@ namespace CaucasianEagle
     constexpr float RunClipSpeed = 4.6f;        // m/s, authored Run / Strafe treadmill speed
     constexpr float WalkBackClipSpeed = 1.33f;  // m/s, authored WalkBackward treadmill speed
     constexpr float WingBoostMultiplier = 2.2f; // Shift travel speed multiplier
+    // Soaring (travel on the ground) and free flight (hold Space). Presentation, except the ceiling.
+    constexpr float GlideLift = 0.75f;          // m her feet are off the ground while she soars
+    constexpr float GlideLiftBoost = 1.0f;      // m, the same with the wing boost
+    constexpr float GlideLiftRate = 2.6f;       // 1/s, how fast she rises to that height and settles from it (lower = slower)
+    constexpr float SoarSway = 0.06f;           // m she rises and falls on the air while soaring
+    constexpr float SoarSwayRate = 1.3f;        // rad/s of that sway (one rise and fall in about 5 s)
+    constexpr float SoarBank = 0.12f;           // rad of bank per rad/s of turning
+    constexpr float SoarClimbPitch = 0.30f;     // rad the nose lifts in a full climb and drops in a full dive (free flight)
+    constexpr float SoarSpring = 30.f;          // stiffness of the lean and bank spring (lower = slower, smoother)
+    constexpr float SoarDamping = 10.f;         // its damping (about 11 = no overshoot at this stiffness)
+    constexpr float SoarBoostRate = 1.35f;      // wing-beat clips play this much faster with the wing boost
+    constexpr float RageCrySeconds = 2.5f;      // s at least between two of her cries of fury on kills
+    // R changes between two ways of going: on the wing (the camera aims her) and on foot (she walks and runs;
+    // Space jumps).
+    constexpr float FlightTakeoffHeight = 6.f;  // m she rises by herself when R takes her up
+    constexpr float FlightTakeoffSeconds = 3.f; // s that rise takes
+    constexpr float FlightLandReach = 6.f;      // m over the ground within which R lands her; higher, R only says "too high"
+    constexpr float FlightLandSeconds = 3.f;    // s the landing takes
+    constexpr float FlightLandMinSpeed = .05f;  // m/s, the slowest she comes down (the landing always takes FlightLandSeconds)
+    constexpr float FootSpeed = 3.2f;           // m/s on foot: an easy jog (the Run clip at 0.7 of its pace, so her legs match the ground)
+    constexpr float FootRunSpeed = 5.4f;        // m/s on foot with Shift (the Run clip at 1.17). Ctrl walks at WalkSpeed, the Walk clip's own pace
+    constexpr float FlightSway = .11f;          // m she rides up and down in the air
+    constexpr float FlightSwayRate = 1.9f;      // rad/s of that
+    constexpr float FlightRock = .035f;         // rad her body rocks in the air (pitch; the roll is 0.8 of it, slower)
+    constexpr float FlightGroundLift = .8f;     // m she hovers over the ground when she is low in flight
+    constexpr float FlightSteerGain = 1.f;      // how strongly looking up or down with the camera climbs or dives
+    constexpr float FlightCeiling = 45.f;       // m above the ground under her that free flight can climb
 
     // ---- camera (orbit rig looking down on Nyxara)
-    constexpr float CameraLookScale = 0.7f;    // how fast the mouse and the right stick turn the camera, against the engine's
+    constexpr float CameraLookScale = 0.6f;    // how fast the mouse and the right stick turn the camera, against the engine's
                                                // own speed (1). The player's "Mouse speed" setting multiplies this.
     constexpr const char* PointerFile = "assets/ui/Cursor/Pointer.cur";   // the mouse pointer; drawn by art/ui/build_cursor.py
-    constexpr float CameraPitch = -0.34f;      // rad, about 19 degrees down: the road and the mountain stay in view
-    constexpr float CameraDistance = 7.4f;     // m from the chest pivot
+    constexpr float CameraPitch = -0.50f;      // rad, about 29 degrees down: the camera sits high behind her (more negative = higher)
+    constexpr float CameraDistance = 15.0f;    // m from the chest pivot
+    constexpr float CameraMaxDistance = 18.0f; // m, how far the mouse wheel can pull back (the engine's own limit is 8)
     constexpr float CameraPivotHeight = 1.35f; // m above her feet
+
+    // The bow (Q changes between it and the axes). Right mouse button held: she aims, and the camera comes in over
+    // her shoulder with a mark at the middle of the screen. Left mouse button, held: arrows, one after another.
+    constexpr float BowReleaseSeconds = 0.08f; // s from loosing an arrow until her hand is back on the string
+    constexpr float BowDrawSeconds = 0.2533f;  // s her hand takes to pull the string back; the arrow goes when it is drawn
+    constexpr float BowInterval = BowReleaseSeconds + BowDrawSeconds;   // s between arrows while the button is held (a third of a second: three arrows a second)
+    constexpr int BowDamage = 25;              // an arrow loosed without aiming (it finds the nearest enemy ahead by itself)
+    constexpr int BowAimDamage = 25;           // an aimed arrow
+    constexpr float BowArrowSpeed = 75.f;      // m/s
+    constexpr float BowRange = 60.f;           // m an arrow flies
+    constexpr float BowHipRange = 32.f;        // m within which an arrow loosed without aiming finds an enemy
+    constexpr float BowAimAssist = 0.5f;       // m beside an enemy's body an aimed arrow still counts as on it
+    constexpr float BowAimAssistFar = 0.012f;  // and this much more for each metre it is away (far targets are small)
+    constexpr float BowAimArrowSpeed = 75.f;   // m/s, an aimed arrow (the same: set by the owner, 2026-11-13)
+    constexpr float BowHoming = 10.f;          // how hard an arrow bends to the enemy it was loosed at (it never turns round)
+    constexpr float BowSnapDegrees = 22.f;     // as she raises the bow the view turns to the enemy nearest the middle, within this angle
+    constexpr float BowSnapRate = 12.f;        // how fast it turns there (per second)
+    constexpr float BowAimLevelPitch = -0.10f; // rad: with no enemy to turn to, the view comes up to this, nearly level
+    constexpr float BowAimZoom = 0.20f;        // the view narrows by this part while she aims
+    constexpr float BowAimFriction = 0.55f;    // with the mark on an enemy the mouse turns the view this much as fast again
+    constexpr float BowAimDistance = 4.5f;     // m, the camera's distance while she aims
+    constexpr float BowAimSide = 0.85f;        // m the camera stands to her right while she aims
+    constexpr float BowAimRaise = 0.35f;       // m the camera's pivot rises while she aims
+    constexpr float BowAimLook = 0.6f;         // the mouse turns the view this much as fast while she aims
+    constexpr float BowPoseSeconds = 0.45f;    // s she keeps the bow up after an arrow
+    constexpr float BowClipEnd = 0.2f;         // s, the BowShot clip: loosed at 0, drawn again at the end
     constexpr float CameraMinPitch = -1.2f;    // rad, steepest look-down
     constexpr float CameraMaxPitch = 0.45f;    // rad, highest look-up
     constexpr float VistaPitch = 0.24f;        // rad, capture mode (CAUCASIAN_EAGLE_VISTA=1): look up at the mountain
 
     // ---- night sky (art/sky/make_sky_textures.py; drawn by AmiraniMountain, paths relative to the game folder)
     constexpr const char* SkyTexture = "assets/textures/caucasus/NightSky.jpg";
-    constexpr const char* MoonTexture = "assets/textures/caucasus/Moon.jpg";
-    constexpr const char* MoonGlowTexture = "assets/Compiled/Effects/Nyxara/Glow.png";
     constexpr float SkyRadius = 3000.f;     // m, dome radius around the camera (engine far plane is 5400)
     constexpr float SkyTextureWraps = 2.f;  // times the sky texture repeats around the horizon
     constexpr float SkyBrightness = 0.46f;  // dome tint (the engine's ambient light multiplies it)
     constexpr float SkyEmission = 1.0f;
-    constexpr float MoonAzimuth = -0.46f;   // rad from +Z toward +X: left of the mountain
-    constexpr float MoonElevation = 0.47f;  // rad above the horizon
-    constexpr float MoonAngularSize = 0.125f; // rad, about 7 degrees: far larger than the real moon
-    constexpr float MoonFaceYaw = 2.2f;     // rad, which side of the moon texture faces the viewer
-    constexpr float MoonBrightness = 1.05f; // moon tint (unlit like the dome)
-    constexpr float MoonEmission = 1.0f;
-    constexpr float MoonHaloSize = 4.2f;    // halo width in moon diameters
-    constexpr float MoonHaloR = 0.50f, MoonHaloG = 0.95f, MoonHaloB = 0.85f, MoonHaloAlpha = 0.42f;
-    constexpr float MoonlightX = 0.72f, MoonlightY = -0.56f, MoonlightZ = 0.40f; // direction the moonlight travels
+    constexpr float MoonlightX = 0.72f, MoonlightY = -0.56f, MoonlightZ = 0.40f; // direction the moonlight travels (no moon is drawn)
     constexpr float HazeStart = 40.f;       // m, distance haze begins
     constexpr float HazeEnd = 900.f;        // m, distance haze is complete
     constexpr float HazeStrength = 0.62f;
@@ -266,6 +421,7 @@ namespace CaucasianEagle
     constexpr float JournalScrollSpeed = 520;    // layout units per second while W / S is held
     constexpr int PauseRows = 8;                 // her own menu (Esc): continue, Nyxara, story, map, settings, guide, start screen, leave
     constexpr const char* RoamEnvironmentVariable = "CAUCASIAN_EAGLE_ROAM";     // testing: =N makes the pilot weave up to N m off the road, over the land
+    constexpr const char* FlyEnvironmentVariable = "CAUCASIAN_EAGLE_FLY";       // testing, with the pilot: =1 flies: climbs from 4 s, hovers from 8 s, sinks from 16 s
     constexpr const char* PauseEnvironmentVariable = "CAUCASIAN_EAGLE_PAUSE";   // testing: =1 holds her menu open
     constexpr const char* GuideEnvironmentVariable = "CAUCASIAN_EAGLE_GUIDE";   // testing: =N holds the guide open on page N
     constexpr const char* SettingsEnvironmentVariable = "CAUCASIAN_EAGLE_SETTINGS";          // testing: =1 holds the settings window open
@@ -283,13 +439,16 @@ namespace CaucasianEagle
     // ---- the seven cities (art/cities/build_cities.py; words in Story.cpp; Journey.cpp UpdateCities) and the maps (WorldMap.cpp)
     constexpr const char* CitiesFile = "assets/Compiled/World/Cities.txt";  // cities, their models, buildings and lights
     constexpr const char* MapFile = "assets/Compiled/World/Map.txt";        // the part of the world the map picture shows
+    constexpr const char* PlacesFile = "assets/Compiled/World/Places.txt";  // the places beside the road and what stands there (art/places/build_places.py)
+    constexpr int PlaceCrystals = 8;             // crystals for finding a place beside the road
+    constexpr float PlaceFindHeight = 60.f;      // m above or below a place within which she still finds it (she may be on the wing)
     constexpr const char* MapTexture = "assets/ui/Map/WorldMap.png";        // the painted world map (art/map/build_map.py)
     constexpr const char* MapEnvironmentVariable = "CAUCASIAN_EAGLE_MAP";   // testing: =1 holds the world map open
     constexpr float CityDrawDistance = 450.f;    // m, buildings are drawn this far
     constexpr float CityTint = 0.78f;            // darkens the buildings under the engine's strong moonlight
     constexpr float CityEmission = 0.16f;        // self-light, so lamp-lit windows read at night
     constexpr float MinimapRange = 110.f;        // m from Nyxara to the rim of the minimap
-    constexpr int WineKillHeal = 5;              // Telavi: more health from every creature she fells
+    constexpr int WinePotionHeal = 10;           // Telavi: more health from every potion
     constexpr float SpringsHealScale = 2.f;      // Tbilisi: healing for a wave or an arena won, times this
     constexpr int BlessingPotionHeal = 15;       // Mtskheta: more health from every potion
     constexpr float StoneDamageScale = 0.8f;     // Gori: damage she takes, times this

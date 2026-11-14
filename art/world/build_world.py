@@ -62,11 +62,12 @@ W = [
     (-460, 1445, 31), (-330, 1495, 36), (-190, 1455, 39), (-80, 1525, 40),
     (0, 1590, 40), (0, 1680, 52), (0, 1780, 71), (0, 1846, 78), (0, 1872, 78),
 ]
-# arenas per stage: (fraction of the stage length, kind) kind 0 = fight, 1 = boss
-ARENAS = {0: [(.45, 0), (.85, 0)], 1: [(.2, 0), (.5, 0), (.85, 0)], 2: [(.2, 0), (.5, 0), (.85, 0)],
-          3: [(.2, 0), (.5, 0), (.85, 0)], 4: [(.2, 0), (.5, 0), (.85, 0)], 5: [(.2, 0), (.5, 0), (.85, 0)],
-          6: [(.2, 0), (.5, 0), (.85, 0)], 7: [(.2, 0), (.5, 0), (.85, 0)], 8: [(.25, 0), (.72, 1)],
-          9: [(.2, 0), (.5, 0), (.85, 1)], 10: [(.2, 0), (.5, 0), (.85, 1)], 11: [(.18, 0), (.5, 0)]}
+# arenas per stage: (fraction of the stage length, kind) kind 0 = fight, 1 = boss, 3 = an open clearing: no fight (it was
+# one in older versions; now there is more road between the fights, and a trap may stand there: Journey.cpp TrapTable)
+ARENAS = {0: [(.45, 0), (.85, 0)], 1: [(.2, 0), (.5, 3), (.85, 0)], 2: [(.2, 0), (.5, 3), (.85, 0)],
+          3: [(.2, 0), (.5, 3), (.85, 0)], 4: [(.2, 0), (.5, 3), (.85, 0)], 5: [(.2, 0), (.5, 3), (.85, 0)],
+          6: [(.2, 0), (.5, 3), (.85, 0)], 7: [(.2, 0), (.5, 3), (.85, 0)], 8: [(.25, 0), (.72, 1)],
+          9: [(.2, 0), (.5, 3), (.85, 1)], 10: [(.2, 0), (.5, 3), (.85, 1)], 11: [(.18, 0), (.5, 0)]}
 
 def smooth(t):
     t = np.clip(t, 0, 1)
@@ -115,7 +116,7 @@ arenas = []  # (stage, s, kind, radius)
 for st, lst in ARENAS.items():
     a, b = stage_s[st]
     for f, kind in lst:
-        arenas.append((st, a + (b - a) * f, kind, BOSS_R if kind else ARENA_R))
+        arenas.append((st, a + (b - a) * f, kind, BOSS_R if kind == 1 else ARENA_R))
 arenas.append((11, LENGTH - 26.0, 2, 21.0))  # the terrace below Amirani: the Eagle
 PW = np.full(N, ROAD_HALF)
 for st, s0, kind, r in arenas:
@@ -652,7 +653,7 @@ def decorate(xs, zs, height_at, clear_at):
     # arena markers: a ring of standing stones just outside each arena, braziers at boss arenas
     for st, s0, kind, r in arenas:
         i = int(s0 / STEP); col = STAGES[st][4]
-        n = 10 if kind == 0 else 14
+        n = 14 if kind == 1 else 10
         for k in range(n):
             a = 6.283 * (k + 0.5) / n
             x, z = PX[i] + math.cos(a) * (r + 2.2), PZ[i] + math.sin(a) * (r + 2.2)
@@ -661,11 +662,11 @@ def decorate(xs, zs, height_at, clear_at):
                 continue
             if abs(x) < 46 and z > 1868:   # never inside the ledge
                 continue
-            hgt = rng.uniform(3.0, 6.5) * (1.5 if kind else 1.0)
+            hgt = rng.uniform(3.0, 6.5) * (1.5 if kind == 1 else 1.0)
             bag("Bone" if st == 7 else "Ice" if st == 5 else "DarkIron" if st == 6 else "Stone").box(
                 (x, PY[i] + hgt / 2 - 0.6, z), (1.5, hgt, 1.1), a + 1.57, rng.uniform(-.12, .12), rng.uniform(-.12, .12))
             if k % 2 == 0:
-                LIGHTS.append((x, PY[i] + hgt + 0.3, z, *col, 2.2 if kind else 1.6))
+                LIGHTS.append((x, PY[i] + hgt + 0.3, z, *col, 2.2 if kind == 1 else 1.6))
     # bridges: parapets and pillars
     for i in range(0, N - 1):
         if not is_bridge(i) or PW[i] > ROAD_HALF + 0.5 or PSTAGE[i] in WATER:   # an earth bank has no parapet
@@ -770,7 +771,7 @@ def decorate(xs, zs, height_at, clear_at):
         if kind == 2:
             continue
         i = int(s0 / STEP)
-        CHESTS.append((PX[i] + NXv[i] * (r - 2.5), PY[i], PZ[i] + NZv[i] * (r - 2.5), yaw_of(i) - 1.57, 1 + kind))
+        CHESTS.append((PX[i] + NXv[i] * (r - 2.5), PY[i], PZ[i] + NZv[i] * (r - 2.5), yaw_of(i) - 1.57, 2 if kind == 1 else 1))
 
 # ------------------------------------------------------------------ an empty scene to build in
 def clear_scene():

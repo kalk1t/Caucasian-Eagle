@@ -16,9 +16,9 @@ namespace CaucasianEagle::Growth
         const wchar_t* const Forms[4] = {L"Fledgling", L"Moonwing", L"Stormwing", L"Heir of the Eagle"};
         const wchar_t* const Items[3][4] = {
             {L"Fledgling wings", L"Moonlit wings", L"Storm wings", L"Wings of the Eagle"},
-            {L"Moonfeather and Talonshade", L"Tempered blades", L"Moonforged blades", L"Eagle-forged blades"},
+            {L"Inferno and Serpentcoil", L"Tempered axes", L"Moonforged axes", L"Eagle-forged axes"},
             {L"Traveller's mail", L"Svan mail", L"Moon plate", L"Harness of Amirani"}};
-        const wchar_t* const Titles[RowCount] = {L"WINGS", L"SWORDS", L"ARMOUR", L"POWER", L"DEFENCE"};
+        const wchar_t* const Titles[RowCount] = {L"WINGS", L"AXES", L"ARMOUR", L"POWER", L"DEFENCE"};
 
         std::wstring Percent(float share)   // 0.2 -> "20 %"
         {
@@ -195,7 +195,7 @@ namespace CaucasianEagle::Growth
             };
             carried(HudArt::IconPotion, Red, std::to_wstring(s.Potions) + L" of " + std::to_wstring(MaxPotions) + L" potions",
                     std::wstring(Ui::KeyLabel(L"Z", 'Z')) + L" drinks one: +" + std::to_wstring(v.PotionHeal) + L" health");
-            carried(HudArt::IconFeather, Silver, std::to_wstring(v.Feathers) + L" eagle feathers", L"each sharpens her blades");
+            carried(HudArt::IconFeather, Silver, std::to_wstring(v.Feathers) + L" eagle feathers", L"each sharpens her axes");
             carried(HudArt::IconCoin, GoldLight, std::to_wstring(v.Gold) + L" gold", L"");
             carried(HudArt::IconEye, Moon, std::to_wstring(v.Memories) + L" of 12 memories", L"F1 to read");
 

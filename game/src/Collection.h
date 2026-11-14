@@ -52,7 +52,7 @@ namespace CaucasianEagle
         float Boost(const State& state);                       // wing-boost speed: her father's feathers
         float Crystals(int cities);                            // crystals from creatures: the song of seven verses
         float CreaturePace(const State& state);                // time between a creature's attacks: the frost rune
-        int KillHeal(const State& state);                      // extra health for every creature felled: the moon rune
+        int WinHeal(const State& state);                       // extra health for every wave and arena won: the moon rune
 
         struct View
         {

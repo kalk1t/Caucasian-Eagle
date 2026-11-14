@@ -4,8 +4,8 @@
 //
 // All story text the game shows lives in Story.cpp and agrees with story/STORY.md.
 // The journal is where the story is read: nothing narrative is printed over the fight.
-// It has four pages. The legend is always complete; the road, the memories and the end
-// fill in as Nyxara reaches a region, finds a memory in a chest, or plays the finale.
+// It has five pages. The legend is always complete; the road, the memories, the places and the end
+// fill in as Nyxara reaches a region, finds a memory in a chest, comes to a place beside the road, or plays the finale.
 
 namespace CaucasianEagle
 {
@@ -28,7 +28,13 @@ namespace CaucasianEagle
         inline constexpr int CityCount = 7;
         extern const City Cities[CityCount];
 
-        enum Page { Legend, Road, MemoriesPage, End, PageCount };
+        // The places beside the road, in the order she comes to them (they stand where art/places/build_places.py
+        // puts them; that script checks its names against these).
+        struct Place { const wchar_t* Name; const wchar_t* Text; };
+        inline constexpr int PlaceCount = 26;
+        extern const Place Places[PlaceCount];
+
+        enum Page { Legend, Road, MemoriesPage, PlacesPage, End, PageCount };
 
         struct Journal
         {
@@ -39,6 +45,7 @@ namespace CaucasianEagle
             int ChaptersReached = 0; // 0..12 regions she has entered
             int CurrentChapter = -1; // region she is in now
             int MemoriesFound = 0;  // 0..12
+            unsigned long long PlacesFound = 0; // bit per place beside the road she has found
             int EndReached = 0;     // 0 none, 1 father and daughter, 2 the Eagle falls, 3 the chain opens
             unsigned Unread = 0;    // bit per Page with something new
         };

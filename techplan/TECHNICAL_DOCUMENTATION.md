@@ -1,6 +1,6 @@
 # Caucasian Eagle: Technical Documentation
 
-> **Scope.** This documents the game **as it is** at version **0.3.0** (2026-11-11): the living road, and the first version with an installer.
+> **Scope.** This documents the game **as it is** at version **0.4.0** (2026-11-14): the living road of 0.3.0 with free flight, the axes and the bow, traps and places. The Map Lab and the Character Lab (`testing/`, `Test-Map.cmd`, `Test-Characters.cmd`, `tools/map-lab.ps1`, `tools/character-lab.ps1`) are development tools kept out of git: the sections that describe them describe files that are on the development PC only.
 > **Audience.** Whoever maintains, extends, packages or releases the game.
 > **Repository.** `C:\Users\User\Projects\Caucasian-Eagle` (git remote `kalk1t/Caucasian-Eagle`, branch `main`). All paths are relative to the repository root unless stated otherwise.
 > **Engine.** The Doorways engine lives in its own repository (`kalk1t/Doorways-D3D11`) and is included here as the git submodule `engine/`. Engine internals are documented there, in `engine/techplan/`. This plan documents the game and the line between the two.
@@ -60,7 +60,7 @@ What version 0.3.0 contains:
 - **One hero.** Nyxara: a winged fighter with two swords, 31 authored animation clips, built from Meshy-generated parts in Blender [confirmed: `art/nyxara/blender/assemble.py`, `game/src/CaucasianEagleGame.cpp`].
 - **One world.** A 6.3 km road through twelve regions to the mountain of Amirani, as one scene [confirmed: `game/src/GameConstants.h` `StartSceneId`, `game/assets/Compiled/Scenes/RoadToAmirani.dscene`, `art/world/build_world.py`].
 - **Combat kit.** Alternating left/right sword slashes, a charged slash, three skills, six skill-plus-click combos, a sword swap, a two-sword barrier and a wing boost [confirmed: `game/src/NyxaraKit.cpp` `Acts` table].
-- **Enemies.** Ten creatures of Caucasian folklore, three region bosses and the Eagle, in 34 arenas and 65 roaming packs; 81 breakable chests [confirmed: `game/src/Journey.cpp` `Kinds`, `Road.txt`]. The kit's original shade enemies remain in the code but are switched off.
+- **Enemies.** Ten creatures of Caucasian folklore, three region bosses and the Eagle, in 25 arenas and 48 roaming packs, with nine traps on the road and 26 named places beside it; 81 breakable chests [confirmed: `game/src/Journey.cpp` `Kinds`, `Road.txt`]. The kit's original shade enemies remain in the code but are switched off.
 - **The journey.** Gates, waves, rewards, story cards, the ending, a save file and an unattended test pilot [confirmed: `game/src/Journey.cpp`].
 - **HUD.** Health and soul bars, an eight-slot skill bar with cooldowns, a combo prompt, enemy health bars and a skill-name banner [confirmed: `game/src/NyxaraHud.cpp`].
 - **Story as text cards only.** No voice acting, cutscenes or dialogue choices. The start screen, her menu, the guide and the growth window are the game's own; and so is the settings window (the engine still applies and saves the values) [confirmed by running the game].

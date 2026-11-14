@@ -2,12 +2,14 @@
 
 // Nyxara, daughter of the eagle: normal-play combat kit for the Nyxara session.
 //
-//   LMB / RMB      sword slashes (alternating hands) / charged slash
-//   1 / 2 / 3      Talon Dash (dash through + lance) / Feather Cyclone (carried, pulls shades)
-//                  / Moon Leap (rise, dive onto the target, judgment pillar)
+//   LMB / RMB      axe blows (alternating hands) / charged blow; with the bow out: arrows / aim
+//   1 / 2 / 3      Talon Dash (a dash that cuts all it passes through) / Feather Cyclone (her axes whirl the air,
+//                  carried, pulls shades) / Moon Leap (rise, dive onto the target, the ground shakes around)
 //   skill + LMB/RMB  six combos (Twin Talons, Rising Eagle, Tempest Triple,
 //                    Whirlwind Talons, Soul Weave, Moonfall Dive)
-//   Q              exchange the swords between her hands
+//   RMB near a broken enemy (gold ring under it)  the finishing blow: she throws it up and dives onto it
+//   G              exchange the axes between her hands
+//   Q              bow or axes (the other goes on her back)
 //   E (hold)       two spectral swords rise as a barrier and block shade orbs
 //   Shift (hold)   wing boost: faster glide/flight with a feather trail
 //   WASD           upright low wing-beat flight (FlightHover pose) instead of running
@@ -48,7 +50,7 @@ namespace Doorways
         enum class Act : int
         {
             None = -1, Slash1, Slash2, Heavy, Skill1, Skill2, Skill3,
-            Combo1L, Combo1R, Combo2L, Combo2R, Combo3L, Combo3R, Guard, Swap, Count
+            Combo1L, Combo1R, Combo2L, Combo2R, Combo3L, Combo3R, Guard, Swap, Finisher, Count
         };
 
         // A target of her attacks. Pos is the aim point (about chest height: feet + 1.3 m).
@@ -65,16 +67,21 @@ namespace Doorways
             float Weak = 1;          // her blows against it are multiplied by this (the journey: a complete charm set)
         };
         struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
-        struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false; };
+        struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false, G = false; };
 
         // ---- used by the journey, which owns the monsters of the road
         static constexpr int MaxEnemies = 30;   // hit masks are 32-bit
         std::vector<Wraith>& Enemies() { return mWraiths; }
         void SetExternalEnemies(bool external);
+        // Explicit isolated training sessions: preserve impacts/reactions without health loss.
+        void SetTrainingMode(bool enabled) { mTrainingMode=enabled; }
+        unsigned TrainingTargetHits() const { return mTrainingTargetHits; }
+        unsigned TrainingPlayerHits() const { return mTrainingPlayerHits; }
         void SpawnOrb(DirectX::XMFLOAT3 from, DirectX::XMFLOAT3 velocity, int damage, DirectX::XMFLOAT4 color, float life = 3.5f);
         bool Blocks(const WorldState& world, const DirectX::XMFLOAT3& from); // barrier up and turned toward 'from'
         void Notice(const wchar_t* text, float seconds) { mNotice = text; mNoticeTimer = seconds; }
         bool Airborne() const { return mGlideLift > .05f || mAir > .05f; }   // gliding, or in a leap
+        void SetOnFoot(bool onFoot) { mOnFoot = onFoot; }   // on foot she walks and runs: no glide, no hover (Journey, the R key)
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
@@ -91,11 +98,14 @@ namespace Doorways
 
     private:
         bool mExternalEnemies = false;
+        bool mTrainingMode = false;
+        unsigned mTrainingTargetHits = 0, mTrainingPlayerHits = 0;
+        float mTrainingHitTime = 0;
         float mDamageScale = 1, mCooldownScale = 1;
         float mMercy = 0;
         const Keys* mAutoKeys = nullptr;
         bool mInputBlocked = false;
-        enum class FxKind { Arc, ArcWave, Lance, Ring, RingWave, Pillar, Sigil, Feather, Spark, Cyclone };
+        enum class FxKind { Arc, ArcWave, Lance, Ring, RingWave, Pillar, Sigil, Feather, Spark, Cyclone, Arrow, Wind };
         struct Fx
         {
             FxKind Kind = FxKind::Spark;
@@ -103,6 +113,7 @@ namespace Doorways
             float Yaw = 0, Roll = 0, Size = 1, T = 0, Life = 1;
             DirectX::XMFLOAT4 Color{1, 1, 1, 1};
             bool Mirror = false;
+            bool Air = false;        // drawn as cut air (pale, no glow), not as light
             int Damage = 0;          // > 0: projectile / wave that damages each shade once
             unsigned HitMask = 0;
             int Target = -1;         // homing feather target
@@ -122,8 +133,20 @@ namespace Doorways
         void Burst(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size);
         void Impact(const DirectX::XMFLOAT3& at, int damage, DirectX::XMFLOAT4 color); // hit-stop, shake, impact flash
         void Dash(float speed, float seconds, float yaw, int damage = 0);
+        void Shoot(WorldState& world, bool aimed);   // one arrow from the bow
+        int AimTarget(const WorldState& world) const;                      // the enemy under the mark at the middle of the screen
+        int SnapTarget(const WorldState& world) const;                     // the enemy nearest the middle, for the view to turn to
+        int HipTarget(const WorldState& world) const;                      // the enemy an arrow loosed without aiming goes to
+        DirectX::XMFLOAT3 BowPoint(const WorldState& world, const float a[3], const float b[3], float t) const;
+        bool Broken(const Wraith& w) const;                                // low enough for the finishing blow
+        int FinishTarget(const WorldState& world) const;                   // the broken enemy the finishing blow would go to, or -1
+        void SetBow(WorldState& world, bool out);    // bow in hand and axes on her back, or the other way
         float AirProfile(float clipTime) const;  // aerial height of the current action
         void ApplySwordVisibility(WorldRenderer& worldRenderer);
+        // The new body carries no weapons in its mesh (mModular): each is a mesh of its own on one of her joints
+        // (NyxaraEquipment.h; drawn by the engine with her body and in her shadow).
+        bool LoadEquipment(Renderer& renderer, WorldRenderer& worldRenderer, const WorldState& world, std::string& error);
+        bool EquipmentPoint(const WorldState& world, const char* joint, const float socket[16], const float local[3], DirectX::XMFLOAT3& out) const;
         void PublishHud(WorldState& world) const;
         int NearestWraith(const DirectX::XMFLOAT3& from, float maxDistance, int skipMask = 0) const;
         DirectX::XMFLOAT4 RightColor() const;
@@ -132,8 +155,29 @@ namespace Doorways
         bool mReady = false;
         Keys mPrev;
         float mTimeScale = 1;
-        bool mSwapped = false;              // false: Moonfeather right, Talonshade left
+        bool mSwapped = false;              // false: Inferno (the Moonfeather slot) right, Serpentcoil (the Talonshade slot) left
         bool mSwapPending = false;
+        int mFinishTarget = -1; bool mFinishReward = false;   // the enemy her finishing blow is for; it fell, her reward is due
+        float mBrokenPulse = 0;             // s to the next ring under the broken enemies
+        int mString = 0; float mStringTimer = 0;   // which slash of a string this is (1..3), and s it can still go on
+        float mBowPitch = 0, mBowPitchGoal = 0;   // rad, how far her upper body is pitched to the shot, and where it is going
+        bool mModular = false;              // her weapons are attachments, not materials of her mesh
+        int mEquipment[3] = {-1, -1, -1};   // the engine's attachment numbers: Inferno, Serpentcoil, the bow
+        DirectX::XMFLOAT4X4 mBackSocket[3]{}; // each one's place on her back, in the Chest joint's frame
+        bool mBow = false;                  // the bow is in her hand and the axes are on her back
+        bool mBowPosing = false;            // she has the bow up (aiming, or just after an arrow)
+        float mAim = 0;                     // 0..1, how far the camera has come in over her shoulder
+        bool mBowAsked = false;             // an arrow was asked for (a click): it goes when the bow is drawn, even if the button is up by then
+        float mBowSince = 0;                // s since she loosed an arrow (or, raising the bow, as if her hand were just back on the string)
+        float mBowCool = 0, mBowPose = 0, mBowClip = 0;   // s to the next arrow; s the bow stays up; time in the BowShot clip
+        float mCameraRest = 0, mLookRest = 1; bool mCameraSaved = false;   // the camera as it was before she aimed
+        DirectX::XMFLOAT3 mRayDir{0, 0, 1}; bool mRayValid = false;       // where the middle of the screen looks (from Draw)
+        bool mAimWas = false, mSnapping = false; int mSnapTo = -1;        // the view is turning to an enemy as she raises the bow
+        float mPitchRest = 0, mFovRest = 0;                               // the view's pitch and width before she aimed
+        int mMarkTarget = -1; bool mOnTarget = false;                     // the enemy the arrows will go to; the mark is on it
+        float mHitMark = 0; bool mHitKill = false;                        // s the mark shows a hit; it felled the enemy
+        bool mLightHit = false;             // an arrow's hit: no freeze frame, no shake
+        int mBowShots = 0, mBowHits = 0; float mBowTestClock = 0;         // counted for the CAUCASIAN_EAGLE_BOW test
         Act mAct = Act::None;
         float mActTime = 0;
         int mNextHit = 0;
@@ -158,6 +202,8 @@ namespace Doorways
         std::vector<Wraith> mWraiths;
         std::vector<Orb> mOrbs;
         float mBlockFlash = 0;
+        bool mOnFoot = false;                    // walking mode
+        float mSoarTime = 0;                     // clock of the slow rise and fall while she soars
         float mGlideLift = 0, mTrailTimer = 0;   // wing-glide locomotion
         int mSkillBuffer = -1; float mSkillBufferTimer = 0; // remembered skill press
         float mLeanPitch = 0, mLeanRoll = 0, mLeanPitchVel = 0, mLeanRollVel = 0, mLeanYaw = 0; // travel lean / bank spring

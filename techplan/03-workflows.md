@@ -55,13 +55,13 @@ engine\Tools\DoorwaysAssetBuilder\x64\Debug\DoorwaysAssetBuilder.exe character-p
     Idle BasicAttack Walk Run StrafeLeft StrafeRight WalkBackward Jump JumpAirborne JumpLanding `
     SlashLeft HeavyAttack Dodge HitReact Death Respawn Skill1 Skill2 Skill3 `
     Combo1L Combo1R Combo2L Combo2R Combo3L Combo3R Guard SwordSwap `
-    FlightHover FlightTravel FlightTakeoff FlightLanding
+    FlightHover FlightTravel FlightTakeoff FlightLanding BowShot
 
 # 3. Stage and run
 tools\build.ps1 -Run
 ```
 
-The pipeline must print `[PASS] Native character pipeline; signature=DoorwaysRig_v1_74bb2d2053cd36e2`. A different signature means the skeleton changed and the clip list or the kit may need updating. The asset builder is an engine tool and is built from the engine repository's solution [confirmed for the engine repository checkout; building it inside the submodule has not been tried].
+The pipeline must print `[PASS] Native character pipeline; signature=DoorwaysRig_v1_116d1b0e1935a8eb`. A different signature means the skeleton changed and the clip list or the kit may need updating. The asset builder is an engine tool and is built from the engine repository's solution [confirmed for the engine repository checkout; building it inside the submodule has not been tried].
 
 ## 6.5 Rebuild the map (Moonlit Sanctuary alone; version 0.1 only, not part of the game any more)
 
@@ -92,7 +92,7 @@ To capture the mountain instead, also set `$env:CAUCASIAN_EAGLE_VISTA = '1'`: th
 python art\sky\make_sky_textures.py game\assets\textures\caucasus
 ```
 
-Writes `NightSky.jpg` and `Moon.jpg`. Needs Python with numpy and Pillow. The result is deterministic.
+Writes `NightSky.jpg` and `Moon.jpg`. Needs Python with numpy and Pillow. The result is deterministic. The game no longer draws a moon; `Moon.jpg` is used only by the start picture (`art/ui/render_cover.py`).
 
 ## 6.9 Rebuild the mountain of Amirani
 
@@ -153,9 +153,15 @@ Plain Python (numpy, Pillow), no Blender. It repeats the terrain formula from `b
 ```powershell
 $env:CAUCASIAN_EAGLE_DEMO = '1'; $env:CAUCASIAN_EAGLE_PILOT = '1'
 $env:CAUCASIAN_EAGLE_SPEED = '8'     # optional: simulation speed, 1 to 12
-$env:CAUCASIAN_EAGLE_START = '24'    # optional: start as if this many arenas were already won (34 or more: start at the chain, after the Eagle)
+$env:CAUCASIAN_EAGLE_START = '24'    # optional: start as if this many arenas were already won (25 or more: start at the chain, after the Eagle)
 $env:CAUCASIAN_EAGLE_MAP = '1'       # optional: hold the world map (M) open, for a screen capture
 $env:CAUCASIAN_EAGLE_TROUBLE = '2'   # optional, with the pilot: stands her before trouble 2 (cursed ground, stones, wisps come in turn); -2 stands her 30 m off the road beside it, to see the compass. Add CAUCASIAN_EAGLE_MORTAL=1 or the pilot heals every frame
+$env:CAUCASIAN_EAGLE_TRAP = '1'      # optional, with the pilot: stands her before trap 1 (1..9, the order of TrapTable in Journey.cpp); -1 stands her in its middle
+$env:CAUCASIAN_EAGLE_AT = '1720'     # optional, with the pilot: stands her this many metres along the road, and she stays there
+$env:CAUCASIAN_EAGLE_GO = '1'        # optional, with AT, TRAP or TROUBLE: the pilot goes on from there; 2: goes on and fights nothing
+$env:CAUCASIAN_EAGLE_SAVE = 'C:\temp\test.sav'   # optional: this file is the save, read and written in unattended runs too (the player's save is never touched)
+$env:CAUCASIAN_EAGLE_SAVEKEY = '8'   # optional, unattended: F8 is pressed after this many seconds
+$env:CAUCASIAN_EAGLE_LOOK = '180'    # optional, with the pilot standing (AT, TRAP, TROUBLE): turns the view by this many degrees, to capture what is behind her
 $env:CAUCASIAN_EAGLE_ROAM = '45'     # optional, with the pilot: it weaves up to 45 m off the road, over the land
 $env:CAUCASIAN_EAGLE_PAUSE = '1'     # optional: hold her menu (Esc) open, for a screen capture
 $env:CAUCASIAN_EAGLE_GUIDE = '1'     # optional: hold the guide open on page 1 to 7, for a screen capture (without DEMO: over the start screen)
@@ -180,3 +186,34 @@ python art\sounds\build_voice.py      # spoken lines: 43 files, read from game\s
 Needs Python with NumPy and SciPy; the voices need Windows with the "Microsoft David" and "Microsoft Zira" voices (installed with English Windows). Both scripts write into `game\assets\sounds` and overwrite files of the same name, including recordings put there by hand. Run `build_voice.py` again after the story text in `Story.cpp` changes; it stops with "Story.cpp changed shape" if the number of chapters, cities, memories or passages changed.
 
 To replace a sound with a recording: save it as WAV, PCM 16-bit, under the same name. See `game\assets\sounds\README.md` for the names.
+
+## Looking at Nyxara in a test run (2026-11-13)
+
+With the pilot standing (`CAUCASIAN_EAGLE_DEMO=1`, `_PILOT=1`, `_AT=<m>`, no `_GO`):
+
+| Switch | Effect |
+|---|---|
+| `CAUCASIAN_EAGLE_VIEW=<m>` | The camera stands that far from her, turned by `CAUCASIAN_EAGLE_LOOK=<degrees>` from behind her |
+| `CAUCASIAN_EAGLE_ARMS=1` | The bow is taken out after 3 s (axes on her back) |
+| `CAUCASIAN_EAGLE_ARMS=2` | The bow is taken out and aimed |
+| `CAUCASIAN_EAGLE_ARMS=3` | The axes change hands |
+| `CAUCASIAN_EAGLE_ARMS=4` | She slashes |
+| `CAUCASIAN_EAGLE_ARMS=5` | The bow is taken out and shot without aiming |
+| `CAUCASIAN_EAGLE_HERO=EagleV1` | Any run: the body before the new one |
+
+| `CAUCASIAN_EAGLE_ARMS=6`, `7`, `8` | Talon Dash, Feather Cyclone, Moon Leap, once, 3 s after she stands |
+| `CAUCASIAN_EAGLE_HERO=EagleV2` | The body with open hands (`EagleV3`, closed hands, is the default) |
+
+## Map Lab (2026-11-13)
+
+`Test-Map.cmd` (`tools/map-lab.ps1`) builds and runs `testing/MapLab/MapLab.cpp` in `build/map-lab` with its own copy of the engine library, like the Character Lab in `build/character-lab`; neither touches `build/stage`. Switches: `-Map <id>` (from `testing/MapLab/maps.tsv`), `-Build`, `-PrepareAssets` with `-MapOptions 'NAME=value',...` (rebuilds the chosen map with `testing/MapLab/build_mountain.py` and compiles it with `scene-pipeline`), `-StageOnly`, `-Station <n>`, `-Smoke`. It stages the engine's assets and the game's without the campaign world (scenes, world, cities, places, landmarks, monsters, props and the other bodies are left out). The keys, the screen, the map's data file and how to add a map are in `testing/MapLab/README.md`.
+
+For pictures without a person: `CAUCASIAN_EAGLE_MAPLAB_STATION`, `_PITCH` (rad), `_VIEW` (m), `_LIGHT` (0 day, 1 dawn, 2 night), `_FOG` (0 to 2), `_NOHUD=1`, `_UNATTENDED=1`. In unattended runs the engine still reads the real keyboard, so a person at the PC can move her.
+
+**Later on 2026-11-13.** The lab's default map is `MapA`. `maps.tsv` has three columns: map, scene, and the map's `map.json` (or `-`). `-Walk` runs her along the whole trail on foot, unattended (`-Speed 0`, `1`, `2` for x1, x3, x8); the evidence file ends with `WALK_PASS` or `WALK_FAIL`. `CAUCASIAN_EAGLE_MAPLAB_WALK=1` and `_SPEED` are the switches behind them.
+
+The start screen's picture: `python art/ui/set_start_screen.py [picture]` scales a painting to cover 1920 x 1080 and writes `game/assets/ui/Menu/StartScreen.png`. `art/ui/build_start_screen.py` painted the picture before it and is no longer what the game shows.
+
+`Test-Map.cmd -Walk -Fast 30` is the quick whole-path check (about a minute). `-MapOptions` takes options separated by commas. `blender -b --factory-startup -P testing/MapLab/prepare_pieces.py -- testing/MapLab/pieces Name=<glb>:<triangles> ...` turns generated models into map pieces.
+
+`Test-Map.cmd -Along <m>` starts the Map Lab at a distance along the path: the way to look at one cliff, break or rampart (`grep "^fly\|^rampart" build/map-lab/source/MapA.txt` gives the distances).

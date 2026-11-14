@@ -104,6 +104,7 @@
     <ClInclude Include="src\CaucasianEagleGame.h" />
     <ClInclude Include="src\GameConstants.h" />
     <ClInclude Include="src\NyxaraKit.h" />
+    <ClInclude Include="src\NyxaraEquipment.h" />
     <ClInclude Include="src\AmiraniMountain.h" />
     <ClInclude Include="src\Journey.h" />
     <ClInclude Include="src\NyxaraHud.h" />

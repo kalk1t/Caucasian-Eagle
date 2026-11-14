@@ -21,6 +21,11 @@ This folder holds what the game's assets are built from. The scripts are in git.
 | `ui/build_hud.py` | yes | Generates the HUD artwork `game/assets/ui/Hud/HudAtlas.png` and the sprite table `game/src/HudAtlas.h` (Pillow and numpy; no outside images) |
 | `cities/build_cities.py` | yes | Generates the seven cities: a 1024 px sheet of wall, roof and window tiles per city, 40 building models (compiled with the engine's asset builder into `game/assets/Compiled/Cities`), and `game/assets/Compiled/World/Cities.txt` (cities, models, buildings, lights). Pillow and numpy; no outside models or images. Run after `world/build_world.py`. |
 | `map/build_map.py` | yes | Paints the world map `game/assets/ui/Map/WorldMap.png` and writes `Map.txt` from `Road.txt` and `Cities.txt`. Run after the two scripts above. |
+| `props/meshy/out/library/` | **no** (51 `.glb`, about 2.2 GB) | The scenery library: 51 Meshy models (buildings, ruins, arches, statues, stairs, crates and the like) downloaded by the author. The places and the traps' scenery are made from it |
+| `places/prepare_places.py` | yes | Blender: `blender -b -P art/places/prepare_places.py -- <asset builder exe> [Name ...]`. Reduces each library model to its triangle budget (table `MODELS`), stands it on the ground and compiles it into `game/assets/Compiled/Places` |
+| `places/sizes.txt` | yes | The measured size of every prepared model; `build_places.py` reads it |
+| `places/build_places.py` | yes | Plain Python: where every piece of the 26 places stands, their blockers, lights and sites; writes `game/assets/Compiled/World/Places.txt` |
+| `places/out/` | **no** (about 610 MB) | The reduced models and a picture of each; rebuilt by `prepare_places.py` |
 | `mountain/build_mountain.py` | yes | Blender script: the mountain mesh, its colour map and `Mountain.json` |
 | `mountain/prepare_models.py` | yes | Prepares the Meshy models of Amirani, the eagle and the dog for the asset builder |
 | `mountain/meshy/req/*.json` | yes | The requests sent to Meshy for the three figures |
@@ -81,3 +86,11 @@ The creatures of the road are from Georgian and wider Caucasian folklore. Their 
 | Credits used for the ten creatures and the chest | 429 (11 concept images at 9, 11 models at 30) |
 | Credits used for the four scenery props | 156 (4 concept images at 9, 4 models at 30) |
 | Balance after the road was built (2026-11-10) | 19 |
+
+## Nyxara's new body and modular weapons (2026-11-13)
+
+The source of `game/assets/Compiled/Characters/Nyxara/RodinV1` and `.../Equipment` is not in this repository: it is the delivery folder `C:\Users\User\Projects\Hyper3D\delivery` (the generated body, the Blender file with the body bound to her rig, the weapon files, the compiled bundles and the evidence of how they were made; read `CODEX_HANDOFF.txt` there). `art/nyxara/equipment/equipment_manifest.json` is a copy of that delivery's manifest, and `gen_equipment.py` beside it writes `game/src/NyxaraEquipment.h`. The delivery also holds two plain swords and a second bow that the game does not use.
+
+## Closed hands and the finisher clip (2026-11-13)
+
+`art/nyxara/equipment/close_hands.py` makes the fists of `EagleV3` from the delivery's `Nyxara_modular_compat.glb`. `art/nyxara/blender/finishers.py` makes the `Finisher` clip from `Nyxara_game.blend` (not in git). Both are described in `techplan/04-components.md`.

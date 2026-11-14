@@ -65,7 +65,7 @@ def rename_material(o, name):
 
 # ---------------------------------------------------------------- wings
 WING_LEN = 1.30
-ROOT_L = Vector((0.085, 0.165, 1.30))
+ROOT_L = Vector((0.085, 0.165, 1.20))   # where the left wing leaves her back (z: 1.30 was at the shoulders, 1.20 is the shoulder blades)
 TILT, SWEEP = 12.0, 10.0          # rest: tip raised 12 deg, swept back 10 deg
 wing_src = import_mesh(OUT / "wing_3d_1" / "model_url.glb")
 W = verts(wing_src)
@@ -144,11 +144,164 @@ def make_sword(path, length, hand, material):
     return o
 
 
-swords = [make_sword(OUT / "swordA_3d_1" / "model_url.glb", 1.02, "RightHand", "Slot_sword_right__Moonfeather"),
-          make_sword(OUT / "swordB_3d_1" / "model_url.glb", 0.92, "LeftHand", "Slot_sword_left__Talonshade"),
-          make_sword(OUT / "swordA_3d_1" / "model_url.glb", 1.02, "LeftHand", "Slot_sword_left__Moonfeather"),
-          make_sword(OUT / "swordB_3d_1" / "model_url.glb", 0.92, "RightHand", "Slot_sword_right__Talonshade")]
-body.data.materials[0].name = "NyxaraBody"
+def tint_weapon(o, colour, glow):
+    """The scythe's texture is near black. Each copy gets its own picture: the dark metal lifted and washed with
+    `colour`, and the model's glowing veins (its emission map) painted in `glow`."""
+    m = o.data.materials[0]; bsdf = next(n for n in m.node_tree.nodes if n.type == 'BSDF_PRINCIPLED')
+    node = bsdf.inputs["Base Color"].links[0].from_node
+    img = node.image.copy(); img.name = m.name + "_BaseColor"; node.image = img
+    px = np.empty(len(img.pixels), dtype=np.float32); img.pixels.foreach_get(px); px = px.reshape(-1, 4)
+    lum = np.clip(px[:, :3], 0, 1) @ np.array([.2126, .7152, .0722], dtype=np.float32)
+    rgb = (0.10 + 0.90 * lum[:, None] ** 0.55) * np.array(colour, dtype=np.float32)
+    emit = next((n.image for n in m.node_tree.nodes if n.type == 'TEX_IMAGE' and n.image and "Emit" in n.image.name), None)
+    if emit is not None and tuple(emit.size) == tuple(img.size):
+        e = np.empty(len(emit.pixels), dtype=np.float32); emit.pixels.foreach_get(e); e = e.reshape(-1, 4)[:, :3].max(1)
+        rgb = rgb + np.clip(e * 3.0, 0, 1)[:, None] * np.array(glow, dtype=np.float32)
+    px[:, :3] = np.clip(rgb, 0, 1)
+    img.pixels.foreach_set(px.ravel()); img.update(); img.scale(1024, 1024); img.pack()
+    for inp in ("Emission Color", "Emission"):   # the glow is in the picture now
+        if inp in bsdf.inputs:
+            for l in list(bsdf.inputs[inp].links): m.node_tree.links.remove(l)
+
+
+def make_scythe(path, length, hand, material, colour, glow, hook=1, frame=None, grip_up=None):
+    """Meshy scythe: shaft along model Z (head at +Z), blade hooking toward model -X. She holds the shaft below its
+    middle, head forward out of the fist like a sword's blade, the hook curving the way her knuckles face."""
+    o = import_mesh(path); V = verts(o)
+    scale = length / np.ptp(V[:, 2])
+    shaft = V[V[:, 2] < V[:, 2].min() + 0.45 * np.ptp(V[:, 2])]           # the lower half is shaft only
+    cx, cy = (shaft[:, 0].min() + shaft[:, 0].max()) / 2, (shaft[:, 1].min() + shaft[:, 1].max()) / 2
+    gz = V[:, 2].min() + (GRIP_UP if grip_up is None else grip_up) * np.ptp(V[:, 2])                        # the grip: a good quarter up from the butt
+    V = (V - np.array([cx, cy, gz])) * scale
+    # thinner (THIN): across the blade's flat everything is THIN as thick; along the hook the shaft is THIN as thick
+    # and what lies beyond the shaft (the blade) only moves in by what the shaft lost, so the blade keeps its reach
+    r = (shaft[:, 0].max() - shaft[:, 0].min()) / 2 * scale
+    V[:, 1] *= THIN
+    ax = np.abs(V[:, 0]); V[:, 0] = np.sign(V[:, 0]) * np.maximum(ax * THIN, ax - r * (1 - THIN))
+    # frame: (shaft direction, hook direction, grip point) in her rest pose, for a scythe that is not in a hand
+    b, w, grip = frame if frame else hand_frame(hand)
+    w = w * hook   # hook: 1 = the blade curves the way this hand's knuckles face; -1 = the other way (turned half round the shaft)
+    src = Matrix(((0, 0, 1), (0, 1, 0), (-1, 0, 0))).transposed()          # columns: shaft toward the head, across, hook
+    dst = Matrix((b, w.cross(b), w)).transposed()
+    M = dst @ src.inverted()
+    V = V @ np.array(M).T + np.array(grip)
+    set_verts(o, V); o.name = material
+    bind(o, {hand: np.ones(len(V))}); rename_material(o, material)
+    tint_weapon(o, colour, glow)
+    print("SCYTHE", material, "scale", round(scale, 3), "length", length)
+    return o
+
+
+# Two axes, one in each hand (before them: the pair of swords, make_sword with swordA_3d_1 / swordB_3d_1; then a
+# scythe, make_scythe with scythe_3d_1). The clips were made for a blade in each hand, and the axes are held the same way.
+# The material names are what the game shows and hides (NyxaraKit::ApplySwordVisibility): each axe has a copy for
+# each hand, because Q exchanges them. The names after the two underscores are the old swords' and are kept.
+AXE_INFERNO = OUT / "axe_inferno_3d_1" / "model_url.glb"   # Molten Inferno Axe: double-bitted, black stone with lava
+AXE_WAR = OUT / "axe_war_3d_1" / "model_url.glb"           # Serpentcoil War Axe: dark iron, one great blade
+AXE_LENGTH = (0.95, 1.00)   # m, butt to top: Inferno, Serpentcoil
+AXE_GRIP_UP = 0.20          # where her hand holds the shaft: this part of its length up from the butt
+AXE_TRIS = 7000             # triangles each copy is reduced to
+
+
+def make_axe(path, length, hand, material, tris=AXE_TRIS):
+    """A Meshy axe: shaft along model Z, head at +Z, blades toward model +-X. It is held like the swords were: the
+    shaft out of the fist forward, her hand low on it, the blades in the plane her knuckles face. The model is
+    reduced to `tris` triangles first (they come with 150 000 to 250 000). Its own texture is kept."""
+    o = import_mesh(path)
+    n = sum(len(f.vertices) - 2 for f in o.data.polygons)
+    if n > tris:
+        mod = o.modifiers.new("Reduce", 'DECIMATE'); mod.ratio = tris / n
+        bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier=mod.name)
+    V = verts(o)
+    scale = length / np.ptp(V[:, 2])
+    shaft = V[V[:, 2] < V[:, 2].min() + 0.45 * np.ptp(V[:, 2])]           # the lower half is shaft only
+    cx, cy = (shaft[:, 0].min() + shaft[:, 0].max()) / 2, (shaft[:, 1].min() + shaft[:, 1].max()) / 2
+    gz = V[:, 2].min() + AXE_GRIP_UP * np.ptp(V[:, 2])
+    V = (V - np.array([cx, cy, gz])) * scale
+    b, w, grip = hand_frame(hand)
+    src = Matrix(((0, 0, 1), (0, 1, 0), (-1, 0, 0))).transposed()          # columns: shaft toward the head, across, blade
+    dst = Matrix((b, w.cross(b), w)).transposed()
+    V = V @ np.array(dst @ src.inverted()).T + np.array(grip)
+    set_verts(o, V); o.name = material
+    bind(o, {hand: np.ones(len(V))}); rename_material(o, material)
+    print("AXE", material, "tris", n, "->", sum(len(f.vertices) - 2 for f in o.data.polygons), "scale", round(scale, 3))
+    return o
+
+
+# The bow (Meshy: Eldritch Longbow): stave along model Z, the string toward +X, the belly (away from the archer)
+# toward -X, the leather grip a little below the middle. She has it in her left hand or across her back; while it is
+# out, the axes are on her back instead (NyxaraKit::ApplySwordVisibility shows and hides the materials).
+BOW = OUT / "bow_3d_1" / "model_url.glb"
+BOW_LENGTH = 1.35                      # m, tip to tip
+BOW_GRIP = (-0.035, 0.0, -0.07)        # the middle of the grip, in the model's own units
+BOW_TRIS = 6000
+BACK_Y = 0.27                          # m behind her spine: just clear of her back, her hair and the wing roots
+BACK_BOW = dict(at=(0.02, BACK_Y, 1.16), roll=-24.0)                       # across her back, the top over her right shoulder
+BACK_AXES = (dict(at=(-0.03, BACK_Y, 1.05), roll=26.0), dict(at=(0.03, BACK_Y + 0.07, 1.05), roll=-26.0))   # crossed, heads up
+BACK_TRIS = 3500
+
+
+def reduce_to(o, tris):
+    n = sum(len(f.vertices) - 2 for f in o.data.polygons)
+    if n > tris:
+        mod = o.modifiers.new("Reduce", 'DECIMATE'); mod.ratio = tris / n
+        bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier=mod.name)
+    return n
+
+
+# The engine draws glTF's right-handed model in its left-handed world without turning it over, so on the screen she is
+# the mirror of what Blender shows: this rig's RightHand is the hand the player sees as her left. The bow is in it.
+BOW_GAME_HAND = "RightHand"
+BOW_STRING = (0.200, -0.075)     # the string in the model: x = BOW_STRING[0] + BOW_STRING[1] * z
+BOW_STRING_Z = (-0.55, 0.64)     # between these heights it is taken off the bow (short ends stay at the tips)
+
+
+def bow_frame(hand):
+    """Model point -> her rest pose, for the bow in this hand: the stave across her fist (as an axe's shaft is), the
+    belly the way her hand points, so that with her arm out toward the target the bow stands upright and the string
+    is on her side of it."""
+    bn = arm.data.bones[hand]; d = (bn.tail_local - bn.head_local).normalized()
+    b, w, grip = hand_frame(hand)
+    src = Matrix(((0, 0, 1), (-1, 0, 0), (0, -1, 0))).transposed()         # columns: stave, belly, stave x belly
+    dst = Matrix((b, d, b.cross(d))).transposed()
+    M = np.array(dst @ src.inverted()); scale = BOW_LENGTH / 1.901        # 1.901: the model's length
+    return lambda V: ((np.asarray(V, dtype=float) - np.array(BOW_GRIP)) * scale) @ M.T + np.array(grip)
+
+
+def only(o, mask):   # keep the vertices where mask is true
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(o.data); bm.verts.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[v for v, k in zip(bm.verts, mask) if not k], context='VERTS')
+    bm.to_mesh(o.data); bm.free(); o.data.update()
+
+
+def make_bow(hand, material, string_material):
+    """The bow in her hand, and its string as a part of its own: the game hides the string while she draws and
+    looses, and draws it bent to her hand instead."""
+    o = import_mesh(BOW); V = verts(o)
+    on = (np.abs(V[:, 0] - (BOW_STRING[0] + BOW_STRING[1] * V[:, 2])) < 0.016) & (V[:, 2] > BOW_STRING_Z[0]) & (V[:, 2] < BOW_STRING_Z[1])
+    cord = o.copy(); cord.data = o.data.copy(); sc.collection.objects.link(cord)
+    only(cord, on); only(o, ~on)
+    xf = bow_frame(hand); out = []
+    for part, name, tris in ((o, material, BOW_TRIS), (cord, string_material, 160)):
+        n = reduce_to(part, tris); set_verts(part, xf(verts(part))); part.name = name
+        bind(part, {hand: np.ones(len(part.data.vertices))}); rename_material(part, name)
+        print("BOW", name, "tris", n, "->", sum(len(f.vertices) - 2 for f in part.data.polygons))
+        out.append(part)
+    return out
+
+
+def make_back(path, length, material, at, roll, tris=BACK_TRIS):
+    """A weapon carried on her back: flat against it (the model's thin axis, Y, is the way her back faces), its long
+    axis upright and then turned `roll` degrees, its middle at `at`. It moves with her chest."""
+    o = import_mesh(path); n = reduce_to(o, tris); V = verts(o)
+    V = (V - (V.min(0) + V.max(0)) / 2) * (length / np.ptp(V[:, 2]))
+    V = V @ np.array(rq((0, 1, 0), roll).to_matrix()).T + np.array(at)
+    set_verts(o, V); o.name = material
+    bind(o, {"Spine": np.ones(len(V))}); rename_material(o, material)
+    print("BACK", material, "tris", n, "->", sum(len(f.vertices) - 2 for f in o.data.polygons))
+    return o
+
 
 # ---------------------------------------------------------------- clip authoring
 ALL_BONES = [b.name for b in arm.data.bones]
@@ -283,7 +436,8 @@ def emit(name, frames, loop):
         fc.keyframe_points.add(n)
         co = np.empty(2 * n); co[0::2] = np.arange(n) + 1; co[1::2] = vals
         fc.keyframe_points.foreach_set("co", co)
-        fc.keyframe_points.foreach_set("interpolation", [2] * n)  # LINEAR
+        for key in fc.keyframe_points:
+            key.interpolation = "LINEAR"  # Named RNA value: numeric 2 selects BEZIER.
         fc.update()
     CLIPS.append((name, loop, n))
 
@@ -309,7 +463,7 @@ def chin_up(P, k=1.0):
     return P
 
 
-def ground(name, f0, f1, loop=False, flare=0.0, flare_span=(0.15, 0.85), rate=1.0, toe=False, droop=False, mirror=False, chin=1.0):
+def ground(name, f0, f1, loop=False, flare=0.0, flare_span=(0.15, 0.85), rate=1.0, toe=False, droop=False, mirror=False, chin=1.0, wild=0.0, beats=2):
     act = SRC[name][0]; f1 = min(f1, act.frame_range[1]); count = int(round((f1 - f0) / rate)) + 1
     dur = (count - 1) / FPS; out = []
     for i in range(count):
@@ -321,6 +475,13 @@ def ground(name, f0, f1, loop=False, flare=0.0, flare_span=(0.15, 0.85), rate=1.
         br = 2.5 * math.sin(2 * math.pi * t * max(1, round(dur / 2.5))) if loop else 0.0
         sp = flare * smooth(flare_span[0] - .12, flare_span[0], t) * (1 - smooth(flare_span[1], flare_span[1] + .12, t))
         wk = wing_keys(sp, flap=10 * sp, sweep=10 * sp, breathe=br + (12 if droop else 0) * t)
+        if wild:   # a hunting gait: the back low, the head up and forward, the wings half open, beating with her stride
+            lean = WILD_LEAN * wild; st = 2 * math.pi * t * beats
+            P["Spine"][1] = world_rot_basis("Spine", rq((1, 0, 0), 0.6 * lean), P["Spine"][1])
+            P["Spine01"][1] = world_rot_basis("Spine01", rq((1, 0, 0), 0.4 * lean), P["Spine01"][1])
+            P["neck"][1] = world_rot_basis("neck", rq((1, 0, 0), -0.45 * lean + 2.5 * wild * math.sin(st)), P["neck"][1])
+            P["Head"][1] = world_rot_basis("Head", rq((1, 0, 0), -0.35 * lean), P["Head"][1])
+            wk = wing_keys(WILD_SPREAD * wild, flap=wild * (5 + WILD_BEAT * math.sin(st - .6)), sweep=WILD_SWEEP * wild, breathe=br)
         if loop:   # resting wings flex slowly, tips trailing the shoulder
             ph = 2 * math.pi * t * max(1, round(dur / 2.5))
             for side, sg in (("L", 1), ("R", -1)):
@@ -334,6 +495,39 @@ def ground(name, f0, f1, loop=False, flare=0.0, flare_span=(0.15, 0.85), rate=1.
     return center(out)
 
 
+WILD_LEAN = 30.0     # degrees her back comes forward at a full run (wild = 1)
+WILD_SPREAD = 0.42   # how far her wings open at a full run (0 folded, 1 spread wide)
+WILD_BEAT = 13.0     # degrees her half-open wings beat with each stride
+WILD_SWEEP = 22.0    # degrees they are swept back
+
+
+def restless(frames, times=3):
+    """Standing, she is never still: the idle loop is played `times` over, and across it she looks left, then right,
+    in the quick turns of a bird's head (a snap, a hold, a snap back), cocks it once, and shakes her wings out."""
+    out = []
+    for k in range(times):
+        for P, wk in frames[:-1] if k < times - 1 else frames:
+            out.append(({b: [v[0].copy(), v[1].copy()] for b, v in P.items()}, dict(wk)))
+    n = len(out)
+    hold = lambda t, a, b, e=.022: smooth(a - e, a + e, t) * (1 - smooth(b - e, b + e, t))   # 0 -> 1 fast, held, 1 -> 0 fast
+    for i, (P, wk) in enumerate(out):
+        t = i / (n - 1)
+        yaw = IDLE_LOOK[0] * hold(t, .10, .27) - IDLE_LOOK[1] * hold(t, .42, .60)
+        cock = IDLE_COCK * hold(t, .48, .60, .03)
+        P["neck"][1] = world_rot_basis("neck", rq((0, 0, 1), .35 * yaw), P["neck"][1])
+        P["Head"][1] = world_rot_basis("Head", rq((0, 1, 0), cock) @ rq((0, 0, 1), .65 * yaw), P["Head"][1])
+        bell = hold(t, .76, .90, .05)
+        if bell > 0:
+            shake = wing_keys(IDLE_SHAKE * bell, flap=10 * bell * math.sin(2 * math.pi * 5 * (t - .76) / .14), sweep=8 * bell)
+            for key in wk: wk[key] = wk[key].slerp(shake[key], bell)
+    return out
+
+
+IDLE_LOOK = (24.0, 30.0)   # degrees her head snaps to her left, then to her right
+IDLE_COCK = 9.0            # degrees she cocks it while she looks right
+IDLE_SHAKE = 0.32          # how far her wings open when she shakes them out
+
+
 def center(frames):  # keep the hips over the root on average (collision/visual alignment)
     R = REST["Hips"]; m = sum((R @ P["Hips"][0] for P, _ in frames), Vector()) / len(frames)
     d = R.inverted() @ Vector((m.x, m.y, 0))
@@ -342,9 +536,9 @@ def center(frames):  # keep the hips over the root on average (collision/visual 
 
 
 arm.animation_data_create()
-emit("Idle", ground("Idle", 1, 51, loop=True), True)
-emit("Walk", ground("WalkWoman", 1, 30, loop=True), True)
-emit("Run", ground("Run", 1, 20, loop=True), True)
+emit("Idle", restless(ground("Idle", 1, 51, loop=True)), True)
+emit("Walk", ground("WalkWoman", 1, 30, loop=True, wild=0.45), True)   # stalking
+emit("Run", ground("Run", 1, 20, loop=True, wild=1.0), True)           # hunting
 emit("WalkBackward", ground("WalkBackward", 1, 41, loop=True), True)
 for nm, sg in (("StrafeLeft", 1), ("StrafeRight", -1)):
     fr = []
@@ -399,10 +593,13 @@ def flight_body(lean):
         P["Head"][1] = rq((1, 0, 0), -0.25 * lean) @ P["Head"][1]
         for b in ("LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"):
             P[b][1] = P[b][1].slerp(Quaternion(), 0.7)
+        for b in ("LeftArm", "RightArm"):   # arms and swords swept back along her sides, as an eagle tucks its talons
+            P[b][1] = world_rot_basis(b, rq((1, 0, 0), 20 + 0.9 * lean), P[b][1])
     return center([(P, None)])[0][0]
 
 
-HOVER, TRAVEL = chin_up(flight_body(0), .3), flight_body(52)
+TRAVEL_LEAN = 42   # degrees the body tips forward in travel. 64 lies flat (her hips-to-neck line at 88 from upright); 42 is about 66
+HOVER, TRAVEL = chin_up(flight_body(0), .3), flight_body(TRAVEL_LEAN)   # travel: the body leans along the flight, as an eagle soars
 
 
 def bob(P, t, period, amp, life=1.0):
@@ -423,8 +620,25 @@ def bob(P, t, period, amp, life=1.0):
     return Q
 
 
-n = 48; emit("FlightHover", [(bob(HOVER, i / FPS, .8, .06), flap_keys(i / FPS, .8, 40, 6)) for i in range(n + 1)], True)
-n = 36; emit("FlightTravel", [(bob(TRAVEL, i / FPS, .6, .03), flap_keys(i / FPS, .6, 32, 22)) for i in range(n + 1)], True)
+# hover: slow full beats, the body riding each one. travel: soaring (irao), wings held wide with a deep slow stroke
+n = 66; emit("FlightHover", [(bob(HOVER, i / FPS, 1.1, .10, 1.7), flap_keys(i / FPS, 1.1, 36, 6)) for i in range(n + 1)], True)
+def soar_keys(t, period, amp):
+    """Wings for the level body. Lying forward turns the wing axes: what raises a tip when she is upright (flap)
+    now sweeps it forward, and what sweeps it back when upright (sweep) now raises it. So the wings are held
+    out with the tips a little behind the shoulders (negative flap) and the slow stroke goes on the sweep axis."""
+    ph = 2 * math.pi * t / period
+    beat = lambda x: math.sin(x + 0.55 * math.cos(x))
+    k = wing_keys(1.0, -30 + 3 * math.cos(ph), 4 + amp * beat(ph))
+    for side, sg in (("L", 1), ("R", -1)):   # the outer wing trails the stroke
+        k[f"Wing{side}_2"] = rq((0, 0, 1), sg * 0.45 * amp * beat(ph - 0.8))
+        k[f"Wing{side}_3"] = rq((0, 0, 1), sg * 0.45 * amp * beat(ph - 1.5))
+    level = rq((1, 0, 0), 64 - TRAVEL_LEAN)   # the keys above are for the flat body (lean 64): tip the wings the rest of the way,
+    for side in ("L", "R"):                   # so they stay level with the ground whatever the body's lean
+        k[f"Wing{side}_1"] = level @ k[f"Wing{side}_1"]
+    return k
+
+
+n = 144; emit("FlightTravel", [(bob(TRAVEL, i / FPS, 2.4, .08, 1.5), soar_keys(i / FPS, 2.4, 24)) for i in range(n + 1)], True)   # two strokes: the slow sway spans both
 fr = []
 for i in range(16):
     t = i / 15; crouch = sample("JumpSrc", 9 + 7 * t)
@@ -439,6 +653,122 @@ for i in range(19):
     fr.append((P, flap_keys(i / FPS, .8, 30 * (1 - t), 6, spread=1 - smooth(.3, 1, t))))
 emit("FlightLanding", fr, False)
 
+
+# ---------------------------------------------------------------- the bow: drawn, loosed, drawn again
+# The clips she came with have no archery. This one is posed here: her chest turned so that her left shoulder leads,
+# her head still on the target, her left arm out with the bow upright, her right hand at her chin. Both arms are
+# solved (two bones each) to where the hands must be.
+BOW_TWIST = 35.0                         # degrees her chest turns to her right
+BOW_SIDE = 0.035                         # m to her right of her chin the arrow lies
+BOW_DROP = 0.02                          # m below her chin
+BOW_ARM = 0.97                           # how straight her bow arm is (1 = fully)
+BOW_WINGS = (-52.0, 34.0)                # degrees her wings are lowered (negative) and swept back while she shoots
+BOW_WRIST = 0.07                         # m from a wrist to the middle of the fist
+# frame by frame (30 a second): how far the string is drawn (0 = at rest on the bow, 1 = at her chin); m her string
+# hand flies back past her jaw as it lets go; whether her hand is on the string; degrees the bow tips forward in her
+# hand after the arrow leaves; degrees her chest gives back. The arrow leaves at frame 0; at the last she is drawn again.
+BOW_KEYS = ((1.00, 0.00, 1, 0, 0), (1.00, 0.09, 0, 12, 4), (0.55, 0.04, 0, 8, 3), (0.00, 0.0, 1, 3, 1),
+            (0.32, 0.0, 1, 0, 0), (0.74, 0.0, 1, 0, 0), (1.00, 0.0, 1, 0, 0))
+BOW_POINTS = HERE.parents[2] / "game" / "src" / "BowPoints.h"   # written here for the game: where her hand and the bow are
+
+
+def rig_pose(P):
+    arm.animation_data.action = None
+    for b in BODY_BONES:
+        pb = arm.pose.bones[b]; pb.rotation_mode = 'QUATERNION'; pb.location = P[b][0]; pb.rotation_quaternion = P[b][1]
+    bpy.context.view_layer.update()
+
+
+def set_rot(bone, R):   # the bone's rotation in the armature's frame (3x3); its head stays where its parent puts it
+    pb = arm.pose.bones[bone]; M = R.to_4x4(); M.translation = pb.matrix.translation
+    pb.matrix = M; bpy.context.view_layer.update()
+
+
+def turn(bone, q):
+    set_rot(bone, q.to_matrix() @ arm.pose.bones[bone].matrix.to_3x3())
+
+
+def aim(bone, to):
+    cur = (arm.pose.bones[bone].matrix.to_3x3() @ Vector((0, 1, 0))).normalized()
+    turn(bone, cur.rotation_difference(to.normalized()))
+
+
+def reach(side, target, pole):
+    """Two-bone solve: the wrist of this arm goes to `target`; the elbow bends toward `pole`."""
+    up, fore, hand = side + "Arm", side + "ForeArm", side + "Hand"; rest = arm.data.bones
+    a = (rest[fore].head_local - rest[up].head_local).length; b = (rest[hand].head_local - rest[fore].head_local).length
+    S = arm.pose.bones[up].head.copy(); v = target - S; d = min(v.length, (a + b) * 0.985); n = v.normalized()
+    x = (a * a - b * b + d * d) / (2 * d); h = math.sqrt(max(0.0, a * a - x * x))
+    side_way = (pole - n * pole.dot(n)).normalized()
+    aim(up, n * x + side_way * h)
+    aim(fore, S + n * d - arm.pose.bones[fore].head)
+
+
+def grip_rot(hand, fwd, up):
+    """The hand's rotation that points it along `fwd` with what it grips (a stave across the fist) along `up`."""
+    bn = arm.data.bones[hand]; d = (bn.tail_local - bn.head_local).normalized()
+    f = Vector((0, -1, 0)); b = (f - d * f.dot(d)).normalized()
+    up = (up - fwd * up.dot(fwd)).normalized()
+    src = Matrix((d, b, d.cross(b))).transposed(); dst = Matrix((fwd, up, fwd.cross(up))).transposed()
+    return dst @ src.inverted() @ REST[hand]
+
+
+def posed(bone, point):   # a point given in her rest pose, where this bone has carried it
+    return arm.pose.bones[bone].matrix @ arm.data.bones[bone].matrix_local.inverted() @ Vector(point)
+
+
+def bow_frames():
+    base = ground("Idle", 1, 51, loop=True)[0][0]; rig_pose(base)   # as she stands in Idle (her hips over the root, as there)
+    head = arm.pose.bones["Head"].matrix.to_3x3()
+    fwd, up, Z = Vector((0, -1, 0)), Vector((0, 0, 1)), (0, 0, 1)
+    rest = arm.data.bones
+    reach_l = BOW_ARM * ((rest["LeftForeArm"].head_local - rest["LeftArm"].head_local).length + (rest["LeftHand"].head_local - rest["LeftForeArm"].head_local).length)
+    xf = bow_frame("LeftHand")
+    ends = [xf((BOW_STRING[0] + BOW_STRING[1] * z, 0, z)) for z in (BOW_STRING_Z[1], BOW_STRING_Z[0])]   # the string's ends, top and bottom
+    rest_string = BOW_LENGTH / 1.901 * (BOW_STRING[0] + BOW_STRING[1] * BOW_GRIP[2] - BOW_GRIP[0])       # m from the grip back to the string
+    fist_l, fist_r = hand_frame("LeftHand")[2], hand_frame("RightHand")[2]
+    out, rows = [], []
+    for i, (draw, back, nocked, tip, give) in enumerate(BOW_KEYS):
+        rig_pose(base)
+        for b, k in (("Spine02", .30), ("Spine01", .35), ("Spine", .35)): turn(b, rq(Z, -(BOW_TWIST - give) * k))
+        turn("neck", rq(Z, 0.4 * BOW_TWIST)); set_rot("Head", head)
+        # the arrow's line: straight ahead, from just beside and below her chin
+        anchor = arm.pose.bones["headfront"].head + Vector((-BOW_SIDE, 0, -BOW_DROP))
+        # the bow hand: on that line, as far out as her arm goes
+        S = arm.pose.bones["LeftArm"].head; v = anchor - S; along = v.dot(fwd)
+        far = -along + math.sqrt(max(0.0, along * along - v.length_squared + reach_l * reach_l))   # |anchor + fwd * far - S| = reach
+        grip = anchor + fwd * (far + BOW_WRIST)
+        reach("Left", grip - fwd * BOW_WRIST, Vector((0.6, 0.2, -0.8)))
+        lean = rq((1, 0, 0), tip).to_matrix() @ up                                # the top of the bow tips away from her
+        set_rot("LeftHand", grip_rot("LeftHand", fwd, lean))
+        # the string hand: at her chin when drawn, at the string when it takes it, flying back as it lets go
+        travel = (grip - anchor).length - rest_string
+        fingers = anchor + fwd * (travel * (1 - draw)) - fwd * back + Vector((-0.5 * back, 0, 0.25 * back))
+        if not nocked: fingers = fingers + Vector((-0.03, 0, -0.035)) * math.sin(math.pi * min(1.0, draw + .2))   # it comes round, not straight back along the arrow
+        reach("Right", fingers - fwd * BOW_WRIST, Vector((-0.5, 0.8, 0.25)))
+        set_rot("RightHand", grip_rot("RightHand", fwd, up))
+        P = {b: [arm.pose.bones[b].location.copy(), arm.pose.bones[b].rotation_quaternion.copy()] for b in BODY_BONES}
+        P = mirror_pose(P)   # the game shows her mirrored (see BOW_GAME_HAND): posed here with the bow in this rig's left hand, then turned over
+        out.append((P, wing_keys(1.0, flap=BOW_WINGS[0] + 3 * give, sweep=BOW_WINGS[1])))   # wings down and back: her arms must be seen from behind
+        rows.append((posed("RightHand", fist_r), posed("LeftHand", fist_l), posed("LeftHand", ends[0]), posed("LeftHand", ends[1]), nocked))
+    rig_pose(base)
+    game = lambda v: "{%.4ff, %.4ff, %.4ff}" % (-v.x, v.z, -v.y)   # to the game's frame (x to her right, y up, z ahead) of the pose turned over: x changes sign twice, once for the mirror_pose above and once for the engine's mirror
+    text = ["// Written by art/nyxara/blender/assemble.py (bow_frames). Do not edit: change the pose there and build her again.",
+            "// Where her string hand, the bow's grip and the two ends of its string are in each frame of the BowShot clip",
+            "// (30 frames a second), in her own frame: x to her right, y up, z ahead, metres from her feet.", "#pragma once", "",
+            "namespace CaucasianEagle", "{",
+            "    struct BowFrame { float Hand[3], Grip[3], Top[3], Bottom[3]; bool Nocked; };",
+            "    constexpr int BowFrameCount = %d;" % len(rows), "    constexpr float BowFrameRate = %d.f;" % FPS,
+            "    constexpr BowFrame BowFrames[BowFrameCount] = {"]
+    text += ["        {%s, %s, %s, %s, %s}," % (game(h), game(g), game(t), game(b), "true" if n else "false") for h, g, t, b, n in rows]
+    text += ["    };", "}", ""]
+    BOW_POINTS.write_text("\n".join(text), encoding="utf-8")
+    print("BOWPOINTS", BOW_POINTS, "travel", round(travel, 3), "grip", [round(c, 3) for c in grip], "anchor", [round(c, 3) for c in anchor])
+    return out
+
+
+emit("BowShot", bow_frames(), False)
+
 # drop source actions; keep only emitted clips
 keep = {c[0] for c in CLIPS}
 for a in list(bpy.data.actions):
@@ -446,6 +776,16 @@ for a in list(bpy.data.actions):
 arm.animation_data.action = bpy.data.actions["Idle"]; arm.animation_data.action_slot = bpy.data.actions["Idle"].slots[0]
 
 # Doorways joint contract (DoorwaysCharacterPresentation): Root/Hips/Chest/UpperArm/LowerArm/Hand/UpperLeg names.
+swords = [make_axe(AXE_INFERNO, AXE_LENGTH[0], "RightHand", "Slot_sword_right__Moonfeather"),
+          make_axe(AXE_WAR, AXE_LENGTH[1], "LeftHand", "Slot_sword_left__Talonshade"),
+          make_axe(AXE_INFERNO, AXE_LENGTH[0], "LeftHand", "Slot_sword_left__Moonfeather"),
+          make_axe(AXE_WAR, AXE_LENGTH[1], "RightHand", "Slot_sword_right__Talonshade"),
+          *make_bow(BOW_GAME_HAND, "Slot_bow_hand", "Slot_bow_string"),
+          make_back(BOW, BOW_LENGTH, "Slot_bow_back", **BACK_BOW),
+          make_back(AXE_INFERNO, AXE_LENGTH[0], "Slot_axe_back__Moonfeather", **BACK_AXES[0]),
+          make_back(AXE_WAR, AXE_LENGTH[1], "Slot_axe_back__Talonshade", **BACK_AXES[1])]
+body.data.materials[0].name = "NyxaraBody"
+
 RENAME = {"LeftHand": "Hand_L", "RightHand": "Hand_R", "Spine": "Chest",
           "LeftArm": "UpperArm_L", "RightArm": "UpperArm_R", "LeftForeArm": "LowerArm_L", "RightForeArm": "LowerArm_R",
           "LeftUpLeg": "UpperLeg_L", "RightUpLeg": "UpperLeg_R"}

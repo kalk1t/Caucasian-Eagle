@@ -37,6 +37,15 @@ The whole contract between the game and the engine is one engine header, `engine
 | `SuppressedActions` | Interact (E), CycleDebugRenderMode (Q), ToggleTextureFilter (F), ToggleImportedAnimatedDebugSampling (V), ToggleImportedSkinningSideBySideComparison (C), BasicAttack (LMB), HeavyAttack (RMB) | `Prepare` | Input map: those engine actions never fire, so the kit owns the keys |
 | `SlowWalk`, `SlowWalkSpeed` | `true`, 1.38 m/s | `Prepare` | Movement |
 | `FastMultiplier` | 2.2 | `Prepare` | Movement (Shift) |
+| `FreeFlight`, `FreeFlightCeiling` | `true`, 45 m | `Prepare` | Movement: the game's flight rules; no time limit, hovers with no key; ends on the ground |
+| `FreeFlightHoldSeconds`, `FreeFlightKeyClimb`, `FreeFlightKeepAloft` | 1e9, `false`, `true` | `Prepare` | Space never takes off, no key climbs or sinks in flight, and nothing but the game ends a flight |
+| `FreeFlightTakeoffHeight`, `FreeFlightTakeoffSeconds` | 6 m, 3 s | `Prepare` | The rise after a take-off |
+| `FreeFlightTakeoff` | set on R | `Journey::Update` | Asks the engine to take off now |
+| `FreeFlightJumpHeight` | not set (0) | | The engine's jump in flight; unused: Space held climbs instead (`FreeFlightKeyClimb` is true, so X sinks too) |
+| `FreeFlightLandSpeed`, `FreeFlightEnd` | height / time left; `true` when the 3 s are up | `Journey::Update` | The landing on R |
+| `SupportY` | a building's top under her, or -1e9 | `Journey::Leash` | She stands on roofs (`Journey::TopAt`) |
+| `FreeFlightSteer`, `FreeFlightLevelPitch`, `FreeFlightSteerGain` | `true`, `CameraPitch`, 1 | `Prepare` | Going forward, the camera's pitch above or below the level pitch climbs or dives |
+| `FreeFlightCharge` | read | `Journey::Update` | Shows "TAKING WING" while Space is held |
 | `HoldFacing` | `true` during an action | `NyxaraKit::Update` | Movement: travel does not turn her |
 | `ImpulseX`, `ImpulseZ` | Dash and dive velocity | `NyxaraKit::Update` | Movement: added before collision resolution |
 | `OrbitCamera` and `Camera*` | Orbit rig, see [11-constants.md](11-constants.md) | `Prepare` | Camera |

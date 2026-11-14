@@ -28,7 +28,7 @@ namespace CaucasianEagle::Story
         const City Cities[CityCount] = {
             {L"Telavi", L"Kakheti", L"The wine of Kakheti",
              L"Vines climb every wall and clay jars as tall as a man sleep in the ground. They pour for anyone who walks toward the mountain.",
-             L"Kakhetian wine", L"Every creature you fell gives you 5 more health."},
+             L"Kakhetian wine", L"Every potion you drink heals 10 more."},
             {L"Tbilisi", L"Kartli", L"The warm springs",
              L"The city was built where a king's falcon fell into hot water. Brick domes steam over the baths under the old fortress.",
              L"Warm springs", L"Every wave and every arena you win heals you far more."},
@@ -43,16 +43,16 @@ namespace CaucasianEagle::Story
              L"Gold of Colchis", L"Every chest holds twice the gold."},
             {L"Batumi", L"Adjara", L"The port on the Black Sea",
              L"Boats rock at the piers under a striped lighthouse. Sailors know every wind, and they know the eagle's.",
-             L"Sea wind", L"Three eagle feathers: your blades bite deeper."},
+             L"Sea wind", L"Three eagle feathers: your axes bite deeper."},
             {L"Mestia", L"Svaneti", L"The towers of Svaneti",
              L"Every family here has its own stone tower and has never been conquered. The smiths forge for the last climb.",
-             L"Svan steel", L"Your blades strike much harder."}};
+             L"Svan steel", L"Your axes strike much harder."}};
 
         const wchar_t* const Memories[12] = {
         L"\"You have his eyes,\" Amirani said. \"But you looked at me. He never has.\"",
         L"\"I stole nothing. I asked why men should kneel. For that, a chain.\"",
         L"\"My dog has licked this iron thin a thousand times. Each year the smiths strike, and it is whole again.\"",
-        L"\"Seven years, little eagle. Learn the sword. Learn the sky. Then come back for me.\"",
+        L"\"Seven years, little eagle. Learn the axe. Learn the sky. Then come back for me.\"",
         L"\"Your father does not hate me. That is the worst of it. He only obeys.\"",
         L"You asked him if it hurt. He laughed until the chain rang.",
         L"\"When I am free I will remember who opened the chain.\" He did not say how.",
@@ -61,6 +61,34 @@ namespace CaucasianEagle::Story
         L"\"He will not strike to kill you,\" Amirani said. \"Use that.\"",
         L"Rokapi's curse: \"He charmed me too, girl. Look where I am.\"",
         L"The dog watches you climb. It has stopped licking the chain. It is waiting."};
+
+    const Place Places[PlaceCount] = {
+        {L"The Last Inn", L"The innkeeper barred the door seven years ago. The lamp still burns for whoever comes back."},
+        {L"The Travellers' Arch", L"Everyone who walked to the mountain passed under this stone. No one has passed back."},
+        {L"The Shepherd's Farm", L"The flock is gone and the door stands open. Something small is laughing in the loft."},
+        {L"The House of Green Fire", L"A Kudiani lives here when she is not on the road. Her fire burns green and gives no warmth."},
+        {L"The Watching Tree", L"The Chinka built this to watch the road. They are watching it now."},
+        {L"The Ferryman's Dock", L"Boats left from here for the far bank. The Ali called every boatman by his name."},
+        {L"The Drowned Chapel", L"They built it to keep the women of the water out. On still nights its bell rings from below."},
+        {L"The Hunter's Camp", L"He hunted the goat-man for a year. His weapons are all here. He is not."},
+        {L"The Forest Queen's Arch", L"Tkashi-Mapa, queen of the wood, raised this gate. Ochokochi has waited at it ever since."},
+        {L"The King in the Moss", L"A king who knelt to no one. The moss has taken his crown all the same."},
+        {L"The Empty Watchtower", L"The watchman lit his fire when the wild men came. There was no one left to see it."},
+        {L"The Broken Stair", L"It climbed to a hall of the tower people. The hall went down the mountain in one night."},
+        {L"The Silent House", L"The last family of the towers lived here. They left the table laid."},
+        {L"The Stone Sleeper", L"It sat down to wait for the thaw. That was before the chain was forged."},
+        {L"The Abbey in the Snow", L"The monks prayed for Amirani by name. That is why the windows still burn."},
+        {L"The Smiths' Stores", L"Here the Kaji keep the iron for his chain. Every link was a sword once."},
+        {L"The Emerald Gate", L"The Kaji walk through it from their own country. Nothing that goes in the other way comes out."},
+        {L"The Rock of Faces", L"The Uaig carve each father into the rock when he dies. The oldest faces have no eyes left."},
+        {L"The Empty Throne", L"No giant has sat here since Amirani threw their last king down the valley."},
+        {L"The Golden Columns", L"Colchis raised a temple to the thing in the lake. It did not help."},
+        {L"The Devi's Hoard", L"The gold of every traveller who came before you. The Devi count it every night."},
+        {L"The Fort of Three Kings", L"Three kings held this gorge against the Devi. One for each head."},
+        {L"The First Chain", L"Rokapi broke this one. The chain that holds her now was forged by the smiths who forged his."},
+        {L"The Dancing Floor", L"Once a year the Kudiani ride here to dance for their queen. She can only watch."},
+        {L"The Fire Bearer", L"She carried fire up to him every seventh year until she was too old to climb. The Eagle let her pass."},
+        {L"The Last Arch", L"Beyond this stone there is only the cave, the chain and your father."}};
 
     namespace
     {
@@ -91,7 +119,7 @@ namespace CaucasianEagle::Story
              L"You hold up the three links the guardians of the road carried. Amirani looks at them for a long time. \"You broke "
              L"more than my chain, little eagle,\" he says, and this smile you can read. He kneels beside your father and lays the "
              L"links on his wing. The Eagle breathes."}};
-        const wchar_t* PageNames[PageCount] = {L"THE LEGEND", L"THE ROAD", L"MEMORIES", L"THE END"};
+        const wchar_t* PageNames[PageCount] = {L"THE LEGEND", L"THE ROAD", L"MEMORIES", L"PLACES", L"THE END"};
 
         // ---- journal layout, in layout units
         constexpr float PanelWidth = 1060, PanelHeight = 664, PanelSideGap = 34, PanelTopGap = 22;
@@ -194,6 +222,26 @@ namespace CaucasianEagle::Story
             entries(j.MemoriesFound, -1, [](int) { return static_cast<const wchar_t*>(nullptr); }, [](int i) { return Memories[i]; },
                 L"Still in an old gold chest, somewhere on the road.");
             break;
+        case PlacesPage:
+        {   // every place beside the road, in two columns; those she has not found yet are only numbered
+            const float columnWidth = (view.Width - ColumnGap * S) * .5f, textWidth = columnWidth - NumeralWidth * S;
+            const int half = (PlaceCount + 1) / 2;
+            for (int column = 0; column < 2; ++column)
+            {
+                const float x = view.X + static_cast<float>(column) * (columnWidth + ColumnGap * S);
+                float y = top + 4 * S;
+                for (int i = column * half; i < std::min(PlaceCount, column * half + half); ++i)
+                {
+                    const bool open = (j.PlacesFound >> i & 1ull) != 0;
+                    ui.RightAligned(std::to_wstring(i + 1), x + (NumeralWidth - 14) * S, y, EntryTitlePixels * S, (open ? Gold : Faint).Fade(a));
+                    const float tx2 = x + NumeralWidth * S;
+                    if (open) { ui.Text(Places[i].Name, tx2, y, EntryTitlePixels * S, Ink.Fade(a)); y += ui.Height(EntryTitlePixels * S) + 3 * S; }
+                    y = ui.Paragraph(open ? Places[i].Text : L"Not yet found. It stands beside the road.", tx2, y, EntryPixels * S, textWidth, 3 * S, (open ? Dim : Faint).Fade(a)) + EntryGap * S;
+                }
+                bottom = std::max(bottom, y);
+            }
+            break;
+        }
         default: prose(EndText, 4, j.EndReached, L"Not yet lived."); break;
         }
         ui.SetClip(nullptr);
@@ -207,7 +255,10 @@ namespace CaucasianEagle::Story
 
         // ---- footer: what is found, and the keys
         const float fy = py + ph - 44 * S, keyHeight = 22 * S, labelPixels = 1.6f * S, labelY = fy + (keyHeight * .86f - ui.Height(labelPixels)) * .5f;
-        const std::wstring found = L"REGIONS " + std::to_wstring(j.ChaptersReached) + L" / 12     MEMORIES " + std::to_wstring(j.MemoriesFound) + L" / 12";
+        int places = 0;
+        for (int i = 0; i < PlaceCount; ++i) places += (j.PlacesFound >> i & 1ull) != 0 ? 1 : 0;
+        const std::wstring found = L"REGIONS " + std::to_wstring(j.ChaptersReached) + L" / 12     MEMORIES " + std::to_wstring(j.MemoriesFound) + L" / 12     PLACES " +
+                                   std::to_wstring(places) + L" / " + std::to_wstring(PlaceCount);
         ui.Text(found, px + ContentSide * S, labelY, labelPixels, Dim.Fade(a));
         float kx = px + pw - ContentSide * S;
         const auto hint = [&](const wchar_t* label, std::initializer_list<const wchar_t*> keys)

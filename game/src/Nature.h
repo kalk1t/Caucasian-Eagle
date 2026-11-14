@@ -35,6 +35,10 @@ namespace CaucasianEagle
 
         bool Initialize(Renderer& renderer, std::string& error);
         void SetClearings(std::vector<Clearing> clearings) { mClearings = std::move(clearings); }
+        // The first stone of the road. The land map keeps a level apron behind it bare, as if the road went on there
+        // (art/world/build_world.py, APRON); it looked like a bare round patch behind the start. Behind this point the
+        // distance from the road is measured from the stone itself, so grass and trees grow there as on any land.
+        void SetRoadStart(float x, float z) { mStartX = x; mStartZ = z; mHasStart = true; }
         void Update(float realDeltaTime) { mTime += realDeltaTime; }
 
         // The land beside the road. Outside the map the nearest edge is returned.
@@ -68,6 +72,7 @@ namespace CaucasianEagle
         std::vector<float> mHeight, mBeyond;
         std::vector<unsigned char> mRegion;
         std::vector<Clearing> mClearings;
+        float mStartX = 0, mStartZ = 0; bool mHasStart = false;
 
         std::unordered_map<long long, Cell> mCells;
         std::vector<Tree> mBroadleaf, mConifer;

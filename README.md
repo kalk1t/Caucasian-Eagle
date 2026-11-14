@@ -6,7 +6,7 @@ A single-player action game for Windows, built on the Doorways engine.
 
 Amirani fought against God and is chained in a cave on the Caucasus Range, where an eagle feeds on his liver. Once every seven years the cave opens. On that day **Nyxara**, the eagle's daughter, sees him, and promises to spend seven years becoming strong enough to fight her father and break the chain. The game is her road to the mountain. Full story: [`story/STORY.md`](story/STORY.md).
 
-**Version 0.3.0** is the living road: the whole journey through twelve regions and seven cities of the Caucasus, against ten creatures of its folklore and three bosses, to the fight with the Eagle and the breaking of the chain, with the game's own start screen, menu, settings, maps, story journal, sound and mouse pointer. It has been tested by an unattended test pilot and only partly played by hand. It is the first version with an installer: download `CaucasianEagle-0.3.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows will warn that the file is not signed: choose "More info", then "Run anyway"), and start Caucasian Eagle from the Start menu. A zip that runs without installing is on the same page. What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
+**Version 0.4.0** gives Nyxara her wings and her weapons: free flight wherever the camera looks, two axes and a longbow she carries apart from her body, the finishing blow, traps and named places along the road, creatures that reach her in the air, a save that keeps her place, and a new start screen. It is built on version 0.3.0, the living road: the whole journey through twelve regions and seven cities of the Caucasus, against ten creatures of its folklore and three bosses, to the fight with the Eagle and the breaking of the chain, with the game's own start screen, menu, settings, maps, story journal, sound and mouse pointer. It has been tested by an unattended test pilot and only partly played by hand. It is the first version with an installer: download `CaucasianEagle-0.4.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows will warn that the file is not signed: choose "More info", then "Run anyway"), and start Caucasian Eagle from the Start menu. A zip that runs without installing is on the same page. What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
 
 ## System requirements
 
@@ -31,7 +31,7 @@ How to play is in three places, and they say the same:
 - **The [player manual](docs/manual.md):** everything, at length.
 - **Below:** the keys.
 
-In short: follow the old road from its first gate to the mountain. In every clearing ringed with standing stones you are ambushed and walls hold you in until each wave is beaten. Creatures leave crystals; spend them in Nyxara's window (**I**) on her wings, swords and armour. Seven cities on the road heal you once each and give a lasting gift. Three guardians and, at the end, the Eagle bar the way. The game saves by itself.
+In short: follow the old road from its first gate to the mountain. On the way are nine traps (the line under the compass says what each one asks) and 26 named places to find. In most clearings ringed with standing stones you are ambushed and walls hold you in until each wave is beaten. Creatures leave crystals; spend them in Nyxara's window (**I**) on her wings, axes and armour. Seven cities on the road heal you once each and give a lasting gift. Three guardians and, at the end, the Eagle bar the way. The game saves by itself.
 
 ## Build and run
 
@@ -49,17 +49,20 @@ The first build compiles the whole engine and takes several minutes. The runnabl
 
 | Input | Action |
 |---|---|
-| W A S D | Fly (upright, low over the ground) |
+| W A S D | Walk; in the air W flies where the camera looks |
 | Shift | Wing boost (faster) |
-| Ctrl | Walk |
-| Space / hold Space | Jump / rise |
+| Ctrl | Walk slowly |
+| Space | Jump on foot; held in flight, climb (X sinks) |
+| R | Take wing (3 s) / land when low (3 s) |
 | Mouse | Look |
-| Left click | Sword slash: left sword, then right sword, alternating |
+| Left click | Axe blow: right axe, then left axe, alternating |
 | Right click | Charged slash |
 | F / V / C | Talon Dash / Feather Cyclone / Moon Leap |
 | F, V or C, then left or right click | That skill's two combos |
-| Q | Swap the swords between hands |
-| E (hold) | Sword barrier |
+| G | Swap the axes between hands |
+| Q | Bow or axes (the other goes on her back) |
+| Bow: right click (hold) / left click (hold) | Aim over her shoulder / arrows |
+| E (hold) | Axe barrier |
 | Z | Drink a potion |
 | I | Nyxara's window: grow, and (D) what she carries |
 | F1 / M | Story journal / world map |

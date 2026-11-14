@@ -16,6 +16,9 @@ namespace Doorways
         const wchar_t* ComboLeft = L""; const wchar_t* ComboRight = L"";
         const wchar_t* Action = L"";                         // current action name
         bool Guarding = false, Boosting = false, Swapped = false, Slashing = false, Heavy = false, Swapping = false;
+        bool OnTarget = false, HitKill = false; float HitMark = 0;   // the mark is on an enemy; an arrow just hit (1 fading to 0); it felled it
+        bool TargetVisible = false; float TargetX = 0, TargetY = 0, TargetSize = 0;   // the enemy the arrows will go to, on the screen (0..1)
+        bool Bow = false, Shooting = false; float Aim = 0;   // the bow is out; arrows are flying; 0..1 she is aiming (the mark shows)
         const wchar_t* Notice = L""; float NoticeTimer = 0;
         struct Enemy { float X = 0, Y = 0, Health = 0, Flash = 0; bool Visible = false; };
         Enemy Enemies[8]; int EnemyCount = 0;                // X/Y in 0..1 screen space

@@ -207,7 +207,12 @@ namespace CaucasianEagle
         return (row[0] * (1 - tx) + row[1] * tx) * (1 - tz) + (row[mNx] * (1 - tx) + row[mNx + 1] * tx) * tz;
     }
     float Nature::Height(float x, float z) const { return mHeight.empty() ? 0 : Sample(mHeight, x, z); }
-    float Nature::Beyond(float x, float z) const { return mBeyond.empty() ? 0 : Sample(mBeyond, x, z); }
+    float Nature::Beyond(float x, float z) const
+    {
+        const float beyond = mBeyond.empty() ? 0 : Sample(mBeyond, x, z);
+        if (mHasStart && z < mStartZ - .5f) return std::max(beyond, std::sqrt((x - mStartX) * (x - mStartX) + (z - mStartZ) * (z - mStartZ)) - .5f);   // behind the first stone
+        return beyond;
+    }
     int Nature::Region(float x, float z) const
     {
         if (mRegion.empty()) return 0;

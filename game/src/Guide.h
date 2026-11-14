@@ -10,7 +10,7 @@ namespace CaucasianEagle
 
     namespace Guide
     {
-        constexpr int PageCount = 7;   // the last one says who made the game and the engine (the start screen's Credits opens it)
+        constexpr int PageCount = 8;   // the last one says who made the game and the engine (the start screen's Credits opens it)
         void Draw(Ui& ui, int page, float fade);
     }
 }

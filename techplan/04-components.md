@@ -46,7 +46,7 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 
 | Act | Input | Name shown | Clip |
 |---|---|---|---|
-| `Slash1` | LMB (first, then every other click) | LEFT TALON | `BasicAttack` (mirrored to the left hand) |
+| `Slash1` | LMB (first, then every other click) | RIGHT TALON | `BasicAttack` (mirrored to the rig's left hand, which the screen shows as her right) |
 | `Slash2` | LMB (second, then every other click) | RIGHT TALON | `SlashLeft` |
 | `Heavy` | RMB | CHARGED SLASH | `HeavyAttack` |
 | `Skill1` | F | TALON DASH | `Skill1` |
@@ -55,8 +55,10 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 | `Combo1L` / `Combo1R` | after F: LMB / RMB | TWIN TALONS / RISING EAGLE | `Combo1L` / `Combo1R` |
 | `Combo2L` / `Combo2R` | after V: LMB / RMB | TEMPEST TRIPLE / WHIRLWIND TALONS | `Combo2L` / `Combo2R` |
 | `Combo3L` / `Combo3R` | after C: LMB / RMB | SOUL WEAVE / MOONFALL DIVE | `Combo3L` / `Combo3R` |
-| `Guard` | E (hold) | SWORD BARRIER | `Guard` |
-| `Swap` | Q | SWORD EXCHANGE | `SwordSwap` |
+| `Guard` | E (hold) | AXE BARRIER | `Guard` |
+| `Swap` | G (axes out) | AXE EXCHANGE | `SwordSwap` |
+| (no `Act`: `SetBow`) | Q | BOW / AXES | none: at once |
+| (no `Act`: `Shoot`, `mBowPosing`) | bow out: LMB held / RMB held | arrows / aim | `BowShot` (time 0 = loosed, 0.2 s = drawn; held at the end while she aims) |
 
 ### Main functions
 
@@ -65,7 +67,7 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 | `Initialize` | Builds effect meshes in code, loads six effect textures from `assets/Compiled/Effects/Nyxara`, places the shades, sets `GameSession().Active` |
 | `ReadKeys` | Reads the mouse buttons and Q, E, F, V, C, Shift; in showcase mode returns scripted keys instead |
 | `ScaleFrameTime` | Returns 6% of real time while a hit-stop is running |
-| `Update` | Per frame: glide lift and lean, cooldowns, input to action (including skill cancel and the 0.45 s press buffer), hit events, dash and dive movement, enemies, projectiles, effects, HUD snapshot |
+| `Update` | Per frame: lean and bank in flight (on the ground she is on foot: `SetOnFoot`; only the test pilot still glides low), cooldowns, input to action (including skill cancel and the 0.45 s press buffer), hit events, dash and dive movement, enemies, projectiles, effects, HUD snapshot |
 | `StartAction` | Begins an action: aims at the camera direction or a nearby shade, starts step-in dashes |
 | `OnHit` | Runs when an action's hit time is reached: damage shape, effects, pulls, launches |
 | `Impact` | Hit feedback: hit-stop, camera shake, sparks, cross-slash, ring |
@@ -84,7 +86,7 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 | `GameSession().ImpulseX/Z` | Dashes and dives, resolved by engine collision |
 | `GameSession().HoldFacing` | Keeps her facing the target while moving during an action |
 | `GameSession().CameraShake` | Impact shake |
-| `WorldRenderer::SetCharacterMaterialVisible` | Shows the right sword model in each hand after a swap |
+| `WorldRenderer::SetCharacterMaterialVisible` | Shows the right axe model in each hand after a swap |
 | `CombatSystem::ApplyIncomingDamage` | Shade orbs damaging the player |
 
 ## 7.4 `NyxaraHud`
@@ -113,6 +115,24 @@ An action is one row of the `Acts` table: display name, animation clip, playback
 
 **Trouble on the road.** `Journey::BuildTroubles` (after the cities are loaded) places a trouble about every `TroubleEvery` metres of road from `TroubleFirst` to `TroubleLastBefore` before the end, not within `TroubleClear` of an arena or a city, from a fixed seed, so the places are the same in every journey; the three kinds come in turn. Kinds: 0 cursed ground (a circle over one half of the road; `Hurt` with `MireDamage` while she stands in it, paced by her mercy time), 1 falling stones (within `RockfallReach` a stone is aimed near her every `RockfallEvery` seconds; `NyxaraKit::RingEffect` marks it for `RockfallWarn` seconds, then it hurts within `RockfallRadius` unless her barrier is up), 2 wisps (`WispCount` lights swinging across the road, `WispAt`; a touch within `WispTouch` hurts). `UpdateTroubles` runs with the cities' update; nothing harms her during a fight, after the journey is complete or while she is down. All harm is multiplied by `DamageTaken()`. `Draw` shows them as glow motes within 130 m; the objective line names the one within `TroubleWarn`.
 
+**Open clearings.** An `A` row of kind 3 in `Road.txt` is a clearing without a fight: `LoadRoad` keeps its kind in `mArenaRows`, makes no arena of it, and frees its chest (`Arena = -1`). `mArenas` therefore holds 25 arenas; everything that counts arenas (the save, `CAUCASIAN_EAGLE_START`, the HUD) counts these.
+
+**Traps.** `TrapTable` (anonymous namespace, `Journey.cpp`) lists nine traps by kind, road distance and the place model that stands there. `BuildTraps` (called by `LoadPlaces`, so the place models are loaded) makes a `Trap` of each: its two ends, the road's direction and normal there, and its scenery through `Stand` (a model with its blocker), and removes the small troubles within it. `UpdateTraps` (after `UpdateTroubles`, not during a fight) runs them: the gate run's clock, bars (`GateBarAt`) and door; the gust cycle and walls of the wind teeth; the orb fans of the rune stones; the watchers' sheets; the falling stones of the seal (a `Strike` with `Trap` set; the strike's landing in `UpdateTroubles` counts the cracks); the press's hammer (`PressHammerAt`) and its link, which is an enemy of `LinkKind` in a combat slot whose `Weak` is almost zero except just after a blow. `WinTrap` gives the crystals, shows the banner and saves. A trap is won once (`Trap::Won`, `TrapBits` in the save). Pass-through traps (wind, runes, watchers) are won by entering at one end and leaving at the other. Roaming packs are not placed inside a trap. Drawing is in `Journey::Draw`: solid parts with the place and prop models, lights as glow cards (`beam` builds a long ray from short cards, because one long thin card washes out).
+
+**Places.** `LoadPlaces` reads `Places.txt` (section 8.1b): models, where each stands, blockers (`O` with a top she may stand on, `o` without), clearings of trees, lights, and the 26 sites. Within a site's radius for the first time `UpdatePlaces` sets its bit, gives `PlaceCrystals`, shows the name and saves. The names and the journal's lines are `CaucasianEagle::Story::Places` (`Story.cpp`); the journal's PLACES page shows the found ones.
+
+**Creatures against flight.** In the monsters' update, `over` is her height above a creature; a melee blow does not land when it is more than `MeleeReachUp` above its head. Creatures that keep their distance and are not guardians (Ali, Kudiani) rise towards her height (`Monster::Air`, at most `FlyerCeiling`); small melee creatures leap (`Leap*`: a ballistic hop that hurts on touch); giants throw stone orbs (`Throw*`). Roaming packs (`roams`) follow her off the road up to `PackRoam`, only over land they could walk (`PackDrop`, `PackClimb`), come from both sides (`PackFlank`) and give up at `PatrolGiveUp` behind or `PackLost` in any direction.
+
+**Under the land.** In the road-keeping step, if she is not grounded and more than `UnderLand` under both the land's height and the road's, she is put back on the land and a log line says where. The walkable sheet lies at the road's level in the road's corridor and at the land's height beyond; where the land is lower the sheet has a rim one cell wide. The engine does not count so steep a face as ground, so coming in from the low side (or down onto a cliff face) took her under the sheet, and under it there is no ground at all: without this she fell without end. She is lifted to the land's height, or to the road's when she is within `CorridorRim` of the road's edge and that is higher. The log line gives her state (grounded, falling speed, flight).
+
+**Death and the save point.** The session sets `OwnDeath`: the engine shows no panel. In `Journey::Update`, when `CombatSystem::PlayerActionsAllowed` turns false the fight is undone and a banner shows; after `DeathSeconds` the game sets the session's `SpawnPosition` to the road sample beside the save point (ground the engine's placement check is sure of) and calls `CombatSystem::RequestRespawn`, twice a second until it is taken. When she is alive again `WakeAtSavePoint` puts her on the point itself and the spawn point is set back to the start of the road. `Save` moves the save point to where she is when `CanMark` holds (placed, alive, no fight, no finale in progress). F8 (`RuntimeSceneSummary` is suppressed, so the engine's F8 report does not run) calls `Save` when `CanMark` holds.
+
+**The flight ceiling.** The engine measures `FreeFlightCeiling` from the take-off height. The flight block of `Journey::Update` sets it every frame to the ground (or roof) under her plus `FlightCeiling`, less the take-off height, so the ceiling follows the land.
+
+**Behind the first stone.** `Nature::Beyond` (metres from the road, from `Terrain.bin`) is zero on the level apron that `build_world.py` lays behind the road's start (`APRON`). `Journey::Initialize` gives `Nature::SetRoadStart` the first road sample; behind it `Beyond` is at least the distance from that sample, so grass and trees grow on the apron.
+
+**The cage of a fight and its creatures.** In an ambush (arena kind 0) creatures that are not guardians may go as far as 2.5 m inside each wall (`CageEnd`); a creature beyond that is put back at the limit. Guardians and the creatures of a guardian's fight keep to the clearing (0.9 of its radius), as before.
+
 **Attack timing.** All of it is constants in `GameConstants.h` (see [11-constants.md](11-constants.md)) and the input block of `NyxaraKit::Update`. A combo opens when its skill's last hit has landed (`mNextHit >= HitCount`), not at a share of the clip, so a skill keeps every hit; a mouse press from the first hit on is held in `mComboBuffer` for `ComboBufferSeconds`. `recovered()` is true once `RecoveryCancel` clip seconds have passed after the last hit of a skill or combo; from then `canStart()` lets a slash, the heavy blow, the barrier or the swap begin. `canGuard()` also lets the barrier cut a slash, the heavy blow or the swap at any time. `mBuffered` (left click) chains slash to slash and heavy to slash; `mHeavyBuffered` (right click) chains slash to heavy.
 
 **No dodge.** `DoorwaysInputAction::Dodge` is always in `SuppressedActions` (`Game::Prepare`). The `Dodge` clip is still built into the character and is not played. Unlocked regions are not in the save file: after loading they are taken from the last arena won.
@@ -131,10 +151,10 @@ Scenery. Its collision (the walkable ledge) is part of the `RoadToAmirani` scene
 
 | Function | What it does |
 |---|---|
-| `Initialize` | Builds the sky dome, moon sphere and halo quad; loads `Mountain`, `Amirani`, `Eagle`, `Dog` (`.dmesh` plus `<Name>BaseColor.png`) from `LandmarkFolder`. Finds the flat ledge in the mountain mesh and turns it toward the play area, because the importer may mirror Z. |
+| `Initialize` | Builds the sky dome (no moon is drawn); loads `Mountain`, `Amirani`, `Eagle`, `Dog` (`.dmesh` plus `<Name>BaseColor.png`) from `LandmarkFolder`. Finds the flat ledge in the mountain mesh and turns it toward the play area, because the importer may mirror Z. |
 | `Update` | Advances the animation clock with real time, so the scene keeps moving during hit-stop. |
-| `Draw` | Sky dome and moon first (centred on the camera, so they never come closer), then the mountain, Amirani (slow breathing), the eagle (wing-beat bob and a lunge at the wound every `EaglePeckPeriod`), the dog (small head motion), and four chains made of box links. |
-| `StyleEnvironment` | Called from `Game::AdjustEnvironment` every frame: switches the engine's own sky panels and moon off, and sets moonlight direction and colour, ambient colour and haze. |
+| `Draw` | Sky dome first (centred on the camera, so it never comes closer), then the mountain, Amirani (slow breathing), the eagle (wing-beat bob and a lunge at the wound every `EaglePeckPeriod`), the dog (small head motion), and four chains made of box links. |
+| `StyleEnvironment` | Called from `Game::AdjustEnvironment` every frame: switches the engine's own sky panels off, and sets moonlight direction and colour, ambient colour and haze. |
 
 **Why the game draws the sky itself.** The engine lights its sky panels like scenery (ambient, directional, image-based light), which washes a painted sky out and lights each panel differently. The dome here gives every vertex the same normal, pointing along the moonlight, so the directional light adds nothing and the ambient term is equal everywhere. The moon uses the same trick and therefore always shows as a full moon.
 
@@ -207,7 +227,7 @@ The kit keeps a list of up to `MaxEnemies` (30) enemy slots: position, health, r
 | Boost (father's feathers) | `Boost` | The kit's boost scale |
 | Crystals (all seven verses) | `Crystals` | Crystals a creature leaves |
 | Creature attack pace (frost runes) | `CreaturePace` | Cooldown after a creature's blow |
-| Health per kill (moon runes) | `KillHeal` | With the kill heal |
+| Health per wave and arena won (moon runes) | `WinHeal` | With the wave and arena heal |
 
 Where things come from: a creature that dies drops its charm with chance `CharmChance` until the set is full; a boss other than the Eagle gives a link; a gold chest of tier 1 gives a rune with chance `RuneChance`, tier 2 always; feathers lie where `PlaceFatherFeathers` puts them (a third of the way through each region, at the road's edge, not in an arena or a city) and are taken within `FatherFeatherReach`. With three links `ReachEnd(4)` unlocks the fourth passage of `EndText`.
 
@@ -230,7 +250,7 @@ Nothing is stored about where things stand. A hash of the place decides, so ever
 
 ### Her window lists the stages
 
-In `Growth::Draw` an item card (wings, swords, armour) lists all four stage names (`ItemName(row, 0..3)`): passed ones dim, the worn one on a band in its tier colour with WORN, the next with NEXT; under the list what she has from it now and the price and promise of the next stage. Training cards (power, defence) are unchanged. The engine inventory cannot open while the game suppresses `ToggleInventory` (engine `AppInventory.cpp`).
+In `Growth::Draw` an item card (wings, axes, armour) lists all four stage names (`ItemName(row, 0..3)`): passed ones dim, the worn one on a band in its tier colour with WORN, the next with NEXT; under the list what she has from it now and the price and promise of the next stage. Training cards (power, defence) are unchanged. The engine inventory cannot open while the game suppresses `ToggleInventory` (engine `AppInventory.cpp`).
 
 ### How ordinary creatures fight (`Journey::UpdateMonsters`)
 
@@ -299,5 +319,57 @@ Four rules keep a crowd from killing her at once, all in `GameConstants.h`:
 
 - **Mercy time.** Every hit goes through `NyxaraKit::Hurt`; after a hit, further hits do nothing for `MercySeconds`.
 - **Attack turns.** At most `MaxAttackers` ordinary creatures wind up a blow at the same time; the others wait. Bosses are not counted.
-- **Health from the fallen.** Each creature killed gives `KillHeal` health (10; bosses excepted); every chest gives potions (see Growth); a beaten wave gives `WaveHeal`, a won arena `ArenaHeal`.
-- **Slow rest.** Health returns by itself at `RegenHealth` every `RegenSeconds` (1 every 2 s) while she lives (`Journey::Update`, `mRegen`). Chests give no health: only potions to carry.
+- **Health.** Felling a creature gives none (it gave 10 until 2026-11-13). Every chest gives potions (see Growth); a beaten wave gives `WaveHeal`, a won arena `ArenaHeal`, each with `MoonRuneHeal` more per moon rune set.
+- **No rest.** Health never returns by itself (the 1 every 2 s of v0.3.0 is removed): felled creatures, beaten waves, won arenas, cities and potions give it. Chests give no health: only potions to carry.
+
+## Nyxara's body and weapons (2026-11-13)
+
+`HeroBundle` (`GameConstants.h`) names the bundle under `assets/Compiled` that `Game::Prepare` loads: `Characters/Nyxara/RodinV1`. `CAUCASIAN_EAGLE_HERO=EagleV1` loads `HeroBundleBefore` instead. Both bundles have the same skeleton file and the same 32 clips, byte for byte; they differ in mesh, mesh binding, materials and textures.
+
+`NyxaraKit::LoadEquipment` decides which kind of body it has: a body with a material named `Slot_bow_hand` has its weapons in its mesh (EagleV1), and `ApplySwordVisibility` shows and hides materials as before. A body without it is modular (`mModular`): the kit loads the three weapons of `NyxaraEquipment.h` as engine character attachments and `ApplySwordVisibility` places them. In hand: Inferno on `Hand_L` and Serpentcoil on `Hand_R`, exchanged by G; with the bow out, the bow on `Hand_R` (the hand the player sees as her left) and both axes on her back; else the bow on her back. The back places are given in her own frame at rest and turned into the `Chest` joint's frame with that joint's inverse bind matrix. While she draws, the bow's `BowCord` material is hidden and `NyxaraKit::Draw` draws the string from the bow's string ends to her other hand, all taken from the pose of that frame (`EquipmentPoint`); the baked points of `BowPoints.h` remain the fallback and are what EagleV1 uses.
+
+`NyxaraEquipment.h` is written by `art/nyxara/equipment/gen_equipment.py` from `equipment_manifest.json` (hand frames) and from the back places set in that script.
+
+Not done: finger joints and grip poses, a second bow or swords in play (the delivery has two plain swords and a second bow; they are not in the game), collision for weapons.
+
+**Later on 2026-11-13.** `HeroBundle` is `Characters/Nyxara/EagleV2` (Codex's `NyxaraCompatValidated`: the old body and wings, no weapon geometry, the same skeleton and clips). `CAUCASIAN_EAGLE_HERO=<name>` loads `Characters/Nyxara/<name>` if it has a `Character.dmesh` (`EagleV1`, `RodinV1`). The bow in `NyxaraEquipment.h` is `EldritchLongbow`: `art/nyxara/equipment/build_bow.py` (Blender) cuts the string off the Meshy bow model, puts both into the weapon frame and writes the GLB and its string points; `DoorwaysAssetBuilder scene-pipeline <glb> <Equipment folder> EldritchLongbow` compiles it; the points go into `equipment_manifest.json`.
+
+**The aim.** While the bow is up `NyxaraKit` calls `character.SetPresentationAimPitch(BowAimJoint, mBowPitch)`. `mBowPitchGoal` is the pitch of the line from her chest to the arrow's target (set in `Shoot`), or of the camera's middle ray while she aims; `mBowPitch` follows it at `BowAimPitchRate`. The engine turns the joint's whole subtree rigidly about her side axis in `BuildGpuSkinningPalette`, after re-making the pose matrices from the local joints, so the turn never accumulates. Testing: `CAUCASIAN_EAGLE_BOWPITCH=<degrees>` holds the pitch in an unattended run.
+
+## Combat changes of 2026-11-13 (NyxaraKit)
+
+**Closed hands.** `HeroBundle` is `Characters/Nyxara/EagleV3`: EagleV2 with another `Character.dmesh` and `Character.meshbind`. `close_hands.py <in.glb> <out.glb>` moves only the positions and normals of the vertices that follow `Hand_L` or `Hand_R` (weight 0.35 or more), bending each hand as a strip at three places; the skeleton, the weights and the clips are untouched, so the rig signature is the same. Compile with `character-pipeline` into a fresh folder and copy the two files.
+
+**The finishing blow.** `NyxaraKit::Broken(wraith)`: alive, `Weak` at least 0.01 (a shielded enemy is never broken), full health at least `FinisherMinHealth` (chests are below it), health at or below `FinisherHealthPart` of full (`FinisherBossPart` when `PushScale` is 0.5 or less). `FinishTarget` is the nearest broken enemy within `FinisherReach`: any within 3 m, further ones only if the view looks toward them. The right button with a finish target starts `Act::Finisher` (clip `Finisher`, hits at 0.63 and 1.57 clip seconds) instead of the heavy blow, also out of a slash or the heavy blow. Hit 0 throws the target up without damage; before hit 1 she dives to where the target is then; hit 1 sets its health to 1 and calls `DamageWraith`, so the journey sees an ordinary death, then `Area` 4.5 m, 36. The reward (`FinisherHeal`, cooldowns times `FinisherCooldownPart`) is given in `Update`, where the combat system is at hand. `mMercy` is raised to `FinisherMercy` at the start. The log has `[FINISH] start` and `[FINISH] kill`.
+
+**The clip.** `blender -b art/nyxara/blender/Nyxara_game.blend -P art/nyxara/blender/finishers.py -- <out.glb>` samples Combo1R (0.40 to 1.30 s) and Combo3R (0.45 to 2.50 s) frame by frame, cross-fades 0.2 s, and exports only Idle, BasicAttack and Finisher; the .blend is not saved. `character-pipeline <out.glb> <fresh dir> Idle BasicAttack Finisher`, then `Finisher.danim` is copied into every body's bundle (EagleV1, EagleV2, EagleV3, RodinV1). The clip is in the list of `CaucasianEagleGame.cpp`, and a bundle without it does not load.
+
+**Effects.** `Fx::Air` draws an arc or an arc wave as one pale sheet with almost no emission; the `arc` and `wave` helpers of `OnHit` and the arcs of `Impact` set it. `FxKind::Wind` is a thin fading line along its velocity (the dash). `FxKind::Cyclone` is twenty wind lines and a dust ring. `FxKind::RingWave` is a low wall of dust (Moon Leap's ground shock, the only user). `FxKind::Pillar` and `FxKind::Lance` are no longer made by anything. Talon Dash has no hits of its own (`HitCount` 0, ends at 0.62 clip seconds); its damage is `mDashDamage`.
+
+**The third slash.** `mString` counts slashes started within `SlashStringSeconds` of the one before (1, 2, 3, 1, ...); on 3 the hit is the flurry.
+
+## Map Lab (2026-11-13)
+
+`testing/MapLab/MapLab.cpp` is an `IDoorwaysGame` of its own: it sets `SceneId` to the map's scene with `SceneCollision`, loads `HeroBundle` and the `NyxaraKit` (no `Journey`), reads `assets/Lab/Maps/<Map>.txt` (stations, zones, trail samples every 4 m) and measures against it. Free flight has no ceiling (`FreeFlightCeiling` 0). The camera's `FarZ` is 14000 and `NearZ` 0.25 so a 4200 m summit is in view from the shore (the engine's default far plane, 5400 m, is nearer than the summit of Ascent seen from its shore). The engine's sky box is a room 440 m wide round the origin; the lab pushes it to 40 km and uses the clear colour as the sky. Speed steps multiply `MoveSpeed` and `FlightSpeed`.
+
+`build_mountain.py` (first named `build_ascent.py`): the land is a cone round the peak's axis, its height a function of the distance from the axis only; terraces stand at distances `RHO[k]` and angles `PHI[k]`, and each leg changes distance and angle evenly, so the trail lies on the land. `FACE` (rise per metre of the land) above 1.17 makes the face unwalkable (the engine blocks faces whose normal's y is 0.65 or less, 49.5 degrees). The trail's shelf is cut by blending the land toward the trail's height within 38 m of it. Near land: 6 m cells with walkable collision in pieces of 16 by 16 cells; far land: 60 m cells, no collision, with a skirt under the near land's edge. The scene compiles into one mesh object (427 000 faces) and ran at 60 FPS on the workstation.
+
+What a real high map will need that the lab map does not have: a sky that is more than a colour, land detail finer than 6 m beside the trail, collision for rocks and props (Amiran's rock in Ascent has none), and a decision on whether the present far plane and fog of the campaign are changed.
+
+## Map A in the Map Lab (2026-11-13)
+
+`build_mountain.py DEF=<map.json>` builds a described map. The land is a cone warped by spurs and side valleys (`warp()`); the path is laid out as legs of unequal rise in the unwarped space and set on the real land (`unwarp()`), so it winds; no stretch climbs more than `MAX_GRADE`; stretches of the path that would touch at different heights are narrowed. Models stand by kind (`stand()`: trunk, bedded, or on a levelled `pad()`). Pieces (`testing/MapLab/pieces`, made by `prepare_pieces.py`) are bent along the path as tiles (`pave()`), with their walking surface as collision where the path climbs less than `STONE_GRADE`. Also: gorges (a trench down the middle of the face where a leg crosses it; the land there ignores the trail and the ribbon is the bridge), flight lines (aprons: the trail widened at two places), and landmarks as boxes grouped by material (`Doorways_ML_Block_<material>`). The data file gains `station ... <ID> <checkpoint 0/1>`, `flight <ID> <kind> <from xyz> <to xyz>`, `updraft <ID> <xyz> <radius> <top> <lift>`, `wind <ID> <xyz> <radius> <dx> <dz> <speed>`.
+
+`MapLab.cpp`: `Air()` lifts her in an updraft's column and adds a wind's push to `ImpulseX/Z`, in flight only; it notes the last checkpoint terrace she stood on and returns her there on Backspace, under the sea, or 1.5 km from the trail. `Walk()` steers the camera toward the trail sample 12 m ahead and holds the scripted W.
+
+**Two rules of the engine a map must obey**, found here. (1) `QueryGroundHeight` takes the highest walkable ground between 1.0 m under and 0.45 m (+0.02) over her feet, and `BuildMovementCandidate` then refuses a step of more than 0.45 m: ground lying 0.45 to 0.47 m over the surface she is on stops her for good. Stacked walkable surfaces must be level with each other or clearly apart. (2) Her height follows the ground at `HeightFollowSpeed` 12 per second, so on a slope her feet lag by (vertical speed / 12) m, and the same 0.45 m rule stops her when that lag is too big: a run of 5.4 m/s allows a grade of about 0.85, a Talon Dash allows almost none uphill. The lab multiplies `HeightFollowSpeed` by its speed step; the campaign does not.
+
+The start screen: `StartScreen.cpp` puts the panel at the right (`x = ui.W - w - 64 * S`).
+
+**Fast mode and scripted input (2026-11-13).** Engine: `IDoorwaysGame::SimulationStepsPerFrame()` (default 1) is asked once per picture; `App::Run` calls `Update` that many times with the same step before `Render` (clamped 1 to 64). The Map Lab returns 1, 10, 20 or 30 (F1, `CAUCASIAN_EAGLE_MAPLAB_FAST`, `-Fast`). `IsDoorwaysInputActionDown` returns false for every unscripted action while `GameSession().Unattended` is set: a scripted run reads no device (this also holds for the campaign's unattended tests).
+
+**Land beside the path.** `land()` takes the path's height beside a leg from that leg only (samples within 30 m along the path of the nearest one); beside a lower leg the land is under that leg; within 8 m of the path's edge the land is never above the path; the land's collision under the ribbon is 0.1 m under the ribbon. `PROBE_X`, `PROBE_Z` (`-MapOptions 'PROBE_X=..,PROBE_Z=..'`) make the build print the path, the land and every collision surface at a place: the way to find why a walk test stood still.
+
+**Map A route, version 3 (2026-11-13).** `build_mountain.py`: legs have a kind (`climb`, `gentle`, `street`, `wall`); `FLYK` by path sample marks what only wings cross (1 cliff, 2 break, 3 cleft), `FLIES` lists the stretches, the path's ribbon and its collision are left out there; `LEAP` makes one break long; `SHO`, `RIMW`, `RIMH` by sample shape the rock on the path's shoulders (open where `OPENF` is 0); `RAMPS`, `RAMPF` by sample put a rampart on one side (`lat`, the signed distance to the right of the path, says which side a land point is on). The data file gains `fly`, `moment`, `rampart` lines; `MapLab.cpp` reads `fly` (the walk test is carried over) and `moment` (gold labels). Engine: `BuildMovementCandidate` allows a step 0.05 m higher and lower than `DoorwaysMaxWalkableStepUp/Down`, because the ground query accepts ground up to that much further than the step check did, and a step refused there froze her for ever.
+
+**Map Lab flight against the land (2026-11-14).** `build_mountain.py` writes `<Map>.heights` (the near land's height grid, 4-byte numbers, rows along z) and a `heights x0 z0 step nx nz` line; `tools/map-lab.ps1` copies it beside the data file. `MapLab::Land(x, z)` reads it; `KeepOutOfRock` (each update, in flight) holds her 0.35 m over the land and undoes a move into land that rises more than 0.75 per metre above her. The lab's own keys (`Press`) are not read in unattended runs. `EASY` is the gentlest leg grade.

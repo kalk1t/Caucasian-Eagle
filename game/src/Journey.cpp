@@ -51,7 +51,7 @@ namespace CaucasianEagle
         constexpr float Pi = 3.14159265f;
 
         // ------------------------------------------------------------ monsters of the road
-        enum Kind { Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig, Devi, Rokapi, Gveleshapi, DeviLord, Eagle, ChestKind, ChainKind, KindCount };
+        enum Kind { Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig, Devi, Rokapi, Gveleshapi, DeviLord, Eagle, ChestKind, ChainKind, LinkKind, KindCount };
         struct KindDef
         {
             const wchar_t* Name; const char* Model;
@@ -78,12 +78,39 @@ namespace CaucasianEagle
             {L"THE EAGLE, YOUR FATHER", "Landmarks/AmiraniMountain/Eagle", 8.0f, 7000, 4.2f, 4.5f, 16, 2.4f, .80f, 30, 9, 2.8f, 5, 9.f, 2.4f, 0, 0, {.8f, .95f, 1.f, 1}, true, 2.0f},
             {L"OLD GOLD CHEST", "Monsters/Chest", 1.0f, 30, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, .80f, 0, 0, {1.f, .8f, .3f, 1}, false, 0},
             {L"CHAIN ANCHOR", "", 3.0f, 500, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1.7f, 0, 0, {.7f, .85f, 1.f, 1}, false, 0},
+            {L"LINK OF THE KAJI PRESS", "", 3.4f, 520, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1.7f, 0, 0, {1.f, .55f, .2f, 1}, false, 0},
         };
         // Who lives where: the roster of each stage (fights pick from it by cost).
         const std::vector<int> Rosters[12] = {
             {Chinka}, {Chinka, Kudiani}, {Ali, Chinka}, {Ochokochi, Chinka}, {Kudiani, Ochokochi, Almasty}, {Almasty, Chinka, Ali},
             {Kaji, Kudiani}, {Uaig, Almasty, Ochokochi}, {Ali, Chinka, Kudiani}, {Devi, Kaji, Chinka}, {Kudiani, Ali, Ochokochi}, {Kaji, Devi, Uaig}};
         const int StageBoss[12] = {-1, -1, -1, -1, -1, -1, -1, -1, Gveleshapi, DeviLord, Rokapi, -1};
+
+        // ------------------------------------------------------------ traps of the road
+        // Where each stands (m along the road) and the place model it is built of. Most stand in the open clearings
+        // that were fights in older versions. Sources: techplan/04-components.md (traps).
+        enum TrapKind { TrapGate, TrapWind, TrapRunes, TrapWatch, TrapSeal, TrapPress, TrapKindCount };
+        struct TrapDef { int Kind; float S; const char* Model; };
+        const TrapDef TrapTable[] = {
+            {TrapGate, 630, "Archway"}, {TrapWatch, 1775, "Golem"}, {TrapRunes, 2320, "Runestone"}, {TrapWind, 2870, "Crag"},
+            {TrapRunes, 3446, "Runestone"}, {TrapPress, 3590, ""}, {TrapSeal, 4008, "CobbleCircle"}, {TrapSeal, 5125, "CobbleCircle"},
+            {TrapWatch, 5676, "Priestess"}};
+        const float TrapLength[TrapKindCount] = {GateRunLength, WindLength, LauncherLength, WatchLength, SealLength, PressLength};
+        const wchar_t* TrapName[TrapKindCount] = {L"THE GATE RUN", L"THE WIND TEETH", L"THE RUNE STONES", L"THE WATCHERS", L"THE CRACKED SEAL", L"THE KAJI PRESS"};
+
+        // The Kaji press: 1 = the hammer hangs at the top of its frame, 0 = it lies on the road. 'phase': s into its cycle.
+        float PressHammerAt(float phase)
+        {
+            const float lands = PressWarn + PressFall, lifts = lands + PressOpen;
+            if (phase < PressWarn) return 1;
+            if (phase < lands) { const float t = (phase - PressWarn) / PressFall; return 1 - t * t; }
+            if (phase < lifts) return 0;
+            const float t = std::clamp((phase - lifts) / (PressEvery - lifts), 0.f, 1.f);
+            return t * t * (3 - 2 * t);
+        }
+        // The gate run: m over the road of bar 'which' of fire.
+        float GateBarAt(float clock, int which)
+        { return GateBarLow + (GateBarHigh - GateBarLow) * (.5f + .5f * std::sin(clock * 1.3f + static_cast<float>(which) * 1.9f)); }
 
         const char* PropModels[] = {"Props/DeadTree", "Props/Fir", "Props/Tower", "Props/Rocks"};
         const char* PropNames[] = {"deadtree", "fir", "tower", "rocks"};
@@ -149,6 +176,13 @@ namespace CaucasianEagle
             if (!GetEnvironmentVariableA(name, buffer, sizeof(buffer)) || !buffer[0]) return fallback;
             return static_cast<float>(std::atof(buffer));
         }
+        // The save file: journey.sav in the user data folder, or the file a test names.
+        std::filesystem::path SavePath(bool& test)
+        {
+            char named[512] = {};
+            test = GetEnvironmentVariableA(SaveEnvironmentVariable, named, sizeof(named)) > 0 && named[0];
+            return test ? std::filesystem::path(named) : ResolveDoorwaysSettingsPaths().Player.parent_path() / SaveFileName;
+        }
 
         void Log(const char* format, ...)
         {
@@ -179,6 +213,33 @@ namespace CaucasianEagle
             out.Min.z = std::min(out.Min.z, v.Position.Z); out.Max.z = std::max(out.Max.z, v.Position.Z);
         }
         if (!renderer.CreateDoorwaysGpuMeshFromLoadedDMesh(mesh, out.Mesh, &error)) return false;
+        if ((base.rfind("Cities/", 0) == 0 || base.rfind("Places/", 0) == 0) && mesh.Indices.size() >= 3)
+        {   // a building, or something that stands at a place beside the road: where its roofs, walls and towers are highest, so she can come down on them (TopAt)
+            const int n = RoofGrid;
+            out.Top.assign(static_cast<size_t>(n) * n, -1.0e9f);
+            const float cx = (std::max)(out.Max.x - out.Min.x, 1e-4f) / n, cz = (std::max)(out.Max.z - out.Min.z, 1e-4f) / n;
+            for (size_t i = 0; i + 2 < mesh.Indices.size(); i += 3)
+            {
+                const auto& a = mesh.Vertices[mesh.Indices[i]].Position; const auto& b = mesh.Vertices[mesh.Indices[i + 1]].Position;
+                const auto& c = mesh.Vertices[mesh.Indices[i + 2]].Position;
+                const float det = (b.Z - c.Z) * (a.X - c.X) + (c.X - b.X) * (a.Z - c.Z);
+                const int x0 = std::clamp(static_cast<int>(((std::min)({a.X, b.X, c.X}) - out.Min.x) / cx), 0, n - 1);
+                const int x1 = std::clamp(static_cast<int>(((std::max)({a.X, b.X, c.X}) - out.Min.x) / cx), 0, n - 1);
+                const int z0 = std::clamp(static_cast<int>(((std::min)({a.Z, b.Z, c.Z}) - out.Min.z) / cz), 0, n - 1);
+                const int z1 = std::clamp(static_cast<int>(((std::max)({a.Z, b.Z, c.Z}) - out.Min.z) / cz), 0, n - 1);
+                for (int gz = z0; gz <= z1; ++gz)
+                    for (int gx = x0; gx <= x1; ++gx)
+                    {
+                        float& top = out.Top[static_cast<size_t>(gz) * n + gx];
+                        if (std::abs(det) < 1e-9f) { top = (std::max)(top, (std::max)({a.Y, b.Y, c.Y})); continue; }   // a wall, seen from above
+                        const float px = out.Min.x + (gx + .5f) * cx, pz = out.Min.z + (gz + .5f) * cz;
+                        const float u = ((b.Z - c.Z) * (px - c.X) + (c.X - b.X) * (pz - c.Z)) / det;
+                        const float v = ((c.Z - a.Z) * (px - c.X) + (a.X - c.X) * (pz - c.Z)) / det, w = 1 - u - v;
+                        if (u < -.02f || v < -.02f || w < -.02f) continue;
+                        top = (std::max)(top, u * a.Y + v * b.Y + w * c.Y);
+                    }
+            }
+        }
         if (sharedTexture) { out.Texture = sharedTexture; return true; }
         DoorwaysTextureLoadDesc desc;
         desc.Path = root / ((textureBase.empty() ? base : textureBase) + "BaseColor.png");
@@ -204,7 +265,12 @@ namespace CaucasianEagle
             if (tag == "STEP") in >> mStep;
             else if (tag == "S") { int index; std::string name; in >> index >> name; mStageNames.push_back(Wide(name)); }
             else if (tag == "P") { Sample s; in >> s.P.x >> s.P.y >> s.P.z >> s.W >> s.Stage; mSamples.push_back(s); }
-            else if (tag == "A") { Arena a; in >> a.Stage >> a.S >> a.Kind >> a.R >> a.P.x >> a.P.y >> a.P.z; mArenas.push_back(a); }
+            else if (tag == "A")
+            {   // kind 0 a fight, 1 a guardian's, 2 the Eagle's ledge, 3 an open clearing: a fight in older versions, now free road (a trap may stand there)
+                Arena a; in >> a.Stage >> a.S >> a.Kind >> a.R >> a.P.x >> a.P.y >> a.P.z;
+                mArenaRows.push_back(a.Kind);
+                if (a.Kind != 3) mArenas.push_back(a);
+            }
             else if (tag == "C") { Chest c; in >> c.P.x >> c.P.y >> c.P.z >> c.Yaw >> c.Tier; mChests.push_back(c); }
             else if (tag == "T")
             {
@@ -224,13 +290,15 @@ namespace CaucasianEagle
             const float dx = b.x - a.x, dz = b.z - a.z, l = std::max(1e-4f, std::sqrt(dx * dx + dz * dz));
             mSamples[i].Tx = dx / l; mSamples[i].Tz = dz / l; mSamples[i].Nx = dz / l; mSamples[i].Nz = -dx / l;
         }
-        // arena chests (tier 1 and 2) follow the arenas in file order
-        int arena = 0;
+        // arena chests (tier 1 and 2) follow the "A" rows in file order; the chest of an open clearing is free to take
+        size_t row = 0; int arena = 0;
         for (auto& c : mChests)
             if (c.Tier > 0)
             {
-                while (arena < static_cast<int>(mArenas.size()) && mArenas[arena].Kind == 2) ++arena;
-                c.Arena = arena++;
+                while (row < mArenaRows.size() && mArenaRows[row] == 2) { ++row; ++arena; }   // the Eagle's ledge has none
+                if (row >= mArenaRows.size()) break;
+                if (mArenaRows[row] == 3) c.Arena = -1; else c.Arena = arena++;
+                ++row;
             }
         return true;
     }
@@ -248,7 +316,7 @@ namespace CaucasianEagle
             if (line.empty() || line[0] == '#') continue;
             std::istringstream in(line);
             std::string tag; in >> tag;
-            if (tag == "O") { float x = 0, z = 0, r = 0; in >> x >> z >> r; AddObstacle(x, z, r); }   // a house: she walks round it
+            if (tag == "O") { float x = 0, z = 0, r = 0; in >> x >> z >> r; AddObstacle(x, z, r, true); }   // a house: she walks round it, or stands on it
             else if (tag == "CITY") { City c; int index; std::string key, name; in >> index >> key >> name >> c.S0 >> c.S1 >> c.P.x >> c.P.y >> c.P.z; mCities.push_back(c); }
             else if (tag == "M")
             {
@@ -273,6 +341,88 @@ namespace CaucasianEagle
         return true;
     }
 
+    // The places beside the road: an inn, a witch's house, a rock of carved faces, arches over the road, and the small
+    // things people left (art/places: prepare_places.py makes the models from the Meshy library, build_places.py says
+    // where they stand). What stands there is drawn, walked round and landed on exactly as a city's buildings are, so
+    // the models join mCityModels and the things join mBuildings. A place with a name is a Site: she finds it by
+    // coming near, once (UpdatePlaces); its words are Story::Places.
+    bool Journey::LoadPlaces(Renderer& renderer, std::string& error)
+    {
+        std::ifstream file(ResolveDoorwaysRuntimePath(PlacesFile));
+        if (!file) { error = std::string("cannot open ") + PlacesFile; return false; }
+        const int firstModel = static_cast<int>(mCityModels.size());
+        const size_t worldObstacles = mObstacles.size();
+        std::string line;
+        while (std::getline(file, line))
+        {
+            if (line.empty() || line[0] == '#') continue;
+            std::istringstream in(line);
+            std::string tag; in >> tag;
+            if (tag == "M")
+            {   // M index model roofs: roofs = 1 when she can come down on it
+                int index = 0, roofs = 1; std::string model; in >> index >> model >> roofs;
+                mCityModels.emplace_back();
+                if (!LoadModel(renderer, model, mCityModels.back(), error)) return false;
+                if (!roofs) mCityModels.back().Top.clear();
+                mPlaceModel[model.substr(model.find('/') + 1)] = static_cast<int>(mCityModels.size()) - 1;
+            }
+            else if (tag == "B")
+            {
+                Building b; in >> b.Model >> b.P.x >> b.P.y >> b.P.z >> b.Yaw >> b.Height >> b.Far;
+                b.Model += firstModel;
+                if (b.Model >= firstModel && b.Model < static_cast<int>(mCityModels.size())) mBuildings.push_back(b);
+            }
+            else if (tag == "O" || tag == "o") { float x = 0, z = 0, r = 0; in >> x >> z >> r; AddObstacle(x, z, r, tag == "O"); }   // O: she may stand on it; o: only round it
+            else if (tag == "C") { Glade g; in >> g.X >> g.Z >> g.R; mGlades.push_back(g); }
+            else if (tag == "L") { Light l; in >> l.P.x >> l.P.y >> l.P.z >> l.Color.x >> l.Color.y >> l.Color.z >> l.Size; l.Color.w = 1; mLights.push_back(l); }
+            else if (tag == "SITE") { Site s; int index = 0; in >> index >> s.S >> s.P.x >> s.P.y >> s.P.z >> s.R; mSites.push_back(s); }
+        }
+        if (static_cast<int>(mSites.size()) != Story::PlaceCount) { error = "Places.txt does not agree with Story::Places (run art/places/build_places.py)"; return false; }
+        // the trees and rocks the world builder put where a place now stands go, and so does what she walked round there
+        const auto inGlade = [&](float x, float z) { for (const auto& g : mGlades) if ((x - g.X) * (x - g.X) + (z - g.Z) * (z - g.Z) < g.R * g.R) return true; return false; };
+        std::erase_if(mProps, [&](const Prop& prop) { return inGlade(prop.P.x, prop.P.z); });
+        std::vector<Obstacle> kept;
+        for (size_t i = 0; i < mObstacles.size(); ++i)
+            if (i >= worldObstacles || mObstacles[i].House || !inGlade(mObstacles[i].X, mObstacles[i].Z)) kept.push_back(mObstacles[i]);
+        mObstacles.clear(); mObstacleGrid.clear();
+        for (const auto& o : kept) AddObstacle(o.X, o.Z, o.R, o.House);
+        BuildTraps();
+        Log("[JOURNEY] places: %d models, %d named places, %d clearings.\n", static_cast<int>(mCityModels.size()) - firstModel, static_cast<int>(mSites.size()), static_cast<int>(mGlades.size()));
+        return true;
+    }
+
+    unsigned long long Journey::PlaceBits() const
+    {
+        unsigned long long bits = 0;
+        for (size_t i = 0; i < mSites.size() && i < 64; ++i) if (mSites[i].Found) bits |= 1ull << i;
+        return bits;
+    }
+
+    // She finds a place by coming near it, on foot or on the wing: its name and a line of its story are shown once,
+    // it is written into the journal (F1, PLACES) and it pays a few crystals.
+    void Journey::UpdatePlaces(WorldState& world)
+    {
+        if (mFighting || mFinale != Finale::None) return;
+        const XMFLOAT3 p = world.MainPlayer.Position;
+        int found = 0;
+        for (const auto& s : mSites) found += s.Found ? 1 : 0;
+        for (int i = 0; i < static_cast<int>(mSites.size()); ++i)
+        {
+            Site& s = mSites[i];
+            if (s.Found || LenXZ(Sub(p, s.P)) > s.R || std::abs(p.y - s.P.y) > PlaceFindHeight) continue;
+            s.Found = true; ++found;
+            const Story::Place& words = Story::Places[i];
+            Announce(L"A PLACE ON THE ROAD  -  " + std::to_wstring(found) + L" OF " + std::to_wstring(mSites.size()), Ui::Upper(words.Name), words.Text, 7.f);
+            Sound::Play("world/bell", .6f, 0); Sound::Play("world/crystal", .6f, .05f);
+            mGrowth.Crystals += PlaceCrystals;
+            mJournal.Unread |= 1u << Story::PlacesPage;
+            Notify(HudArt::IconBook, Palette::GoldLight, L"PLACE FOUND", std::to_wstring(PlaceCrystals) + L" crystals. F1 keeps what you have seen of the road.", 6);
+            Log("[JOURNEY] place %d found at %.0f m: %ls.\n", i + 1, mS, words.Name);
+            Save();
+            break;   // one at a time
+        }
+    }
+
     // A journey that begins past a city (an old save, a test start) has been through it and holds its gift.
     void Journey::MarkCitiesBehind()
     {
@@ -281,7 +431,7 @@ namespace CaucasianEagle
     }
 
     float Journey::DamageTaken() const { return Collection::DamageTaken(mCollection, CitiesVisited()) * MonsterDamageScale * (Gift(3) ? StoneDamageScale : 1.f) * Growth::DamageTaken(mGrowth); }
-    int Journey::PotionHealth() const { return PotionHeal + (Gift(2) ? BlessingPotionHeal : 0); }
+    int Journey::PotionHealth() const { return PotionHeal + (Gift(0) ? WinePotionHeal : 0) + (Gift(2) ? BlessingPotionHeal : 0); }
     unsigned Journey::CityBits() const
     {
         unsigned bits = 0;
@@ -345,28 +495,38 @@ namespace CaucasianEagle
 
     bool Journey::Initialize(Renderer& renderer, WorldState& world, std::string& error)
     {
+        mCreatureStations = false;
         mReady = false;
         if (!LoadRoad(error)) return false;
-        if (!LoadCities(renderer, error) || !WorldMap::Load(renderer, error)) return false;
+        if (!LoadCities(renderer, error) || !LoadPlaces(renderer, error) || !WorldMap::Load(renderer, error)) return false;
         PlaceFatherFeathers();
         {   // nothing grows inside a city
             std::vector<Nature::Clearing> clearings;
             for (const auto& c : mCities) clearings.push_back({c.P.x, c.P.z, (c.S1 - c.S0) * .5f + 30.f});
+            for (const auto& g : mGlades) clearings.push_back({g.X, g.Z, g.R});   // nor where a place stands
             GetNature().SetClearings(std::move(clearings));
+            if (!mSamples.empty()) GetNature().SetRoadStart(mSamples[0].P.x, mSamples[0].P.z);   // grass behind the first stone too
         }
         for (const auto& sample : mSamples) mRoadPoints.push_back({sample.P.x, sample.P.z});
         mPatrols.clear(); mPatrolNext = 0;
-        {   // roaming packs: one or two in every gap between arenas
+        {   // roaming packs: one every PatrolEvery metres of the road between two arenas
             float previous = 60;
             for (const auto& a : mArenas)
             {
                 const float lo = previous + 30, hi = a.S - a.R - 30;
-                const int n = hi - lo > 60 ? 2 : (hi > lo ? 1 : 0);
+                const int n = hi > lo ? std::clamp(static_cast<int>((hi - lo) / PatrolEvery) + 1, 1, 6) : 0;
                 for (int k = 0; k < n; ++k) mPatrols.push_back(lo + (hi - lo) * (static_cast<float>(k) + .5f) / static_cast<float>(n));
                 previous = a.S + a.R;
             }
             // no pack waits inside a city
             std::erase_if(mPatrols, [&](float s) { for (const auto& c : mCities) if (s > c.S0 - 12 && s < c.S1 + 12) return true; return false; });
+            // nor in a trap (on the course of the gate run they stay: only its switch and its gate are kept clear)
+            std::erase_if(mPatrols, [&](float s)
+            {
+                for (const auto& t : mTraps)
+                    if (t.Kind == TrapGate ? (std::abs(s - t.S) < 25 || std::abs(s - t.S - t.Length) < 25) : std::abs(s - t.S) < t.Length * .5f + 20) return true;
+                return false;
+            });
         }
         mModels.resize(KindCount);
         for (int k = 0; k < KindCount; ++k)
@@ -395,7 +555,10 @@ namespace CaucasianEagle
             kit.SetAutoKeys(&mPilotKeys);
         }
         const float startArena = EnvFloat(StartEnvironmentVariable, -1);
-        if (!unattended && startArena < 0) Load();          // unattended runs never touch the player's save
+        {   // unattended runs never touch the player's save (a test may name a save of its own)
+            bool test = false; SavePath(test);
+            if ((!unattended || test) && startArena < 0) Load();
+        }
         if (startArena >= 0) { mArenasCleared = std::clamp(static_cast<int>(startArena), 0, static_cast<int>(mArenas.size())); mFeathers = mArenasCleared; }
         if (!mCitiesInSave) MarkCitiesBehind();
         mMapForced = unattended && EnvFloat(MapEnvironmentVariable, 0) > 0;
@@ -416,6 +579,7 @@ namespace CaucasianEagle
             for (const float side : {-1.f, 1.f})
                 Spawn(ChainKind, {MountainX + side * LedgeHalfWidth * .62f, LedgeHeight, LedgeWalkBackZ - 2.5f}, false, 1);
         }
+        if (mHasSavePoint) mPendingTeleport = true;   // she begins where the game was last saved
         if (mArenasCleared > 0)
         {
             mPendingTeleport = true;
@@ -425,7 +589,11 @@ namespace CaucasianEagle
         else if (mFinale == Finale::Chains) mJournal.EndReached = 2;
         mJournalForced = static_cast<int>(EnvFloat(JournalEnvironmentVariable, 0));
         mRestartTest = EnvFloat(RestartEnvironmentVariable, 0);
-        if (mJournalForced > 10) { mJournalForced -= 10; mJournal.ChaptersReached = 12; mJournal.EndReached = 3; mLore = 12; }
+        if (mJournalForced > 10)
+        {
+            mJournalForced -= 10; mJournal.ChaptersReached = 12; mJournal.EndReached = 3; mLore = 12;
+            for (auto& site : mSites) site.Found = true;
+        }
         if (!unattended)
         {   // every launch: where the story is read; on a new road the legend is marked as new
             Notify(HudArt::IconBook, Palette::GoldLight, L"THE STORY", L"Press F1 at any time to read it.", 10);
@@ -450,15 +618,39 @@ namespace CaucasianEagle
     }
 
     // ================================================================ save file
+    bool Journey::CanMark() const
+    {
+        return mPlaced && mAlive && !mFighting && !mShowcase && (mFinale == Finale::None || mFinale == Finale::Done);
+    }
+
+    // After a death, and when a session begins: she stands where the game was last saved. On the road she stands on
+    // the road; out on the land she stands on the land (or the roof) at that place, whatever height she saved at.
+    void Journey::WakeAtSavePoint(WorldState& world)
+    {
+        const float fallback = mArenasCleared > 0 ? mArenas[std::min(mArenasCleared, static_cast<int>(mArenas.size())) - 1].S : StartS;
+        if (!mHasSavePoint || mSavePoint.z > LedgeWalkFrontZ - 30.f) { Teleport(world, fallback); return; }   // (none in an older save; the ledge has its own ground)
+        const int i = Nearest(mSavePoint.x, mSavePoint.z, -1, 0);
+        const Sample& s = mSamples[i];
+        const float lateral = (mSavePoint.x - s.P.x) * s.Nx + (mSavePoint.z - s.P.z) * s.Nz;
+        Teleport(world, static_cast<float>(i) * mStep);
+        auto& p = world.MainPlayer;
+        p.Position.x = mSavePoint.x; p.Position.z = mSavePoint.z;
+        if (std::abs(lateral) > s.W - .5f) p.Position.y = std::max(GetNature().Height(p.Position.x, p.Position.z), TopAt(p.Position.x, p.Position.z)) + .4f;
+        p.GroundY = p.Position.y;
+        mHere = p.Position;
+    }
+
     void Journey::Save() const
     {
-        if (GameSession().Unattended) return;
-        const auto path = ResolveDoorwaysSettingsPaths().Player.parent_path() / SaveFileName;
+        bool test = false;
+        const auto path = SavePath(test);
+        if (GameSession().Unattended && !test) return;
+        if (CanMark()) { mSavePoint = mHere; mHasSavePoint = true; }
         std::error_code ignored;
         std::filesystem::create_directories(path.parent_path(), ignored);
         std::ofstream file(path, std::ios::trunc);
         if (!file) return;
-        file << "CaucasianEagleJourney 1\n" << mArenasCleared << ' ' << mGold << ' ' << mFeathers << ' ' << mLore << ' ' << mDeaths << ' '
+        file << "CaucasianEagleJourney 2\n" << mArenasCleared << ' ' << mGold << ' ' << mFeathers << ' ' << mLore << ' ' << mDeaths << ' '
              << (mCompleted ? 1 : 0) << ' ' << static_cast<int>(mPlaySeconds) << '\n';
         for (const auto& c : mChests) file << (c.Opened ? '1' : '0');
         file << '\n';
@@ -472,16 +664,26 @@ namespace CaucasianEagle
         file << mCollection.Links << ' ' << mCollection.Feathers;
         for (const int runes : mCollection.Runes) file << ' ' << runes;
         file << ' ' << mCollection.Set << '\n';
+        file << PlaceBits() << '\n';                           // the places she has found (absent in saves from before them)
+        file << TrapBits() << '\n';                            // the traps she has beaten (absent in saves from before them)
+        if (mHasSavePoint) file << mSavePoint.x << ' ' << mSavePoint.y << ' ' << mSavePoint.z << '\n';   // where she wakes (absent in saves from before it: the last arena won)
     }
 
     void Journey::Load()
     {
-        const auto path = ResolveDoorwaysSettingsPaths().Player.parent_path() / SaveFileName;
+        bool test = false;
+        const auto path = SavePath(test);
         std::ifstream file(path);
         std::string magic; int version = 0;
-        if (!(file >> magic >> version) || magic != "CaucasianEagleJourney" || version != 1) return;
+        if (!(file >> magic >> version) || magic != "CaucasianEagleJourney" || (version != 1 && version != 2)) return;
         int completed = 0, seconds = 0;
         if (!(file >> mArenasCleared >> mGold >> mFeathers >> mLore >> mDeaths >> completed >> seconds)) { mArenasCleared = 0; return; }
+        if (version == 1)
+        {   // version 1 counted the open clearings as fights: the fights she had won, counted as they are now
+            int rows = 0, fights = 0;
+            for (const int kind : mArenaRows) { if (rows >= mArenasCleared) break; ++rows; if (kind != 3) ++fights; }
+            mArenasCleared = fights;
+        }
         mArenasCleared = std::clamp(mArenasCleared, 0, static_cast<int>(mArenas.size()));
         mLore = std::clamp(mLore, 0, 12);
         mCompleted = completed != 0; mPlaySeconds = static_cast<float>(seconds);
@@ -518,6 +720,15 @@ namespace CaucasianEagle
             if (kept.Set < -1 || kept.Set >= Collection::RuneCount || (kept.Set >= 0 && kept.Runes[kept.Set] == 0)) kept.Set = -1;
             mCollection = kept;
         }
+        unsigned long long places = 0;
+        read = read && static_cast<bool>(file >> places);
+        if (read)
+            for (size_t i = 0; i < mSites.size() && i < 64; ++i) mSites[i].Found = (places >> i & 1ull) != 0;
+        unsigned traps = 0;
+        if (read && (file >> traps))
+            for (size_t i = 0; i < mTraps.size() && i < 32; ++i) mTraps[i].Won = (traps >> i & 1u) != 0;
+        XMFLOAT3 point{};
+        if (file >> point.x >> point.y >> point.z) { mSavePoint = point; mHasSavePoint = true; }
         if (mCompleted) { mFinale = Finale::Done; GetAmiraniMountain().SetFreed(true); }
     }
 
@@ -645,17 +856,419 @@ namespace CaucasianEagle
             if (strike.T > 0) continue;
             kit.Effect({strike.P.x, strike.P.y + .3f, strike.P.z}, {.8f, .7f, .6f, 1}, 24, 6.f, .22f);
             if (LenXZ(Sub(p, strike.P)) < 14) { kit.Shake(.16f); Sound::Play("combat/blow", .55f); }
-            if (live && LenXZ(Sub(p, strike.P)) < RockfallRadius && !kit.Blocks(world, {strike.P.x, strike.P.y + 3, strike.P.z}))
+            if (live && LenXZ(Sub(p, strike.P)) < RockfallRadius && !kit.Blocks(world, {strike.P.x, std::max(strike.P.y, p.y) + 3, strike.P.z}))
                 kit.Hurt(world, combat, harm(RockfallDamage));
+            if (strike.Trap >= 0 && strike.Trap < static_cast<int>(mTraps.size()))
+            {   // a stone that comes down on the seal cracks it
+                Trap& t = mTraps[strike.Trap];
+                if (!t.Won && LenXZ(Sub(strike.P, t.P)) < SealRadius)
+                {
+                    ++t.Count;
+                    kit.Effect(Add(t.P, {0, .5f, 0}), {1.f, .6f, .2f, 1}, 70, 9.f, .3f); kit.Shake(.3f); Sound::Play("combat/chain", .9f, .05f);
+                    if (t.Count >= SealCracks) WinTrap(t, TrapName[TrapSeal], L"The seal is broken. Nothing falls here any more.");
+                    else kit.Notice(L"THE SEAL CRACKS", 1.6f);
+                }
+            }
         }
         std::erase_if(mStrikes, [](const Strike& strike) { return strike.T <= 0; });
     }
 
-    void Journey::AddObstacle(float x, float z, float radius)
+    // ================================================================ traps
+    // Traps of the road. Nyxara flies most of the way, so a trap that lies on the ground is no trap: each of these
+    // reaches from the road to past her ceiling, and a little way out over the land at both sides. Far out over the
+    // land she goes round one, as she goes round a fight. Each is beaten once, pays crystals and then stands quiet.
+    //   the gate run     a light over the road opens a gate of fire far ahead, for as long as a fast flight there
+    //                    takes; bars of fire rise and fall across the course and creatures wake on it. Shut, the gate
+    //                    stops her in its arch (she can go over or round it, without the prize).
+    //   the wind teeth   gusts throw her across a way between two walls of ice wind: steer against them
+    //   the rune stones  three stones throw fire at her in turn: weave, or raise the guard
+    //   the watchers     two statues turn a sheet of light each: its touch burns and wakes their guards
+    //   the cracked seal stones fall on her wherever she is; one that lands on the seal cracks it: hover over it,
+    //                    then get away. Three cracks break it.
+    //   the Kaji press   a hammer falls across the road and throws fire out and upward; the link that hangs over it
+    //                    can be broken only just after each blow (the bow reaches it)
+    // Through the wind, the stones and the watchers she wins by coming in at one end and out at the other.
+    int Journey::Stand(const char* model, XMFLOAT3 at, float yaw, float height, float seenFrom)
+    {
+        const auto found = mPlaceModel.find(model);
+        if (found == mPlaceModel.end()) return -1;
+        Building b; b.Model = found->second; b.P = at; b.Yaw = yaw; b.Height = height; b.Far = seenFrom;
+        mBuildings.push_back(b);
+        return b.Model;
+    }
+
+    unsigned Journey::TrapBits() const
+    {
+        unsigned bits = 0;
+        for (size_t i = 0; i < mTraps.size() && i < 32; ++i) if (mTraps[i].Won) bits |= 1u << i;
+        return bits;
+    }
+
+    void Journey::BuildTraps()
+    {
+        mTraps.clear();
+        if (mSamples.size() < 2) return;
+        const int last = static_cast<int>(mSamples.size()) - 1;
+        const auto sample = [&](float s) -> const Sample& { return mSamples[std::clamp(static_cast<int>(s / mStep), 0, last)]; };
+        for (const TrapDef& def : TrapTable)
+        {
+            const Sample& at = sample(def.S);
+            Trap t; t.Kind = def.Kind; t.S = def.S; t.Length = TrapLength[def.Kind]; t.P = at.P;
+            t.Tx = at.Tx; t.Tz = at.Tz; t.Nx = at.Nx; t.Nz = at.Nz; t.W = std::min(at.W, TrapHalf);
+            const float yaw = std::atan2(at.Tx, at.Tz);
+            // a spot beside the way: on the road's own stones inside its width, on the land beyond it
+            const auto beside = [&](float along, float lateral, float sink)
+            {
+                XMFLOAT3 p{at.P.x + at.Tx * along + at.Nx * lateral, at.P.y, at.P.z + at.Tz * along + at.Nz * lateral};
+                if (std::abs(lateral) > at.W - 1) p.y = std::min(p.y, GetNature().Height(p.x, p.z));
+                p.y -= sink;
+                return p;
+            };
+            switch (def.Kind)
+            {
+            case TrapGate:
+            {
+                const Sample& g = sample(def.S + t.Length);
+                t.End = g.P; t.Ex = g.Tx; t.Ez = g.Tz;
+                Stand(def.Model, {g.P.x, g.P.y - .7f, g.P.z}, std::atan2(g.Tx, g.Tz), GateArchTall, 520);
+                for (const float side : {-1.f, 1.f})   // its piers
+                    AddObstacle(g.P.x + g.Nx * side * (GateHalf + 2.6f), g.P.z + g.Nz * side * (GateHalf + 2.6f), 2.4f);
+                break;
+            }
+            case TrapRunes:
+                for (int k = 0; k < 3; ++k)
+                {   // left, right, left along the way
+                    const float side = k % 2 ? 1.f : -1.f;
+                    t.Post[k] = beside(static_cast<float>(k - 1) * 18.f, side * (t.W + 3.f), .2f);
+                    Stand(def.Model, t.Post[k], yaw + (side > 0 ? -Pi * .5f : Pi * .5f), LauncherTall, 320);
+                    AddObstacle(t.Post[k].x, t.Post[k].z, 1.2f);
+                    t.Fire[k] = 1.f + .85f * static_cast<float>(k);
+                }
+                break;
+            case TrapWatch:
+                t.Look = std::string(def.Model) == "Priestess" ? 1 : 0;
+                for (int k = 0; k < 2; ++k)
+                {   // one at each side, a little apart along the way, facing it
+                    const float side = k ? 1.f : -1.f;
+                    t.Post[k] = beside(side * 9.f, side * (t.W + 6.f), .2f);
+                    Stand(def.Model, t.Post[k], yaw + (side > 0 ? -Pi * .5f : Pi * .5f), WatchTall, 420);
+                    AddObstacle(t.Post[k].x, t.Post[k].z, t.Look ? 1.8f : 3.2f);
+                    t.Fire[k] = static_cast<float>(k) * Pi;
+                }
+                break;
+            case TrapSeal:
+                if (const auto model = mPlaceModel.find(def.Model); model != mPlaceModel.end())
+                {   // a round floor of old stones, SealRadius across the half
+                    const Model& m = mCityModels[model->second];
+                    const float tall = 2 * SealRadius * (m.Max.y - m.Min.y) / std::max(m.Max.x - m.Min.x, 1e-3f);
+                    Stand(def.Model, {t.P.x, t.P.y + .03f, t.P.z}, yaw, tall, 260);
+                }
+                break;
+            case TrapPress:
+                for (const float side : {-1.f, 1.f})
+                    AddObstacle(t.P.x + t.Nx * side * (t.W + PressPillarOut), t.P.z + t.Nz * side * (t.W + PressPillarOut), 1.5f);
+                break;
+            default: break;
+            }
+            mTraps.push_back(t);
+        }
+        // the small troubles keep out of them
+        std::erase_if(mTroubles, [&](const Trouble& trouble)
+        {
+            for (const auto& t : mTraps)
+            {
+                if (t.Kind == TrapGate) { if (std::abs(trouble.S - t.S) < 30 || std::abs(trouble.S - t.S - t.Length) < 30) return true; }
+                else if (std::abs(trouble.S - t.S) < t.Length * .5f + 25) return true;
+            }
+            return false;
+        });
+        Log("[JOURNEY] traps: %d; small troubles left: %d.\n", static_cast<int>(mTraps.size()), static_cast<int>(mTroubles.size()));
+    }
+
+    void Journey::WinTrap(Trap& t, const wchar_t* name, const wchar_t* line)
+    {
+        t.Won = true; t.In = false; t.Entered = false; t.State = 0;
+        int won = 0;
+        for (const auto& other : mTraps) won += other.Won ? 1 : 0;
+        mGrowth.Crystals += TrapCrystals;
+        Announce(L"A TRAP OF THE ROAD BEATEN  -  " + std::to_wstring(won) + L" OF " + std::to_wstring(mTraps.size()), name, line, 6.f);
+        Sound::Play("combat/victory", .7f, 0); Sound::Play("world/crystal", .7f, .05f);
+        Notify(HudArt::IconCrystal, Palette::Violet, L"TRAP BEATEN", std::to_wstring(TrapCrystals) + L" crystals. It will not wake again.", 6);
+        Log("[JOURNEY] trap beaten: %ls at %.0f m (%d of %d), %.0f s played.\n", name, t.S, won, static_cast<int>(mTraps.size()), mPlaySeconds);
+        Save();
+    }
+
+    void Journey::UpdateTraps(WorldState& world, CombatSystem& combat, float dt)
+    {
+        auto& kit = GetNyxaraKit();
+        auto& pl = world.MainPlayer;
+        const bool live = !mFighting && !mCompleted && mFinale == Finale::None && combat.PlayerActionsAllowed();
+        const auto harm = [&](float base) { return std::max(1, static_cast<int>(base * DamageTaken())); };
+        const int last = static_cast<int>(mSamples.size()) - 1;
+        const auto sample = [&](float s) -> const Sample& { return mSamples[std::clamp(static_cast<int>(s / mStep), 0, last)]; };
+        const float cruise = std::max(mWingSpeed, 4.f);
+        // creatures a trap wakes: of that stretch of road, standing on it (no giants)
+        const auto wake = [&](float s, int count)
+        {
+            const Sample& at = sample(s);
+            const auto& roster = Rosters[at.Stage];
+            int cheapest = roster[0];
+            for (const int k : roster) if (Kinds[k].Cost < Kinds[cheapest].Cost) cheapest = k;
+            const float scale = MonsterHealthScale * (1 + StageHealthGrowth * static_cast<float>(at.Stage));
+            for (int k = 0; k < count; ++k)
+            {
+                int kind = roster[static_cast<size_t>(k) % roster.size()];
+                if (Kinds[kind].Cost > 5) kind = cheapest;
+                const Sample& here = sample(s + (Random() * 2 - 1) * 8);
+                const float lateral = (Random() * 2 - 1) * std::max(.5f, here.W - 2.f);
+                Spawn(kind, {here.P.x + here.Nx * lateral, here.P.y, here.P.z + here.Nz * lateral}, false, scale);
+            }
+        };
+        mTrapNear = -1;
+        for (int i = 0; i < static_cast<int>(mTraps.size()); ++i)
+        {
+            Trap& t = mTraps[i];
+            const XMFLOAT3 p = pl.Position, chest = Add(p, {0, 1.2f, 0});
+            const XMFLOAT3 rel = Sub(p, t.P);
+            const float along = rel.x * t.Tx + rel.z * t.Tz, lateral = rel.x * t.Nx + rel.z * t.Nz, up = rel.y, away = LenXZ(rel);
+            const auto at = [&](float a, float l, float u) { return XMFLOAT3{t.P.x + t.Tx * a + t.Nx * l, t.P.y + u, t.P.z + t.Tz * a + t.Nz * l}; };
+            const float half = t.Length * .5f;
+
+            if (t.Kind == TrapGate)
+            {
+                const XMFLOAT3 toGate = Sub(p, t.End);
+                float gateAlong = toGate.x * t.Ex + toGate.z * t.Ez;
+                const float gateAcross = toGate.x * t.Ez - toGate.z * t.Ex, gateUp = toGate.y;
+                const bool inArch = std::abs(gateAcross) < GateHalf && gateUp > -4 && gateUp < GateTall;
+                if (away > 500 && LenXZ(toGate) > 500) { t.Side = gateAlong; continue; }
+                t.Clock += dt; t.Next = std::max(0.f, t.Next - dt);
+                if (!t.Won && live)
+                {
+                    const XMFLOAT3 light = at(0, 0, GateSwitchHeight);
+                    if (t.State == 0)
+                    {
+                        if (mTrapNear < 0 && (away < 34 || (std::abs(gateAlong) < 30 && std::abs(gateAcross) < GateHalf + 20))) mTrapNear = i;
+                        // (the pilot of the tests walks: for it the light is touched from the road under it)
+                        if (t.Next <= 0 && (mPilot ? LenXZ(Sub(p, light)) : Len(Sub(chest, light))) < GateSwitchTouch)
+                        {
+                            t.State = 1; t.Full = t.Timer = t.Length / (cruise * GateRunPace) + GateRunGrace;
+                            kit.Notice(L"THE GATE OPENS. FLY!", 2.2f); kit.Effect(light, {.5f, 1.f, .75f, 1}, 50, 7.f, .3f); kit.Shake(.2f);
+                            Sound::Play("world/bell", .9f, 0); Sound::Play("combat/walls", .7f, 0);
+                            for (int k = 0; k < GateGuards; ++k) wake(t.S + t.Length * (.3f + .14f * static_cast<float>(k)), 1);
+                            Log("[JOURNEY] gate run begins: %.1f s for %.0f m.\n", t.Timer, t.Length);
+                        }
+                    }
+                    else
+                    {
+                        mTrapNear = i;
+                        t.Timer -= dt;
+                        for (int k = 0; k < GateBars; ++k)
+                        {   // bars of fire across the course
+                            const Sample& bar = sample(t.S + t.Length * static_cast<float>(k + 1) / static_cast<float>(GateBars + 1));
+                            const XMFLOAT3 d = Sub(chest, bar.P);
+                            if (std::abs(d.x * bar.Tx + d.z * bar.Tz) < 1.3f && std::abs(d.x * bar.Nx + d.z * bar.Nz) < bar.W + GateBarOut &&
+                                std::abs(d.y - GateBarAt(t.Clock, k)) < 1.6f && kit.Hurt(world, combat, harm(GateBarDamage)))
+                            { kit.Effect(chest, {1.f, .4f, .2f, 1}, 18, 4.f, .2f); kit.Shake(.14f); }
+                        }
+                        if (t.Side <= 0 && gateAlong > 0 && inArch)
+                            WinTrap(t, TrapName[TrapGate], L"Through, before the fire came down. The gate stands open now.");
+                        else if (t.Timer <= 0)
+                        {
+                            t.State = 0; t.Next = GateRetry;
+                            kit.Notice(L"THE GATE IS SHUT", 2.f); kit.Shake(.25f); Sound::Play("combat/walls", 1, 0);
+                            Log("[JOURNEY] gate run failed at %.0f m.\n", mS);
+                        }
+                    }
+                }
+                if (!t.Won && t.State == 0 && !mPilot && inArch && std::abs(gateAlong) < GateDoor)
+                {   // the shut door: she is held at the side of it she came from
+                    const float to = t.Side < 0 ? -GateDoor : GateDoor;
+                    pl.Position.x += t.Ex * (to - gateAlong); pl.Position.z += t.Ez * (to - gateAlong);
+                    gateAlong = to;
+                }
+                t.Side = gateAlong;
+                continue;
+            }
+
+            if (t.Kind == TrapPress)
+            {   // the link over it is one of her enemies while she is near
+                if (!t.Won && t.Slot < 0 && away < 110 && live)
+                    t.Slot = Spawn(LinkKind, at(0, 0, PressTall + PressLinkUp - 1.3f), false, 1 + StageHealthGrowth * static_cast<float>(sample(t.S).Stage));
+                else if (t.Slot >= 0 && (away > 170 || t.Won)) { Release(t.Slot); t.Slot = -1; }
+            }
+            if (away > 170) { t.In = false; t.Entered = false; continue; }
+            t.Clock += dt;
+            const bool high = up > -8 && up < TrapHeight;
+            const bool inside = std::abs(along) < half && std::abs(lateral) < t.W + TrapSide && high;
+            if (!t.Won && live && mTrapNear < 0 && std::abs(along) < half + TrapWarn && std::abs(lateral) < t.W + TrapSide && high) mTrapNear = i;
+
+            if (t.Kind == TrapPress && !t.Won)
+            {   // the hammer goes on whether she is near or not
+                const float phase = std::fmod(t.Clock, PressEvery);
+                const bool down = phase >= PressWarn + PressFall, open = down && phase < PressWarn + PressFall + PressOpen;
+                if (down && t.State == 0)
+                {   // the blow
+                    const XMFLOAT3 foot = at(0, 0, 1.f);
+                    if (away < 45) { kit.Shake(.3f * (1 - away / 45)); Sound::Play("combat/blow", .9f, .05f); }
+                    kit.RingEffect(at(0, 0, .05f), t.W + 4, {1.f, .5f, .15f, 1}, .5f);
+                    if (live && std::abs(along) < PressDepth * .5f + .9f && std::abs(lateral) < t.W + 1 && up > -3 && up < PressTall - PressHead)
+                        kit.Hurt(world, combat, harm(PressDamage));
+                    if (live && away < 70)
+                    {   // fire flies out along the ground and up into the air
+                        const float rise[3] = {.05f, .7f, 1.22f}; const int orbs[3] = {12, 8, 4};
+                        for (int ring = 0; ring < 3; ++ring)
+                            for (int k = 0; k < orbs[ring]; ++k)
+                            {
+                                const float a = 2 * Pi * (static_cast<float>(k) + .5f * static_cast<float>(ring)) / static_cast<float>(orbs[ring]);
+                                const float flat = std::cos(rise[ring]) * 9.f;
+                                kit.SpawnOrb(foot, {std::sin(a) * flat, std::sin(rise[ring]) * 9.f, std::cos(a) * flat}, harm(PressOrbDamage), {1.f, .5f, .15f, 1}, 2.8f);
+                            }
+                    }
+                }
+                t.State = down ? 1 : 0;
+                if (t.Slot >= 0 && t.Slot < static_cast<int>(mMonsters.size()) && mMonsters[t.Slot].Active && !mMonsters[t.Slot].Dying)
+                {   // the link: it hangs over the frame; her blows bite only while it glows
+                    auto& link = kit.Enemies()[t.Slot];
+                    link.Pos = at(0, 0, PressTall + PressLinkUp); link.Yaw = std::atan2(t.Tx, t.Tz);
+                    link.Weak = open ? 1.f : 1e-6f;
+                    mMonsters[t.Slot].Stage = open ? 1 : 0;
+                }
+                continue;
+            }
+            if (t.Won || !live) { t.In = false; t.Entered = false; continue; }
+
+            // through it: in at one end, out at the other
+            if (inside && !t.In) { t.In = true; t.Side = along < 0 ? -1.f : 1.f; t.Entered = std::abs(along) > half - 8; }
+            else if (!inside && t.In)
+            {
+                t.In = false;
+                if (t.Entered && along * t.Side < 0 && std::abs(along) >= half && t.Kind != TrapSeal)
+                {
+                    WinTrap(t, TrapName[t.Kind], t.Kind == TrapWind ? L"The wind has no teeth for one who steers." :
+                                                 t.Kind == TrapRunes ? L"The stones have thrown their last fire." : L"They did not hold you. Their light goes out.");
+                    continue;
+                }
+            }
+
+            switch (t.Kind)
+            {
+            case TrapWind:
+            {
+                const float cycle = WindCalm + WindBlow, now = std::fmod(t.Clock, cycle);
+                const int gust = static_cast<int>(t.Clock / cycle);
+                const float dir = gust % 2 == 0 ? 1.f : -1.f;
+                if (t.In && gust + 1 != t.Count)
+                {   // a new gust gathers: say which way it will throw her, as she faces
+                    t.Count = gust + 1;
+                    const float facing = std::sin(pl.Yaw) * t.Tx + std::cos(pl.Yaw) * t.Tz;
+                    kit.Notice((dir > 0) == (facing >= 0) ? L"THE WIND TURNS: IT WILL THROW YOU RIGHT" : L"THE WIND TURNS: IT WILL THROW YOU LEFT", 1.6f);
+                }
+                if (t.In && now > WindCalm)
+                {
+                    const float push = cruise * WindPush * (mOnFoot ? .5f : 1.f) * Smooth(now, WindCalm, WindCalm + .3f) * dt * dir;
+                    pl.Position.x += t.Nx * push; pl.Position.z += t.Nz * push;
+                }
+                // the teeth: a wall of ice wind along each edge, as high as the sky
+                const float edge = t.W + WindEdge;
+                const float across = (pl.Position.x - t.P.x) * t.Nx + (pl.Position.z - t.P.z) * t.Nz;
+                if (std::abs(along) < half && high && std::abs(std::abs(across) - edge) < WindWall)
+                {
+                    const float to = (std::abs(across) < edge ? edge - WindWall : edge + WindWall) * (across < 0 ? -1.f : 1.f);
+                    pl.Position.x += t.Nx * (to - across); pl.Position.z += t.Nz * (to - across);
+                    if (kit.Hurt(world, combat, harm(WindDamage))) { kit.Effect(chest, {.6f, .85f, 1.f, 1}, 20, 4.f, .2f); kit.Shake(.16f); }
+                }
+                break;
+            }
+            case TrapRunes:
+                if (!t.In) break;
+                for (int k = 0; k < 3; ++k)
+                {
+                    t.Fire[k] -= dt;
+                    if (t.Fire[k] > 0) continue;
+                    t.Fire[k] = LauncherEvery;
+                    const XMFLOAT3 from = Add(t.Post[k], {0, LauncherTall * .85f, 0});
+                    const XMFLOAT3 mark = Add(chest, Mul(mPlayerVelocity, std::min(Len(Sub(chest, from)) / LauncherSpeed, 1.5f) * .8f));
+                    const XMFLOAT3 aim = Norm(Sub(mark, from));
+                    for (int v = -1; v <= 1; ++v)
+                    {   // three in a narrow fan
+                        const float turn = static_cast<float>(v) * .13f, c = std::cos(turn), s = std::sin(turn);
+                        kit.SpawnOrb(from, Mul(XMFLOAT3{aim.x * c + aim.z * s, aim.y, aim.z * c - aim.x * s}, LauncherSpeed), harm(LauncherDamage), {1.f, .35f, .85f, 1}, 3.6f);
+                    }
+                    kit.Effect(from, {1.f, .4f, .9f, 1}, 14, 3.f, .2f); Sound::Play("creatures/attack", .5f, .2f);
+                }
+                break;
+            case TrapWatch:
+                t.Next = std::max(0.f, t.Next - dt);
+                if (!inside) break;
+                for (int k = 0; k < 2; ++k)
+                {
+                    const float angle = t.Fire[k] + t.Clock * WatchTurn * (k ? -1.f : 1.f);
+                    const XMFLOAT3 dir{std::sin(angle), 0, std::cos(angle)}, d = Sub(p, t.Post[k]);
+                    const float reach = d.x * dir.x + d.z * dir.z, off = std::abs(d.x * dir.z - d.z * dir.x);
+                    if (reach < 2.5f || reach > WatchReach || off > WatchWidth) continue;
+                    const XMFLOAT3 eye = Add(t.Post[k], {0, WatchTall * .82f, 0});
+                    if (kit.Blocks(world, eye) || !kit.Hurt(world, combat, harm(WatchDamage))) continue;
+                    kit.Effect(chest, t.Look ? XMFLOAT4{.75f, .45f, 1.f, 1} : XMFLOAT4{1.f, .7f, .25f, 1}, 22, 4.f, .22f); kit.Shake(.18f);
+                    Sound::Play("world/bell", .5f, .1f);
+                    if (t.Next <= 0)
+                    {   // seen: what guards the place wakes
+                        t.Next = WatchGuardEvery;
+                        kit.Notice(L"THE WATCHER HAS SEEN YOU", 1.8f);
+                        int roaming = 0;
+                        for (const auto& m : mMonsters) if (m.Active && !m.Dying && !m.Encounter && m.Kind < ChestKind) ++roaming;
+                        if (roaming < 6) wake(t.S, 2);
+                    }
+                }
+                break;
+            case TrapSeal:
+                if (!t.In) { t.Next = .5f; break; }
+                t.Next -= dt;
+                if (t.Next > 0) break;
+                {
+                    t.Next = SealEvery * (.85f + .3f * Random());
+                    const float angle = Random() * 2 * Pi, r = Random() * 1.6f;
+                    Strike strike; strike.Trap = i; strike.T = SealWarn; strike.Drop = std::max(18.f, up + 30.f);
+                    strike.P = {p.x + std::sin(angle) * r, 0, p.z + std::cos(angle) * r};
+                    // it lands on the road's stones in the clearing, on the land beyond them
+                    const Sample& under = mSamples[Nearest(strike.P.x, strike.P.z, mIndex, 40)];
+                    const float beyond = std::abs((strike.P.x - under.P.x) * under.Nx + (strike.P.z - under.P.z) * under.Nz) - under.W;
+                    strike.P.y = beyond > 0 ? GetNature().Height(strike.P.x, strike.P.z) : under.P.y;
+                    mStrikes.push_back(strike);
+                    kit.RingEffect({strike.P.x, strike.P.y + .05f, strike.P.z}, RockfallRadius + .6f, {1.f, .55f, .25f, 1}, SealWarn);
+                    if (p.y - strike.P.y > 3) kit.RingEffect({strike.P.x, p.y + .2f, strike.P.z}, RockfallRadius + .6f, {1.f, .55f, .25f, 1}, SealWarn);   // and at her own height
+                }
+                break;
+            default: break;
+            }
+        }
+    }
+
+    float Journey::TopAt(float x, float z) const
+    {
+        float best = -1.0e9f;
+        for (const auto& b : mBuildings)
+        {
+            const Model& m = mCityModels[b.Model];
+            if (m.Top.empty()) continue;
+            const float scale = b.Height / (std::max)(m.Max.y - m.Min.y, 1e-4f);
+            const float wx = x - b.P.x, wz = z - b.P.z, ex = (m.Max.x - m.Min.x) * .5f, ez = (m.Max.z - m.Min.z) * .5f;
+            if (wx * wx + wz * wz > (ex * ex + ez * ez) * scale * scale) continue;
+            // world to model: undo the placement of Place() (translation, turn about Y, scale, centring)
+            const float c = std::cos(b.Yaw), sn = std::sin(b.Yaw);
+            const float lx = (wx * c - wz * sn) / scale + ex, lz = (wx * sn + wz * c) / scale + ez;
+            const int gx = static_cast<int>(std::floor(lx / (2 * ex) * RoofGrid)), gz = static_cast<int>(std::floor(lz / (2 * ez) * RoofGrid));
+            if (gx < 0 || gz < 0 || gx >= RoofGrid || gz >= RoofGrid) continue;
+            const float top = m.Top[static_cast<size_t>(gz) * RoofGrid + gx];
+            if (top > -1.0e8f) best = (std::max)(best, b.P.y + (top - m.Min.y) * scale);
+        }
+        return best;
+    }
+
+    void Journey::AddObstacle(float x, float z, float radius, bool house)
     {
         const long long key = (static_cast<long long>(std::floor(x / 16.f)) << 32) ^ (static_cast<long long>(std::floor(z / 16.f)) & 0xFFFFFFFFll);
         mObstacleGrid[key].push_back(static_cast<int>(mObstacles.size()));
-        mObstacles.push_back({x, z, radius});
+        mObstacles.push_back({x, z, radius, house});
     }
 
     // The way. The whole land is hers to walk, so the game says where the road is whenever she is off it, and
@@ -694,6 +1307,7 @@ namespace CaucasianEagle
         auto& p = world.MainPlayer;
         const float x = p.Position.x, z = p.Position.z;
         mLateral = 0;
+        GameSession().SupportY = -1.0e9f;   // set again below when a building's top is under her
         const bool eagleDown = mFinale == Finale::Chains || mFinale == Finale::Freed || mFinale == Finale::Done;
         if (z > LedgeWalkFrontZ - .5f && z < LedgeWalkBackZ + 1 && std::abs(x) < LedgeWalkHalfWidth + 1 && eagleDown)
         { mIndex = static_cast<int>(mSamples.size()) - 1; mS = mIndex * mStep; mStage = 11; return; }
@@ -749,6 +1363,24 @@ namespace CaucasianEagle
                 p.Position.x -= here.Nx * over; p.Position.z -= here.Nz * over;
                 mLateral = lateral - over;
             }
+            // A building is hers to stand on: its top surface under her feet carries her (the engine's SupportY),
+            // and its wall stops her only when that surface is over her head, or when she is on the ground beside it.
+            const float top = TopAt(p.Position.x, p.Position.z);
+            const bool onTop = top > -1.0e8f && p.Position.y >= top - RoofStep;
+            const bool underTop = top > -1.0e8f && !onTop;
+            const bool low = p.Position.y < GetNature().Height(p.Position.x, p.Position.z) + 1.f;
+            // Nothing of hers is under the land. The walkable sheet lies level with the road in its corridor and with the
+            // land beyond; where the land is lower the sheet has a rim, the engine does not count so steep a face as ground,
+            // and coming in from the low side (or down onto a cliff face) she got under the sheet, where there is no ground
+            // at all: she fell for ever. She is lifted back instead.
+            if (const float land = std::min(GetNature().Height(p.Position.x, p.Position.z), here.P.y); !p.IsGrounded && p.Position.y < land - UnderLand)
+            {
+                Log("[JOURNEY] under the land at %.0f m (%.1f %.1f %.1f, land %.1f, lateral %.1f; grounded %d, falling %.1f, ground %.1f, flight %d): lifted back.\n", mS, p.Position.x, p.Position.y, p.Position.z, land, lateral,
+                    p.IsGrounded ? 1 : 0, p.VerticalVelocity, p.GroundY, p.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? 1 : 0);
+                p.Position.y = std::max(GetNature().Height(p.Position.x, p.Position.z), std::abs(lateral) <= here.W + CorridorRim ? here.P.y : -1.0e9f) + .5f;
+                p.GroundY = p.Position.y; p.VerticalVelocity = 0;
+            }
+            GameSession().SupportY = onTop ? top : -1.0e9f;
             // off the road she walks round trees, boulders, towers and the piers of the gates
             const int gx = static_cast<int>(std::floor(p.Position.x / 16.f)), gz = static_cast<int>(std::floor(p.Position.z / 16.f));
             for (int cz = gz - 1; cz <= gz + 1; ++cz)
@@ -759,6 +1391,7 @@ namespace CaucasianEagle
                     for (const int i : cell->second)
                     {
                         const Obstacle& o = mObstacles[i];
+                        if (o.House && !underTop && !(low && !onTop)) continue;   // over it, or on it
                         const float keep = o.R + RoamBody, dx = p.Position.x - o.X, dz = p.Position.z - o.Z, d2 = dx * dx + dz * dz;
                         if (d2 >= keep * keep || d2 < 1e-6f) continue;
                         const float d = std::sqrt(d2);
@@ -800,12 +1433,123 @@ namespace CaucasianEagle
         w.Radius = def.Radius; w.PushScale = def.PushScale;
         w.Pos = {at.x, at.y + 1.3f, at.z}; w.Anchor = w.Pos; w.Fade = 1;
         enemies[slot] = w;
-        if (kind != ChestKind && kind != ChainKind)
+        if (kind != ChestKind && kind != ChainKind && kind != LinkKind)
         {
             GetNyxaraKit().Effect(w.Pos, def.Color, def.Boss ? 60 : 18, def.Boss ? 7.f : 3.f, .3f);
             GetNyxaraKit().RingEffect({at.x, at.y + .05f, at.z}, def.Radius * 3 + 1, def.Color, .7f);
         }
         return slot;
+    }
+
+    bool Journey::InitializeCreatureStations(Renderer& renderer, std::string& error)
+    {
+        mCreatureStations=true;
+        // One flat sample supplies the campaign AI's stage/ground queries;
+        // no road, save, city, encounter or progression initialization runs.
+        mSamples={Sample{}};mSamples[0].W=100;mStep=100;
+        mArenas.clear();mCities.clear();mFighting=false;mArenasCleared=0;
+        mModels.resize(KindCount);
+        for(int kind=0;kind<=Eagle;++kind)
+        {
+            if(!LoadModel(renderer,Kinds[kind].Model,mModels[kind],error))return false;
+            if(!mModels[kind].Rig.Load(ResolveDoorwaysRuntimePath("assets/Compiled")/(std::string(Kinds[kind].Model)+".rig"),error))return false;
+        }
+        ResetCreatureStations();return true;
+    }
+
+    void Journey::ResetCreatureStations()
+    {
+        if(!mCreatureStations)return;
+        auto& kit=GetNyxaraKit();kit.SetExternalEnemies(true);kit.SetTrainingMode(true);
+        auto& enemies=kit.Enemies();enemies.clear();mMonsters.clear();
+        Monster dummy;dummy.Kind=ChestKind;dummy.Active=true;dummy.Spawn=1;mMonsters.push_back(dummy);
+        NyxaraKit::Wraith target;target.Pos={0,1.3f,2.4f};target.Anchor=target.Pos;target.Health=target.MaxHealth=1000;target.PushScale=0;enemies.push_back(target);
+        for(int kind=0;kind<=Eagle;++kind)
+        {
+            const float x=-30.f+20.f*static_cast<float>(kind%4);
+            const float z=20.f*static_cast<float>(kind/4);
+            const int slot=Spawn(kind,{x,0,z},false,Kinds[kind].Boss?1.f:MonsterHealthScale);
+            if(slot>=0){enemies[slot].PushScale=0;mMonsters[slot].Spawn=1;}
+        }
+    }
+
+    void Journey::UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks)
+    {
+        if(!mCreatureStations)return;
+        mTime+=dt;
+        if(attacks)UpdateMonsters(world,combat,dt);
+        else for(auto& m:mMonsters){m.Phase+=dt;m.Lunge=std::max(0.f,m.Lunge-dt);}
+        // Also catches boss dives/teleports and any kit knockback/launch.
+        auto& enemies=GetNyxaraKit().Enemies();
+        for(size_t i=0;i<mMonsters.size();++i)
+        {
+            auto& e=enemies[i];auto& m=mMonsters[i];
+            e.Pos=e.Anchor;e.Push={};e.Lift=e.LiftVel=0;e.PushScale=0;
+            m.Ground=0;m.Air=0;m.Moving=0;
+        }
+    }
+
+    std::vector<Journey::CreatureStation> Journey::CreatureStations() const
+    {
+        std::vector<CreatureStation> result;
+        if(!mCreatureStations)return result;
+        const auto& enemies=GetNyxaraKit().Enemies();
+        for(size_t i=0;i<mMonsters.size();++i)
+        {
+            const auto& m=mMonsters[i];const auto& e=enemies[i];const auto& def=Kinds[m.Kind];
+            CreatureStation station;station.Name=i==0?L"TRAINING DUMMY":def.Name;
+            station.Anchor={e.Anchor.x,0,e.Anchor.z};station.Height=i==0?1.8f:def.Height;station.Radius=e.Radius;
+            station.Health=e.Health;station.MaximumHealth=e.MaxHealth;station.Shots=m.Shots;
+            station.Windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
+            station.Strike=std::min(1.f,m.Lunge/.28f);result.push_back(station);
+        }
+        return result;
+    }
+
+    bool Journey::CreatureStationAnchorsValid() const
+    {
+        if(!mCreatureStations)return false;
+        const auto& enemies=GetNyxaraKit().Enemies();
+        if(enemies.size()!=mMonsters.size() || enemies.size()!=static_cast<size_t>(Eagle+2))return false;
+        for(const auto& e:enemies)
+            if(Len(Sub(e.Pos,e.Anchor))>1e-6f || e.Lift!=0 || e.LiftVel!=0 || Len(e.Push)>0 || !e.Alive || e.Health!=e.MaxHealth)return false;
+        return true;
+    }
+
+    void Journey::DrawCreatureStations(Renderer& renderer, const WorldState&, const XMMATRIX& viewProjection)
+    {
+        if(!mCreatureStations)return;
+        const auto& enemies=GetNyxaraKit().Enemies();
+        for(size_t i=0;i<mMonsters.size();++i)
+        {
+            const auto& m=mMonsters[i];const auto& e=enemies[i];
+            const auto& def=Kinds[m.Kind];const XMFLOAT3 feet{e.Anchor.x,0,e.Anchor.z};
+            const float radius=i==0?1.2f:def.Radius+1;
+            const Material marker=Surface(renderer.mWhiteTextureView.Get(),{.18f,.42f,.5f,1},.12f);
+            for(float side:{-1.f,1.f})
+            {
+                renderer.DrawBox(XMMatrixScaling(radius*2,.012f,.05f)*XMMatrixTranslation(feet.x,.009f,feet.z+side*radius),viewProjection,marker);
+                renderer.DrawBox(XMMatrixScaling(.05f,.012f,radius*2)*XMMatrixTranslation(feet.x+side*radius,.009f,feet.z),viewProjection,marker);
+            }
+            if(i==0)
+            {renderer.DrawBox(XMMatrixScaling(.8f,1.8f,.8f)*XMMatrixTranslation(0,.9f,2.4f),viewProjection,Surface(renderer.mWhiteTextureView.Get(),e.Flash>0?XMFLOAT4{2,1,1,1}:XMFLOAT4{.55f,.35f,.18f,1},.05f));continue;}
+            const auto& model=mModels[m.Kind];const bool rigged=model.Rig.Kind!=CreatureRig::Type::None;
+            // Same combat pose parameters as campaign Draw: no root lunge/hover translation.
+            const float windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
+            float pitch=m.Windup>=0?-.32f*std::sin(windup*Pi*.5f):m.Lunge>0?.45f*(m.Lunge/.28f):0;
+            if(rigged)pitch*=.25f;
+            const auto place=Place(model.Min,model.Max,def.Height,e.Yaw,feet,pitch,0);
+            const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission);
+            if(rigged)
+            {
+                CreaturePose pose;pose.Time=m.Phase;pose.Stride=m.Phase*(def.Height>4?3.2f:7.5f);
+                pose.Windup=windup;pose.Strike=std::min(1.f,m.Lunge/.28f);pose.Recoil=std::min(1.f,e.Flash/.16f);
+                pose.Attack=def.Keep>0 || model.Rig.Kind==CreatureRig::Type::Robed?CreatureRig::Attack::Cast:def.Height>4?CreatureRig::Attack::Slam:CreatureRig::Attack::Swing;
+                static DoorwaysGpuSkinningPalette palette;BuildCreaturePalette(model.Rig,pose,palette);
+                renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh,place,viewProjection,palette,skin);
+            }
+            else renderer.DrawDoorwaysGpuMesh(model.Mesh,place,viewProjection,skin);
+        }
     }
 
     void Journey::Release(int slot)
@@ -856,7 +1600,7 @@ namespace CaucasianEagle
     {
         const int arena = mArenasCleared;
         mFighting = false; ++mArenasCleared;
-        combat.RestorePlayerHealth(world, static_cast<int>(ArenaHeal * (Gift(1) ? SpringsHealScale : 1.f)));
+        combat.RestorePlayerHealth(world, static_cast<int>(ArenaHeal * (Gift(1) ? SpringsHealScale : 1.f)) + Collection::WinHeal(mCollection));
         GetNyxaraKit().Notice(L"THE WAY IS OPEN", 2.2f);
         Sound::Play("combat/victory", .9f, 0); Sound::Play("nyxara/say_win", 1, 0);
         GetNyxaraKit().RingEffect(Add(mArenas[arena].P, {0, .05f, 0}), mArenas[arena].R, {.7f, 1.f, .85f, 1}, 1.2f);
@@ -871,7 +1615,8 @@ namespace CaucasianEagle
         for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
         {   // a pack she has outrun gives up
             const Monster& m = mMonsters[i];
-            if (m.Active && !m.Dying && !m.Encounter && m.Kind < ChestKind && static_cast<float>(mIndex - m.Index) * mStep > PatrolGiveUp) Release(i);
+            if (m.Active && !m.Dying && !m.Encounter && m.Kind < ChestKind &&
+                (static_cast<float>(mIndex - m.Index) * mStep > PatrolGiveUp || LenXZ(Sub(GetNyxaraKit().Enemies()[i].Pos, mPlayerLast)) > PackLost)) Release(i);
         }
         if (mFighting || mPatrolNext >= count || !combat.PlayerActionsAllowed()) return;
         const float s = mPatrols[mPatrolNext];
@@ -888,10 +1633,20 @@ namespace CaucasianEagle
             int kind = roster[static_cast<size_t>(pick) % roster.size()];
             if (static_cast<float>(Kinds[kind].Cost) > budget) kind = cheapest;
             budget -= static_cast<float>(Kinds[kind].Cost);
-            const float at = s + (Random() * 2 - 1) * 5;
+            // The first of three stands in the road ahead. The others come out of the land at both sides of it, nearer
+            // to her: a pack is an ambush, not a line across the road.
+            const bool flank = spawned % 3 != 0;
+            const float at = s + (Random() * 2 - 1) * 5 - (flank ? PatrolAhead * .45f : 0.f);
             const Sample& sample = mSamples[std::clamp(static_cast<int>(at / mStep), 0, static_cast<int>(mSamples.size()) - 1)];
             const float lateral = (Random() * 2 - 1) * std::max(.5f, sample.W - 1.5f - Kinds[kind].Radius);
-            Spawn(kind, {sample.P.x + sample.Nx * lateral, sample.P.y, sample.P.z + sample.Nz * lateral}, false, scale);
+            XMFLOAT3 where{sample.P.x + sample.Nx * lateral, sample.P.y, sample.P.z + sample.Nz * lateral};
+            if (flank)
+            {
+                const float out = (spawned % 3 == 1 ? 1.f : -1.f) * (sample.W + PackFlank * (.6f + .4f * Random()));
+                const float x = sample.P.x + sample.Nx * out, z = sample.P.z + sample.Nz * out, land = GetNature().Height(x, z);
+                if (land > sample.P.y - PackDrop && land < sample.P.y + PackClimb) where = {x, land, z};   // (not out of water or a cliff)
+            }
+            Spawn(kind, where, false, scale);
         }
         Log("[JOURNEY] roaming pack %d of %d (%d creatures) at %.0f m.\n", mPatrolNext + 1, count, spawned, s);
         ++mPatrolNext;
@@ -939,7 +1694,7 @@ namespace CaucasianEagle
         if (mWaveDelay > 0) return;
         if (mWave >= mWaves) { ClearArena(world, combat); return; }
         BuildWave(arena, mWave, mQueue);
-        if (mWave > 0) combat.RestorePlayerHealth(world, static_cast<int>(WaveHeal * (Gift(1) ? SpringsHealScale : 1.f)));
+        if (mWave > 0) combat.RestorePlayerHealth(world, static_cast<int>(WaveHeal * (Gift(1) ? SpringsHealScale : 1.f)) + Collection::WinHeal(mCollection));
         ++mWave; mWaveDelay = WaveDelay; mSpawnTimer = 0;
         if (mWave > 1 && !(a.Kind == 1 && mWave == mWaves)) GetNyxaraKit().Notice(mWave == mWaves ? L"LAST WAVE" : L"MORE ARE COMING", 1.4f);
     }
@@ -951,6 +1706,13 @@ namespace CaucasianEagle
         const KindDef& def = Kinds[m.Kind];
         const XMFLOAT3 at = GetNyxaraKit().Enemies()[slot].Pos;
         if (m.Kind == ChestKind) { Sound::Play("world/chest", .9f); OpenChest(m.Chest, world, combat); return; }
+        if (m.Kind == LinkKind)
+        {   // the link over the Kaji press: with it the press is beaten
+            Sound::Play("combat/chain", 1, .03f); GetNyxaraKit().Effect(at, {1.f, .6f, .25f, 1}, 70, 9.f, .35f); GetNyxaraKit().Shake(.3f);
+            for (auto& t : mTraps)
+                if (t.Slot == slot) { t.Slot = -1; WinTrap(t, TrapName[TrapPress], L"The link is broken. The hammer lies where it fell."); }
+            return;
+        }
         if (m.Kind == ChainKind) { Sound::Play("combat/chain", 1, .03f); GetNyxaraKit().Effect(at, {.8f, .9f, 1.f, 1}, 60, 8.f, .35f); GetNyxaraKit().Shake(.25f); return; }
         mGold += def.Boss ? 150 : def.Cost * 2 + 1;
         mGrowth.Crystals += def.Boss ? BossCrystals : static_cast<int>(std::ceil(static_cast<float>(def.Cost) * Collection::Crystals(CitiesVisited())));
@@ -970,8 +1732,11 @@ namespace CaucasianEagle
                    mCollection.Links >= Collection::LinkCount ? L"You hold all three. The end of the road will not be the same."
                                                               : std::to_wstring(mCollection.Links) + L" of 3. Every guardian of the road carries one.", 8);
         }
-        Sound::Play(def.Boss ? "creatures/boss_death" : "creatures/death", def.Boss ? 1.f : .7f, .18f); Sound::Play("world/crystal", .5f, .1f);
-        if (!def.Boss && combat.PlayerActionsAllowed()) combat.RestorePlayerHealth(world, KillHeal + (Gift(0) ? WineKillHeal : 0) + Collection::KillHeal(mCollection));
+        Sound::Play(def.Boss ? "creatures/boss_death" : "creatures/death", def.Boss ? 1.f : .9f, .18f); Sound::Play("world/crystal", .5f, .1f);
+        Sound::Play("combat/kill", 1.f, .1f);                                  // the killing blow lands hard
+        if (def.Boss || mTime - mRageAt > RageCrySeconds)                    // and she cries out, but not on every one of a pack
+        { mRageAt = mTime; Sound::Play("nyxara/rage", 1.f, .08f); }
+        // (Felling a creature gives her no health: only a wave or an arena won, a potion, and a city do.)
         GetNyxaraKit().Effect(at, def.Color, def.Boss ? 90 : 14, def.Boss ? 9.f : 4.f, .3f);
         if (def.Boss)
         {
@@ -1113,7 +1878,7 @@ namespace CaucasianEagle
             m.Spawn = std::min(1.f, m.Spawn + dt * 2.2f);
             m.Phase += dt;
             m.Lunge = std::max(0.f, m.Lunge - dt);
-            if (m.Kind == ChestKind || m.Kind == ChainKind) continue;
+            if (m.Kind == ChestKind || m.Kind == ChainKind || m.Kind == LinkKind) continue;
             const KindDef& def = Kinds[m.Kind];
             const float damageScale = DamageTaken() * (1 + StageDamageGrowth * static_cast<float>(mSamples[m.Index].Stage)) * Collection::DamageFrom(mCollection, m.Kind);
             e.Weak = Collection::DamageTo(mCollection, m.Kind);
@@ -1124,6 +1889,15 @@ namespace CaucasianEagle
             e.Yaw = AngleTo(e.Yaw, std::atan2(dir.x, dir.z), MonsterTurnRate * dt);
             if (def.Boss) UpdateBoss(i, world, combat, dt, distance, to);
             if (m.Stage >= 100) { e.Pos.y = m.Ground + 1.3f; continue; } // mid-dive
+            // How far she is over its feet. Over its head she is out of reach of its blows, and it answers another
+            // way: spirits and witches come up after her, small creatures leap, giants throw stones, the rest shoot.
+            const float over = player.Position.y - (m.Ground + m.Air);
+            const bool overhead = over > def.Height + MeleeReachUp;
+            if (def.Keep > 0 && !def.Boss)
+            {   // spirits and witches ride the air
+                const float want = alive ? std::clamp(player.Position.y - m.Ground - .4f, 0.f, FlyerCeiling) : 0.f;
+                m.Air += std::clamp(want - m.Air, -FlyerClimb * dt, FlyerClimb * dt);
+            }
 
             // ---- melee
             m.Cooldown -= dt;
@@ -1138,7 +1912,7 @@ namespace CaucasianEagle
                     const bool heavy = blow == 1;
                     const float lands = def.Reach + def.Radius + (heavy ? HeavyBlowReach : .9f);
                     m.Lunge = .28f; m.Cooldown = def.Cooldown * MonsterAttackPace * Collection::CreaturePace(mCollection) * (.85f + .3f * Random()) * (heavy ? 1.25f : 1.f);
-                    if (distance < lands && alive)
+                    if (distance < lands && alive && !overhead)
                     {
                         if (kit.Blocks(world, e.Pos)) { if (!def.Boss) m.Round = RoundGuardSeconds; }   // her guard is up: go round it
                         else
@@ -1164,7 +1938,7 @@ namespace CaucasianEagle
             }
             else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && !def.Boss && windingUp >= MaxAttackers)
                 m.Cooldown = .25f + .35f * Random();   // others are already striking: wait for a turn
-            else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && m.Slam <= 0)   // not in the middle of striking the ground
+            else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && m.Slam <= 0 && !overhead && m.Leap <= 0)   // not in the middle of striking the ground, or of a leap
             {
                 if (!def.Boss) ++windingUp;
                 m.Blow = !def.Boss && Random() < HeavyBlowChance ? 1 : 0;
@@ -1196,6 +1970,59 @@ namespace CaucasianEagle
                     {
                         m.Aim = Add(player.Position, Mul(mPlayerVelocity, .45f)); m.Slam = SlamSeconds; rooted = true;
                         kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, SlamRadius, {1.f, .35f, .25f, 1}, SlamSeconds);
+                        Sound::Play("creatures/attack", .8f, .2f);
+                    }
+                }
+            }
+
+            // ---- she is over its head: small creatures leap up at her, giants throw stones
+            if (m.Leap > 0)
+            {   // in the air: up to where she was and down again
+                rooted = true; m.Leap -= dt;
+                const float t = 1 - std::max(0.f, m.Leap) / LeapSeconds;
+                m.Air = m.LeapHigh * std::sin(t * Pi);
+                if (!m.LeapHit && alive && Len(Sub(chest, {e.Pos.x, m.Ground + m.Air + def.Height * .6f, e.Pos.z})) < def.Radius + LeapTouch)
+                {
+                    m.LeapHit = true;
+                    if (!kit.Blocks(world, e.Pos))
+                    {
+                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * LeapDamage)));
+                        kit.Effect(chest, {1.f, .3f, .25f, 1}, 16, 3.f, .2f); kit.Shake(.16f);
+                    }
+                }
+                if (m.Leap <= 0)
+                {
+                    m.Air = 0; m.Cooldown = std::max(m.Cooldown, .7f);
+                    kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2 + 1, def.Color, .35f);
+                }
+            }
+            else if (alive && overhead && !rooted && !def.Boss && def.Range == 0)
+            {
+                if (def.Radius <= 1.2f)
+                {
+                    m.LeapWait -= dt;
+                    if (m.LeapWait <= 0 && over < LeapReach && distance < LeapRange)
+                    {
+                        m.LeapWait = LeapEvery * (.7f + .6f * Random());
+                        m.Leap = LeapSeconds; m.LeapHigh = std::max(1.f, over - def.Height * .5f); m.LeapHit = false;
+                        XMFLOAT3 mark = Add(to, Mul(mPlayerVelocity, LeapSeconds * .5f)); mark.y = 0;   // where she will be when it is at the top
+                        m.HopDir = LenXZ(mark) > .2f ? Norm(mark) : dir;
+                        m.LeapSpeed = LenXZ(mark) / (LeapSeconds * .5f);
+                        kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2 + 1, {1.f, .72f, .15f, 1}, .4f);
+                        Sound::Play("creatures/attack", .7f, .2f);
+                        rooted = true;
+                    }
+                }
+                else if (over < ThrowReach && distance < ThrowRange)
+                {
+                    m.Shoot -= dt;
+                    if (m.Shoot <= 0)
+                    {
+                        const XMFLOAT3 from{e.Pos.x, m.Ground + def.Height * .9f, e.Pos.z};
+                        const XMFLOAT3 mark = Add(chest, Mul(mPlayerVelocity, RangedLead * std::min(Len(Sub(chest, from)) / ThrowSpeed, 1.2f)));
+                        kit.SpawnOrb(from, Mul(Norm(Sub(mark, from)), ThrowSpeed), std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * ThrowDamage)),
+                                     {.78f, .72f, .62f, 1}, 3.2f);
+                        m.Shoot = ThrowEvery * (.8f + .4f * Random()); m.Lunge = .28f;
                         Sound::Play("creatures/attack", .8f, .2f);
                     }
                 }
@@ -1236,6 +2063,14 @@ namespace CaucasianEagle
                 }
             }
 
+            // Anchored training keeps the campaign attack state machine above,
+            // but no chase, separation, retreat, leap or forced displacement.
+            if (mCreatureStations)
+            {
+                e.Pos=e.Anchor; e.Push={}; e.Lift=e.LiftVel=0;
+                m.Moving=0; m.Air=0; m.Ground=0;
+                continue;
+            }
             // ---- movement
             XMFLOAT3 move{0, 0, 0};
             if (!rooted && alive)
@@ -1287,16 +2122,29 @@ namespace CaucasianEagle
                 }
                 else if (!def.Boss && m.Cooldown > 0) move = Mul(side, speed * MonsterCircleSpeed);   // in reach, between blows or waiting for a turn: circle her
             }
+            if (m.Leap > 0) move = Mul(m.HopDir, m.LeapSpeed);
             for (int j = 0; j < count; ++j)
             {   // keep apart
-                if (j == i || !mMonsters[j].Active || mMonsters[j].Dying || mMonsters[j].Kind == ChestKind) continue;
+                if (j == i || !mMonsters[j].Active || mMonsters[j].Dying || mMonsters[j].Kind == ChestKind || mMonsters[j].Kind == LinkKind) continue;
                 XMFLOAT3 away = Sub(e.Pos, enemies[j].Pos); away.y = 0;
                 const float d = LenXZ(away), want = def.Radius + enemies[j].Radius + .25f;
                 if (d < want && def.PushScale > 0) move = Add(move, Mul(Norm(d > .01f ? away : XMFLOAT3{Random() - .5f, 0, Random() - .5f}), (want - d) * 4.f));
             }
             XMFLOAT3 next = Add(e.Pos, Mul(move, dt));
             int index = Nearest(next.x, next.z, m.Index, 30);
-            if (!(next.z > LedgeWalkFrontZ && std::abs(next.x) < LedgeWalkHalfWidth))
+            const bool roams = !m.Encounter && !arena && !def.Boss;   // a roaming pack follows her out over the land
+            if (roams)
+            {
+                const Sample& s = mSamples[index];
+                const float lateral = (next.x - s.P.x) * s.Nx + (next.z - s.P.z) * s.Nz;
+                if (std::abs(lateral) > s.W - def.Radius)
+                {   // not into water or a chasm, not up a cliff, not farther from the road than a pack goes
+                    const float land = GetNature().Height(next.x, next.z);
+                    if (std::abs(lateral) > s.W + PackRoam || land < s.P.y - PackDrop || land > s.P.y + PackClimb) { next.x = e.Pos.x; next.z = e.Pos.z; index = m.Index; }
+                    else GetNature().PushFromTrees(next.x, next.z, def.Radius);
+                }
+            }
+            else if (!(next.z > LedgeWalkFrontZ && std::abs(next.x) < LedgeWalkHalfWidth))
             {   // stay on the road, and inside the arena while its fight lasts
                 const Sample& s = mSamples[index];
                 const float lateral = (next.x - s.P.x) * s.Nx + (next.z - s.P.z) * s.Nz;
@@ -1308,7 +2156,10 @@ namespace CaucasianEagle
                 if (arena && m.Encounter)
                 {
                     const float sAt = static_cast<float>(index) * mStep;
-                    const float lo = arena->S - arena->R * .9f, hi = arena->S + arena->R * .9f;
+                    // A guardian keeps to its clearing. The others follow her as far as the walls: the stretch of road
+                    // between the clearing and a wall is no safe place to shoot from.
+                    const bool whole = !def.Boss && arena->Kind == 0;
+                    const float lo = whole ? CageEnd(*arena, -1) + 2.5f : arena->S - arena->R * .9f, hi = whole ? CageEnd(*arena, 1) - 2.5f : arena->S + arena->R * .9f;
                     if (sAt > hi || sAt < lo)
                     {   // knocked or wandered out of the arena: back to its edge, or the fight could never end
                         index = std::clamp(static_cast<int>((sAt > hi ? hi : lo) / mStep), 0, static_cast<int>(mSamples.size()) - 1);
@@ -1321,7 +2172,13 @@ namespace CaucasianEagle
             m.Moving = LenXZ(Sub(next, e.Pos)) / std::max(dt, 1e-4f);
             m.Index = index;
             m.Ground = GroundAt(next.x, next.z, m.Index);
-            e.Pos = {next.x, m.Ground + 1.3f, next.z};
+            if (roams)
+            {   // off the road it stands on the land (blended over the first metres beyond the edge)
+                const Sample& s = mSamples[m.Index];
+                const float beyond = std::abs((next.x - s.P.x) * s.Nx + (next.z - s.P.z) * s.Nz) - s.W;
+                if (beyond > 0) m.Ground += (GetNature().Height(next.x, next.z) - m.Ground) * std::min(1.f, beyond / 2.f);
+            }
+            e.Pos = {next.x, m.Ground + 1.3f + m.Air, next.z};
         }
     }
 
@@ -1373,7 +2230,7 @@ namespace CaucasianEagle
         else if (c.Tier == 1)
         {
             ++mFeathers;
-            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your blades bite deeper.", 4.5f);
+            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your axes bite deeper.", 4.5f);
         }
         else if (mLore <= stage && mLore < 12)
         {
@@ -1389,10 +2246,10 @@ namespace CaucasianEagle
             Notify(HudArt::IconTear, Palette::Moon, L"MOON SHARD", coins + L"+" + std::to_wstring(MoonShardCrystals) + L" crystals.", 4.5f); break;
         case 1:
             ++mFeathers;
-            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your blades bite deeper.", 4.5f); break;
+            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your axes bite deeper.", 4.5f); break;
         default:
             mEmber = EmberSeconds; kit.ResetCooldowns();
-            Notify(HudArt::IconEmber, Palette::Soul, L"SOUL EMBER", coins + L"Your skills return and your blades burn.", 4.5f); break;
+            Notify(HudArt::IconEmber, Palette::Soul, L"SOUL EMBER", coins + L"Your skills return and your axes burn.", 4.5f); break;
         }
         if (c.Tier >= 1 && (c.Tier == 2 || Random() < RuneChance))
         {   // a rune for her blades: the kind she has fewest of
@@ -1403,7 +2260,7 @@ namespace CaucasianEagle
                 ++mCollection.Runes[rune];
                 if (mCollection.Set < 0) mCollection.Set = rune;
                 Notify(HudArt::IconEmber, Palette::GoldLight, Ui::Upper(Collection::RuneName(rune)),
-                       std::to_wstring(mCollection.Runes[rune]) + L" of " + std::to_wstring(MaxRunes) + L". Press I, then D, to set a rune in your blades.", 6);
+                       std::to_wstring(mCollection.Runes[rune]) + L" of " + std::to_wstring(MaxRunes) + L". Press I, then D, to set a rune in your axes.", 6);
             }
         }
         Save();
@@ -1487,26 +2344,44 @@ namespace CaucasianEagle
         auto& session = GameSession();
         if (!mortal) combat.RestorePlayerHealth(world, 100);
         else if (!combat.PlayerActionsAllowed())
-        {   // mortal pilot: lies dead for two seconds, then asks the engine for a respawn, as the death screen's button does
+        {   // mortal pilot: lies dead until the game wakes her at the saved point, as it does for a player
             session.ScriptedMove = 0; mPilotKeys = {};
             deadFor += realDt;
             if (deadFor > 2)
             {
                 deadFor = 0;
-                const auto& life = combat.PlayerLife();
-                const bool asked = combat.RequestRespawn({life.Life, life.Death.Event, life.Death.Destination});
+                const bool asked = false;
                 Log("[PILOT] dead at %.0f m (arenas %d, deaths %d): respawn requested %d\n", mS, mArenasCleared, mDeaths, asked ? 1 : 0);
             }
             return;
         }
         else deadFor = 0;
         mPilotClock += realDt * mTimeScale;
+        if (static const bool fly = EnvFloat(FlyEnvironmentVariable, 0) > 0; fly)
+        {   // a test of free flight: hold Space until she takes wing and climbs, let go and travel, then land as R does
+            static float clock = 0, said = 0;
+            clock += realDt;
+            static int step = 0;   // R at 4 s (up), Space held 8..9 s (she climbs), R at 16 s (down)
+            if ((step == 0 && clock > 4) || (step == 1 && clock > 16)) { mLandAsk = true; ++step; }
+            session.ScriptedJump = clock > 8 && clock < 9; mPilotHold = EnvFloat("CAUCASIAN_EAGLE_FLY", 0) > 1;   // 2: the pilot stands still, to look at her in the air
+            // 10..14 s: she is pushed down onto the ground (the sink key): she must stay in flight
+            session.ScriptedDescend = clock > 10 && clock < 14;
+            if ((said -= realDt) <= 0)
+            {
+                said = 1;
+                const auto& pl = world.MainPlayer;
+                Log("[FLY] t=%.0f y=%.2f vy=%.2f flight=%d grounded=%d jump=%d landing=%d charge=%.2f clip=%s\n", clock, pl.Position.y, pl.VerticalVelocity,
+                    pl.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? 1 : 0, pl.IsGrounded ? 1 : 0, session.ScriptedJump ? 1 : 0, mLanding ? 1 : 0, session.FreeFlightCharge, world.ImportedAnimatedCharacter.GetActiveClipName());
+            }
+        }
         const auto& enemies = GetNyxaraKit().Enemies();
         const XMFLOAT3 p = world.MainPlayer.Position;
         int target = -1; float best = 60;
-        for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
+        static const bool racing = EnvFloat("CAUCASIAN_EAGLE_GO", 0) > 1;   // testing a trap: it runs on and fights nothing
+        for (int i = 0; i < static_cast<int>(mMonsters.size()) && !racing; ++i)
         {
-            if (!mMonsters[i].Active || mMonsters[i].Dying || !enemies[i].Alive) continue;
+            if (!mMonsters[i].Active || mMonsters[i].Dying || !enemies[i].Alive || mMonsters[i].Kind == LinkKind) continue;   // (the link hangs out of its reach)
+            if (mFighting && mMonsters[i].Kind == ChestKind) continue;   // chests wait until the fight is won (one may stand beyond its wall)
             float d = LenXZ(Sub(enemies[i].Pos, p)) - enemies[i].Radius;
             if (d < 60 && Kinds[mMonsters[i].Kind].Boss) d = std::min(d, 5.f + d * .1f);   // like a player, it goes for the boss
             if (d < best) { best = d; target = i; }
@@ -1546,7 +2421,32 @@ namespace CaucasianEagle
             if (mCompleted) { goal = {MountainX, LedgeHeight, MountainZ}; session.ScriptedMove = 0; }   // the road is walked: stand and look at Amirani
         }
         world.MainCamera.Yaw = std::atan2(goal.x - p.x, goal.z - p.z);
-        if (mPilotHold) { session.ScriptedMove = 0; session.ScriptedFast = false; if (target < 0) world.MainCamera.Yaw = std::atan2(mSamples[mIndex].Tx, mSamples[mIndex].Tz); }
+        {   // walking and not getting anywhere (head-on against a tree, a statue, a wall): go aside for a while, as a player would turn
+            static XMFLOAT3 stuckAt{}; static float stuckFor = 0, aside = 0, turn = 1.25f;
+            if (session.ScriptedMove != 'W' || LenXZ(Sub(p, stuckAt)) > 1.f) { stuckAt = p; stuckFor = 0; } else stuckFor += realDt * mTimeScale;
+            if (stuckFor > 4) { aside = 5; stuckFor = 0; turn = -turn; }
+            aside = std::max(0.f, aside - realDt * mTimeScale);
+            if (aside > 0) world.MainCamera.Yaw += turn;
+            static const bool flyTest = EnvFloat(FlyEnvironmentVariable, 0) > 0;
+            if (!flyTest) session.ScriptedJump = aside > 4.6f;   // and a hop: the rim of the road's level may be what holds her
+        }
+        if (mPilotHold) { session.ScriptedMove = 0; session.ScriptedFast = false; if (target < 0) world.MainCamera.Yaw = std::atan2(mSamples[mIndex].Tx, mSamples[mIndex].Tz) + EnvFloat("CAUCASIAN_EAGLE_LOOK", 0) * 3.14159265f / 180.f; }   // (testing: CAUCASIAN_EAGLE_LOOK turns the held view by so many degrees)
+        if (mPilotHold)
+        {   // testing, while the pilot stands: CAUCASIAN_EAGLE_VIEW=<m> brings the camera to that distance (to look at her),
+            // CAUCASIAN_EAGLE_ARMS=1 takes the bow out, 2 takes it out and draws it, 3 exchanges the axes, 4 slashes, 5 takes the bow out and shoots
+            static const float view = EnvFloat("CAUCASIAN_EAGLE_VIEW", 0); static const int arms = static_cast<int>(EnvFloat("CAUCASIAN_EAGLE_ARMS", 0));
+            static float armsClock = 0; armsClock += realDt;
+            if (view > 0) { world.MainCamera.FollowDistance = view; world.MainCamera.Pitch = EnvFloat("CAUCASIAN_EAGLE_PITCH", -7) * 3.14159265f / 180.f; world.MainCamera.Yaw = world.MainPlayer.Yaw + EnvFloat("CAUCASIAN_EAGLE_LOOK", 0) * 3.14159265f / 180.f; }
+            const bool tap = armsClock > 3 && armsClock < 3.15f;
+            if (arms == 1 || arms == 2) mPilotKeys.Q = tap;
+            if (arms == 2) mPilotKeys.Rmb = armsClock > 5;
+            if (arms == 3) mPilotKeys.G = tap;
+            if (arms == 4) mPilotKeys.Lmb = armsClock > 3 && static_cast<int>(armsClock * 3) % 2 == 0;
+            if (arms == 5) { mPilotKeys.Q = tap; mPilotKeys.Lmb = armsClock > 5 && static_cast<int>(armsClock * 4) % 2 == 0; }
+            if (arms == 6) mPilotKeys.K1 = tap;   // 6, 7, 8: Talon Dash, Feather Cyclone, Moon Leap, once, 3 s in
+            if (arms == 7) mPilotKeys.K2 = tap;
+            if (arms == 8) mPilotKeys.K3 = tap;
+        }
         static int frames = 0; static float span = 0;
         ++frames; span += realDt;
         mPilotLog -= realDt;
@@ -1558,6 +2458,7 @@ namespace CaucasianEagle
                 span > 0 ? static_cast<float>(frames) / span : 0.f);
             Log("[PILOT]   at (%.1f %.1f %.1f) target %d kind %d distance %.1f goal (%.1f %.1f) grounded %d lateral %.1f land %.1f way %.1f (%.0f m) trouble %d\n", p.x, p.y, p.z, target,
                 target >= 0 ? mMonsters[target].Kind : -1, best, goal.x, goal.z, world.MainPlayer.IsGrounded ? 1 : 0, mLateral, GetNature().Height(p.x, p.z), mWayShow, mWayDistance, mTroubleNear >= 0 ? mTroubles[mTroubleNear].Kind : -1);
+            Log("[PILOT]   move %d fast %d busy %d hold %d speed %.1f yaw %.2f fighting %d index %d\n", static_cast<int>(session.ScriptedMove), session.ScriptedFast ? 1 : 0, GetNyxaraKit().Busy() ? 1 : 0, mPilotHold ? 1 : 0, world.MainPlayer.MoveSpeed, world.MainCamera.Yaw, mFighting ? 1 : 0, mIndex);
             frames = 0; span = 0;
         }
     }
@@ -1762,7 +2663,7 @@ namespace CaucasianEagle
         mJournal.Open = std::clamp(mJournal.Open + (mJournalOpen ? 1.f : -1.f) * realDt / JournalFadeSeconds, 0.f, 1.f);
         mMapFade = std::clamp(mMapFade + (mMapOpen ? 1.f : -1.f) * realDt / JournalFadeSeconds, 0.f, 1.f);
         mJournal.CurrentChapter = mStage;
-        mJournal.MemoriesFound = mLore;
+        mJournal.MemoriesFound = mLore; mJournal.PlacesFound = PlaceBits();
         if (!mJournalOpen) return;
         const int turn = (pressed[3] || pressed[4] ? 1 : 0) - (pressed[1] || pressed[2] ? 1 : 0);
         if (turn != 0) { mJournal.Page = (mJournal.Page + turn + Story::PageCount) % Story::PageCount; mJournal.Scroll = 0; Sound::PlayUi("ui/page", .6f); Sound::StopNarration(); }
@@ -1837,12 +2738,16 @@ namespace CaucasianEagle
         GetAmiraniMountain().SetFreed(false); GetAmiraniMountain().SetEagleAway(false);
         Teleport(world, StartS); mStage = 0;
         for (auto& c : mCities) c.Visited = false;
+        for (auto& site : mSites) site.Found = false;
+        for (auto& t : mTraps) { t.Won = t.In = t.Entered = false; t.State = t.Count = 0; t.Slot = -1; t.Timer = t.Next = 0; }
+        mStrikes.clear();
         mCity = -1; mWall = 0; mWallArena = -1;
         combat.RestorePlayerHealth(world, 100);
         GetNyxaraKit().ResetCooldowns();
         mBanners.clear(); mBannerTime = 0; mToasts.clear();
         mJournal.ChaptersReached = mJournal.EndReached = 0; mJournal.Unread = 0;
         Announce(L"", L"THE ROAD BEGINS AGAIN", L"Seven years lie ahead of you once more.", 5);
+        mHere = world.MainPlayer.Position; mHasSavePoint = false; mAlive = true;
         Log("[JOURNEY] restarted: back at the start of the road, nothing won.\n");
         Save();
     }
@@ -1858,6 +2763,18 @@ namespace CaucasianEagle
         if (static bool placed = false; !placed && mPilot)
         {   // testing: stand her before a trouble (or beside it, off the road) for a capture
             placed = true;
+            if (const float at = EnvFloat(AtEnvironmentVariable, -1); at >= 0)
+            {   // testing: she stands at this many metres along the road
+                Teleport(world, at); mPlaced = true; mPilotHold = EnvFloat("CAUCASIAN_EAGLE_GO", 0) <= 0;
+                Log("[JOURNEY] test: at %.0f m.\n", at);
+            }
+            if (const int trap = static_cast<int>(EnvFloat(TrapEnvironmentVariable, 0)); trap != 0 && std::abs(trap) <= static_cast<int>(mTraps.size()))
+            {   // testing: she stands before this trap, or in its middle
+                const Trap& t = mTraps[std::abs(trap) - 1];
+                Teleport(world, trap < 0 ? t.S - 1 : t.S - (t.Kind == TrapGate ? 16.f : t.Length * .5f + 14.f));
+                mPlaced = true; mPilotHold = EnvFloat("CAUCASIAN_EAGLE_GO", 0) <= 0;
+                Log("[JOURNEY] test: at trap %d, kind %d, %.0f m.\n", std::abs(trap), t.Kind, t.S);
+            }
             const int which = static_cast<int>(EnvFloat(TroubleEnvironmentVariable, 0));
             if (which != 0 && std::abs(which) <= static_cast<int>(mTroubles.size()))
             {
@@ -1869,7 +2786,7 @@ namespace CaucasianEagle
                     p.Position.x += mSamples[mIndex].Nx * 30; p.Position.z += mSamples[mIndex].Nz * 30;
                     p.Position.y = GetNature().Height(p.Position.x, p.Position.z) + .3f; p.GroundY = p.Position.y;
                 }
-                mPilotHold = true;
+                mPilotHold = true; mPlaced = true;
                 Log("[JOURNEY] test: at trouble %d, kind %d, %.0f m.\n", std::abs(which), t.Kind, t.S);
             }
         }
@@ -1881,10 +2798,12 @@ namespace CaucasianEagle
         if (mPendingTeleport)
         {
             mPendingTeleport = false;
-            Teleport(world, mArenas[std::min(mArenasCleared, static_cast<int>(mArenas.size())) - 1].S);
+            WakeAtSavePoint(world);
         }
-        // death: the fight is undone, she wakes at the last arena she won
+        // death: the fight is undone; she lies where she fell for a moment, then wakes where the game was last saved.
+        // The engine's panel is off (OwnDeath): the game asks for the respawn itself, and moves her when she is alive again.
         const bool alive = combat.PlayerActionsAllowed();
+        mAlive = alive; mHere = world.MainPlayer.Position;
         const auto undoFight = [&]
         {
             for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
@@ -1893,7 +2812,23 @@ namespace CaucasianEagle
             if (mFinale == Finale::Fight || mFinale == Finale::Words) { mFinale = Finale::None; GetAmiraniMountain().SetEagleAway(false); }
         };
         const auto toCheckpoint = [&]
-        { Teleport(world, mArenasCleared > 0 ? mArenas[std::min(mArenasCleared, static_cast<int>(mArenas.size())) - 1].S : StartS); };
+        { WakeAtSavePoint(world); };
+        if (!alive)
+        {
+            if (!mWasDead) { mDeadFor = 0; mRespawnAsk = 0; Announce(L"", L"NYXARA HAS FALLEN", L"She wakes where the road was last saved.", DeathSeconds + 1.5f); }
+            mDeadFor += realDt;
+            if (mDeadFor >= DeathSeconds && (mRespawnAsk -= realDt) <= 0)
+            {   // (the engine refuses until its own delay has passed: asked again twice a second)
+                mRespawnAsk = .5f;
+                // the engine wakes her on the road beside the saved point (ground it is sure of); WakeAtSavePoint then puts her on the point itself
+                const int beside = mHasSavePoint ? Nearest(mSavePoint.x, mSavePoint.z, -1, 0)
+                                                 : std::clamp(static_cast<int>((mArenasCleared > 0 ? mArenas[std::min(mArenasCleared, static_cast<int>(mArenas.size())) - 1].S : StartS) / mStep), 0, static_cast<int>(mSamples.size()) - 1);
+                GameSession().SpawnPosition = mSamples[beside].P; GameSession().SpawnYaw = std::atan2(mSamples[beside].Tx, mSamples[beside].Tz);
+                const auto& life = combat.PlayerLife();
+                const bool taken = combat.RequestRespawn({life.Life, life.Death.Event, life.Death.Destination});
+                if (taken) Log("[JOURNEY] she has lain %.1f s: she wakes." "\n", mDeadFor);
+            }
+        }
         if (!alive && !mWasDead)
         {
             mWasDead = true; ++mDeaths; undoFight();
@@ -1903,10 +2838,30 @@ namespace CaucasianEagle
         else if (alive && mWasDead)
         {
             mWasDead = false; toCheckpoint();
+            GameSession().SpawnPosition = StartPoint(); GameSession().SpawnYaw = 0;   // (as it was: where a session begins)
             Log("[JOURNEY] respawned: back at %.0f m.\n", mS);
         }
 
         const float before = mS;
+        if (static const int roof = static_cast<int>(EnvFloat(RoofEnvironmentVariable, 0)); roof > 0 && roof <= static_cast<int>(mBuildings.size()))
+        {   // a test of roofs: she is dropped from 4 m over the middle of building roof-1 and must come to rest on it
+            static float clock = 0, said = 0; static bool dropped = false;
+            clock += realDt;
+            const Building& b = mBuildings[roof - 1];
+            auto& pl = world.MainPlayer;
+            if (!dropped && clock > 10)
+            {
+                dropped = true; mPilotHold = true;
+                pl.Position = {b.P.x, TopAt(b.P.x, b.P.z) + 4.f, b.P.z}; pl.VerticalVelocity = 0; pl.IsGrounded = false;
+            }
+            if ((said -= realDt) <= 0)
+            {
+                said = clock > 10 && clock < 12 ? .1f : 1.f;
+                Log("[ROOF] t=%.1f building %d model %d x=%.2f z=%.2f y=%.2f top=%.2f land=%.2f grounded=%d flight=%d support=%.2f\n", clock, roof - 1, b.Model, pl.Position.x, pl.Position.z, pl.Position.y,
+                    TopAt(pl.Position.x, pl.Position.z), GetNature().Height(pl.Position.x, pl.Position.z), pl.IsGrounded ? 1 : 0,
+                    pl.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? 1 : 0, GameSession().SupportY);
+            }
+        }
         if (!mShowcase) Leash(world);
         UpdateWay(world, realDt);
         if (!mShowcase && alive && mS < 20 && before > 150 && mArenasCleared > 0)
@@ -1939,7 +2894,9 @@ namespace CaucasianEagle
             UpdateFinale(world, combat, dt);
             UpdateChests(world);
             UpdateCities(world, combat);
+            if (!mShowcase) UpdatePlaces(world);
             UpdateTroubles(world, combat, dt);
+            UpdateTraps(world, combat, dt);
         }
         UpdateMonsters(world, combat, dt);
 
@@ -1954,12 +2911,6 @@ namespace CaucasianEagle
             const float tall = 1 + FormScale * static_cast<float>(form);
             world.AnimatedPlayerVisual.Scale = {tall, tall, tall};
         }
-        if (alive)
-        {   // her health comes back by itself, slowly
-            mRegen += dt;
-            while (mRegen >= RegenSeconds) { mRegen -= RegenSeconds; combat.RestorePlayerHealth(world, RegenHealth); }
-        }
-        else mRegen = 0;
         if (form > mFormShown && alive)
         {   // all three of her things reached a new tier: she herself changes
             mFormShown = form;
@@ -1968,7 +2919,7 @@ namespace CaucasianEagle
             kit.Effect(Add(world.MainPlayer.Position, {0, 1.3f, 0}), light, 120, 9.f, .34f);
             kit.RingEffect(Add(world.MainPlayer.Position, {0, .05f, 0}), 7.f, light, 1.6f);
             kit.Shake(.3f); Sound::Play("nyxara/evolve", 1, 0); Sound::Play("nyxara/say_evolve", 1, 0);
-            Announce(L"NYXARA EVOLVES", Ui::Upper(Growth::FormName(form)), L"Wings, blades and armour answer her as one. Her wounds close.", 6);
+            Announce(L"NYXARA EVOLVES", Ui::Upper(Growth::FormName(form)), L"Wings, axes and armour answer her as one. Her wounds close.", 6);
             Log("[JOURNEY] form %d reached at %.0f s played.\n", form, mPlaySeconds);
         }
         else if (form < mFormShown) mFormShown = form;
@@ -2020,6 +2971,22 @@ namespace CaucasianEagle
         }
         for (auto& toast : mToasts) toast.Age += realDt;
         std::erase_if(mToasts, [](const Toast& toast) { return toast.Age >= toast.Seconds; });
+        {   // F8: the game is saved here. If she falls, she wakes at this place.
+            static const float testAt = EnvFloat(SaveKeyEnvironmentVariable, 0);
+            const bool saveKey = GameSession().Unattended ? testAt > 0 && mTime > testAt && mTime < testAt + .3f
+                                                          : inputAllowed && (GetAsyncKeyState(VK_F8) & 0x8000) != 0;
+            if (saveKey && !mSaveKey && !mJournalOpen && !mMapOpen && !mPauseOpen && !mGuideOpen)
+            {
+                if (CanMark())
+                {
+                    Save(); Sound::PlayUi("ui/buy", .9f);
+                    Notify(HudArt::IconBook, Palette::GoldLight, L"GAME SAVED", L"If you fall, you wake here.", 4);
+                    Log("[JOURNEY] saved by key at %.0f m (%.1f %.1f %.1f)." "\n", mS, mHere.x, mHere.y, mHere.z);
+                }
+                else Notify(HudArt::IconBook, Palette::Silver, L"NOT NOW", mFighting ? L"You cannot save in the middle of a fight." : L"You cannot save here.", 3);
+            }
+            mSaveKey = saveKey;
+        }
         // hold F9: begin the journey again (shown on screen while held; not while she is dead)
         const bool restartKey = GameSession().Unattended
             ? mRestartTest > 0 && mTime > mRestartTest && mTime < mRestartTest + RestartHoldSeconds + 1
@@ -2031,6 +2998,57 @@ namespace CaucasianEagle
         }
         else mRestartHold = 0;
 
+        {   // Walking and flying are two ways of going, and only R changes one into the other; each change takes three
+            // seconds. Walking: Shift runs, Space jumps. Flying (engine: DoorwaysGameSession::FreeFlight with
+            // FreeFlightKeepAloft): W goes where the camera looks, Space held climbs, X held sinks, and touching the ground, fighting or
+            // opening a window never puts her on foot. R in flight, close to the ground, lands her.
+            auto& session = GameSession();
+            const auto& pl = world.MainPlayer;
+            const bool flying = pl.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+            const bool windows = mJournalOpen || mMapOpen || mPauseOpen || mGuideOpen || mGrowthOpen;
+            int index = mIndex;
+            // her height over what she would land on: the ground, or a building's top under her
+            const float height = (std::max)(0.f, pl.Position.y - (std::max)(GroundAt(pl.Position.x, pl.Position.z, index), TopAt(pl.Position.x, pl.Position.z)));
+            // Her ceiling is over the ground under her, not over where she took off: the road climbs 60 m on its way to
+            // the mountain, and a ceiling fixed at the take-off would come down to the ground. (The engine measures it
+            // from the take-off height, so it is given the difference every frame.)
+            session.FreeFlightCeiling = (std::max)(.1f, (std::max)(GetNature().Height(pl.Position.x, pl.Position.z), TopAt(pl.Position.x, pl.Position.z)) + FlightCeiling - pl.JumpFlightLaunchY);
+            const bool key = !windows && mUiFocused && alive && !mPilot && IsDoorwaysKeyDown('R');
+            const bool asked = mLandAsk;
+            const bool pressed = (key && !mModeKey) || asked;
+            mModeKey = key; mLandAsk = false;
+            if (flying && !mFlying) Notify(HudArt::IconWings, Palette::Silver, L"IN FREE FLIGHT", L"W flies where you look. Come down low, then R lands.", 5);
+            if (pressed && !flying)
+            {
+                session.FreeFlightTakeoff = true; Sound::Play("nyxara/wing", .8f);
+            }
+            else if (pressed && flying && !mLanding)
+            {
+                if (height <= FlightLandReach || asked) { mLanding = true; mLandTime = FlightLandSeconds; Sound::Play("nyxara/wing", .8f); }
+                else Notify(HudArt::IconWings, Palette::Silver, L"TOO HIGH TO LAND", L"Fly down close to the ground, then press R.", 3);
+            }
+            if (!flying)
+            {
+                session.FreeFlightEnd = false;
+                if (mFlying) { Sound::Play("nyxara/land", .6f); Notify(HudArt::IconWings, Palette::Silver, L"ON FOOT", L"Shift runs; Ctrl walks; Space jumps. R takes her up.", 4); }
+                mLanding = false; session.FreeFlightLandSpeed = 0;
+            }
+            else if (mLanding)
+            {
+                // the change to walking takes FlightLandSeconds whatever her height: she sinks at height / time left,
+                // and only when the time is up does the engine end the flight (FreeFlightEnd), on the ground
+                mLandTime -= realDt;
+                session.FreeFlightLandSpeed = mLandTime > 0 ? (std::max)(FlightLandMinSpeed, height / (std::max)(mLandTime, .05f)) : 4.f;
+                session.FreeFlightEnd = mLandTime <= 0;
+            }
+            mFlying = flying;
+            // on the ground she is on foot (the autopilot of the tests still soars low, as the game was balanced)
+            mOnFoot = !flying && !mPilot;
+            if (mWingSpeed <= 0) mWingSpeed = world.MainPlayer.MoveSpeed;
+            world.MainPlayer.MoveSpeed = mOnFoot ? FootSpeed : mWingSpeed;
+            if (mOnFoot) session.FastMultiplier = FootRunSpeed / FootSpeed;          // Shift runs (in the air it is set with her growth, above)
+            GetNyxaraKit().SetOnFoot(mOnFoot);
+        }
         if (mPilot) UpdatePilot(world, combat, realDt);
     }
 
@@ -2081,9 +3099,9 @@ namespace CaucasianEagle
         for (const auto& b : mBuildings)
         {
             const float dx = b.P.x - eye.x, dz = b.P.z - eye.z, d = std::sqrt(dx * dx + dz * dz);
-            if (d > CityDrawDistance) continue;
+            if (d > b.Far) continue;
             const Model& model = mCityModels[b.Model];
-            const float fade = Smooth(CityDrawDistance - d, 0, 60);                 // far buildings come out of the dark
+            const float fade = Smooth(b.Far - d, 0, std::min(60.f, b.Far * .25f));                 // far buildings come out of the dark
             renderer.DrawDoorwaysGpuMesh(model.Mesh, Place(model.Min, model.Max, b.Height, b.Yaw, b.P), viewProjection,
                                          Surface(model.Texture.Get(), {CityTint * fade, CityTint * fade, CityTint * fade, 1}, CityEmission * fade));
         }
@@ -2129,6 +3147,52 @@ namespace CaucasianEagle
             }
         }
 
+        // ---- traps: what stands of them (their fire and light are drawn with the other lights, below)
+        for (const Trap& t : mTraps)
+        {
+            if (LenXZ(Sub(t.P, eye)) > 320) continue;
+            const float yaw = std::atan2(t.Tx, t.Tz);
+            const auto at = [&](float along, float lateral, float up) { return XMFLOAT3{t.P.x + t.Tx * along + t.Nx * lateral, t.P.y + up, t.P.z + t.Tz * along + t.Nz * lateral}; };
+            const auto box = [&](XMFLOAT3 size, float turn, XMFLOAT3 centre, const Material& material)
+            { renderer.DrawBox(XMMatrixScaling(size.x, size.y, size.z) * XMMatrixRotationY(turn) * XMMatrixTranslation(centre.x, centre.y, centre.z), viewProjection, material); };
+            if (t.Kind == TrapPress)
+            {   // the Kaji press: two iron pillars, a beam, and the hammer on its chains
+                ID3D11ShaderResourceView* rough = mPropModels[3].Texture.Get();   // the rock of the arena walls, nearly black: old iron
+                const Material iron = Surface(rough, {.20f, .19f, .21f, 1}, .03f);
+                const float reach = t.W + PressPillarOut;
+                for (const float side : {-1.f, 1.f}) box({2.2f, PressTall, 2.8f}, yaw, at(0, side * reach, PressTall * .5f), iron);
+                box({2 * reach + 2.2f, 1.6f, 3.2f}, yaw, at(0, 0, PressTall + .8f), iron);
+                const float phase = std::fmod(t.Clock, PressEvery);
+                const float hang = t.Won ? 0.f : PressHammerAt(phase);
+                const bool hot = !t.Won && hang < .05f;
+                const float shake = !t.Won && phase < PressWarn && phase > .35f ? .07f * std::sin(mTime * 55) : 0.f;
+                const float low = PressHead * .5f + hang * (PressTall - PressHead);
+                box({2 * t.W, PressHead, PressDepth}, yaw + (t.Won ? .22f : 0.f), at(shake, shake, low),
+                    Surface(rough, hot ? XMFLOAT4{1.6f, .62f, .2f, 1} : XMFLOAT4{.30f, .27f, .26f, 1}, hot ? .8f : .04f));
+                if (!t.Won)
+                    for (const float side : {-1.f, 1.f})
+                    {
+                        const float length = PressTall - (low + PressHead * .5f);
+                        if (length > .05f) box({.28f, length, .28f}, yaw, at(0, side * t.W * .6f, low + PressHead * .5f + length * .5f), iron);
+                    }
+            }
+            else if (t.Kind == TrapWind)
+            {   // the teeth: tall pale rocks along both sides of the way
+                const auto crag = mPlaceModel.find("Crag");
+                if (crag == mPlaceModel.end()) continue;
+                const Model& model = mCityModels[crag->second];
+                const Material ice = Surface(model.Texture.Get(), t.Won ? XMFLOAT4{.45f, .5f, .55f, 1} : XMFLOAT4{.62f, .86f, 1.1f, 1}, t.Won ? .03f : .2f);
+                for (const float side : {-1.f, 1.f})
+                    for (int j = 0; j < 6; ++j)
+                    {
+                        const float jitter = std::sin(static_cast<float>(j) * 12.9898f + side * 4.1f) * .5f + .5f;
+                        XMFLOAT3 foot = at(-t.Length * .5f + t.Length * (static_cast<float>(j) + .5f) / 6, side * (t.W + WindEdge + 3.f + 2 * jitter), 0);
+                        foot.y = std::min(foot.y, GetNature().Height(foot.x, foot.z)) - .6f;
+                        renderer.DrawDoorwaysGpuMesh(model.Mesh, Place(model.Min, model.Max, 9.f + 6 * jitter, yaw + static_cast<float>(j) * 1.3f, foot), viewProjection, ice);
+                    }
+            }
+        }
+
         // ---- chests
         const Model& chestModel = mModels[ChestKind];
         for (const auto& c : mChests)
@@ -2158,6 +3222,27 @@ namespace CaucasianEagle
             const float fade = m.Dying ? std::max(0.f, m.Death / .55f) : Smooth(m.Spawn, 0, 1);
             const XMFLOAT3 feet{e.Pos.x, e.Pos.y - 1.3f + e.Lift, e.Pos.z};
             const bool flash = e.Flash > 0 && !m.Dying;
+            if (m.Kind == LinkKind)
+            {   // a link of the Kaji chain over their press: dark iron, white-hot while her blows bite
+                const bool open = m.Stage != 0;
+                const Material iron = Surface(mPropModels[3].Texture.Get(), flash ? XMFLOAT4{3, 3, 3, 1} : open ? XMFLOAT4{1.8f, .8f, .25f, 1} : XMFLOAT4{.26f, .25f, .28f, 1}, flash || open ? 1.f : .04f);
+                const XMMATRIX turn = XMMatrixRotationY(e.Yaw), where = XMMatrixTranslation(e.Pos.x, e.Pos.y, e.Pos.z);
+                for (const float s : {-1.f, 1.f})
+                {
+                    renderer.DrawBox(XMMatrixScaling(.55f, 3.4f * fade, .55f) * XMMatrixTranslation(s * 1.05f, 0, 0) * turn * where, viewProjection, iron);
+                    renderer.DrawBox(XMMatrixScaling(2.65f * fade, .55f, .55f) * XMMatrixTranslation(0, s * 1.45f, 0) * turn * where, viewProjection, iron);
+                }
+                if (!m.Dying && (open || e.Health < e.MaxHealth))
+                {
+                    const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth), top = e.Pos.y + 2.6f;
+                    const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - e.Pos.x, eye.z - e.Pos.z));
+                    renderer.DrawBox(XMMatrixScaling(2.6f, .12f, .03f) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
+                    if (ratio > 0)
+                        renderer.DrawBox(XMMatrixScaling(2.5f * ratio, .08f, .04f) * XMMatrixTranslation(-1.25f * (1 - ratio), 0, 0) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z),
+                                         viewProjection, Surface(white, {1.f, .55f, .2f, 1}, .9f));
+                }
+                continue;
+            }
             if (m.Kind == ChainKind)
             {   // an iron anchor block wound with chain
                 const Material iron = Surface(white, flash ? XMFLOAT4{.42f, .46f, .52f, 1} : XMFLOAT4{.10f, .11f, .13f, 1}, flash ? .35f : .08f);
@@ -2235,6 +3320,16 @@ namespace CaucasianEagle
             XMMATRIX m = XMMatrixIdentity();
             m.r[0] = x * size; m.r[1] = y * size; m.r[2] = XMLoadFloat3(&n); m.r[3] = XMVectorSet(at.x, at.y, at.z, 1);
             push(m, Surface(kit.GlowTexture(), color, 1, true));
+        };
+        // a line of light from one point to another, 'thick' m up and down: short cards end to end (one long thin card
+        // of the soft glow texture washes out to nothing)
+        const auto beam = [&](XMFLOAT3 from, XMFLOAT3 to, float thick, XMFLOAT4 color)
+        {
+            const XMFLOAT3 span = Sub(to, from);
+            const int parts = std::max(1, static_cast<int>(Len(span) / std::max(thick * 5, 1.f)));
+            const XMFLOAT3 piece = Mul(span, .5f / static_cast<float>(parts));
+            for (int k = 0; k < parts; ++k)
+                card(Add(from, Mul(piece, static_cast<float>(2 * k + 1))), Mul(piece, 1.5f), {0, thick, 0}, color);
         };
         for (const auto& l : mLights)
         {
@@ -2319,8 +3414,112 @@ namespace CaucasianEagle
                     glow(wisp, 2.2f, {.35f, .65f, 1.f, .28f * lit});
                 }
         }
+        for (const Trap& t : mTraps)
+        {   // traps: their fire and light
+            const XMFLOAT3 her = world.MainPlayer.Position;
+            if (std::min(LenXZ(Sub(her, t.P)), t.Kind == TrapGate ? LenXZ(Sub(her, t.End)) : 1.0e9f) > 280) continue;
+            const auto at = [&](float along, float lateral, float up) { return XMFLOAT3{t.P.x + t.Tx * along + t.Nx * lateral, t.P.y + up, t.P.z + t.Tz * along + t.Nz * lateral}; };
+            const float half = t.Length * .5f;
+            switch (t.Kind)
+            {
+            case TrapGate:
+            {
+                if (!t.Won)
+                {   // the switch: a light over the road, a ring turning round it, a thread of light down to the stones
+                    const bool awake = t.State == 0 && t.Next <= 0;
+                    const XMFLOAT3 light = at(0, 0, GateSwitchHeight);
+                    const float beat = awake ? 1 + .15f * std::sin(mTime * 4) : .45f;
+                    glow(light, 3.6f * beat, {.45f, 1.f, .7f, .45f}); glow(light, 1.2f * beat, {1, 1, 1, .95f});
+                    for (int k = 0; k < 10; ++k)
+                    {
+                        const float a = static_cast<float>(k) * 2 * Pi / 10 + mTime * 1.4f;
+                        glow({light.x + t.Nx * std::sin(a) * 2.3f, light.y + std::cos(a) * 2.3f, light.z + t.Nz * std::sin(a) * 2.3f}, .45f, {.6f, 1.f, .8f, awake ? .9f : .3f});
+                    }
+                    card(at(0, 0, GateSwitchHeight * .5f), {t.Nx * .3f, 0, t.Nz * .3f}, {0, GateSwitchHeight * .5f, 0}, {.5f, 1.f, .75f, awake ? .4f : .12f});
+                }
+                // the door: fire in the arch. Shut, it fills it; in a run it comes down from the top as the time runs out.
+                const float open = t.Won ? 1.f : t.State == 1 ? std::clamp(t.Timer / std::max(t.Full, .1f), 0.f, 1.f) : 0.f;
+                for (float h = GateTall - .6f; h > GateTall * open; h -= 1.05f)
+                    card({t.End.x, t.End.y + h, t.End.z}, {t.Ez * GateHalf * 1.15f, 0, -t.Ex * GateHalf * 1.15f}, {0, 1.25f + .12f * std::sin(mTime * 5 + h), 0},
+                         {1.f, .42f, .2f, .62f * (.8f + .2f * std::sin(mTime * 7 + h * 1.3f))});
+                if (t.State == 1)
+                    for (int k = 0; k < GateBars; ++k)
+                    {   // the bars of fire across the course
+                        const Sample& bar = mSamples[std::clamp(static_cast<int>((t.S + t.Length * static_cast<float>(k + 1) / static_cast<float>(GateBars + 1)) / mStep), 0, static_cast<int>(mSamples.size()) - 1)];
+                        const float reach = bar.W + GateBarOut, y = bar.P.y + GateBarAt(t.Clock, k);
+                        const XMFLOAT3 left{bar.P.x - bar.Nx * reach, y, bar.P.z - bar.Nz * reach}, right{bar.P.x + bar.Nx * reach, y, bar.P.z + bar.Nz * reach};
+                        beam(left, right, .5f, {1.f, .34f, .12f, .95f});
+                        beam(left, right, 1.3f, {1.f, .45f, .15f, .3f});
+                        for (const float side : {-1.f, 1.f}) glow({bar.P.x + bar.Nx * reach * side, y, bar.P.z + bar.Nz * reach * side}, 1.5f, {1.f, .6f, .3f, .8f});
+                    }
+                break;
+            }
+            case TrapWind:
+            {
+                if (t.Won) break;
+                const float edge = t.W + WindEdge, cycle = WindCalm + WindBlow;
+                for (const float side : {-1.f, 1.f})
+                    for (int j = 0; j < 7; ++j)
+                        for (int level = 0; level < 5; ++level)   // the walls of ice wind, as high as the sky
+                            glow(at(-half + t.Length * (static_cast<float>(j) + .5f) / 7, side * edge, 3 + 11.f * static_cast<float>(level) + 2 * std::sin(mTime * .8f + static_cast<float>(j + level * 2))),
+                                 7.f, {.35f, .7f, 1.f, .3f});
+                const bool blowing = std::fmod(t.Clock, cycle) > WindCalm;
+                const float dir = static_cast<int>(t.Clock / cycle) % 2 == 0 ? 1.f : -1.f;
+                for (int k = 0; k < 16; ++k)
+                {   // the wind itself: streaks that cross the way at her own height (slow and faint while it gathers)
+                    const float run = std::fmod(mTime * (blowing ? 24.f : 5.f) + static_cast<float>(k) * 3.7f, 2 * edge) - edge;
+                    const float length = blowing ? 2.6f : 1.1f;
+                    card(at(-half + t.Length * (static_cast<float>(k) + .5f) / 16, run * dir, her.y - t.P.y + 1 + 3.5f * std::sin(static_cast<float>(k) * 2.3f)),
+                         {t.Nx * length, 0, t.Nz * length}, {0, .22f, 0}, {.8f, .93f, 1.f, blowing ? .9f : .4f});
+                }
+                break;
+            }
+            case TrapRunes:
+                if (t.Won) break;
+                for (int k = 0; k < 3; ++k)
+                {   // the rune on each stone burns brighter until it throws
+                    const XMFLOAT3 rune = Add(t.Post[k], {0, LauncherTall * .85f, 0});
+                    const float charge = t.In ? 1 - std::clamp(t.Fire[k] / .9f, 0.f, 1.f) : .1f;
+                    glow(rune, 1.3f + 2.4f * charge, {1.f, .35f, .85f, .35f + .5f * charge}); glow(rune, .5f, {1, 1, 1, .5f + .5f * charge});
+                }
+                break;
+            case TrapWatch:
+                if (t.Won) break;
+                for (int k = 0; k < 2; ++k)
+                {
+                    const float angle = t.Fire[k] + t.Clock * WatchTurn * (k ? -1.f : 1.f);
+                    const XMFLOAT3 reach{std::sin(angle) * WatchReach * .5f, 0, std::cos(angle) * WatchReach * .5f};
+                    const XMFLOAT3 middle{t.Post[k].x + reach.x, 0, t.Post[k].z + reach.z}, look = Add(t.Post[k], {0, WatchTall * .82f, 0});
+                    const XMFLOAT4 c = t.Look ? XMFLOAT4{.75f, .45f, 1.f, 1} : XMFLOAT4{1.f, .7f, .25f, 1};
+                    const XMFLOAT3 tip{t.Post[k].x + 2 * reach.x, 0, t.Post[k].z + 2 * reach.z};
+                    card({middle.x, t.P.y + 26, middle.z}, reach, {0, 28, 0}, {c.x, c.y, c.z, .2f});            // the sheet, from the ground to past her ceiling
+                    beam({t.Post[k].x, her.y + 1.2f, t.Post[k].z}, {tip.x, her.y + 1.2f, tip.z}, .4f, {c.x, c.y, c.z, .9f});     // a hard line of it at her own height
+                    beam({t.Post[k].x, t.P.y + .4f, t.Post[k].z}, {tip.x, t.P.y + .4f, tip.z}, .3f, {c.x, c.y, c.z, .7f});       // and where it crosses the ground
+                    beam(look, {tip.x, her.y + 1.2f, tip.z}, .3f, {1, 1, 1, .35f});                                             // from its eyes
+                    glow(look, 2.4f, {c.x, c.y, c.z, .7f}); glow(look, .7f, {1, 1, 1, .9f});
+                }
+                break;
+            case TrapSeal:
+            {
+                if (t.Won) break;
+                const float whole = 1 - static_cast<float>(t.Count) / static_cast<float>(SealCracks);
+                for (int k = 0; k < 14; ++k)
+                {
+                    const float a = static_cast<float>(k) * 2 * Pi / 14 + mTime * .25f;
+                    glow(at(std::cos(a) * SealRadius, std::sin(a) * SealRadius, .4f), .75f, {1.f, .6f, .2f, .45f + .45f * whole});
+                }
+                glow(at(0, 0, 1.2f), 4.6f, {1.f, .5f, .15f, .22f + .14f * std::sin(mTime * 2.2f)});
+                card(at(0, 0, 24), {t.Nx * .7f, 0, t.Nz * .7f}, {0, 24, 0}, {1.f, .6f, .25f, .2f});   // a pillar of light: she finds the seal from the air
+                break;
+            }
+            case TrapPress:
+                if (!t.Won && PressHammerAt(std::fmod(t.Clock, PressEvery)) < .05f) glow(at(0, 0, 1.f), 9.f, {1.f, .45f, .12f, .4f});
+                break;
+            default: break;
+            }
+        }
         for (const Strike& strike : mStrikes)   // the stone on its way down
-            glow({strike.P.x, strike.P.y + .6f + 18 * std::max(0.f, strike.T) / RockfallWarn, strike.P.z}, 1.1f, {.8f, .66f, .52f, .95f});
+            glow({strike.P.x, strike.P.y + .6f + strike.Drop * std::max(0.f, strike.T) / RockfallWarn, strike.P.z}, strike.Trap >= 0 ? 1.6f : 1.1f, {.8f, .66f, .52f, .95f});
         if (mWayShow > .01f)
         {   // the way: lights run along the ground from her feet toward the road
             const XMFLOAT3 from = world.MainPlayer.Position;
@@ -2432,6 +3631,23 @@ namespace CaucasianEagle
             else if (mFinale == Finale::Freed || mFinale == Finale::Done) objective = L"Amirani is free. Hold F9 to walk the road again";
             else if (mFinale == Finale::Fight || mFinale == Finale::Words) objective = L"Defeat the Eagle";
             else if (mFighting) objective = L"Wave " + std::to_wstring(std::max(1, mWave)) + L" of " + std::to_wstring(mWaves);
+            else if (mTrapNear >= 0)
+            {
+                const Trap& t = mTraps[mTrapNear];
+                switch (t.Kind)
+                {
+                case TrapGate:
+                    if (t.State == 1) objective = L"The gate closes in " + std::to_wstring(static_cast<int>(std::ceil(std::max(0.f, t.Timer)))) + L" s. Fly through it";
+                    else if (LenXZ(Sub(world.MainPlayer.Position, t.P)) < 60) objective = L"A switch-light. Touch it: the gate far ahead opens, but not for long";
+                    else objective = L"The gate is shut. Its switch-light hangs over the road, back the way you came";
+                    break;
+                case TrapWind: objective = L"The Wind Teeth. Fly between the ice and steer against the gusts"; break;
+                case TrapRunes: objective = L"Rune stones throw fire at you. Weave between it, or raise your guard"; break;
+                case TrapWatch: objective = L"The Watchers. Do not let their light touch you"; break;
+                case TrapSeal: objective = L"Stones fall on you here. Wait over the seal, then get away: cracks " + std::to_wstring(t.Count) + L" of " + std::to_wstring(SealCracks); break;
+                default: objective = L"The Kaji press. Break the link over it while it glows, just after the hammer falls"; break;
+                }
+            }
             else if (mTroubleNear >= 0 && mTroubles[mTroubleNear].Kind == 0) objective = L"Cursed ground. Walk round it";
             else if (mTroubleNear >= 0 && mTroubles[mTroubleNear].Kind == 1) objective = L"Stones fall here. Keep moving, leave the rings";
             else if (mTroubleNear >= 0) objective = L"Wisps cross the road. Slip between them";
@@ -2569,6 +3785,7 @@ namespace CaucasianEagle
             bool canGrow = false;
             for (int item = 0; item < Growth::RowCount; ++item) { const int cost = Growth::Cost(mGrowth, item); canGrow = canGrow || (cost > 0 && mGrowth.Crystals >= cost); }
             hint(Ui::KeyLabel(L"I", 'I'), canGrow ? L"NYXARA - GROW" : L"NYXARA", canGrow);
+            hint(L"R", world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? L"LAND (WHEN LOW)" : L"FLY", false);
             hint(L"F9", L"HOLD: RESTART", false);
         }
         if (mRestartHold > .1f)
@@ -2613,7 +3830,7 @@ namespace CaucasianEagle
         constexpr float Width = 400, Row = 46, Gap = 5, Pad = 16, Head = 96, Foot = 44, Tiny = 1.55f, Small = 2.0f, Name = 2.6f;
         struct Entry { const wchar_t* Label; const wchar_t* Note; };
         const Entry entries[PauseRows] = {
-            {L"Continue the journey", L""}, {L"Nyxara", L"wings, swords, armour"}, {L"The story", L"legend and memories"}, {L"The map", L""},
+            {L"Continue the journey", L""}, {L"Nyxara", L"wings, axes, armour"}, {L"The story", L"legend and memories"}, {L"The map", L""},
             {L"Settings", L"picture, sound, mouse"}, {L"Guide", L"how to play, what it needs"}, {L"To the start screen", L"the road is saved"},
             {L"Leave the game", L"the road is saved"}};
         const float w = Width * S, h = (Head + PauseRows * (Row + Gap) + Foot) * S;

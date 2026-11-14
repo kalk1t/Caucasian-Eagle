@@ -53,6 +53,9 @@ Names used in the story, the code and the assets. One name per thing.
 | **Soul bar** | The blue bar under health (the engine's energy value) |
 | **Hit-stop** | The brief freeze when a blow lands |
 | **Arena** | A round clearing on the road where creatures ambush her; the way on stays shut until they are beaten |
+| **Open clearing** | A clearing with standing stones and a chest where nothing ambushes her (nine of them; `Road.txt` kind 3) |
+| **Trap** | One of nine larger dangers on the road, each beaten once: the gate run, watchers, rune stones, wind teeth, cracked seal, Kaji press |
+| **Place** | One of 26 named places beside the road; finding it gives crystals and a line in the journal |
 | **Wave** | One group of creatures in an arena fight; two or three per arena |
 | **Old gold chest** | A breakable chest; holds coins, a potion and a memory, a Moon Shard, an Eagle Feather or a Soul Ember |
 | **Moon Shard** | Chest reward: 15 crystals (until November 2026 a Moon Tear, which healed) |

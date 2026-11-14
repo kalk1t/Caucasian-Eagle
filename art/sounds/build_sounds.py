@@ -11,6 +11,9 @@ Made to be easy on the ear: every sound is rounded off above 9 kHz, has a soft s
 tail of room reverb, and nothing is a raw buzz. Levels differ on purpose (a footstep is
 quieter than a guardian's roar), so the game can play most of them near full volume.
 
+The fighting is the exception, on purpose: blades, blows, kills and Nyxara's own voice in a
+fight are hard, loud and overdriven ('drive', 'grit', 'snarl', 'crunch' below). She is angry.
+
 The same seed is used every run, so the files come out identical.
 """
 import os
@@ -92,6 +95,29 @@ def loopable(x, seconds=.5):
     head, body, tail = x[:n], x[n:-n], x[-n:]
     ramp = np.sin(np.linspace(0, np.pi / 2, n)) ** 2
     return np.concatenate([head * ramp + tail * (1 - ramp), body])
+
+def drive(x, amount=3.0):
+    """Overdrive: pushes a sound into a soft ceiling, so it gets thicker and angrier instead of louder."""
+    return np.tanh(norm(x, 1.0) * amount) / np.tanh(amount)
+
+def grit(x, rate=70.0, depth=.6):
+    """A rough throat or a tearing edge: the level is shaken at a rate too fast to hear as a beat."""
+    n = len(x)
+    shake = low(rng.uniform(-1, 1, n), rate * 2.5)
+    return x * (1 - depth + depth * np.clip(.5 + 2.5 * norm(shake, 1.0), 0, 1))
+
+def snarl(seconds, f0, f1, formants, power=3.5):
+    """Nyxara's fighting voice: a throat tone with a rasp, driven hard. Not a breath: a shout through the teeth."""
+    v = throat(seconds, f0, f1, formants, breath=.55, growl=.55)
+    return drive(grit(v, 85, .55), power)
+
+def crunch(seconds, body=110, crack=2600):
+    """Something breaking under a blade: a short low punch, a crack and a wet tear."""
+    n = noise(seconds)
+    punch = np.sin(sweep(seconds, body * 1.6, body * .45)) * env(len(n), .002, seconds * .7, 2.2)
+    snap = band(n, crack * .5, crack * 2.2) * env(len(n), .001, .035, 3)
+    tear = grit(band(n, 300, 1800), 55, .8) * env(len(n), .004, seconds * .85, 1.6)
+    return drive(punch + .7 * snap + .55 * tear, 3.2)
 
 def save(name, x, peak=.8, loop=False):
     x = np.asarray(x, dtype=np.float64)
@@ -183,11 +209,18 @@ def whoosh(seconds, lo, hi, peak_at=.45, sharp=1.6):
 
 # ------------------------------------------------------------------ Nyxara
 def build_nyxara():
-    for i, f in enumerate((700, 900, 1100)):
-        save(f'nyxara/swing_{i + 1}', room(whoosh(.26, f * .6, f * 2.2), .35, .1), .55)
-    for i, f in enumerate((420, 520)):
-        x = whoosh(.46, f * .5, f * 2.4, .5) + .35 * np.sin(sweep(.46, 95, 55)) * env(int(SR * .46), .12, .3, 2)
-        save(f'nyxara/swing_heavy_{i + 1}', room(x, .5, .14), .65)
+    for i, f in enumerate((700, 900, 1100)):                                 # a blade thrown hard: torn air and the ring of steel
+        n = int(SR * .24)
+        air = grit(whoosh(.24, f * .5, f * 3.2, .32, 3.2), 120, .45)
+        ring = bell(.24, f * 3.1, (1, 1.51, 2.24), 16) * env(n, .03, .2, 1.5)
+        body = np.sin(sweep(.24, 190, 80)) * env(n, .02, .16, 2)
+        save(f'nyxara/swing_{i + 1}', room(drive(air + .28 * ring + .45 * body, 2.4), .3, .08), .8)
+    for i, f in enumerate((420, 520)):                                       # the heavy blow: a longer tear with weight under it
+        n = int(SR * .46)
+        air = grit(whoosh(.46, f * .4, f * 3.4, .5, 2.4), 90, .55)
+        ring = bell(.46, f * 4.2, (1, 1.5, 2.3), 9) * env(n, .2, .25, 1.5)
+        body = np.sin(sweep(.46, 150, 42)) * env(n, .1, .34, 1.8)
+        save(f'nyxara/swing_heavy_{i + 1}', room(drive(air + .3 * ring + .8 * body, 3.0), .5, .12), .92)
     save('nyxara/dash', room(whoosh(.5, 500, 3600, .4, 1.2), .6, .16), .65)
     for i, root in enumerate((12, 15)):
         x = t(.9)
@@ -199,9 +232,13 @@ def build_nyxara():
     x[int(.09 * SR):] += bell(.35, 1568, (1, 2.0, 3.0), 22)[:len(x) - int(.09 * SR)]
     save('nyxara/swap', room(x, .4, .15), .45)
     woman = ((800, 1), (1300, .55), (2700, .2))
-    for i, (a, b) in enumerate(((310, 262), (330, 277), (294, 247))):       # a short breath out: "ha"
-        v = throat(.24, a, b, woman, breath=.9)
-        save(f'nyxara/effort_{i + 1}', room(v * env(len(v), .03, .21, 1.6), .4, .12), .4)
+    for i, (a, b) in enumerate(((330, 392), (349, 415), (311, 370))):       # a short shout through the teeth: "hrah"
+        v = snarl(.34, a, b, woman)
+        save(f'nyxara/effort_{i + 1}', room(v * env(len(v), .015, .32, 1.3), .4, .1), .8)
+    for i, (a, b, c) in enumerate(((370, 494, 330), (392, 523, 311), (349, 466, 294))):   # fury, on a kill: the cry rises and breaks
+        up = snarl(.3, a, b, woman, 4.0); down = snarl(.5, b, c, woman, 4.5)
+        v = np.concatenate([up, down])
+        save(f'nyxara/rage_{i + 1}', room(v * env(len(v), .02, .78, 1.2), .7, .16), .9)
     for i, (a, b) in enumerate(((392, 294), (370, 277))):
         v = throat(.34, a, b, woman, breath=.7)
         save(f'nyxara/hurt_{i + 1}', room(v * env(len(v), .025, .31, 1.4), .45, .14), .5)
@@ -242,11 +279,12 @@ def build_creatures():
         v = throat(.4, f, f * 1.35, beast, breath=.4, growl=.6)
         save(f'creatures/attack_{i + 1}', room(low(v, 1500) * env(len(v), .06, .34, 1.4), .5, .16), .55)
     for i, f in enumerate((185, 165)):
-        v = throat(.28, f, f * .7, beast, breath=.4, growl=.35)
-        save(f'creatures/hurt_{i + 1}', room(low(v, 1500) * env(len(v), .02, .26, 1.5), .4, .14), .5)
+        v = drive(grit(throat(.3, f * 1.25, f * .6, beast, breath=.5, growl=.6), 60, .6), 3.0)          # a yelp of pain, rough
+        save(f'creatures/hurt_{i + 1}', room(low(v, 2200) * env(len(v), .01, .29, 1.4), .4, .12), .7)
     for i, f in enumerate((120, 104)):
-        v = throat(1.0, f, f * .45, beast, breath=.5, growl=.5)
-        save(f'creatures/death_{i + 1}', room(low(v, 1200) * env(len(v), .04, .96, 1.3), .9, .25), .6)
+        v = drive(grit(throat(1.0, f * 1.3, f * .38, beast, breath=.6, growl=.75), 45, .7), 3.5)         # the death cry, torn
+        v[:int(SR * .3)] += .8 * crunch(.3, 90, 2000)
+        save(f'creatures/death_{i + 1}', room(low(v, 1800) * env(len(v), .02, .98, 1.2), .9, .22), .85)
     giant = ((260, 1), (560, .6), (1100, .15))
     v = throat(2.0, 60, 47, giant, breath=.4, growl=.85) + .5 * low(noise(2.0), 150)
     save('creatures/boss_roar', room(low(v, 1000) * env(len(v), .3, 1.7, 1.2), 2.0, .35), .85)
@@ -256,10 +294,18 @@ def build_creatures():
 
 # ------------------------------------------------------------------ combat
 def build_combat():
-    for i, f in enumerate((1320, 1480, 1175)):                               # steel on something solid: a ring over a soft thud
-        n = noise(.2)
-        x = .35 * band(n, 1200, 4500) * env(len(n), .003, .06, 2.5) + .6 * bell(.2, f, (1, 2.0, 2.99), 20) + np.sin(sweep(.2, 140, 70)) * env(len(n), .003, .13, 2)
-        save(f'combat/hit_{i + 1}', room(x, .35, .12), .6)
+    for i, f in enumerate((1320, 1480, 1175)):                               # steel into a body: a crack, a clang and a hard low punch
+        x = crunch(.26, 120 + 15 * i, 2400 + 300 * i)
+        x += .4 * drive(bell(.26, f, (1, 1.47, 2.09, 2.99), 14), 2.0)
+        save(f'combat/hit_{i + 1}', room(x, .3, .1), .92)
+    for i, f in enumerate((70, 58)):                                         # the killing blow: bone gives way, then a boom
+        x = np.zeros(int(SR * .7))
+        c = crunch(.34, 100, 1800); x[:len(c)] += c
+        late = int(SR * .05)
+        boom = np.sin(sweep(.6, f * 2.2, f * .5)) * env(int(SR * .6), .004, .58, 1.6)
+        x[late:late + len(boom)] += 1.1 * boom
+        x += .3 * grit(low(noise(.7), 700), 40, .8) * env(len(x), .01, .6, 1.5)
+        save(f'combat/kill_{i + 1}', room(drive(x, 3.0), .8, .16), .98)
     for i, f in enumerate((92, 78)):
         n = noise(.26)
         save(f'combat/blow_{i + 1}', room(np.sin(sweep(.26, f, f * .5)) * env(len(n), .005, .24, 2) + .4 * low(n, 500) * env(len(n), .004, .1, 2), .4, .12), .7)

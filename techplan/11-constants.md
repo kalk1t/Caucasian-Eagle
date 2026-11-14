@@ -13,12 +13,12 @@
 | Name | Value | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|
 | `GameTitle` | `"Caucasian Eagle"` | Window title | `GameConstants.h:9` | code | Also written in the installer script (`tools/installer/CaucasianEagle.iss`) |
-| `GameVersion` | `"0.3.0"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
+| `GameVersion` | `"0.4.0"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
 | `UserDataFolder` | `"CaucasianEagle"` | Folder under `%LOCALAPPDATA%` for settings and saves | `GameConstants.h:11` | code | Changing it orphans existing players' settings and saves |
 | `StartSceneId` | `"RoadToAmirani"` | Scene loaded at start | `GameConstants.h:14` | code | `assets/Compiled/Scenes/<id>.dscene` must exist in the stage |
 | `HeroBundle` | `"Characters/Nyxara/EagleV1"` | Hero asset folder under `assets/Compiled` | `GameConstants.h:15` | code | Must contain the 31 clips listed in `Game::Prepare` |
 | `DemoEnvironmentVariable` | `"CAUCASIAN_EAGLE_DEMO"` | `=1` starts the scripted showcase | `GameConstants.h:16` | code | |
-| Rig signature | `DoorwaysRig_v1_74bb2d2053cd36e2` | Identity of the hero skeleton | printed by the character pipeline; stored in the bundle | art | Changes whenever the skeleton changes |
+| Rig signature | `DoorwaysRig_v1_116d1b0e1935a8eb` | Identity of the hero skeleton | printed by the character pipeline; stored in the bundle | art | Changes whenever the skeleton changes |
 | Effects folder | `assets/Compiled/Effects/Nyxara` | Six effect textures | `NyxaraKit.cpp:238` | code | Start-up fails if a texture is missing |
 
 ## B. Movement and camera
@@ -29,14 +29,52 @@
 | `RunClipSpeed` | 4.6 | m/s | Treadmill speed of `Run`, `StrafeLeft`, `StrafeRight` | `GameConstants.h:20` | code | Same |
 | `WalkBackClipSpeed` | 1.33 | m/s | Treadmill speed of `WalkBackward` | `GameConstants.h:21` | code | Same |
 | `WingBoostMultiplier` | 2.2 | × | Shift travel speed | `GameConstants.h:22` | code | Engine applies it to ground and flight travel |
+| `GlideLift`, `GlideLiftBoost` | 0.75, 1.0 | m | Height of her feet over the ground while she soars; with the wing boost | `GameConstants.h` | code | Presentation only |
+| `GlideLiftRate` | 2.6 | 1/s | How fast she rises to that height and settles from it | `GameConstants.h` | code | Lower = slower |
+| `SoarSway`, `SoarSwayRate` | 0.06, 1.3 | m, rad/s | Slow rise and fall on the air while soaring | `GameConstants.h` | code | |
+| `SoarBank` | 0.06 | rad per rad/s | Bank into a turn | `GameConstants.h` | code | Held under 0.42 rad |
+| `SoarClimbPitch` | 0.30 | rad | Nose up in a full climb, down in a full dive (free flight) | `GameConstants.h` | code | |
+| `SoarSpring`, `SoarDamping` | 30, 10 | | Spring of the lean and bank | `GameConstants.h` | code | Lower spring = slower, smoother |
+| `SoarBoostRate` | 1.35 | × | Wing clips play faster with the wing boost | `GameConstants.h` | code | |
+| `FlightSway`, `FlightSwayRate` | 0.11, 1.9 | m, rad/s | She rides up and down in flight (two rhythms, 0.7 and 0.3 of it) | `GameConstants.h` | code | Presentation only |
+| `FlightRock` | 0.035 | rad | Her body rocks in flight (pitch; roll 0.8 of it, slower) | `GameConstants.h` | code | Not during sword work |
+| `FlightGroundLift` | 0.8 | m | She hovers this high when she is on the ground in flight | `GameConstants.h` | code | Presentation only: collision is at the ground |
+| `FlightTakeoffHeight`, `FlightTakeoffSeconds` | 6, 3 | m, s | R on the ground: she rises this far in this time | `GameConstants.h` | code | Engine `FreeFlightTakeoffHeight`, `FreeFlightTakeoffSeconds` |
+| `FlightLandReach` | 6 | m | Height over the ground or a roof within which R lands her | `GameConstants.h` | code | |
+| `FlightLandSeconds`, `FlightLandMinSpeed` | 3, 0.05 | s, m/s | The change from flying to walking on R: its time; the slowest she sinks | `GameConstants.h` | code | She sinks at height / time left |
+| `FootSpeed`, `FootRunSpeed` | 3.2, 5.4 | m/s | On foot: an easy jog; running with Shift | `GameConstants.h` | code | Both over 3 m/s, so the engine plays Run (authored 4.6 m/s) at 0.70 and 1.17 of its pace |
+| `RoofStep` | 0.5 | m | She steps up onto a building's surface this far above her feet; lower than this under it, its wall stops her | `GameConstants.h` | code | |
+| `RoofGrid` | 96 | cells | Side of a building's top-height map (`Journey::Model::Top`) | `GameConstants.h` | code | Built at load from the mesh of every model under `Cities/` |
+| `FlightSteerGain` | 1 | | Climb or dive angle per radian of camera pitch away from `CameraPitch` | `GameConstants.h` | code | |
+| `FlightCeiling` | 45 | m | How far above the ground (or roof) under her free flight can climb; `Journey` gives the engine the difference to the take-off height every frame | `GameConstants.h` | code | Engine `FreeFlightCeiling` |
+| `DeathSeconds` | 3.5 | s she lies where she fell before the game asks the engine for the respawn (the engine's own delay is 3) | `GameConstants.h` | code | |
+| `RageCrySeconds` | 2.5 | s | Least time between two of her cries of fury on kills | `GameConstants.h` | code | |
+| `FlyEnvironmentVariable` | `"CAUCASIAN_EAGLE_FLY"` | | Testing, with the pilot: R at 4 s, Space held 8 to 9 s (she climbs), pushed onto the ground 10 to 14 s, R at 16 s; logs `[FLY]` lines; 2 also holds the pilot still | `GameConstants.h` | environment | |
+| `CAUCASIAN_EAGLE_BOW` (read in `NyxaraKit::Update`) | 1 or 2 | | Testing, unattended only: the bow is out and the left button held; 1 also aims. Logs `[BOW] shots hits` each second | `NyxaraKit.cpp` | environment | |
+| `RoofEnvironmentVariable` | `"CAUCASIAN_EAGLE_ROOF"` | | Testing, with the pilot: value N drops her from 4 m over building N-1 ten seconds into play and holds the pilot still; logs `[ROOF]` lines | `GameConstants.h` | env | |
 | Glide lift | 0.45 (0.62 boosting) | m | Visual height while travelling or acting | `NyxaraKit.cpp:642` | code | Visual only; collision stays on the ground |
 | Standing offset | 0.03 | m | Lifts the hero so her soles rest on the floor | `NyxaraKit.cpp:646` | code | Compensates the authored idle pose |
 | Glide wing-beat rate | 1.25 (1.8 boosting) | × clip speed | Playback rate of `FlightHover` while travelling | `NyxaraKit.cpp:662` | code | |
 | Lean pitch | 0.15 × clamp(forward speed / 5, −1, 1.7) | rad | Forward lean into travel | `NyxaraKit.cpp:655` | code | Spring: stiffness 70, damping 9.5 |
 | Lean roll | −0.17 × clamp(side speed / 5, ±1.3) − 0.035 × turn rate | rad | Bank into strafes and turns | `NyxaraKit.cpp:656` | code | Clamped to ±0.3 |
-| `CameraPitch` | −0.34 | rad | Starting view pitch (about 19° down) | `GameConstants.h:25` | code | Within `CameraMinPitch`..`CameraMaxPitch` |
-| `CameraDistance` | 7.4 | m | Follow distance | `GameConstants.h:26` | code | Engine pulls the camera in when blocked |
+| `CameraPitch` | −0.50 | rad | Starting view pitch (about 29° down; more negative puts the camera higher) | `GameConstants.h:201` | code | Within `CameraMinPitch`..`CameraMaxPitch` |
+| `CameraDistance` | 15.0 | m | Follow distance | `GameConstants.h:202` | code | Engine pulls the camera in when blocked |
+| `CameraMaxDistance` | 18.0 | m | How far the mouse wheel can pull the camera back; set on the engine camera (`MaxFollowDistance`, engine default 8) before the distance | `GameConstants.h:203` | code | Must be at least `CameraDistance`, or the engine cuts the distance down to it |
 | `CameraPivotHeight` | 1.35 | m | Orbit pivot above her feet | `GameConstants.h:27` | code | |
+| `BowReleaseSeconds` / `BowDrawSeconds` / `BowInterval` | 0.08 / 0.253 / 0.333 | s | Her hand back to the string / the draw / between arrows while the button is held (the sum) | `GameConstants.h` | code | |
+| `BowDamage` / `BowAimDamage` | 25 / 25 | | An arrow loosed without aiming / aimed (before her damage scale) | `GameConstants.h` | code | |
+| `BowArrowSpeed` / `BowAimArrowSpeed` / `BowRange` | 75 / 75 / 60 | m/s, m/s, m | An arrow's speed (not aimed / aimed) and reach | `GameConstants.h` | code | |
+| `BowHipRange` | 32 | m | Within this an arrow loosed without aiming finds the nearest creature ahead of the camera | `GameConstants.h` | code | |
+| `BowAimAssist` | 0.5 | m | Beside a creature's body the mark still counts as on it | `GameConstants.h` | code | |
+| `BowAimDistance` / `BowAimSide` / `BowAimRaise` | 4.5 / 0.85 / 0.35 | m | The camera while she aims: distance, to her right, pivot raised | `GameConstants.h` | code | Engine: `CameraSideOffset`, `CameraPivotHeight` |
+| `BowAimLook` | 0.6 | | The mouse turns the view this much as fast while she aims | `GameConstants.h` | code | |
+| `BowAimAssistFar` | 0.012 | m per m | Added to `BowAimAssist` for each metre the creature is away | `GameConstants.h` | code | |
+| `BowHoming` | 10 | 1/s | How hard an arrow bends to the creature it was loosed at (only while that is within 60 degrees ahead of it) | `GameConstants.h` | code | |
+| `BowSnapDegrees` / `BowSnapRate` | 22 / 12 | deg, 1/s | As she raises the bow the view turns to the creature nearest its middle within this angle, at this rate, until the camera is in (`mAim` > 0.92) | `GameConstants.h` | code | |
+| `BowAimLevelPitch` | −0.10 | rad | With no creature to turn to, the view comes up to this | `GameConstants.h` | code | The pitch she had comes back when she lets go |
+| `BowAimZoom` | 0.20 | | The camera's field of view narrows by this part while she aims (engine: `MainCamera.FieldOfViewY`) | `GameConstants.h` | code | |
+| `BowAimFriction` | 0.55 | | With the mark on a creature the look scale is multiplied by this again | `GameConstants.h` | code | |
+| `BowPoseSeconds` / `BowClipEnd` | 0.45 / 0.2 | s | She keeps the bow up after an arrow / the length of `BowShot` | `GameConstants.h` | code | |
 | `CameraMinPitch` / `CameraMaxPitch` | −1.2 / 0.45 | rad | View pitch limits | `GameConstants.h:28-29` | code | |
 | Orbit floor | −0.04 | rad | Orbit never rises above this pitch, so the camera stays over the floor | `engine/src/DOORWAYS/DoorwaysGame.h` `CameraOrbitMaxPitch` | code (engine default) | |
 
@@ -46,7 +84,7 @@ Rate is clip seconds per real second. End and hit times are in clip seconds. Rea
 
 | Action | Clip | Rate | End | Hit times | Real duration |
 |---|---|---|---|---|---|
-| LEFT TALON | `BasicAttack` | 1.45 | 1.00 | 0.53 | 0.69 s |
+| RIGHT TALON | `BasicAttack` | 1.45 | 1.00 | 0.53 | 0.69 s |
 | RIGHT TALON | `SlashLeft` | 1.45 | 1.02 | 0.63 | 0.70 s |
 | CHARGED SLASH | `HeavyAttack` | 1.30 | 1.75 | 1.20 | 1.35 s |
 | TALON DASH | `Skill1` | 1.30 | 2.30 | 0.83, 1.43 | 1.77 s |
@@ -58,8 +96,9 @@ Rate is clip seconds per real second. End and hit times are in clip seconds. Rea
 | WHIRLWIND TALONS | `Combo2R` | 1.20 | 1.80 | 0.97 | 1.50 s |
 | SOUL WEAVE | `Combo3L` | 1.35 | 3.40 | 1.17, 2.00, 3.10 | 2.52 s |
 | MOONFALL DIVE | `Combo3R` | 1.15 | 2.40 | 1.32 | 2.09 s |
-| SWORD BARRIER | `Guard` | 1.00 | 1.33 | none | held |
-| SWORD EXCHANGE | `SwordSwap` | 1.10 | 0.86 | 0.43 (swap moment) | 0.78 s |
+| AXE BARRIER | `Guard` | 1.00 | 1.33 | none | held |
+| AXE EXCHANGE | `SwordSwap` | 1.10 | 0.86 | 0.43 (swap moment) | 0.78 s |
+| arrows (no `Act`) | `BowShot` | 1.00 | 0.20 | 0 (loosed) | 0.20 s |
 
 Hit times were measured from the hand-speed peaks of each authored clip. If a clip is re-authored, its hit times must be re-measured.
 
@@ -128,6 +167,15 @@ Hit times were measured from the hand-speed peaks of each authored clip. If a cl
 | `RockfallSpread`, `RockfallRadius`, `RockfallDamage` | 2.2, 2.3, 12 | m round her a stone is aimed; m it hurts; harm | `GameConstants.h` | code |
 | `WispCount`, `WispGap`, `WispSpeed` | 3, 4.5, 1.15 | Lights; m between them along the road; radians a second of swing | `GameConstants.h` | code |
 | `WispTouch`, `WispDamage` | 1.15, 10 | m; harm | `GameConstants.h` | code |
+| `TrapHeight`, `TrapSide`, `TrapHalf`, `TrapWarn`, `TrapCrystals` | 70, 26, 7, 30, 30 | m a trap reaches up; m its scenery stands to the side; m half width of its course; m before it the HUD names it; crystals for beating it | `GameConstants.h` | code |
+| `GateRunLength`, `GateRunPace`, `GateRunGrace`, `GateRetry` | 195, 1.45, 3, 3 | m from light to door; the clock is the length over (her cruising speed times the pace) plus the grace, about 37 s; s the light sleeps after a loss | `GameConstants.h` | code |
+| `GateSwitchHeight`, `GateSwitchTouch`, `GateArchTall`, `GateHalf`, `GateTall`, `GateDoor` | 4.5, 3.6, 22, 8, 14, 1.2 | m: the light's height and touch; the arch's height; the door's half width, height and thickness | `GameConstants.h` | code |
+| `GateBars`, `GateBarLow`, `GateBarHigh`, `GateBarOut`, `GateBarDamage`, `GateGuards` | 5, 2, 15, 9, 12, 4 | bars; m they slide between; m half length; harm; guards woken | `GameConstants.h` | code |
+| `WindLength`, `WindEdge`, `WindCalm`, `WindBlow`, `WindPush`, `WindWall`, `WindDamage` | 56, 3, 2.4, 1.8, 1.1, 1, 11 | m; m from the course's edge to a wall; s calm; s gust; push as a multiple of her speed; m wall; harm | `GameConstants.h` | code |
+| `LauncherLength`, `LauncherTall`, `LauncherEvery`, `LauncherSpeed`, `LauncherDamage` | 60, 5.5, 2.6, 13, 9 | Rune stones: m; m; s between fans; m/s; harm of an orb | `GameConstants.h` | code |
+| `WatchLength`, `WatchTall`, `WatchTurn`, `WatchReach`, `WatchWidth`, `WatchDamage`, `WatchGuardEvery` | 50, 9, 0.75, 36, 1.3, 14, 9 | m; m; rad/s; m a sheet reaches; m its thickness; harm; s between guards | `GameConstants.h` | code |
+| `SealLength`, `SealRadius`, `SealCracks`, `SealEvery`, `SealWarn` | 48, 4.5, 3, 1.3, 1.25 | m; m; cracks that break it; s between stones; s of warning | `GameConstants.h` | code |
+| `PressLength`, `PressTall`, `PressEvery`, `PressWarn`, `PressFall`, `PressOpen`, `PressDamage`, `PressOrbDamage` | 44, 11, 3.6, 1, 0.25, 1.4, 28, 8 | m; m; s cycle; s warning; s fall; s the link can be hurt; harm of the blow; of an orb | `GameConstants.h` | code |
 | `LAND_CHUNK` | 16 | Terrain cells per side of one piece of land collision | `art/world/build_world.py` | code |
 | `RoamBody`, `TrunkRadius` | 0.45 m, 0.045 of a tree's width | Her radius against obstacles; a trunk's radius | `GameConstants.h` | code |
 | `ComboWindowSeconds` | 1.2 | s after a skill ends in which its combo can start | `GameConstants.h` | code |
@@ -153,16 +201,9 @@ Drawn by `AmiraniMountain::DrawSky`; light and haze set in `AmiraniMountain::Sty
 | Name | Value | Units | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|---|
 | `SkyTexture` | "assets/textures/caucasus/NightSky.jpg" |  | Painted night sky, wraps horizontally | `GameConstants.h:34` | code | Built by `art/sky/make_sky_textures.py` |
-| `MoonTexture` | "assets/textures/caucasus/Moon.jpg" |  | Moon surface, equirectangular | `GameConstants.h:35` | code | Same script |
-| `MoonGlowTexture` | "assets/Compiled/Effects/Nyxara/Glow.png" |  | Soft disc used for the moon halo | `GameConstants.h:36` | code | Shared with the combat effects |
 | `SkyRadius` | 3000 | m | Radius of the sky dome around the camera | `GameConstants.h:37` | code | Must stay below the engine far plane (5400 m) |
 | `SkyTextureWraps` | 2 |  | Times the sky texture repeats around the horizon | `GameConstants.h:38` | code | Whole numbers only, or a seam shows |
 | `SkyBrightness` | 0.46 |  | Dome tint | `GameConstants.h:39` | code | The engine's ambient light multiplies it |
-| `MoonAzimuth` | -0.46 | rad | Moon direction, from +Z toward +X | `GameConstants.h:41` | code | Negative = left of the mountain |
-| `MoonElevation` | 0.47 | rad | Moon height above the horizon | `GameConstants.h:42` | code |  |
-| `MoonAngularSize` | 0.125 | rad | Apparent moon diameter | `GameConstants.h:43` | code | The real moon is 0.009 rad |
-| `MoonBrightness` | 1.05 |  | Moon tint | `GameConstants.h:45` | code |  |
-| `MoonHaloSize` | 4.2 |  | Halo width in moon diameters | `GameConstants.h:47` | code |  |
 | `MoonlightX` | 0.72 |  | Direction the moonlight travels (X, Y, Z) | `GameConstants.h:49` | code | Not the true direction from the moon: chosen so the mountain face is lit |
 | `HazeStart` | 40 | m | Distance where haze begins | `GameConstants.h:50` | code |  |
 | `HazeEnd` | 900 | m | Distance where haze is complete | `GameConstants.h:51` | code | Must exceed the mountain distance or it disappears |
@@ -205,7 +246,7 @@ Art build values for the mountain (`art/mountain/build_mountain.py`): footprint 
 | `RAISE`, `RAISE_SWEEP`, `BEND2`, `BEND3` | 6°, 14°, 8°, 10° | Resting wing pose: open at shoulder height, slight sweep, drooping tips | `assemble.py:211` | art |
 | `CHIN_NECK`, `CHIN_HEAD` | −12°, −23° | Raises the head in standing and attack clips | `assemble.py:303` | art |
 | `GRADE` | body (gamma 0.74, gain 1.12, saturation 1.15); wings (0.70, 1.18, 1.25) | Brightens the textures so she reads on the dark map | `assemble.py:501` | art |
-| Sword lengths | Moonfeather 1.02 m, Talonshade 0.92 m | | `assemble.py` `make_sword` calls | art |
+| Axes | Inferno 0.95 m, Serpentcoil 1.00 m, held a fifth of the way up, 7 000 triangles each | | `assemble.py`: `AXE_LENGTH`, `AXE_GRIP_UP`, `AXE_TRIS` | art |
 
 ## J. The journey (`Journey.cpp`, `GameConstants.h`)
 
@@ -223,15 +264,22 @@ Art build values for the mountain (`art/mountain/build_mountain.py`): footprint 
 | `LedgeWalkHalfWidth` | 38 | m | `GameConstants.h:29` | code |
 | `MonsterHealthScale` | 1.8 | Health of every ordinary creature | `GameConstants.h:30` | code |
 | `BossHealthScale` | 1.0 | Health of the three region bosses and the Eagle | `GameConstants.h:31` | code |
-| `MonsterSpeedScale`, `MonsterSprint`, `MonsterSprintDistance` | 1.2, 1.45, 14 m | Creature speed; sprint multiple and the distance beyond which they sprint | `GameConstants.h` | code |
+| `MonsterSpeedScale`, `MonsterSprint`, `MonsterSprintDistance` | 1.2, 1.6, 14 m | Creature speed; sprint multiple and the distance beyond which they sprint | `GameConstants.h` | code |
 | `MonsterTurnRate`, `MonsterLeadSeconds` | 9 rad/s, 0.45 s | Turning; how far ahead of her they aim | `GameConstants.h` | code |
 | `MonsterFlank`, `MonsterFlankDistance`, `MonsterCircleSpeed` | 0.65, 7 m, 0.55 | Swing to the sides while closing in; circling while waiting to strike | `GameConstants.h` | code |
 | `MonsterAttackPace` | 0.8 | Ordinary creatures' time between blows, times this | `GameConstants.h` | code |
 | `MonsterDamageScale` | 0.85 | Every monster's damage | `GameConstants.h:32` | code |
 | `LateWaveStage` | 3 | From this region on an arena has 4 waves instead of 3 | `GameConstants.h:33` | code |
-| `PatrolBudget` | 0.55 | A roaming pack costs this share of an arena's first wave | `GameConstants.h:34` | code |
+| `PatrolBudget` | 0.8 | A roaming pack costs this share of an arena's first wave | `GameConstants.h:34` | code |
 | `PatrolAhead` | 26 | m, a roaming pack appears this far ahead of her | `GameConstants.h:35` | code |
 | `PatrolGiveUp` | 70 | m, a pack left this far behind gives up | `GameConstants.h:36` | code |
+| `PatrolEvery` | 55 | m of road per roaming pack between two fights (at least one, at most six) | `GameConstants.h` | code |
+| `PackLost`, `PackRoam`, `PackDrop`, `PackClimb`, `PackFlank` | 130, 40, 3, 7, 11 | m: a pack gives up this far from her; follows this far off the road; only over land this far below and above the road; comes in this far to the side | `GameConstants.h` | code |
+| `MeleeReachUp`, `FlyerCeiling`, `FlyerClimb` | 1.2, 22, 5.5 | m a blow reaches over a creature's head; m a flyer rises; m/s it climbs | `GameConstants.h` | code |
+| `LeapReach`, `LeapRange`, `LeapSeconds`, `LeapEvery`, `LeapTouch`, `LeapDamage` | 15, 11, 0.95, 4.5, 1.5, 1.2 | m up and m away a small creature leaps; s in the air; s between leaps; m touch; multiple of its blow | `GameConstants.h` | code |
+| `ThrowReach`, `ThrowRange`, `ThrowSpeed`, `ThrowEvery`, `ThrowDamage` | 34, 28, 15, 3.2, 0.8 | m up and m away a giant throws; m/s; s between throws; multiple of its blow | `GameConstants.h` | code |
+| `UnderLand`, `CorridorRim` | 0.8, 8 | m under the land at which she is lifted back (when not on ground); m beyond the road's edge where she is lifted to the road's level if it is the higher | `GameConstants.h` | code |
+| `PlaceCrystals` | 8 | crystals for finding a place | `GameConstants.h` | code |
 | `StageHealthGrowth` | 0.20 | + per stage (12 stages) | `GameConstants.h:37` | code |
 | `StageDamageGrowth` | 0.07 | + per stage | `GameConstants.h:38` | code |
 | `FeatherDamageBonus` | 0.03 | Nyxara's damage per Eagle Feather | `GameConstants.h:39` | code |
@@ -239,7 +287,6 @@ Art build values for the mountain (`art/mountain/build_mountain.py`): footprint 
 | `EmberDamage` | 1.5 | Nyxara's damage multiplier while it burns | `GameConstants.h:41` | code |
 | `MercySeconds` | 1.0 | After a hit she cannot be hurt again for this long (a crowd cannot kill her in one moment) | `GameConstants.h:42` | code |
 | `MaxAttackers` | 2 | Ordinary creatures that may wind up a blow at the same time | `GameConstants.h:43` | code |
-| `KillHeal` | 10 | Health she takes back from every creature she fells (bosses excepted) | `GameConstants.h` | code |
 | `PotionHeal` | 35 | Health from a potion (chests give potions, not health) | `GameConstants.h` | code |
 | `ArenaHeal` | 30 | Health for winning an arena | `GameConstants.h:47` | code |
 | `WaveHeal` | 20 | Health when a wave is beaten and another comes | `GameConstants.h:48` | code |
@@ -281,7 +328,7 @@ Cities and maps (`GameConstants.h`, section "the seven cities"; all code-only):
 | `CityDrawDistance` | 450 | m, buildings are drawn this far |
 | `CityTint`, `CityEmission` | 0.78, 0.16 | Building colour scale and self-light |
 | `MinimapRange` | 110 | m from Nyxara to the rim of the minimap |
-| `WineKillHeal` | 5 | Telavi: extra health per creature felled |
+| `WinePotionHeal` | 10 | Telavi: extra health from every potion |
 | `SpringsHealScale` | 2 | Tbilisi: wave and arena healing, times this |
 | `BlessingPotionHeal` | 15 | Mtskheta: extra health per potion |
 | `StoneDamageScale` | 0.8 | Gori: damage taken, times this |
@@ -298,7 +345,7 @@ Growth (`GameConstants.h`; rules in `Growth.cpp`):
 |---|---|---|
 | `BossCrystals`, `ChestCrystals` | 60, 5 | Crystals from a guardian; in a chest (x 3 feather chest, x 8 king's hoard). An ordinary creature leaves its cost |
 | `SaveCrystalsPerArena` | 20 | Given per arena won to a save from before crystals |
-| `MaxItemTier`, `ItemTierCost` | 3; 40, 140, 320 | Evolutions of wings, swords, armour and their prices |
+| `MaxItemTier`, `ItemTierCost` | 3; 40, 140, 320 | Evolutions of wings, axes, armour and their prices |
 | `MaxTrainingLevel`, `TrainingCostBase`, `TrainingCostStep` | 8, 10, 10 | Power and defence levels; level n costs 10 + 10 n |
 | `PowerStep`, `DefenceStep` | 0.07, 0.05 | Per level: more damage dealt, less taken |
 | `SwordTierDamage`, `ArmourTierTaken` | 0.20, 0.12 | Per evolution |
@@ -350,7 +397,7 @@ One-shot volumes (0.5 to 1) are written at each `Sound::Play` call. None of thes
 | `RuneChance` | 0.35 | chance | A tier 1 gold chest holds a rune (tier 2 always) | `GameConstants.h` |
 | `FireRuneDamage` | 0.06 | share per rune | Her blows | `GameConstants.h` |
 | `FrostRunePace` | 0.08 | share per rune | Longer between a creature's blows | `GameConstants.h` |
-| `MoonRuneHeal` | 2 | health per rune | Per creature felled | `GameConstants.h` |
+| `MoonRuneHeal` | 4 | health per rune | Per wave and per arena won | `GameConstants.h` |
 
 ### Nature
 
@@ -358,7 +405,7 @@ One-shot volumes (0.5 to 1) are written at each `Sound::Play` call. None of thes
 |---|---|---|---|---|
 | `NatureTint` | 0.5 | x | Darkens grass and trees under the engine's moonlight | `GameConstants.h` |
 | `NatureMaxSlope` | 0.85 | rise / run | Steeper land is bare | `GameConstants.h` |
-| `CameraLookScale` | 0.7 | multiplier | How fast the mouse and the right stick turn the camera, against the engine (1). The player's mouse speed multiplies it | `GameConstants.h` |
+| `CameraLookScale` | 0.6 | multiplier | How fast the mouse and the right stick turn the camera, against the engine (1). The player's mouse speed multiplies it | `GameConstants.h` |
 | `MountainClearZ` | 1790 | m | Nothing planted beyond, near the middle line | `GameConstants.h` |
 | `GrassCell` | 20 | m | Side of one square of grass | `GameConstants.h` |
 | `GrassDistance` | 80 | m | Grass is drawn this far | `GameConstants.h` |
@@ -369,7 +416,7 @@ One-shot volumes (0.5 to 1) are written at each `Sound::Play` call. None of thes
 | `TreeDistance` | 240 | m | Trees are drawn this far | `GameConstants.h` |
 | `TreeFromRoad`, `TreeToRoad` | 6, 150 | m | Band beyond the road's edge where trees stand | `GameConstants.h` |
 | `BroadleafHeight`, `ConiferHeight` | 11, 15 | m | A middling tree | `GameConstants.h` |
-| `CloudRadius` | 2600 | m | Cloud dome (the moon is at 2790) | `GameConstants.h` |
+| `CloudRadius` | 2600 | m | Cloud dome (inside the sky dome at 3000) | `GameConstants.h` |
 | `CloudTextureScale`, `CloudFlatness` | 0.16, 0.14 | - | How the cloud picture is laid over the dome | `GameConstants.h` |
 | `CloudCover`, `CloudBrightness`, `CloudEmission` | 0.62, 0.5, 1 | - | Opacity and light of the cloud | `GameConstants.h` |
 | `CloudDriftU`, `CloudDriftV` | 0.0035, 0.0012 | picture widths / s | The wind | `GameConstants.h` |
@@ -380,7 +427,6 @@ The region table (grass density, blade height, colours, share of trees, fir or b
 
 | Name | Value | Unit | Meaning | File |
 |---|---|---|---|---|
-| `RegenSeconds`, `RegenHealth` | 2, 1 | s, health | Her health returns by itself | `GameConstants.h` |
 | `HeavyBlowChance` | 0.28 | share | Blows that are heavy | `GameConstants.h` |
 | `HeavyBlowWindup`, `HeavyBlowDamage` | 1.7, 1.6 | x | Against a light blow | `GameConstants.h` |
 | `HeavyBlowReach` | 1.6 | m | Beyond the creature's reach (light: 0.9) | `GameConstants.h` |

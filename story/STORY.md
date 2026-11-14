@@ -113,6 +113,14 @@ The seven chapters became one unbroken road of twelve regions from Moonlit Sanct
 
 The prologue (The Open Cave) is told in four text cards at the start, not played.
 
+### The places beside the road **[proposed]**
+
+26 places stand beside the road, each with a name and two or three sentences in the journal once it is found. In road order: The Last Inn, The Travellers' Arch, The Shepherd's Farm, The House of Green Fire, The Watching Tree, The Ferryman's Dock, The Drowned Chapel, The Hunter's Camp, The Forest Queen's Arch, The King in the Moss, The Empty Watchtower, The Broken Stair, The Silent House, The Stone Sleeper, The Abbey in the Snow, The Smiths' Stores, The Emerald Gate, The Rock of Faces, The Empty Throne, The Golden Columns, The Devi's Hoard, The Fort of Three Kings, The First Chain, The Dancing Floor, The Fire Bearer, The Last Arch. Their texts are in `game/src/Story.cpp` (`Places`). They say who lived by the road before the Eagle's years and what the creatures made of it; none of them changes the main story.
+
+### The traps of the road **[proposed]**
+
+Nine traps are told as the road's own defences, older than the creatures: a gate that tests the swift, watchers of stone, rune stones, a pass where the wind has teeth, seals that the falling mountain itself must break, and the press of the Kaji smiths whose link Nyxara breaks as she will break her father's work on Amirani's chain. No trap has a text of its own yet beyond its name and the line under the compass.
+
 ## 6. Open story questions for the author
 
 1. Is Amirani honest with Nyxara, or is he using her? Does the player find out?
