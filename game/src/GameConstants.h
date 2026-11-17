@@ -42,7 +42,14 @@ namespace CaucasianEagle
 
     // ---- content
     constexpr const char* StartSceneId = "RoadToAmirani";                   // assets/Compiled/Scenes/<id>.dscene
-    constexpr const char* HeroBundle = "Characters/Nyxara/EagleV3";         // under assets/Compiled: her body, weapons apart (NyxaraEquipment.h), hands closed (EagleV2: the same with open hands)
+    // The Eagle's Ascent (Map A, from Map Lab): another way into the game, on its own (EaglesAscentGame.cpp).
+    // CaucasianEagle.exe --eagles-ascent, or CAUCASIAN_EAGLE_ASCENT=1.
+    constexpr const char* AscentSceneId = "MapA_EaglesAscent";              // assets/Compiled/Scenes/<id>.dscene
+    constexpr const char* AscentDataFile = "assets/Maps/EaglesAscent.txt";   // + .heights: tools/map-to-game.ps1 copies both from Map Lab's build
+    constexpr const wchar_t* AscentSwitch = L"--eagles-ascent";
+    constexpr const char* AscentEnvironmentVariable = "CAUCASIAN_EAGLE_ASCENT";   // =1: the same as the switch
+    constexpr const char* AscentLogEnvironmentVariable = "CAUCASIAN_EAGLE_MAP_LOG";   // testing: the Ascent's evidence file (CAUCASIAN_EAGLE_DEMO=1: its smoke test)
+    constexpr const char* HeroBundle = "Characters/Nyxara/MixamoV1";        // under assets/Compiled: her body built from Mixamo clips (Character Lab bundle v31): two swords, wings, no bow
     constexpr const char* HeroBundleBefore = "Characters/Nyxara/EagleV1";   // the body before it, weapons part of the mesh: kept whole, the way back
     constexpr const char* HeroBundleFolder = "Characters/Nyxara";           // CAUCASIAN_EAGLE_HERO names another bundle in this folder
     constexpr const char* HeroEnvironmentVariable = "CAUCASIAN_EAGLE_HERO"; // =EagleV1: the body before, weapons in the mesh. =RodinV1: the generated body (candidate; less detail)
@@ -447,6 +454,7 @@ namespace CaucasianEagle
     constexpr float CityDrawDistance = 450.f;    // m, buildings are drawn this far
     constexpr float CityTint = 0.78f;            // darkens the buildings under the engine's strong moonlight
     constexpr float CityEmission = 0.16f;        // self-light, so lamp-lit windows read at night
+    constexpr float FarModelHeights = 12.0f;     // a place model with a far version (art/places/prepare_places.py) draws it beyond 12 times its height
     constexpr float MinimapRange = 110.f;        // m from Nyxara to the rim of the minimap
     constexpr int WinePotionHeal = 10;           // Telavi: more health from every potion
     constexpr float SpringsHealScale = 2.f;      // Tbilisi: healing for a wave or an arena won, times this

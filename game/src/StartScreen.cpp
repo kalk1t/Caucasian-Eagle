@@ -47,7 +47,12 @@ namespace CaucasianEagle::StartScreen
         float gMouseX = -1, gMouseY = -1;
         bool gArmed = false;                        // keys held when the screen appeared must be let go first
         bool gForced = false, gForcedRead = false;  // capture mode
+        const wchar_t* gSubtitle = nullptr;         // SetPlay: another way into the game than the road
+        const wchar_t* gPlayLabel = nullptr;
+        const wchar_t* gPlayNote = nullptr;
     }
+
+    void SetPlay(const wchar_t* subtitle, const wchar_t* label, const wchar_t* note) { gSubtitle = subtitle; gPlayLabel = label; gPlayNote = note; }
 
     void Draw(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused)
     {
@@ -108,9 +113,9 @@ namespace CaucasianEagle::StartScreen
         // ---- the panel at the left
         constexpr float Width = 450, Row = 50, Gap = 6, Pad = 18, Head = 150, Foot = 46, Tiny = 1.55f, Small = 2.05f, Title = 3.1f;
         struct Entry { const wchar_t* Label; const wchar_t* Note; };
-        const bool progress = GetJourney().HasProgress();
+        const bool progress = !gPlayLabel && GetJourney().HasProgress();
         const Entry entries[Rows] = {
-            {progress ? L"Continue the journey" : L"Begin the journey", progress ? L"last arena won" : L"the road to Telavi"},
+            {gPlayLabel ? gPlayLabel : progress ? L"Continue the journey" : L"Begin the journey", gPlayLabel ? gPlayNote : progress ? L"last arena won" : L"the road to Telavi"},
             {L"Settings", L"picture, sound, mouse"}, {L"Guide", L"how to play, what it needs"},
             {L"Credits", L"who made it"}, {L"Leave the game", L""}};
         const float w = Width * S, h = (Head + Rows * (Row + Gap) + Foot) * S;
@@ -119,7 +124,7 @@ namespace CaucasianEagle::StartScreen
         ui.Nine(HudArt::Panel, x, y, w, h, White);
         ui.Icon(HudArt::IconWings, x + w * .5f, y + 40 * S, 46 * S, Silver);
         ui.SpacedCentered(L"CAUCASIAN EAGLE", x + w * .5f, y + 70 * S, Title * S, 3 * S, GoldLight);
-        ui.Centered(L"The road to Amirani", x + w * .5f, y + 106 * S, Small * S, Dim);
+        ui.Centered(gSubtitle ? gSubtitle : L"The road to Amirani", x + w * .5f, y + 106 * S, Small * S, Dim);
         ui.Rect(x + Pad * S, y + 134 * S, w - 2 * Pad * S, 1 * S, Gold.Fade(.35f));
 
         int take = -1;

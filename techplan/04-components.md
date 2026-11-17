@@ -22,6 +22,8 @@ All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle
 | `Collection.h/.cpp` | What Nyxara carries: charms, chain links, feathers of her father, keepsakes, runes. The rules (what each is worth) and the drawing of the second page of her window. Owns no state: `Journey` holds a `Collection::State` |
 | `Nature.h/.cpp` | Grass, trees and clouds: reads `Terrain.bin`, plants by rule round the camera, draws. No collision |
 | `CreatureRig.h/.cpp` | Skeletons of the creatures: reads `<Name>.rig`, turns a creature's state (walking, winding up, striking, hit, dying) into joint matrices for the engine's skinned draw |
+| `EaglesAscent.h/.cpp` | A mountain map's rules (Map A, from the Map Lab): reads `<map>.txt` and `.heights` (stations, trail, flight lines, wing-only stretches, updrafts, wind, zones, models), checkpoints, the air, keeping flight out of the rock (the engine's flight has no land collision), the safety nets (sea, inside the mountain, far from the trail), its models and light. The Map Lab (`testing/MapLab`) uses the same class |
+| `EaglesAscentGame.h/.cpp` | `CaucasianEagle::EaglesAscentGame`: the second `IDoorwaysGame`, registered by `main.cpp` for `--eagles-ascent` / `CAUCASIAN_EAGLE_ASCENT=1` (the switch is removed before the engine reads the command line). Scene `MapA_EaglesAscent`, data `assets/Maps/EaglesAscent.txt`; Nyxara through `PrepareNyxaraControls` (shared with `Game`) without the flight ceiling; R takes off / lands, Backspace and its own pause (Esc); death wakes her at the last checkpoint; HUD: height, zone, checkpoint ruler, flight marks. `CAUCASIAN_EAGLE_DEMO=1` runs its test (every station stood on, then a take-off; `CAUCASIAN_EAGLE_MAP_LOG` evidence ends `ASCENT_PASS`) |
 | `Journey.h/.cpp` | The road to Amirani: the path, creatures and their behaviour, arenas and waves, bosses, chests, the seven cities and their gifts, region titles and chest notices, which journal entries are unlocked, what the maps show, the ending, restart, the save file, the test pilot |
 
 ## 7.2 `CaucasianEagle::Game`
@@ -29,7 +31,7 @@ All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle
 | Function | When the engine calls it | What it does |
 |---|---|---|
 | `Configure` | At registration, before the engine starts | Sets scene id, window title, user-data folder |
-| `Prepare` | Once, after engine initialisation, normal launches only | Loads the `EagleV1` bundle with its 31 clips; sets movement, camera and input options; starts `NyxaraKit`; starts the showcase if requested |
+| `Prepare` | Once, after engine initialisation, normal launches only | Loads her body, the `MixamoV1` bundle, through `NyxaraKit::LoadBody`; sets movement, camera and input options; starts `NyxaraKit`; starts the showcase if requested |
 | `ScaleFrameTime` | Every frame, before simulation | Kit hit-stop factor times the journey's time scale (1 except in the test pilot) |
 | `Update` | Every frame while gameplay runs | Kit, then journey |
 | `Draw` | Every frame, after the world is drawn | Mountain, journey, then kit |
@@ -38,60 +40,49 @@ All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle
 
 ## 7.3 `NyxaraKit`
 
-One object, reached through `Doorways::GetNyxaraKit()`.
+One object, reached through `Doorways::GetNyxaraKit()`. Her moves are a port of the Character Lab's controller (`testing/CharacterLab/CharacterLab.cpp`, where they were made); the numbers keep the lab's names so the two can be read side by side. The game's rules around them stay the kit's: damage scale and charm weakness, cooldowns, the barrier, mercy time, broken creatures and the finishing reward, training mode, the test pilot's keys.
 
-### Actions
+### Her body
 
-An action is one row of the `Acts` table: display name, animation clip, playback rate, end time, and up to four hit times (in clip seconds). The enum `NyxaraKit::Act` indexes it.
+`LoadBody(renderer, worldRenderer, world, bundle, error)` loads the bundle (`Character.dmesh/.dskel/.meshbind/.dmat` and every `.danim` in it) as the player's animated character and keeps its skeleton and clips. It must run before `Initialize`; it fails if a clip the moves need is missing or the rig has no `SwordLeft` / `SwordRight` bones. Both the game (`Game::Prepare`) and the Map Lab call it. Every frame `Update` samples the clip of what she does (`Body::Compose`: the gait under a cut on the move, the cut's hips taken up by the spine, eased changes between clips, the swords placed in the world while they are out of her hands) and gives the pose to the engine with `ImportedAnimatedCharacter.ApplyGamePresentationPose`. The clip names, walk and run pace, each cut's hit time and forward path, and the sword grip and tip come from `game/src/NyxaraClips.h`, written by `art/nyxara/blender/build_from_mixamo.py`.
 
-| Act | Input | Name shown | Clip |
-|---|---|---|---|
-| `Slash1` | LMB (first, then every other click) | RIGHT TALON | `BasicAttack` (mirrored to the rig's left hand, which the screen shows as her right) |
-| `Slash2` | LMB (second, then every other click) | RIGHT TALON | `SlashLeft` |
-| `Heavy` | RMB | CHARGED SLASH | `HeavyAttack` |
-| `Skill1` | F | TALON DASH | `Skill1` |
-| `Skill2` | V | FEATHER CYCLONE | `Skill2` |
-| `Skill3` | C | MOON LEAP | `Skill3` |
-| `Combo1L` / `Combo1R` | after F: LMB / RMB | TWIN TALONS / RISING EAGLE | `Combo1L` / `Combo1R` |
-| `Combo2L` / `Combo2R` | after V: LMB / RMB | TEMPEST TRIPLE / WHIRLWIND TALONS | `Combo2L` / `Combo2R` |
-| `Combo3L` / `Combo3R` | after C: LMB / RMB | SOUL WEAVE / MOONFALL DIVE | `Combo3L` / `Combo3R` |
-| `Guard` | E (hold) | AXE BARRIER | `Guard` |
-| `Swap` | G (axes out) | AXE EXCHANGE | `SwordSwap` |
-| (no `Act`: `SetBow`) | Q | BOW / AXES | none: at once |
-| (no `Act`: `Shoot`, `mBowPosing`) | bow out: LMB held / RMB held | arrows / aim | `BowShot` (time 0 = loosed, 0.2 s = drawn; held at the end while she aims) |
+### Moves
 
-### Main functions
+| Input | Move | Clip(s) |
+|---|---|---|
+| LMB / RMB | left chain (3 cuts) / right chain (4 cuts); a click during a cut goes on | `Attack_L1..L3`, `Attack_R1..R4` |
+| LMB / RMB in a jump | the leaping cut | `Attack_Jump` |
+| Space (on foot) | a jump (a clip; the engine's jump is suppressed on foot, kept in flight for climbing) | `Jump` |
+| C | spinning swords, all round her | `Skill_Kick` |
+| F | the slide; flying, the dart | `Skill_Slide`; `Fly` |
+| F at a broken creature | the flying throw, fitted to the creature's neck height and distance; it kills | `Skill_Throw` |
+| V | the thrown swords, the twist after them, the pull and the kick | `Skill_Cast`, `Cast_Fly`, `Cast_Pull` |
+| E (hold) | the sword barrier | (her stance) |
+| R (journey) | take-off and landing | `Fly_Rise`, `Fly`, `Fly_Land` |
+| A / D, S | steer her and the view; step back | `Walk` played backwards |
 
-| Function | Purpose |
-|---|---|
-| `Initialize` | Builds effect meshes in code, loads six effect textures from `assets/Compiled/Effects/Nyxara`, places the shades, sets `GameSession().Active` |
-| `ReadKeys` | Reads the mouse buttons and Q, E, F, V, C, Shift; in showcase mode returns scripted keys instead |
-| `ScaleFrameTime` | Returns 6% of real time while a hit-stop is running |
-| `Update` | Per frame: lean and bank in flight (on the ground she is on foot: `SetOnFoot`; only the test pilot still glides low), cooldowns, input to action (including skill cancel and the 0.45 s press buffer), hit events, dash and dive movement, enemies, projectiles, effects, HUD snapshot |
-| `StartAction` | Begins an action: aims at the camera direction or a nearby shade, starts step-in dashes |
-| `OnHit` | Runs when an action's hit time is reached: damage shape, effects, pulls, launches |
-| `Impact` | Hit feedback: hit-stop, camera shake, sparks, cross-slash, ring |
-| `Dash` | Sets a timed planar impulse that the engine's movement resolves against collision |
-| `AirProfile` | Visual height curve for the leap skills |
-| `PublishHud` | Fills `NyxaraHud()` for the HUD |
-| `Draw` | Draws shades, projectiles, barrier swords and effects, sorted back to front; projects enemy positions for the HUD bars |
+### Enemies
+
+Every target is a `Wraith`: its `Height` and `Neck` (over its feet, facing +z) fit the throw and the thrown swords to it (the journey sets them from the creature's model). Each frame the kit sets `Pinned` (her swords are in it, or she is on her way to throw it) and `Hold` / `HeldNeck` / `HeldFeet` (held by the neck, or pushed over); the journey then stops that creature's attacks and draws it as a stick from its feet to its neck (`HeldPlace`, also used by the Character Lab's stations). A creature seen dead is let go after 0.5 s, before the journey frees its slot.
 
 ### How the kit drives the engine
 
 | Engine hook | Used for |
 |---|---|
-| `ImportedAnimatedCharacter.SetPresentationClipOverride` | Plays the action clip on the hero |
-| `ImportedAnimatedCharacter.SetGroundTravelOverride("FlightHover", rate)` | Presents ground travel as upright wing-beat flight |
-| `AnimatedPlayerVisual.Translation / Rotation` | Visual lift, leap height, lean and bank |
-| `GameSession().ImpulseX/Z` | Dashes and dives, resolved by engine collision |
-| `GameSession().HoldFacing` | Keeps her facing the target while moving during an action |
-| `GameSession().CameraShake` | Impact shake |
-| `WorldRenderer::SetCharacterMaterialVisible` | Shows the right axe model in each hand after a swap |
-| `CombatSystem::ApplyIncomingDamage` | Shade orbs damaging the player |
+| `ImportedAnimatedCharacter.ApplyGamePresentationPose` | Her pose, every frame |
+| `AnimatedPlayerVisual.Translation / Rotation` | Lifts (the throw, the swords, hover in flight) and the lean in flight |
+| `GameSession().ImpulseX/Z` | The forward path of each move, and steering with A / D |
+| `GameSession().HoldFacing` | She turns herself toward where she goes |
+| `GameSession().SuppressedActions` | A / D never step sideways; Space on foot is the kit's |
+| `GameSession().CameraPivotHeight`, `CameraShake` | The camera follows her lifts; blows shake it |
+| `MainPlayer.MoveSpeed`, `FlightSpeed` | 0 while a move carries her (`SpeedScale`, also applied by the journey) |
+| `CombatSystem::ApplyIncomingDamage`, `RestorePlayerHealth` | Hits on her; the finishing reward |
+
+Testing: `CAUCASIAN_EAGLE_NYXARA_LOG=<file>` writes what she does (clip, speed, place, lift) every 0.1 s and every move; `CAUCASIAN_EAGLE_NYXARA_KEYS="<seconds>:<key>,..."` presses keys in an unattended run (L, R, F, V, C, E, J for Space).
 
 ## 7.4 `NyxaraHud`
 
-`NyxaraHudState` is a plain snapshot: skill cooldowns, combo availability and names, current action flags, the move name and its timer, and up to eight projected enemy bars. `DrawNyxaraHud(ui, context)` reads it plus the engine's vitals text (`"HP %d EN %d"`) and draws the emblem, health and energy bars, the eight skill slots, the combo prompt, the move name and the enemy bars through `Ui`. It holds no gameplay state; it keeps a few values for animation only (health trail, hit flash, the flash of a skill that is ready again).
+`NyxaraHudState` is a plain snapshot: skill cooldowns, current action flags, the move name and its timer, and up to eight projected enemy bars. `DrawNyxaraHud(ui, context)` reads it plus the engine's vitals text (`"HP %d EN %d"`) and draws the emblem, health and energy bars, the eight skill slots, the combo prompt, the move name and the enemy bars through `Ui`. It holds no gameplay state; it keeps a few values for animation only (health trail, hit flash, the flash of a skill that is ready again).
 
 ### `Ui` (GameUi)
 

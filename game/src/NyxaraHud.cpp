@@ -66,23 +66,18 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     ui.Centered(std::to_wstring(hp), vx + HealthWidth * S * .5f, hy + (HealthHeight * S - ui.Height(TextTiny * S)) * .5f, TextTiny * S, Ink);
     const float ny = hy + (HealthHeight + 6) * S;
     ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, energy, Moon, 0, true);
-    // which axe is in the right hand (the one that leads)
-    const wchar_t* right = hud.Bow ? L"ELDRITCH BOW" : hud.Swapped ? L"SERPENTCOIL" : L"INFERNO";
-    const wchar_t* left = hud.Bow ? L"AXES ON HER BACK" : hud.Swapped ? L"INFERNO" : L"SERPENTCOIL";
+    // what she does now (her two swords are always in her hands)
     const float wy = ny + (EnergyHeight + 7) * S;
-    ui.Text(right, vx, wy, TextTiny * S, Ink);
-    ui.Text(left, vx + ui.Width(right, TextTiny * S) + 12 * S, wy, TextTiny * S, Faint);
+    ui.Text(hud.Action && hud.Action[0] ? hud.Action : L"TWO SWORDS", vx, wy, TextTiny * S, hud.Action && hud.Action[0] ? Ink : Faint);
 
     // ---------------------------------------------------------------- skill bar
     struct Slot { const wchar_t* Key; const wchar_t* Name; const HudArt::Sprite* Art; float Cooldown, Max; bool Active, Glow; Color Accent; int Group; };
     const Slot slots[] = {
-        {Ui::KeyLabel(L"LMB", VK_LBUTTON), hud.Bow ? L"SHOOT" : L"SLASH", hud.Bow ? &HudArt::IconArrow : &HudArt::IconSlash, 0, 1, hud.Bow ? hud.Shooting : hud.Slashing, hud.ComboOpen, Silver, 0},
-        {Ui::KeyLabel(L"RMB", VK_RBUTTON), hud.Bow ? L"AIM" : L"HEAVY", &HudArt::IconHeavy, 0, 1, hud.Bow ? hud.Aim > .5f : hud.Heavy, hud.ComboOpen, Silver, 0},
-        {Ui::KeyLabel(L"F", 'F'), L"DASH", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
-        {Ui::KeyLabel(L"V", 'V'), L"STORM", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
-        {Ui::KeyLabel(L"C", 'C'), L"LEAP", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},
-        {Ui::KeyLabel(L"Q", 'Q'), hud.Bow ? L"AXES" : L"BOW", &HudArt::IconArrow, 0, 1, hud.Bow, false, Moon, 2},
-        {Ui::KeyLabel(L"G", 'G'), L"SWAP", &HudArt::IconSwap, 0, 1, hud.Swapping, false, Moon, 2},
+        {Ui::KeyLabel(L"LMB", VK_LBUTTON), L"LEFT", &HudArt::IconSlash, 0, 1, hud.Slashing, false, Silver, 0},
+        {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"RIGHT", &HudArt::IconHeavy, 0, 1, hud.Heavy, false, Silver, 0},
+        {Ui::KeyLabel(L"F", 'F'), L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
+        {Ui::KeyLabel(L"V", 'V'), L"SWORDS", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
+        {Ui::KeyLabel(L"C", 'C'), L"SPIN", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},
         {Ui::KeyLabel(L"E", 'E'), L"GUARD", &HudArt::IconGuard, 0, 1, hud.Guarding, false, Moon, 2},
         {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
     const int count = static_cast<int>(std::size(slots));

@@ -99,6 +99,8 @@
     <ClCompile Include="src\StartScreen.cpp" />
     <ClCompile Include="src\Sound.cpp" />
     <ClCompile Include="src\WorldMap.cpp" />
+    <ClCompile Include="src\EaglesAscent.cpp" />
+    <ClCompile Include="src\EaglesAscentGame.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\CaucasianEagleGame.h" />
@@ -119,6 +121,8 @@
     <ClInclude Include="src\Settings.h" />
     <ClInclude Include="src\StartScreen.h" />
     <ClInclude Include="src\WorldMap.h" />
+    <ClInclude Include="src\EaglesAscent.h" />
+    <ClInclude Include="src\EaglesAscentGame.h" />
     <ClInclude Include="src\HudAtlas.h" />
   </ItemGroup>
   <ItemGroup>

@@ -8,24 +8,22 @@ This folder holds what the game's assets are built from. The scripts are in git.
 
 | Path | In git | Content |
 |---|---|---|
-| `nyxara/meshy/meshy.py` | yes | Small Meshy API client. Reads the key from the `MESHY_API_KEY` environment variable; the key is never written to a file. |
-| `nyxara/meshy/req/*.json` | yes | The requests sent to Meshy: concept prompts, image-to-3D, rigging, animation ids |
-| `nyxara/meshy/out/` | **no** (about 980 MB) | Everything downloaded from Meshy: concept images, body, wing and sword meshes, the rig, animation clips |
-| `nyxara/meshy/task_log.jsonl` | **no** | Task ids and download links |
-| `nyxara/blender/build_base.py` | yes | Builds `Nyxara_base.blend` from the Meshy rig and clips |
-| `nyxara/blender/assemble.py` | yes | Builds the game character: attaches and rigs the wings, fits the swords, authors the 31 clips, grades the textures, exports `Nyxara_game.glb` |
-| `nyxara/blender/*.blend`, `*.glb` | **no** (about 1.1 GB) | Intermediate and final Blender files; rebuilt by the two scripts |
-| `nyxara/tools/make_vfx_textures.py` | yes | Generates the six effect textures in `game/assets/Compiled/Effects/Nyxara` |
-| `moonlit-sanctuary/` | yes (21 MB) | The map of version 0.1: Blender scene, build scripts, export script, reference renders. Not used by the game any more (the journey begins on the road) |
+| `nyxara/*.fbx`, `nyxara/attacks/*.fbx` | yes | Nyxara's Mixamo downloads: her skin with Idle, and her walk, run, jump, death and attack clips |
+| `nyxara/Sword.glb`, `nyxara/Wings.glb` | yes | Her sword and wings, fitted to the Mixamo rig |
+| `nyxara/blender/build_from_mixamo.py` | yes | Blender: builds her game model from the Mixamo downloads (bone names, metres, clips kept in place); writes `Nyxara_mixamo.glb` and `.blend` beside it |
+| `nyxara/blender/*.blend`, `*.glb` | **no** | Rebuilt by `build_from_mixamo.py` |
 | `sky/make_sky_textures.py` | yes | Generates the night sky and moon textures in `game/assets/textures/caucasus` |
 | `ui/build_hud.py` | yes | Generates the HUD artwork `game/assets/ui/Hud/HudAtlas.png` and the sprite table `game/src/HudAtlas.h` (Pillow and numpy; no outside images) |
 | `cities/build_cities.py` | yes | Generates the seven cities: a 1024 px sheet of wall, roof and window tiles per city, 40 building models (compiled with the engine's asset builder into `game/assets/Compiled/Cities`), and `game/assets/Compiled/World/Cities.txt` (cities, models, buildings, lights). Pillow and numpy; no outside models or images. Run after `world/build_world.py`. |
 | `map/build_map.py` | yes | Paints the world map `game/assets/ui/Map/WorldMap.png` and writes `Map.txt` from `Road.txt` and `Cities.txt`. Run after the two scripts above. |
 | `props/meshy/out/library/` | **no** (51 `.glb`, about 2.2 GB) | The scenery library: 51 Meshy models (buildings, ruins, arches, statues, stairs, crates and the like) downloaded by the author. The places and the traps' scenery are made from it |
-| `places/prepare_places.py` | yes | Blender: `blender -b -P art/places/prepare_places.py -- <asset builder exe> [Name ...]`. Reduces each library model to its triangle budget (table `MODELS`), stands it on the ground and compiles it into `game/assets/Compiled/Places` |
+| `places/prepare_places.py` | yes | Blender: `blender -b --factory-startup -P art/places/prepare_places.py -- <asset builder exe> [Name ...]`. For each library model (table `MODELS`): wraps a new closed surface round it (voxel remesh), reduces that to the triangle budget and unwraps it; where the remesh falls apart (Barrel, Stall, Dock) or for leaves (Shrub) reduces the model itself. Bakes the library model's colour and detail onto it (Cycles, GPU: `<Name>BaseColor.png`, `<Name>Normal.png`), checks it (QA gate, `places/qa_report.txt`), compiles it into `game/assets/Compiled/Places` and makes its far version (`make_far.py`). About 40 s a model on the GPU |
+| `places/make_far.py` | yes | Blender: the far version of each place model of 4,000 triangles or more, a quarter of the triangles, same UVs and maps: `game/assets/Compiled/Places/<Name>Far.dmesh`. The game draws it beyond 12 times the model's height (`FarModelHeights`). `prepare_places.py` calls it; it also runs on its own over `places/out` |
+| `places/qa_report.txt` | yes | The QA gate's verdict on every place model (z-fighting, detached parts, open or flipped geometry), written by `prepare_places.py` |
+| `tools/blender_skills/` | yes | `qa_check.py` and `bake_maps.py` from the blender-agent-skills plugin (MIT), copied so the pipeline needs no plugin; see its README |
 | `places/sizes.txt` | yes | The measured size of every prepared model; `build_places.py` reads it |
 | `places/build_places.py` | yes | Plain Python: where every piece of the 26 places stands, their blockers, lights and sites; writes `game/assets/Compiled/World/Places.txt` |
-| `places/out/` | **no** (about 610 MB) | The reduced models and a picture of each; rebuilt by `prepare_places.py` |
+| `places/out/` | **no** (about 310 MB) | The game models, their far versions, baked maps and a picture of each; rebuilt by `prepare_places.py` |
 | `mountain/build_mountain.py` | yes | Blender script: the mountain mesh, its colour map and `Mountain.json` |
 | `mountain/prepare_models.py` | yes | Prepares the Meshy models of Amirani, the eagle and the dog for the asset builder |
 | `mountain/meshy/req/*.json` | yes | The requests sent to Meshy for the three figures |
@@ -50,7 +48,7 @@ This folder holds what the game's assets are built from. The scripts are in git.
 
 ## Back up the files that are not in git
 
-The `meshy/out/` folders cannot be rebuilt without spending Meshy credits again (932 were used in all). Keep a copy of `art/nyxara/meshy/out`, `art/mountain/meshy/out`, `art/monsters/meshy/out`, `art/props/meshy/out` and `art/nyxara/blender/*.blend` on a second disk or a cloud drive. A fresh clone of this repository does not contain them, so the hero cannot be rebuilt from a clone alone; the compiled hero in `game/assets` is enough to build and run the game.
+The `meshy/out/` folders cannot be rebuilt without spending Meshy credits again (932 were used in all). Keep a copy of `art/mountain/meshy/out`, `art/monsters/meshy/out`, `art/props/meshy/out` on a second disk or a cloud drive. A fresh clone of this repository does not contain them, so the hero cannot be rebuilt from a clone alone; the compiled hero in `game/assets` is enough to build and run the game.
 
 ## Building assets
 
@@ -89,8 +87,8 @@ The creatures of the road are from Georgian and wider Caucasian folklore. Their 
 
 ## Nyxara's new body and modular weapons (2026-11-13)
 
-The source of `game/assets/Compiled/Characters/Nyxara/RodinV1` and `.../Equipment` is not in this repository: it is the delivery folder `C:\Users\User\Projects\Hyper3D\delivery` (the generated body, the Blender file with the body bound to her rig, the weapon files, the compiled bundles and the evidence of how they were made; read `CODEX_HANDOFF.txt` there). `art/nyxara/equipment/equipment_manifest.json` is a copy of that delivery's manifest, and `gen_equipment.py` beside it writes `game/src/NyxaraEquipment.h`. The delivery also holds two plain swords and a second bow that the game does not use.
+(History: the Meshy and Hyper3D Nyxara, her equipment scripts and the finisher script were removed on 2026-11-17; she is now built from Mixamo, above.) The source of `game/assets/Compiled/Characters/Nyxara/RodinV1` and `.../Equipment` is not in this repository: it is the delivery folder `C:\Users\User\Projects\Hyper3D\delivery` (the generated body, the Blender file with the body bound to her rig, the weapon files, the compiled bundles and the evidence of how they were made; read `CODEX_HANDOFF.txt` there). `art/nyxara/equipment/equipment_manifest.json` is a copy of that delivery's manifest, and `gen_equipment.py` beside it writes `game/src/NyxaraEquipment.h`. The delivery also holds two plain swords and a second bow that the game does not use.
 
 ## Closed hands and the finisher clip (2026-11-13)
 
-`art/nyxara/equipment/close_hands.py` makes the fists of `EagleV3` from the delivery's `Nyxara_modular_compat.glb`. `art/nyxara/blender/finishers.py` makes the `Finisher` clip from `Nyxara_game.blend` (not in git). Both are described in `techplan/04-components.md`.
+(History: the Meshy and Hyper3D Nyxara, her equipment scripts and the finisher script were removed on 2026-11-17; she is now built from Mixamo, above.) `art/nyxara/equipment/close_hands.py` makes the fists of `EagleV3` from the delivery's `Nyxara_modular_compat.glb`. `art/nyxara/blender/finishers.py` makes the `Finisher` clip from `Nyxara_game.blend` (not in git). Both are described in `techplan/04-components.md`.

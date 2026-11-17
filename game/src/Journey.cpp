@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <filesystem>
 #include <cstdlib>
 #include <cwchar>
 #include <cwctype>
@@ -145,10 +146,10 @@ namespace CaucasianEagle
             return from + std::clamp(d, -maxStep, maxStep);
         }
 
-        Material Surface(ID3D11ShaderResourceView* texture, XMFLOAT4 tint, float emission, bool blend = false)
+        Material Surface(ID3D11ShaderResourceView* texture, XMFLOAT4 tint, float emission, bool blend = false, ID3D11ShaderResourceView* normal = nullptr)
         {
             Material m{};
-            m.Diffuse = tint; m.DiffuseMap = texture;
+            m.Diffuse = tint; m.DiffuseMap = texture; m.NormalMap = normal;
             m.TexTransform = {1, 1, 0, 0}; m.MetallicFactor = 0; m.RoughnessFactor = .85f;
             m.SpecularColor = {0, 0, 0, 0}; m.EmissiveStrength = emission;
             m.DoubleSided = true;
@@ -161,6 +162,37 @@ namespace CaucasianEagle
             const float scale = height / std::max(max.y - min.y, 1e-4f);
             return XMMatrixTranslation(-(min.x + max.x) * .5f, -min.y, -(min.z + max.z) * .5f) * XMMatrixScaling(scale, scale, scale) *
                    XMMatrixRotationZ(roll) * XMMatrixRotationX(pitch) * XMMatrixRotationY(yaw) * XMMatrixTranslation(feet.x, feet.y, feet.z);
+        }
+
+        // Where a creature's neck is as it stands: metres from the middle of its feet, before it is turned.
+        XMFLOAT3 NeckLocal(const XMFLOAT3& min, const XMFLOAT3& max, const CreatureRig& rig, float height)
+        {
+            if (rig.Kind != CreatureRig::Type::Biped && rig.Kind != CreatureRig::Type::Robed) return {0, height * .84f, 0};
+            const float scale = height / std::max(max.y - min.y, 1e-4f);
+            const auto& p = rig.Pivot[CreatureRig::Head];
+            return {(p.x - (min.x + max.x) * .5f) * scale, (p.y - min.y) * scale, (p.z - (min.z + max.z) * .5f) * scale};
+        }
+
+        // A creature held by the neck or pushed over (Nyxara's throw, her thrown swords): a stick from the middle of its
+        // feet to its neck, turned from upright (held 0) to where the two are held (held 1); as it comes to lie it is
+        // raised by a part of its depth, to lie on the ground and not in it.
+        XMMATRIX HeldPlace(const XMFLOAT3& min, const XMFLOAT3& max, const CreatureRig& rig, float height, float yaw, const XMFLOAT3& standing,
+                           float held, const XMFLOAT3& heldNeck, const XMFLOAT3& heldFeet)
+        {
+            const float scale = height / std::max(max.y - min.y, 1e-4f);
+            const XMFLOAT3 local = NeckLocal(min, max, rig, height);
+            const XMVECTOR upright = XMVector3Normalize(XMVector3TransformNormal(XMLoadFloat3(&local), XMMatrixRotationY(yaw)));
+            XMVECTOR at = XMLoadFloat3(&heldFeet);
+            XMVECTOR along = XMVector3Normalize(XMLoadFloat3(&heldNeck) - at);
+            at = XMVectorLerp(XMLoadFloat3(&standing), at, held);
+            along = XMVector3Normalize(XMVectorLerp(upright, along, held));
+            const XMVECTOR axis = XMVector3Cross(upright, along);
+            const float sine = XMVectorGetX(XMVector3Length(axis)), cosine = XMVectorGetX(XMVector3Dot(upright, along));
+            const XMMATRIX tilt = sine > 1e-5f ? XMMatrixRotationAxis(axis, std::atan2(sine, cosine)) : XMMatrixIdentity();
+            const float lying = 1 - std::clamp(XMVectorGetY(along), 0.f, 1.f);
+            at += XMVectorSet(0, held * lying * (max.z - min.z) * scale * .3f, 0, 0);
+            return XMMatrixTranslation(-(min.x + max.x) * .5f, -min.y, -(min.z + max.z) * .5f) * XMMatrixScaling(scale, scale, scale) *
+                   XMMatrixRotationY(yaw) * tilt * XMMatrixTranslationFromVector(at);
         }
 
         std::wstring Wide(const std::string& s)
@@ -240,6 +272,14 @@ namespace CaucasianEagle
                     }
             }
         }
+        // the far version, when the model has one (it shares the textures: it is the near one reduced, its UVs kept)
+        const auto farPath = root / (base + "Far.dmesh");
+        if (std::filesystem::exists(farPath))
+        {
+            DoorwaysLoadedDMesh farMesh;
+            if (!LoadDoorwaysDMesh(farPath, farMesh, &error) || !renderer.CreateDoorwaysGpuMeshFromLoadedDMesh(farMesh, out.Far, &error)) return false;
+            out.HasFar = true;
+        }
         if (sharedTexture) { out.Texture = sharedTexture; return true; }
         DoorwaysTextureLoadDesc desc;
         desc.Path = root / ((textureBase.empty() ? base : textureBase) + "BaseColor.png");
@@ -248,6 +288,15 @@ namespace CaucasianEagle
         DoorwaysTextureLoadResult result;
         if (!renderer.LoadDoorwaysTexture(desc, result, &error)) return false;
         out.Texture = result.SRV;
+        const auto normalPath = root / ((textureBase.empty() ? base : textureBase) + "Normal.png");
+        if (std::filesystem::exists(normalPath))
+        {
+            DoorwaysTextureLoadDesc normalDesc;
+            normalDesc.Path = normalPath; normalDesc.Semantic = DoorwaysMaterialTextureSemantic::Normal; normalDesc.GenerateMips = true;
+            DoorwaysTextureLoadResult normalResult;
+            if (!renderer.LoadDoorwaysTexture(normalDesc, normalResult, &error)) return false;
+            out.Normal = normalResult.SRV;
+        }
         return true;
     }
 
@@ -1432,6 +1481,10 @@ namespace CaucasianEagle
         w.Alive = true; w.MaxHealth = w.Health = std::max(1, static_cast<int>(static_cast<float>(def.Health) * healthScale));
         w.Radius = def.Radius; w.PushScale = def.PushScale;
         w.Pos = {at.x, at.y + 1.3f, at.z}; w.Anchor = w.Pos; w.Fade = 1;
+        w.Height = def.Height;   // its build, for her throw and her thrown swords
+        if (kind < static_cast<int>(mModels.size()) && mModels[kind].Mesh.Submeshes.size())
+            w.Neck = NeckLocal(mModels[kind].Min, mModels[kind].Max, mModels[kind].Rig, def.Height);
+        else w.Neck = {0, def.Height * .85f, 0};
         enemies[slot] = w;
         if (kind != ChestKind && kind != ChainKind && kind != LinkKind)
         {
@@ -1473,10 +1526,46 @@ namespace CaucasianEagle
         }
     }
 
+    // A station creature that dies is seen dead for StationDeathSeconds, is gone for StationAwaySeconds and then
+    // stands in its place again.
+    constexpr float StationDeathSeconds=.55f, StationAwaySeconds=5.f;
+
     void Journey::UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks)
     {
         if(!mCreatureStations)return;
         mTime+=dt;
+        {   // A station creature dies in its place and is back at once. Its death is kept away from OnDeath: that
+            // pays gold, drops charms and writes the journey's save, none of which a test fixture may do.
+            auto& all=GetNyxaraKit().Enemies();
+            for(size_t i=0;i<mMonsters.size();++i)
+            {
+                auto& e=all[i];auto& m=mMonsters[i];
+                e.Flash=std::max(0.f,e.Flash-dt);
+                if(m.Dying)
+                {
+                    if(!attacks)m.Death-=dt;                 // (UpdateMonsters counts it down otherwise)
+                    if(m.Death<=dt+1e-3f)
+                    {   // before UpdateMonsters would give the slot away
+                        Monster fresh;fresh.Kind=m.Kind;fresh.Active=true;fresh.Index=m.Index;fresh.Hover=m.Hover;fresh.Strafe=m.Strafe;
+                        fresh.Cooldown=1.2f;fresh.Phase=m.Phase;m=fresh;
+                        e.Health=e.MaxHealth;e.Alive=true;e.Flash=0;e.Fade=1;
+                    }
+                }
+                else if(m.Active && (!e.Alive || e.Health<=0)){e.Alive=false;e.Health=0;m.Dying=true;m.Death=StationDeathSeconds+StationAwaySeconds;m.Windup=-1;m.Lunge=0;m.Slam=0;}
+            }
+        }
+        for(size_t i=0;i<mMonsters.size() && i<mStationDown.size();++i)
+            if(mStationDown[i]>0)
+            {   // thrown: whatever it was doing is over, and it does nothing until it is up again
+                auto& m=mMonsters[i];m.Windup=-1;m.Lunge=0;m.Slam=0;
+                m.Cooldown=std::max(m.Cooldown,.8f);m.Shoot=std::max(m.Shoot,.8f);m.Special=std::max(m.Special,.8f);
+            }
+        for(size_t i=0;i<mMonsters.size() && i<mStationHeld.size();++i)
+            if(mStationHeld[i].Hold>0)
+            {   // held by the neck: the same
+                auto& m=mMonsters[i];m.Windup=-1;m.Lunge=0;m.Slam=0;
+                m.Cooldown=std::max(m.Cooldown,.8f);m.Shoot=std::max(m.Shoot,.8f);m.Special=std::max(m.Special,.8f);
+            }
         if(attacks)UpdateMonsters(world,combat,dt);
         else for(auto& m:mMonsters){m.Phase+=dt;m.Lunge=std::max(0.f,m.Lunge-dt);}
         // Also catches boss dives/teleports and any kit knockback/launch.
@@ -1487,6 +1576,40 @@ namespace CaucasianEagle
             e.Pos=e.Anchor;e.Push={};e.Lift=e.LiftVel=0;e.PushScale=0;
             m.Ground=0;m.Air=0;m.Moving=0;
         }
+    }
+
+    void Journey::HoldCreatureStation(int index, const XMFLOAT3& neck, const XMFLOAT3& feet, float hold)
+    {
+        if(!mCreatureStations || index<0 || index>=static_cast<int>(mMonsters.size()))return;
+        if(mStationHeld.size()<mMonsters.size())mStationHeld.resize(mMonsters.size());
+        mStationHeld[index]={std::clamp(hold,0.f,1.f),neck,feet};
+    }
+
+    void Journey::LayCreatureStation(int index, float down)
+    {
+        if(!mCreatureStations || index<0 || index>=static_cast<int>(mMonsters.size()))return;
+        if(mStationDown.size()<mMonsters.size())mStationDown.resize(mMonsters.size(),0.f);
+        mStationDown[index]=std::clamp(down,0.f,1.f);
+    }
+
+    int Journey::StrikeCreatureStations(const XMFLOAT3& from, float yaw, float reach, float arcDegrees, int damage)
+    {
+        if(!mCreatureStations)return 0;
+        auto& enemies=GetNyxaraKit().Enemies();int hits=0;
+        const float limit=std::cos(XMConvertToRadians(arcDegrees));
+        for(size_t i=0;i<mMonsters.size();++i)
+        {
+            auto& e=enemies[i];auto& m=mMonsters[i];
+            if(!m.Active || m.Dying || !e.Alive)continue;
+            const float dx=e.Anchor.x-from.x,dz=e.Anchor.z-from.z,d=std::sqrt(dx*dx+dz*dz);
+            if(d>reach+e.Radius)continue;
+            if(from.y>(i==0?1.8f:Kinds[m.Kind].Height)+.5f)continue;   // from over its head (she flies): out of reach
+            if(d>e.Radius+.3f && (dx*std::sin(yaw)+dz*std::cos(yaw))/d<limit)continue;   // (inside it, every side counts)
+            e.Flash=.16f;++hits;
+            if(i==0)continue;                              // the training dummy
+            e.Health=std::max(0,e.Health-damage);if(e.Health<=0)e.Alive=false;
+        }
+        return hits;
     }
 
     std::vector<Journey::CreatureStation> Journey::CreatureStations() const
@@ -1501,7 +1624,13 @@ namespace CaucasianEagle
             station.Anchor={e.Anchor.x,0,e.Anchor.z};station.Height=i==0?1.8f:def.Height;station.Radius=e.Radius;
             station.Health=e.Health;station.MaximumHealth=e.MaxHealth;station.Shots=m.Shots;
             station.Windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
-            station.Strike=std::min(1.f,m.Lunge/.28f);result.push_back(station);
+            station.Strike=std::min(1.f,m.Lunge/.28f);
+            {
+                const auto& model=mModels[m.Kind];const XMFLOAT3 local=NeckLocal(model.Min,model.Max,model.Rig,def.Height);
+                XMFLOAT3 turned;XMStoreFloat3(&turned,XMVector3TransformNormal(XMLoadFloat3(&local),XMMatrixRotationY(e.Yaw)));
+                station.Neck={e.Anchor.x+turned.x,turned.y,e.Anchor.z+turned.z};
+            }
+            result.push_back(station);
         }
         return result;
     }
@@ -1516,7 +1645,7 @@ namespace CaucasianEagle
         return true;
     }
 
-    void Journey::DrawCreatureStations(Renderer& renderer, const WorldState&, const XMMATRIX& viewProjection)
+    void Journey::DrawCreatureStations(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
     {
         if(!mCreatureStations)return;
         const auto& enemies=GetNyxaraKit().Enemies();
@@ -1533,18 +1662,37 @@ namespace CaucasianEagle
             }
             if(i==0)
             {renderer.DrawBox(XMMatrixScaling(.8f,1.8f,.8f)*XMMatrixTranslation(0,.9f,2.4f),viewProjection,Surface(renderer.mWhiteTextureView.Get(),e.Flash>0?XMFLOAT4{2,1,1,1}:XMFLOAT4{.55f,.35f,.18f,1},.05f));continue;}
+            if(m.Dying && m.Death<StationAwaySeconds)continue;        // dead and gone until it stands here again
+            if(!m.Dying)
+            {   // its health, over its head, turned to the camera (as in the campaign's Draw)
+                const float ratio=static_cast<float>(e.Health)/static_cast<float>(std::max(1,e.MaxHealth));
+                const float top=def.Height+.35f,width=std::min(2.4f,.9f+def.Radius);
+                const XMMATRIX face=XMMatrixRotationY(std::atan2(world.MainCamera.Position.x-feet.x,world.MainCamera.Position.z-feet.z));
+                renderer.DrawBox(XMMatrixScaling(width,.09f,.03f)*face*XMMatrixTranslation(feet.x,top,feet.z),viewProjection,Surface(renderer.mWhiteTextureView.Get(),{.03f,.03f,.04f,1},0));
+                if(ratio>0)
+                    renderer.DrawBox(XMMatrixScaling(width*.96f*ratio,.06f,.04f)*XMMatrixTranslation(-width*.48f*(1-ratio),0,0)*face*XMMatrixTranslation(feet.x,top,feet.z),viewProjection,
+                                     Surface(renderer.mWhiteTextureView.Get(),ratio<.2f?XMFLOAT4{1.f,.15f,.1f,1}:XMFLOAT4{def.Color.x,def.Color.y,def.Color.z,1},.9f));
+            }
             const auto& model=mModels[m.Kind];const bool rigged=model.Rig.Kind!=CreatureRig::Type::None;
             // Same combat pose parameters as campaign Draw: no root lunge/hover translation.
             const float windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
             float pitch=m.Windup>=0?-.32f*std::sin(windup*Pi*.5f):m.Lunge>0?.45f*(m.Lunge/.28f):0;
             if(rigged)pitch*=.25f;
-            const auto place=Place(model.Min,model.Max,def.Height,e.Yaw,feet,pitch,0);
+            if(i<mStationDown.size() && mStationDown[i]>0)pitch=pitch*(1-mStationDown[i])+1.5f*mStationDown[i];   // thrown: over its feet onto its face
+            auto place=Place(model.Min,model.Max,def.Height,e.Yaw,feet,pitch,0);
+            const float held=i<mStationHeld.size()?mStationHeld[i].Hold:0;
+            if(held>0)
+            {   // held by the neck (HeldPlace)
+                const auto& hold=mStationHeld[i];
+                place=HeldPlace(model.Min,model.Max,model.Rig,def.Height,e.Yaw,feet,held,hold.Neck,hold.Feet);
+            }
             const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission);
             if(rigged)
             {
                 CreaturePose pose;pose.Time=m.Phase;pose.Stride=m.Phase*(def.Height>4?3.2f:7.5f);
                 pose.Windup=windup;pose.Strike=std::min(1.f,m.Lunge/.28f);pose.Recoil=std::min(1.f,e.Flash/.16f);
                 pose.Attack=def.Keep>0 || model.Rig.Kind==CreatureRig::Type::Robed?CreatureRig::Attack::Cast:def.Height>4?CreatureRig::Attack::Slam:CreatureRig::Attack::Swing;
+                if(held>0){pose.Windup=0;pose.Strike=0;pose.Death=.8f*held;}   // limp: arms flung up, head back, knees loose
                 static DoorwaysGpuSkinningPalette palette;BuildCreaturePalette(model.Rig,pose,palette);
                 renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh,place,viewProjection,palette,skin);
             }
@@ -1882,6 +2030,12 @@ namespace CaucasianEagle
             const KindDef& def = Kinds[m.Kind];
             const float damageScale = DamageTaken() * (1 + StageDamageGrowth * static_cast<float>(mSamples[m.Index].Stage)) * Collection::DamageFrom(mCollection, m.Kind);
             e.Weak = Collection::DamageTo(mCollection, m.Kind);
+            if ((e.Pinned || e.Hold > 0) && m.Stage < 100)
+            {   // her swords are in it, or she holds it (NyxaraKit): whatever it was doing is over, and it waits
+                m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Moving = 0;
+                m.Cooldown = std::max(m.Cooldown, .8f); m.Shoot = std::max(m.Shoot, .8f); m.Special = std::max(m.Special, .8f);
+                continue;
+            }
 
             XMFLOAT3 to = Sub(player.Position, e.Pos); to.y = 0;
             const float distance = LenXZ(to);
@@ -3045,9 +3199,11 @@ namespace CaucasianEagle
             // on the ground she is on foot (the autopilot of the tests still soars low, as the game was balanced)
             mOnFoot = !flying && !mPilot;
             if (mWingSpeed <= 0) mWingSpeed = world.MainPlayer.MoveSpeed;
-            world.MainPlayer.MoveSpeed = mOnFoot ? FootSpeed : mWingSpeed;
+            // (times the kit's scale: 0 while one of her moves carries her, slower when she steps back)
+            world.MainPlayer.MoveSpeed = (mOnFoot ? FootSpeed : mWingSpeed) * GetNyxaraKit().SpeedScale();
             if (mOnFoot) session.FastMultiplier = FootRunSpeed / FootSpeed;          // Shift runs (in the air it is set with her growth, above)
             GetNyxaraKit().SetOnFoot(mOnFoot);
+            GetNyxaraKit().SetHeightOverGround(height);                              // her landing reaches for the ground
         }
         if (mPilot) UpdatePilot(world, combat, realDt);
     }
@@ -3102,8 +3258,9 @@ namespace CaucasianEagle
             if (d > b.Far) continue;
             const Model& model = mCityModels[b.Model];
             const float fade = Smooth(b.Far - d, 0, std::min(60.f, b.Far * .25f));                 // far buildings come out of the dark
-            renderer.DrawDoorwaysGpuMesh(model.Mesh, Place(model.Min, model.Max, b.Height, b.Yaw, b.P), viewProjection,
-                                         Surface(model.Texture.Get(), {CityTint * fade, CityTint * fade, CityTint * fade, 1}, CityEmission * fade));
+            const bool distant = model.HasFar && d > b.Height * FarModelHeights;                          // a quarter of the triangles where it is small on the screen
+            renderer.DrawDoorwaysGpuMesh(distant ? model.Far : model.Mesh, Place(model.Min, model.Max, b.Height, b.Yaw, b.P), viewProjection,
+                                         Surface(model.Texture.Get(), {CityTint * fade, CityTint * fade, CityTint * fade, 1}, CityEmission * fade, false, model.Normal.Get()));
         }
 
         // ---- arena walls: rough stone blocks across the road at both ends, each rising a moment after its neighbour
@@ -3265,7 +3422,8 @@ namespace CaucasianEagle
             const XMFLOAT3 at{feet.x + std::sin(e.Yaw) * forward, feet.y + lift + hover - (m.Dying ? (1 - fade) * def.Height * .3f : 0.f), feet.z + std::cos(e.Yaw) * forward};
             const float height = def.Height * (m.Dying ? .35f + .65f * fade : .25f + .75f * fade);
             const XMFLOAT4 tint = flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{MonsterTint, MonsterTint, MonsterTint, 1};
-            const XMMATRIX place = Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
+            const XMMATRIX place = e.Hold > 0 ? HeldPlace(model.Min, model.Max, model.Rig, def.Height, e.Yaw, feet, e.Hold, e.HeldNeck, e.HeldFeet)   // in her hold
+                                              : Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
             const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission);
             if (rigged)
             {   // limbs, spine and head move on their own joints
@@ -3275,6 +3433,7 @@ namespace CaucasianEagle
                 pose.Strike = m.Dying ? 0.f : std::min(1.f, m.Lunge / .28f);
                 pose.Recoil = m.Dying ? 0.f : std::min(1.f, e.Flash / .16f);
                 pose.Death = m.Dying ? 1 - fade : 0.f;
+                if (e.Hold > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Death = std::max(pose.Death, .8f * e.Hold); }   // limp in her hold
                 pose.Attack = def.Keep > 0 || model.Rig.Kind == CreatureRig::Type::Robed ? CreatureRig::Attack::Cast
                             : def.Height > 4 ? CreatureRig::Attack::Slam : CreatureRig::Attack::Swing;
                 static Doorways::DoorwaysGpuSkinningPalette palette;   // 128 matrices: too large to build on the stack every creature

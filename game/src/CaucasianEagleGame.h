@@ -5,6 +5,9 @@
 // The Caucasian Eagle game module registered with the Doorways engine (see main.cpp).
 namespace CaucasianEagle
 {
+    // Her travel, flight, camera, keys and controller buttons (both ways into the game: the road and the Eagle's Ascent).
+    void PrepareNyxaraControls(Doorways::DoorwaysGameHost& host);
+
     class Game final : public Doorways::IDoorwaysGame
     {
     public:

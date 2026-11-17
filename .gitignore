@@ -54,3 +54,6 @@ tools/character-lab.ps1
 tools/open-character-lab.ps1
 art/map/MapA_MapLab_Package/
 art/nyxara/classic-nyxara/
+
+# Map A render mesh: 216 MB, over GitHub's 100 MB limit; rebuilt by Test-Map.cmd -Map MapA -PrepareAssets and tools/map-to-game.ps1
+game/assets/Compiled/StaticMeshes/MapA_EaglesAscent/MapA_EaglesAscent.dmesh

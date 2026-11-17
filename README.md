@@ -45,6 +45,8 @@ powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Run
 
 The first build compiles the whole engine and takes several minutes. The runnable game ends up in `build\stage\CaucasianEagle\`.
 
+**The Eagle's Ascent**, the mountain climb on its own (Map A): `Play-EaglesAscent.cmd`, or `CaucasianEagle.exe --eagles-ascent`. See the manual.
+
 ## Controls
 
 | Input | Action |
@@ -55,14 +57,12 @@ The first build compiles the whole engine and takes several minutes. The runnabl
 | Space | Jump on foot; held in flight, climb (X sinks) |
 | R | Take wing (3 s) / land when low (3 s) |
 | Mouse | Look |
-| Left click | Axe blow: right axe, then left axe, alternating |
-| Right click | Charged slash |
-| F / V / C | Talon Dash / Feather Cyclone / Moon Leap |
-| F, V or C, then left or right click | That skill's two combos |
-| G | Swap the axes between hands |
-| Q | Bow or axes (the other goes on her back) |
-| Bow: right click (hold) / left click (hold) | Aim over her shoulder / arrows |
-| E (hold) | Axe barrier |
+| Left click / right click | Left sword / right sword; clicks in a row go through the cuts (a click in a jump: the leaping cut) |
+| F | The slide; at a broken creature (gold ring) the flying throw that finishes it |
+| V | The thrown swords: she flies after them, pulls them out and kicks the creature over |
+| C | Spinning swords |
+| A / D, S | Turn her way (and the view); step back |
+| E (hold) | Sword barrier |
 | Z | Drink a potion |
 | I | Nyxara's window: grow, and (D) what she carries |
 | F1 / M | Story journal / world map |

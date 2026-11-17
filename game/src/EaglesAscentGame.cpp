@@ -1,0 +1,339 @@
+#ifndef NOMINMAX
+#define NOMINMAX   // std::min / std::max, not the Windows macros
+#endif
+#include "EaglesAscentGame.h"
+
+#include "CaucasianEagleGame.h"
+#include "CombatSystem.h"
+#include "DoorwaysAssetPaths.h"
+#include "DoorwaysApplication.h"
+#include "DoorwaysGamepad.h"
+#include "DoorwaysHudTextLayout.h"
+#include "DoorwaysRenderContexts.h"
+#include "DoorwaysRuntimePathResolver.h"
+#include "GameConstants.h"
+#include "GameUi.h"
+#include "NyxaraHud.h"
+#include "NyxaraKit.h"
+#include "Sound.h"
+#include "StartScreen.h"
+#include "Renderer.h"
+#include "WorldRenderer.h"
+#include "WorldState.h"
+
+#include <Windows.h>
+
+#include <algorithm>
+#include <cmath>
+#include <cwctype>
+#include <iomanip>
+#include <sstream>
+
+// The Eagle's Ascent mode (EaglesAscentGame.h). Map A Gate 5, 2026-11-17.
+namespace CaucasianEagle
+{
+    using namespace Doorways;
+    using namespace DirectX;
+
+    namespace
+    {
+        constexpr float LandSpeed = 6;   // m/s she sinks when R lands her: the mountain is 4 km high, so there is no "too high to land"
+        std::wstring Words(std::string s) { std::replace(s.begin(), s.end(), '_', ' '); return {s.begin(), s.end()}; }
+        std::string Env(const char* name)
+        {
+            char value[1024] = {};
+            const DWORD size = GetEnvironmentVariableA(name, value, sizeof(value));
+            return size > 0 && size < sizeof(value) ? std::string(value) : std::string();
+        }
+    }
+
+    bool EaglesAscentRequested()
+    {
+        if (Env(AscentEnvironmentVariable) == "1") return true;
+        std::wstring line = GetCommandLineW();
+        std::transform(line.begin(), line.end(), line.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+        return line.find(AscentSwitch) != std::wstring::npos;
+    }
+
+    void EaglesAscentGame::Configure(DoorwaysGameSession& session)
+    {
+        session.SceneId = AscentSceneId;
+        session.SceneCollision = true;   // the mountain's paths, stairs and terraces are the ground
+        session.WindowTitle = std::wstring(GameTitle) + L" - The Eagle's Ascent";
+        session.UserDataFolder = UserDataFolder;   // the same settings as the road; nothing is saved here
+    }
+
+    bool EaglesAscentGame::Prepare(DoorwaysGameHost& host, std::string& error)
+    {
+        if (!mMap.Load(ResolveDoorwaysRuntimePath(AscentDataFile), error)) { error = "The Eagle's Ascent: " + error; return false; }
+        if (!GetNyxaraKit().LoadBody(host.Render, host.WorldRender, host.World, GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundle, error))
+        {
+            error = "Nyxara: " + error;
+            return false;
+        }
+        PrepareNyxaraControls(host);   // the road's controls, camera and controller buttons
+        auto& session = GameSession();
+        session.FreeFlightCeiling = 0;                         // no ceiling: the mountain is 4 km high
+        session.FastMultiplier = FootRunSpeed / FootSpeed;     // she starts on foot
+        host.World.MainPlayer.MoveSpeed = FootSpeed;
+        auto& camera = host.World.MainCamera;
+        camera.FarZ = 14000; camera.NearZ = .25f;              // the summit must be in view from the shore
+        if (!Ui::LoadArt(host.Render, error)) return false;
+        if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error)) { error = "Nyxara combat kit: " + error; return false; }
+        if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
+        GetNyxaraKit().SetOnFoot(true);
+
+        // she begins on the shore (testing: CAUCASIAN_EAGLE_START=<station>)
+        const std::string first = Env(StartEnvironmentVariable);
+        const int station = first.empty() ? 0 : std::clamp(std::atoi(first.c_str()), 0, static_cast<int>(mMap.Stations.size()) - 1);
+        const auto& start = mMap.Stations[static_cast<size_t>(station)];
+        session.OwnSpawn = true; session.SpawnPosition = {start.P.x, start.P.y + .05f, start.P.z}; session.SpawnYaw = start.Yaw;
+        host.World.MainPlayerSpawn.Position = session.SpawnPosition; host.World.MainPlayerSpawn.Yaw = start.Yaw;
+        camera.Yaw = start.Yaw; mMap.Checkpoint = station; mReached = station;
+        session.OwnDeath = true;       // she wakes at the last checkpoint
+        session.OwnPauseMenu = true;   // Esc: the Ascent's own pause (resume, last checkpoint, main menu, leave)
+
+        session.MenuTitle = L"CAUCASIAN EAGLE";
+        session.MenuSubtitle = L"The Eagle's Ascent";
+        session.MenuPlayLabel = L"Climb the Eagle's Ascent";
+        StartScreen::SetPlay(L"The Eagle's Ascent", L"Climb the Eagle's Ascent", L"from the sea to Amiran's court");
+        session.MenuCredits = {L"Caucasian Eagle", L"A game by Giorgi Samkharadze", L"Built in Doorways, a custom engine",
+                               L"founded by Giorgi Samkharadze", L"in February 2026"};
+        session.MenuHideLinks = true;
+        session.MenuGuideLabel = L"Guide";
+        session.OwnSettings = true;
+        session.OwnStartScreen = true;
+        session.MenuBackdrop = StartScreenPicture;
+        session.MenuPanelSide = -1;
+        Sound::Initialize();
+        Sound::StartMusic("music/menu");
+
+        mSmoke = Env(DemoEnvironmentVariable) == "1";   // the unattended test of the mode
+        mLog = Env(AscentLogEnvironmentVariable);
+        if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
+        if (mSmoke)
+        {
+            session.Unattended = true;
+            std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
+            host.StartGame();
+        }
+        OutputDebugStringA("[PASS] Caucasian Eagle: the Eagle's Ascent is prepared.\n");
+        return true;
+    }
+
+    bool EaglesAscentGame::Press(int key, bool allowed)
+    {
+        const bool down = allowed && !GameSession().Unattended && IsDoorwaysKeyDown(key);
+        const bool pressed = down && !mKeys[static_cast<size_t>(key)];
+        mKeys[static_cast<size_t>(key)] = down;
+        return pressed;
+    }
+
+    void EaglesAscentGame::Notify(const std::wstring& title, const std::wstring& line, float seconds)
+    {
+        mNoticeTitle = title; mNoticeLine = line; mNotice = seconds;
+    }
+
+    void EaglesAscentGame::Evidence(const WorldState& world, const char* event)
+    {
+        std::ofstream log(mLog, std::ios::app); if (!log) return;
+        const auto& p = world.MainPlayer;
+        log << std::fixed << std::setprecision(2) << mClock << '\t' << event << '\t' << (mSmokeStation >= 0 ? mSmokeStation : mMap.Checkpoint) << '\t'
+            << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z << '\t' << p.IsGrounded << '\t' << p.MissingAuthoritativeGround << '\t'
+            << (p.TraversalMode == DoorwaysPlayerTraversalMode::Flight) << '\n';
+    }
+
+    float EaglesAscentGame::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
+    {
+        return mPaused ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
+    }
+
+    // Unattended (CAUCASIAN_EAGLE_DEMO=1): she is put on every station and must stand on its ground at its height; at
+    // the last one she takes off and must rise. The evidence file ends with ASCENT_PASS or ASCENT_FAIL.
+    void EaglesAscentGame::Smoke(DoorwaysGameHost& host, float realDt)
+    {
+        auto& p = host.World.MainPlayer; auto& session = GameSession();
+        mSmokeClock += realDt;
+        if (mClock < 3) return;
+        const int stations = static_cast<int>(mMap.Stations.size());
+        if (mSmokeStation < 0 || (mSmokeStation < stations && mSmokeClock > 1.5f))
+        {
+            if (mSmokeStation >= 0)
+            {
+                const auto& s = mMap.Stations[static_cast<size_t>(mSmokeStation)];
+                const bool ok = p.IsGrounded && !p.MissingAuthoritativeGround && std::abs(p.Position.y - s.P.y) < 3;
+                if (!ok) ++mSmokeBad;
+                Evidence(host.World, ok ? "stood" : "stood_FAIL");
+            }
+            if (++mSmokeStation < stations) { mMap.Visit(host, mSmokeStation); Evidence(host.World, "station"); }
+            else { session.FreeFlightTakeoff = true; mSmokeY = p.Position.y; Evidence(host.World, "takeoff"); }
+            mSmokeClock = 0;
+        }
+        else if (mSmokeStation >= stations && mSmokeClock > 4)
+        {
+            const bool flew = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight && p.Position.y - mSmokeY > 3;
+            if (!flew) ++mSmokeBad;
+            Evidence(host.World, flew ? "flew" : "flew_FAIL");
+            Evidence(host.World, mSmokeBad == 0 ? "ASCENT_PASS" : "ASCENT_FAIL");
+            mSmoke = false; PostQuitMessage(mSmokeBad == 0 ? 0 : 2);
+        }
+    }
+
+    void EaglesAscentGame::Update(DoorwaysGameHost& host, float dt, float realDt, bool inputAllowed)
+    {
+        mClock += realDt; mNotice = std::max(0.f, mNotice - realDt);
+        auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
+        const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+        const bool alive = host.Combat.PlayerActionsAllowed();
+        mMap.KeepOutOfRock(p, flying);
+
+        // Esc: the pause panel (DrawHud); its keys
+        if (session.EscapePressed) { session.EscapePressed = false; mPaused = !mPaused; }
+        if (mPaused)
+        {
+            if (Press(VK_BACK, inputAllowed)) { mPaused = false; mMap.Visit(host, mMap.Checkpoint); Notify(L"BACK AT THE CHECKPOINT", Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 3); }
+            if (Press(VK_RETURN, inputAllowed)) { mPaused = false; session.MenuRequest = DoorwaysGameSession::Request::MainMenu; }
+            if (Press('Q', inputAllowed)) session.MenuRequest = DoorwaysGameSession::Request::Exit;
+            kit.SetInputBlocked(true);
+            kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
+            return;
+        }
+        const bool allowed = inputAllowed && alive && !mSmoke;
+
+        // R: take off on foot; in flight, land (she sinks at LandSpeed until she stands)
+        if (Press('R', allowed))
+        {
+            if (flying) { session.FreeFlightEnd = true; session.FreeFlightLandSpeed = LandSpeed; }
+            else { session.FreeFlightTakeoff = true; session.FreeFlightLandSpeed = 0; }
+            Sound::Play("nyxara/wing", .8f);
+        }
+        if (flying && !mFlying) Notify(L"IN FLIGHT", L"W flies where you look. Space climbs, X sinks, R lands.", 4);
+        if (!flying)
+        {
+            if (mFlying) { Sound::Play("nyxara/land", .6f); session.FreeFlightLandSpeed = 0; }
+            session.FreeFlightEnd = false;
+        }
+        mFlying = flying;
+        if (Press(VK_BACK, allowed)) { mMap.Visit(host, mMap.Checkpoint); mMap.Rescued = 3; Notify(L"BACK AT THE CHECKPOINT", Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 3); }
+
+        // her speed: the road's. On foot a jog (Shift runs, Ctrl walks); in flight the engine uses her FlightSpeed, unchanged
+        p.MoveSpeed = FootSpeed * kit.SpeedScale();
+        session.FastMultiplier = flying ? WingBoostMultiplier : FootRunSpeed / FootSpeed;
+        kit.SetOnFoot(!flying);
+        kit.SetHeightOverGround(std::max(0.f, p.Position.y - mMap.Land(p.Position.x, p.Position.z)));
+        kit.SetInputBlocked(mSmoke);
+        if (mSmoke) Smoke(host, realDt);
+        kit.Update(world, host.WorldRender, host.Combat, dt, realDt, allowed);
+
+        // the map: where she is, the air, the checkpoints, the safety nets
+        mMap.Locate(p.Position);
+        const int before = mMap.Checkpoint;
+        if (mMap.Air(host, dt, flying, !mSmoke && mClock > 5 && alive))
+            Notify(L"BACK AT THE CHECKPOINT", L"The mountain did not hold her: she is back at " + Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name) + L".", 4);
+        else if (mMap.Checkpoint != before && mMap.Checkpoint > mReached)
+        {
+            mReached = mMap.Checkpoint;
+            Notify(L"CHECKPOINT", Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 4);
+            Sound::PlayUi("ui/open", .6f);
+        }
+
+        // she fell (no monsters here, but the engine's own harm): she lies a moment and wakes at the last checkpoint
+        if (!alive)
+        {
+            if (!mWasDead) { mDeadFor = 0; mRespawnAsk = 0; Sound::Play("nyxara/death", 1, 0); Notify(L"NYXARA HAS FALLEN", L"She wakes at the last checkpoint.", DeathSeconds + 1.5f); }
+            mDeadFor += realDt;
+            if (mDeadFor >= DeathSeconds && (mRespawnAsk -= realDt) <= 0)
+            {
+                mRespawnAsk = .5f;
+                const auto& s = mMap.Stations[static_cast<size_t>(mMap.Checkpoint)];
+                session.SpawnPosition = {s.P.x, s.P.y + .05f, s.P.z}; session.SpawnYaw = s.Yaw;
+                const auto& life = host.Combat.PlayerLife();
+                host.Combat.RequestRespawn({life.Life, life.Death.Event, life.Death.Destination});
+            }
+        }
+        else if (mWasDead) mMap.Visit(host, mMap.Checkpoint);
+        mWasDead = !alive;
+    }
+
+    void EaglesAscentGame::Draw(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
+    {
+        mMap.DrawModels(renderer, world, viewProjection, 0);
+        GetNyxaraKit().Draw(renderer, world, viewProjection);
+    }
+
+    void EaglesAscentGame::AdjustEnvironment(EnvironmentSettings& environment)
+    {
+        EaglesAscent::StyleEnvironment(environment, 0, 1);   // day, with the map's haze (Map A Gate 4)
+    }
+
+    void EaglesAscentGame::DrawStartScreen(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused)
+    {
+        StartScreen::Draw(context, text, focused);
+    }
+
+    bool EaglesAscentGame::DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text)
+    {
+        if (mSmoke) return true;
+        Ui ui(context, text);
+        const float s = std::clamp(ui.S, .8f, 1.5f);
+        if (NyxaraHud().Valid && context.World.CombatFeedback.MeleeActive) DrawNyxaraHud(ui, context);
+        const float body = 13 * s / DoorwaysUiFontHeight, title = 16 * s / DoorwaysUiFontHeight, big = 24 * s / DoorwaysUiFontHeight, tiny = 12 * s / DoorwaysUiFontHeight;
+        const auto& p = context.World.MainPlayer;
+
+        // where she is: the height of the mountain and its zone, at the top left
+        const auto* zone = mMap.ZoneAt(p.Position.y);
+        std::wstring place = zone ? Words(zone->Name) : L"";
+        if (const size_t cut = place.find(L' '); cut != std::wstring::npos && place.size() > 5 && place[0] == L'M' && place[1] == L'A') place = place.substr(cut + 1);   // "MA05 SHRINE Eagle shrine..." -> without the id
+        if (const size_t cut = place.find(L' '); cut != std::wstring::npos && !place.empty() && std::iswupper(place[0]) && std::iswupper(place[1])) place = place.substr(cut + 1);
+        std::wostringstream line; line << std::fixed << std::setprecision(0) << std::max(0.f, p.Position.y) << L" m  of  " << mMap.Summit << L" m";
+        ui.Rect(14 * s, 14 * s, 330 * s, 54 * s, {.015f, .025f, .04f, .7f});
+        ui.Text(line.str(), 24 * s, 20 * s, title, Palette::Gold);
+        ui.Text(place + (mMap.AirNow[0] ? std::wstring(L"   |   ") + mMap.AirNow : L""), 24 * s, 44 * s, body, Palette::Ink);
+
+        // the height ruler at the right: the checkpoints and where she is
+        const float top = 90 * s, bottom = ui.H - 90 * s, x = ui.W - 30 * s;
+        const auto at = [&](float y) { return bottom - (bottom - top) * std::clamp(y / std::max(mMap.Summit, 1.f), 0.f, 1.03f); };
+        ui.Rect(x - 2 * s, top, 4 * s, bottom - top, {.02f, .03f, .05f, .6f});
+        for (size_t i = 0; i < mMap.Stations.size(); ++i)
+            if (mMap.Stations[i].Checkpoint)
+                ui.Rect(x - 7 * s, at(mMap.Stations[i].P.y) - 1 * s, 14 * s, 2 * s, static_cast<int>(i) == mMap.Checkpoint ? Palette::Gold : Palette::Dim);
+        ui.Rect(x - 11 * s, at(p.Position.y) - 2 * s, 22 * s, 4 * s, Palette::Soul);
+
+        // the way: where the road needs wings, in the world
+        const auto view = context.World.MainCamera.BuildViewProjectionMatrix(ui.W / ui.H);
+        const auto mark = [&](const XMFLOAT3& point, float up, const std::wstring& words, Color color)
+        {
+            XMFLOAT4 c; XMStoreFloat4(&c, XMVector4Transform(XMVectorSet(point.x, point.y + up, point.z, 1), view));
+            if (c.w <= 0 || c.w > 300) return;
+            const float nx = c.x / c.w, ny = c.y / c.w; if (std::abs(nx) > 1 || std::abs(ny) > 1) return;
+            ui.Centered(words, (nx + 1) * ui.W * .5f, (1 - ny) * ui.H * .5f, tiny, color);
+        };
+        for (const auto& f : mMap.Flights)
+        {
+            if (f.Kind == "wall") mark(f.From, 4, L"THE ROAD GOES ON ABOVE  (R, then Space: fly up)", Palette::Moon);
+            else if (f.Kind == "gap") mark(f.From, 4, L"THE ROAD IS BROKEN  (R: fly across)", Palette::Moon);
+            else if (f.Kind == "slot") mark(f.From, 4, L"A CLEFT IN THE ROCK  (R: fly through)", Palette::Moon);
+            else if (f.Kind == "updraft") mark(f.From, 4, L"RISING AIR  (R, then let it carry you)", Palette::Soul);
+        }
+
+        // a notice in the middle, under the top
+        if (mNotice > 0)
+        {
+            const float a = std::clamp(mNotice, 0.f, 1.f);
+            ui.Centered(mNoticeTitle, ui.W * .5f, ui.H * .16f, big, Palette::Gold.Fade(a));
+            ui.Centered(mNoticeLine, ui.W * .5f, ui.H * .16f + 30 * s, body, Palette::Ink.Fade(a));
+        }
+        if (mPaused)
+        {
+            const float w = 420 * s, h = 170 * s, px = (ui.W - w) * .5f, py = (ui.H - h) * .45f;
+            ui.Rect(0, 0, ui.W, ui.H, {0, 0, 0, .35f});
+            ui.Rect(px, py, w, h, {.015f, .025f, .04f, .92f});
+            ui.Centered(L"PAUSED", ui.W * .5f, py + 18 * s, big, Palette::Gold);
+            ui.Centered(L"Esc   back to the climb", ui.W * .5f, py + 62 * s, body, Palette::Ink);
+            ui.Centered(L"Backspace   the last checkpoint", ui.W * .5f, py + 86 * s, body, Palette::Ink);
+            ui.Centered(L"Enter   the start screen", ui.W * .5f, py + 110 * s, body, Palette::Ink);
+            ui.Centered(L"Q   leave the game", ui.W * .5f, py + 134 * s, body, Palette::Dim);
+        }
+        return true;
+    }
+}

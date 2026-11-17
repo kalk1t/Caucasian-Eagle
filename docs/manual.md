@@ -23,7 +23,7 @@ Download `CaucasianEagle-0.4.0-Setup.exe` from the [releases page](https://githu
 
 ## Starting
 
-The start screen is drawn in the same panel, gold and ink as Nyxara's windows. At the left it has five rows: **Begin the journey** (or **Continue the journey**), **Settings**, **Guide**, **Credits** and **Leave the game**. Choose with **W** and **S** or the arrow keys and take with **Enter** or **Space**, or point and click with the mouse. **Guide** opens a short version of this manual inside the game, eight pages: the journey, moving and keys, fighting, the bow, health, growing, what the game needs, and who made it. **Credits** opens the last of them. **A** and **D** turn the pages; **Esc** closes the guide. Along the bottom of the start screen stands who made the game and its engine.
+The start screen is drawn in the same panel, gold and ink as Nyxara's windows. At the left it has five rows: **Begin the journey** (or **Continue the journey**), **Settings**, **Guide**, **Credits** and **Leave the game**. Choose with **W** and **S** or the arrow keys and take with **Enter** or **Space**, or point and click with the mouse. **Guide** opens a short version of this manual inside the game, seven pages: the journey, moving and keys, fighting, health, growing, what the game needs, and who made it. **Credits** opens the last of them. **A** and **D** turn the pages; **Esc** closes the guide. Along the bottom of the start screen stands who made the game and its engine.
 **Settings** opens the game's own settings window (the same window opens from her menu, **Esc**, in play). It has what this game uses and nothing else: the window (whole screen or in a window, and its size; these two wait for **Apply the window**, and a changed window asks "Keep this window?" and goes back by itself after 15 seconds if you do not answer), smooth frames (vertical sync), shadows, four volumes (everything, music, fights/world/voices, menus), mouse speed, look up/down reversed, the size of the interface, and the frame counter. **W** / **S** choose, **A** / **D** change, **Enter** takes, **Esc** goes back; the mouse works too (click the left or right half of a value). Everything except the window is applied and saved as you change it. **Restore the defaults** resets all but the window.
 
 **The pointer.** The mouse pointer over the game is the game's own gold-rimmed arrow. In play the pointer is hidden and the mouse turns the camera; while her menu, the settings, Nyxara's window, the story or the map is open the pointer is free. In her menu and in Nyxara's window you can point at a row or a card and click it: a click on a card spends crystals on it (or sets a rune), as **Enter** does. The camera turns a little slower than before; "Mouse speed" in the settings changes it.
@@ -129,8 +129,8 @@ The chest in each arena always holds an Eagle Feather; a boss's hoard holds thre
 
 | Creature | How it fights | Advice |
 |---|---|---|
-| Chinka | Small, fast, in packs | Feather Cyclone (V) gathers them |
-| Ali, Kudiani | Keep away and throw orbs | Hold the Axe Barrier (E), or close in with Talon Dash (F) |
+| Chinka | Small, fast, in packs | Spinning swords (C) strike all round her |
+| Ali, Kudiani | Keep away and throw orbs | Hold the Sword Barrier (E), or reach them with the thrown swords (V) |
 | Ochokochi | Fast, leaps at you | Step aside when the ring under him flares |
 | Almasty, Kaji | Heavy blows, thrown rocks and embers | Hit, move, hit |
 | Uaig, Devi | Slow, very strong | Never stand still in front of them |
@@ -174,6 +174,16 @@ The road is the main street of seven Georgian cities. Walking through a city gat
 - The game saves after every arena and every chest. Starting the game again continues from the last arena you won.
 - To begin the whole journey again, hold **F9**. A bar fills for a second and a half; let go before it is full to cancel. Everything won on the road is lost. It does not work while you are dead or while the journal or the map is open.
 
+## The Eagle's Ascent
+
+A mountain to climb on its own, apart from the road: from the sea to Amiran's court at 4,200 m, on foot and on her wings. Start it with **Play-EaglesAscent.cmd** (or `CaucasianEagle.exe --eagles-ascent`). The start screen is the game's own; there are no creatures and nothing is saved.
+
+- **The way up** is a path of streets, stairs and terraces about 7.6 km long. Where it needs wings the place is marked when you come near: *the road goes on above* (a cliff: R, then Space to climb), *the road is broken* (a gap: R and fly across), *a cleft in the rock* (fly through it). Rising air carries her up where it is marked; a crosswind pushes her on one ridge.
+- **R** takes her up from the ground; in flight **R** lands her wherever she is (she sinks until she stands). There is no ceiling here: fly as high as you like. Rock stops her in flight.
+- **Checkpoints**: the shore, and the terraces at the village square, the forest clearing, the cloud-line rest, the temple balcony, the snow-line gate and the summit court. Standing on one makes it the place you come back to. The bar at the right shows how high she is and where the checkpoints are.
+- **Falling**: into the sea, or onto land away from the path (where there is no ground to stand on), brings her back to the last checkpoint. **Backspace** brings her back there at any time.
+- **Esc** pauses: Esc goes on climbing, Backspace returns to the last checkpoint, Enter goes to the start screen, Q leaves the game.
+
 ## Moving
 
 | Input | What happens |
@@ -200,13 +210,12 @@ An Xbox-layout controller (anything Windows sees as an XInput controller) works 
 | Right stick | Turn the view |
 | A | Jump |
 | B | Nothing (there is no controller button for R yet: taking wing and landing need the keyboard) |
-| X | Slash (left mouse button) |
-| Y | Heavy attack (right mouse button) |
-| RB | Talon Dash (F) |
-| RT | Feather Cyclone (V) |
-| D-pad up | Moon Leap (C) |
-| LB (hold) | Axe barrier (E) |
-| D-pad left | Swap axes (Q) |
+| X | Left sword (left mouse button) |
+| Y | Right sword (right mouse button) |
+| RB | The slide, or the flying throw (F) |
+| RT | The thrown swords (V) |
+| D-pad up | Spinning swords (C) |
+| LB (hold) | Sword barrier (E) |
 | LT (hold) | Wing boost (Shift) |
 | Left stick click (hold) | Walk on foot (Ctrl) |
 | D-pad right | World map (M) |
@@ -217,61 +226,26 @@ An Xbox-layout controller (anything Windows sees as an XInput controller) works 
 
 In menus: D-pad or left stick moves, **A** chooses, **B** goes back. Starting the journey again (hold F9) is on the keyboard only.
 
-## Bow
+## Her swords
 
-**Q** changes between the axes and the Eldritch longbow. Whichever she is not using is carried on her back: the bow across it, or the two axes crossed.
+Nyxara fights with two swords, one in each hand, and her wings. (Before this version she had two axes and a longbow; Q and G did those and now do nothing.) Her moves were made and tried in the Character Lab (`Test-Characters.cmd`), from Mixamo animations.
 
-| Input | With the bow out |
+| Input | What she does |
 |---|---|
-| Right click (hold) | **Aim**: the camera comes in over her right shoulder, the view narrows a little, and a mark shows at the middle of the screen. As she raises the bow the view turns by itself to the creature nearest the middle (within 22 degrees); with none there it comes up level. She turns with the camera. The mouse turns the view more slowly while she aims, and more slowly still while the mark is on a creature. Let go and the view goes back to where it was |
-| Left click (hold) | **Arrows**, five a second, as long as the button is held. Aimed, an arrow flies to the mark and does 27. Not aimed, it finds the nearest creature within 32 m ahead of the camera and does 18. An arrow bends a little toward the creature it was loosed at, if that moves |
-| F / V / C | Her three skills are axe work: pressing one takes the axes out again |
-| E (hold) | The barrier works with the bow too |
+| Left click | A cut of the **left** sword. Clicks during it go on through the left cuts: three in a row |
+| Right click | A cut of the **right** sword: four in a row. The last cut of either chain hurts most (80; the others 45) |
+| Space, then a click | **The leaping cut**, in the jump: the hardest cut (110) and the longest reach |
+| C | **Spinning swords**: she turns with both blades spread and strikes everything round her, five times (30 each). 9 s to come back |
+| F | **The slide**: low along the ground, cutting what is before her (35 a cut). Flying: a dart forward that cuts the same way. 4 s to come back |
+| F at a broken creature | **The flying throw**: she leaps, closes her legs round its neck, turns over with it and brings it down; it dies. A creature is broken when a gold ring pulses under it (under 30 % of its health; a boss under 12 %). It heals her a little and brings her skills back sooner, and nothing can hurt her while she throws |
+| V | **The thrown swords**: both swords fly into the middle of the nearest creature before her (within 7 m; flying, 21 m) (90). She flies after them twisting, her wings folded, plants her feet on it, pulls them out (60) and kicks off (40), and a creature that can be moved falls over backwards and gets up again. 7 s to come back. With no creature before her V does nothing |
+| E (hold) | **Sword barrier**: two spectral blades rise in front of her and block blows and orbs from the front, for up to 5 seconds |
+| A / D | Turn her way, and the view with it; alone they also carry her round in a curve |
+| S | Step back, slowly, still facing ahead |
 
-Arrows reach 60 m. They do not stop the game for a moment as axe blows do. She can walk, run or fly while she shoots.
+You can walk and run while you cut: her legs keep their stride and her body cuts. While a skill, the throw or the thrown swords play, the move itself carries her. In the air her cuts are made in flight, her wings still beating; her blows cannot reach a creature she is high over.
 
-What the screen tells you: four corners stand round the creature the arrows will go to (pale when she is not aiming, red when the mark is on it); the mark itself turns red on a creature; four slanting ticks flash when an arrow hits, gold when it fells the creature.
-
-She holds the bow in her left hand and draws with her right: side-on to the target, the bow arm out, the string hand at her chin. The string bends to her hand and an arrow of light lies on it; her wings are lowered and swept back so that you can see her arms from behind.
-
-## Axes
-
-| Input | Attack |
-|---|---|
-| Left click | **Right Talon**, then **Left Talon**: each click swings the other axe, as long as you keep clicking |
-| Right click | **Charged Slash**: slower, wider, hits harder and knocks enemies back |
-| G | **Axe Exchange**: Inferno and Serpentcoil swap hands |
-| E (hold) | **Axe Barrier**: two spectral blades rise in front of her and block orbs, for up to 5 seconds |
-
-If an enemy is close but out of reach, an axe attack steps in toward it.
-
-How the axe attacks link:
-
-- **Click early.** A left click during a slash is kept and the other axe swings as soon as the first has landed. A right click during a slash is kept too and the Charged Slash follows: slash, slash, heavy.
-- **After the Charged Slash** a left click made during it starts a slash a moment after it lands, without waiting for the swing to finish.
-- **The barrier comes first.** E raises the Axe Barrier at any moment of a slash, the Charged Slash or the Axe Exchange. There is no dodge; this is how you save yourself in the middle of an attack.
-
-## Skills
-
-Skills fire the moment you press them, even in the middle of an axe attack. Each has a cooldown shown in the skill bar.
-
-| Key | Skill | Cooldown | What it does |
-|---|---|---|---|
-| F | **Talon Dash** | 4 s | Dashes the way you steer, cutting each enemy she passes through, then throws a lance. The direction is the **W A S D** keys you hold (or the left stick); with none held, the way she faces. The camera does not aim it. |
-| V | **Feather Cyclone** | 7 s | A cyclone of feathers that she carries with her; it drags nearby enemies into her axes |
-| C | **Moon Leap** | 9 s | She rises, dives onto her target, and a pillar of moonlight strikes where she lands |
-
-## Combos
-
-From a skill's first hit the gold **COMBO** prompt shows its two follow-ups. Press left or right click while it is showing. A click made while the skill is still striking is kept, and the combo starts the moment the skill's last hit has landed, so a skill never loses a hit to its combo. After the skill ends you still have 1.2 seconds.
-
-A skill or a combo has a flourish after its last hit. You do not have to wait it out: a slash, the Charged Slash, the Axe Barrier or the Axe Exchange cuts it short.
-
-| After | Left click | Right click |
-|---|---|---|
-| F · Talon Dash | **Twin Talons**: three lunging slash waves | **Rising Eagle**: an uppercut that launches enemies |
-| V · Feather Cyclone | **Tempest Triple**: three spinning slashes | **Whirlwind Talons**: throws the cyclone forward; it travels, pulls and shreds |
-| C · Moon Leap | **Soul Weave**: volleys of homing feathers from the air | **Moonfall Dive**: a higher leap and a bigger slam |
+What a blow leaves: a bright streak along the cut, sparks, and blood thrown the way the blade went, which falls and lies on the ground for a few seconds.
 
 ## The screen
 

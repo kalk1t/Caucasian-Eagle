@@ -55,12 +55,23 @@ namespace CaucasianEagle
             DirectX::XMFLOAT3 Anchor{};
             float Height=0, Radius=0, Windup=0, Strike=0;
             int Health=0, MaximumHealth=0, Shots=0;
+            DirectX::XMFLOAT3 Neck{};   // where its neck is as it stands (from its joints; without joints .84 of its height)
         };
         bool InitializeCreatureStations(Renderer& renderer, std::string& error);
         void ResetCreatureStations();
         void UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks=true);
+        // A blow from 'from', facing 'yaw': every station creature within reach (plus its own radius) and within
+        // arcDegrees to either side loses 'damage' health. At no health it dies where it stands and stands there
+        // again at once (UpdateCreatureStations). The training dummy only flinches. Returns the creatures struck.
+        int StrikeCreatureStations(const DirectX::XMFLOAT3& from, float yaw, float reach, float arcDegrees, int damage);
         void DrawCreatureStations(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         std::vector<CreatureStation> CreatureStations() const;
+        // Lays a station creature down: 0 it stands, 1 it lies on its face (thrown). While down it does not attack.
+        // Set every frame it is to be down; index as in CreatureStations().
+        void LayCreatureStation(int index, float down);
+        // Held by the neck (a throw): it is drawn as a stick from the middle of its feet to its neck, with its neck at
+        // 'neck' and its feet at 'feet', and it hangs limp. hold 0 .. 1 blends from standing; 0 frees it.
+        void HoldCreatureStation(int index, const DirectX::XMFLOAT3& neck, const DirectX::XMFLOAT3& feet, float hold);
         bool CreatureStationAnchorsValid() const;
         void Update(Doorways::DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed);
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
@@ -74,6 +85,9 @@ namespace CaucasianEagle
 
     private:
         bool mCreatureStations = false;
+        struct StationHeld { float Hold=0; DirectX::XMFLOAT3 Neck{}, Feet{}; };
+        std::vector<StationHeld> mStationHeld;
+        std::vector<float> mStationDown;   // per station creature: 0 standing .. 1 lying
         struct Sample { DirectX::XMFLOAT3 P{}; float W = 0; int Stage = 0; float Tx = 0, Tz = 1, Nx = 1, Nz = 0; };
         struct Arena { int Stage = 0; float S = 0; int Kind = 0; float R = 0; DirectX::XMFLOAT3 P{}; };
         struct Chest { DirectX::XMFLOAT3 P{}; float Yaw = 0; int Tier = 0; int Arena = -1; bool Opened = false; int Slot = -1; float Open = 0; };
@@ -88,6 +102,9 @@ namespace CaucasianEagle
         {
             Doorways::DoorwaysGpuMesh Mesh;
             Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Texture;
+            Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Normal;   // <base>Normal.png when there is one (the places: baked by art/places/prepare_places.py)
+            Doorways::DoorwaysGpuMesh Far;       // <base>Far.dmesh when there is one: the same model with a quarter of the triangles, drawn from afar
+            bool HasFar = false;
             DirectX::XMFLOAT3 Min{}, Max{};
             std::vector<float> Top;              // buildings only: the highest surface of the mesh on a RoofGrid x RoofGrid map of its footprint (model space; -1e9 = none)
             CreatureRig Rig;                     // creatures only: the joints written by art/monsters/rig_models.py

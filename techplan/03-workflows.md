@@ -194,15 +194,11 @@ With the pilot standing (`CAUCASIAN_EAGLE_DEMO=1`, `_PILOT=1`, `_AT=<m>`, no `_G
 | Switch | Effect |
 |---|---|
 | `CAUCASIAN_EAGLE_VIEW=<m>` | The camera stands that far from her, turned by `CAUCASIAN_EAGLE_LOOK=<degrees>` from behind her |
-| `CAUCASIAN_EAGLE_ARMS=1` | The bow is taken out after 3 s (axes on her back) |
-| `CAUCASIAN_EAGLE_ARMS=2` | The bow is taken out and aimed |
-| `CAUCASIAN_EAGLE_ARMS=3` | The axes change hands |
+| `CAUCASIAN_EAGLE_ARMS=1`, `2`, `3`, `5` | (Bow and axe swap: she has neither now; these press Q / G, which do nothing) |
 | `CAUCASIAN_EAGLE_ARMS=4` | She slashes |
-| `CAUCASIAN_EAGLE_ARMS=5` | The bow is taken out and shot without aiming |
-| `CAUCASIAN_EAGLE_HERO=EagleV1` | Any run: the body before the new one |
 
-| `CAUCASIAN_EAGLE_ARMS=6`, `7`, `8` | Talon Dash, Feather Cyclone, Moon Leap, once, 3 s after she stands |
-| `CAUCASIAN_EAGLE_HERO=EagleV2` | The body with open hands (`EagleV3`, closed hands, is the default) |
+| `CAUCASIAN_EAGLE_ARMS=6`, `7`, `8` | F, V, C once, 3 s after she stands (the slide, the thrown swords, spinning swords) |
+| `CAUCASIAN_EAGLE_HERO=<bundle>` | Another build of her body in `Characters/Nyxara` (it needs the Mixamo build's clips; `MixamoV1` is the default) |
 
 ## Map Lab (2026-11-13)
 

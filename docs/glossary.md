@@ -45,10 +45,9 @@ Names used in the story, the code and the assets. One name per thing.
 | **Talonshade** | The dark-green sword (0.92 m); starts in the left hand |
 | **Left Talon / Right Talon** | The two alternating sword slashes on left click |
 | **Charged Slash** | The right-click heavy attack |
-| **Talon Dash, Feather Cyclone, Moon Leap** | The three skills (F, V, C) |
+| **The slide, the thrown swords, spinning swords** | The three skills (F, V, C); F at a broken creature is the flying throw |
 | **Twin Talons, Rising Eagle, Tempest Triple, Whirlwind Talons, Soul Weave, Moonfall Dive** | The six combos |
 | **Sword Barrier** | The E guard: two spectral swords that block orbs |
-| **Sword Exchange** | The Q swap of the swords between hands |
 | **Wing boost** | Faster travel on Shift |
 | **Soul bar** | The blue bar under health (the engine's energy value) |
 | **Hit-stop** | The brief freeze when a blow lands |

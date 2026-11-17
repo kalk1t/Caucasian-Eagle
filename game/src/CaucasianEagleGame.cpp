@@ -27,10 +27,10 @@
 // Caucasian Eagle on the Doorways engine.
 //
 // Configure  picks the start scene, window title and user-data folder before the engine starts.
-// Prepare    replaces the engine default player with Nyxara (EagleV1 bundle: Meshy body,
-//            rigged eagle wings, Moonfeather / Talonshade swords, 31 authored clips; built by
-//            art/nyxara/assemble.py), sets the camera / input / movement options and starts
-//            her combat kit. Collision, physics, jump and hold-Space flight stay engine rules.
+// Prepare    replaces the engine default player with Nyxara (MixamoV1 bundle: built from Mixamo clips by
+//            art/nyxara/blender/build_from_mixamo.py, two swords and wings, no bow; NyxaraKit::LoadBody), sets the
+//            camera / input / movement options and starts her combat kit. Collision and physics stay engine rules;
+//            her jump is a clip on foot (the kit), R takes her up and lands her (the journey).
 // Update / Draw forward to NyxaraKit and the journey; DrawHud makes the frame's Ui (GameUi.h) and
 // hands it to the hero HUD, the journey HUD and the story journal.
 
@@ -43,63 +43,10 @@ namespace CaucasianEagle
         bool gVista = false; // capture mode: the camera looks level toward the mountain
     }
 
-    void Game::Configure(DoorwaysGameSession& session)
+    // Her travel, flight, camera, keys and controller buttons: the game's own engine options (DoorwaysGame.h). Both ways
+    // into the game use them: the road (Game) and the Eagle's Ascent (EaglesAscentGame.cpp).
+    void PrepareNyxaraControls(DoorwaysGameHost& host)
     {
-        session.SceneId = StartSceneId;
-        session.SceneCollision = true; // the road is the only ground: Nyxara cannot leave it
-        session.WindowTitle = GameTitle;
-        session.UserDataFolder = UserDataFolder;
-    }
-
-    bool Game::Prepare(DoorwaysGameHost& host, std::string& error)
-    {
-        char hero[32] = {};   // CAUCASIAN_EAGLE_HERO=<bundle>: another of her bodies (EagleV1, RodinV1)
-        const bool other = GetEnvironmentVariableA(HeroEnvironmentVariable, hero, sizeof(hero)) > 0 && hero[0] && std::string(hero).find_first_of("/\.") == std::string::npos &&
-            std::filesystem::exists(GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundleFolder / hero / "Character.dmesh");
-        const std::filesystem::path bundle = GetDoorwaysAssetPathRegistry().CompiledRoot / (other ? (std::filesystem::path(HeroBundleFolder) / hero) : std::filesystem::path(HeroBundle));
-
-        struct Clip { const char* Name; bool Loop; float GroundSpeed; };
-        // Ground speeds are the measured planted-foot treadmill speeds of the authored clips.
-        static const std::vector<Clip> clips = {
-            {"Idle", true, 0}, {"Walk", true, WalkSpeed}, {"Run", true, RunClipSpeed},
-            {"WalkBackward", true, WalkBackClipSpeed}, {"StrafeLeft", true, RunClipSpeed}, {"StrafeRight", true, RunClipSpeed},
-            {"Jump", false, 0}, {"JumpAirborne", false, 0}, {"JumpLanding", false, 0},
-            {"BasicAttack", false, 0}, {"SlashLeft", false, 0}, {"HeavyAttack", false, 0},
-            {"Dodge", false, 0}, {"HitReact", false, 0}, {"Death", false, 0}, {"Respawn", false, 0},
-            {"Skill1", false, 0}, {"Skill2", false, 0}, {"Skill3", false, 0},
-            {"Combo1L", false, 0}, {"Combo1R", false, 0}, {"Combo2L", false, 0},
-            {"Combo2R", false, 0}, {"Combo3L", false, 0}, {"Combo3R", false, 0},
-            {"Guard", false, 0}, {"SwordSwap", false, 0}, {"BowShot", false, 0}, {"Finisher", false, 0},
-            {"FlightTakeoff", false, 0}, {"FlightHover", true, 0}, {"FlightTravel", true, 0}, {"FlightLanding", false, 0}};
-
-        DoorwaysAnimatedCharacterAssetLoadDesc desc;
-        desc.Name = "Nyxara (daughter of the eagle)";
-        desc.MeshPath = bundle / "Character.dmesh";
-        desc.SkeletonPath = bundle / "Character.dskel";
-        desc.IdleAnimationPath = bundle / "Idle.danim";
-        desc.WalkAnimationPath = bundle / "Walk.danim";
-        desc.BasicAttackAnimationPath = bundle / "BasicAttack.danim";
-        desc.RequireRigSignature = true;
-        desc.AllowMissingFiles = false;
-        desc.MeshRigBindingPath = bundle / "Character.meshbind";
-        desc.LoadPolicy = DoorwaysAnimatedCharacterAssetLoadPolicy::RequiredProduction;
-        for (const auto& clip : clips)
-            desc.AuthoredClips.emplace(clip.Name, DoorwaysAuthoredClipSource{bundle / (std::string(clip.Name) + ".danim"), clip.Loop, clip.GroundSpeed});
-
-        DoorwaysAnimatedCharacterAsset asset;
-        if (!LoadDoorwaysAnimatedCharacterAsset(desc, asset, &error)) return false;
-        if (!host.WorldRender.InitializeSkinnedMaterials(host.Render, bundle, bundle / "Character.dmat", asset.Skeleton.Name, error))
-            return false;
-        auto& character = host.World.ImportedAnimatedCharacter;
-        if (!character.InitializeFromAsset(asset, &error)) return false;
-
-        host.WorldRender.InvalidateCharacterMeshForAssetChange();
-        character.ResetPlaybackForSession();
-        character.SetRootTransform(host.World.MainPlayer.Position, host.World.MainPlayer.Yaw);
-        auto& visual = host.World.AnimatedPlayerVisual;
-        visual.Enabled = true; visual.Scale = {1, 1, 1}; visual.Rotation = {0, 0, 0}; visual.Translation = {0, 0, 0}; visual.YawOffset = 0;
-
-        // Engine options owned by this game (DoorwaysGame.h).
         auto& session = GameSession();
         session.SlowWalk = true; session.SlowWalkSpeed = WalkSpeed; // hold Ctrl to walk
         session.FastMultiplier = WingBoostMultiplier;               // Shift wing boost
@@ -116,14 +63,14 @@ namespace CaucasianEagle
         session.SuppressedActions = {
             DoorwaysInputAction::ResetPlayer,                                // R = land from flight
             DoorwaysInputAction::Interact,                                   // E = sword barrier
-            DoorwaysInputAction::CycleDebugRenderMode,                       // Q = bow or axes
-            DoorwaysInputAction::ToggleDebugAnimationSampling,               // G = the axes change hands
-            DoorwaysInputAction::ToggleTextureFilter,                        // F = Talon Dash
-            DoorwaysInputAction::ToggleImportedAnimatedDebugSampling,        // V = Feather Cyclone
-            DoorwaysInputAction::ToggleImportedSkinningSideBySideComparison, // C = Moon Leap
+            DoorwaysInputAction::CycleDebugRenderMode,                       // Q = nothing (it was the bow)
+            DoorwaysInputAction::ToggleDebugAnimationSampling,               // G = nothing (it changed her swords)
+            DoorwaysInputAction::ToggleTextureFilter,                        // F = the slide; at a broken creature the throw
+            DoorwaysInputAction::ToggleImportedAnimatedDebugSampling,        // V = the thrown swords
+            DoorwaysInputAction::ToggleImportedSkinningSideBySideComparison, // C = the spinning swords
             DoorwaysInputAction::RuntimeSceneSummary,                        // F8 = save the game here
-            DoorwaysInputAction::BasicAttack,                                // LMB = slashes / combos
-            DoorwaysInputAction::HeavyAttack,                                // RMB = heavy / combos
+            DoorwaysInputAction::BasicAttack,                                // LMB = the left sword
+            DoorwaysInputAction::HeavyAttack,                                // RMB = the right sword
             DoorwaysInputAction::ToggleRuntimeObjectBounds,                  // F1 = story journal
             DoorwaysInputAction::ToggleImportedGpuSkinnedPreview,            // M = world map
             DoorwaysInputAction::ToggleInventory,                            // I = Nyxara's own window (Growth.h), not the engine inventory
@@ -132,11 +79,10 @@ namespace CaucasianEagle
         // Game controller (engine: DoorwaysGamepad.h). The engine's defaults stay: left stick moves, right stick looks,
         // A jump / fly, B dodge, X slash, Y heavy, LT wing boost, left stick click walk, Start pause.
         // Nyxara's own keys go on what is left.
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // Talon Dash
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // Feather Cyclone
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // Moon Leap
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // the slide / the throw
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // the thrown swords
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // the spinning swords
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::LeftShoulder, 'E');     // sword barrier
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadLeft, 'Q');         // bow or axes
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadRight, 'M');        // world map
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadDown, VK_F1);       // story journal
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::Back, 'I');             // Nyxara's window
@@ -145,6 +91,32 @@ namespace CaucasianEagle
         host.World.MainCamera.Pitch = CameraPitch;
         host.World.MainCamera.MaxFollowDistance = CameraMaxDistance;   // before the distance: the engine holds it under this
         host.World.MainCamera.FollowDistance = CameraDistance;
+    }
+
+    void Game::Configure(DoorwaysGameSession& session)
+    {
+        session.SceneId = StartSceneId;
+        session.SceneCollision = true; // the road is the only ground: Nyxara cannot leave it
+        session.WindowTitle = GameTitle;
+        session.UserDataFolder = UserDataFolder;
+    }
+
+    bool Game::Prepare(DoorwaysGameHost& host, std::string& error)
+    {
+        char hero[32] = {};   // CAUCASIAN_EAGLE_HERO=<bundle>: another build of her body (it needs the Mixamo build's clips)
+        const bool other = GetEnvironmentVariableA(HeroEnvironmentVariable, hero, sizeof(hero)) > 0 && hero[0] && std::string(hero).find_first_of("/\.") == std::string::npos &&
+            std::filesystem::exists(GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundleFolder / hero / "Character.dmesh");
+        const std::filesystem::path bundle = GetDoorwaysAssetPathRegistry().CompiledRoot / (other ? (std::filesystem::path(HeroBundleFolder) / hero) : std::filesystem::path(HeroBundle));
+
+        // Her body (the Mixamo build, bundle MixamoV1): the kit loads it, keeps its clips and poses her itself.
+        if (!GetNyxaraKit().LoadBody(host.Render, host.WorldRender, host.World, bundle, error))
+        {
+            error = "Nyxara: " + error;
+            return false;
+        }
+
+        PrepareNyxaraControls(host);   // her controls, camera and controller buttons (shared with the Eagle's Ascent)
+        auto& session = GameSession();
 
         if (!Ui::LoadArt(host.Render, error)) return false;
         if (!GetAmiraniMountain().Initialize(host.Render, error))
@@ -197,7 +169,7 @@ namespace CaucasianEagle
         session.MenuBackdrop = StartScreenPicture;
         session.MenuPanelSide = -1;
         if (unattended) host.StartGame();
-        return character.SampleAuthoredClip("Idle", 0, &error);
+        return true;
     }
 
     float Game::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
