@@ -123,6 +123,8 @@ namespace CaucasianEagle
         std::vector<float> mFloor;
         struct Patch { float X = 0, Z = 0, Step = 1; int Nx = 0, Nz = 0; std::vector<float> H; };
         std::vector<Patch> mPatches;
+        Patch mOuter;                            // the rest of the round mountain, coarse (the map data's "outer" record): Land() off the near grid
+        float OuterLand(float x, float z, bool lowest) const;
         // Stair treads (records "tread"): centre, the path's way, m along it and across, top; found through 4 m cells
         struct Tread { float X = 0, Z = 0, Ax = 0, Az = 1, Along = 0, Across = 0, Top = 0; };
         std::vector<Tread> mTreads;

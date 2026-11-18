@@ -83,6 +83,17 @@ namespace CaucasianEagle
                     if (bin.read(reinterpret_cast<char*>(q.H.data()), static_cast<std::streamsize>(q.H.size() * sizeof(float)))) mPatches.push_back(std::move(q));
                 }
             }
+            else if (word == "outer")
+            {   // the rest of the mountain's heights (2026-11-18), in <map>.heights at a float offset: Land() off the near grid
+                Patch q; long long offset = 0; in >> q.X >> q.Z >> q.Step >> q.Nx >> q.Nz >> offset;
+                auto file2 = path; file2.replace_extension(".heights");
+                std::ifstream bin(file2, std::ios::binary);
+                if (q.Nx >= 2 && q.Nz >= 2 && q.Step > 0 && bin && bin.seekg(offset * static_cast<long long>(sizeof(float))))
+                {
+                    q.H.resize(static_cast<size_t>(q.Nx) * static_cast<size_t>(q.Nz));
+                    if (bin.read(reinterpret_cast<char*>(q.H.data()), static_cast<std::streamsize>(q.H.size() * sizeof(float)))) mOuter = std::move(q);
+                }
+            }
             else if (word == "moment") { Moment m; in >> m.Name >> m.P.x >> m.P.y >> m.P.z; std::replace(m.Name.begin(), m.Name.end(), '_', ' '); Moments.push_back(m); }
             else if (word == "trail") { XMFLOAT3 p; in >> p.x >> p.y >> p.z; Trail.push_back(p); }
             else if (word == "tread") { Tread r; if (in >> r.X >> r.Z >> r.Ax >> r.Az >> r.Along >> r.Across >> r.Top) mTreads.push_back(r); }
@@ -178,11 +189,23 @@ namespace CaucasianEagle
         return true;
     }
 
+    float EaglesAscent::OuterLand(float x, float z, bool lowest) const
+    {
+        const auto& q = mOuter; if (q.H.empty()) return -1e9f;
+        const float fx = (x - q.X) / q.Step, fz = (z - q.Z) / q.Step;
+        if (fx < 0 || fz < 0 || fx > static_cast<float>(q.Nx - 1) || fz > static_cast<float>(q.Nz - 1)) return -1e9f;
+        const int ix = std::min(static_cast<int>(fx), q.Nx - 2), iz = std::min(static_cast<int>(fz), q.Nz - 2);
+        const float u = fx - static_cast<float>(ix), v = fz - static_cast<float>(iz);
+        const float* r0 = &q.H[static_cast<size_t>(iz) * static_cast<size_t>(q.Nx) + static_cast<size_t>(ix)]; const float* r1 = r0 + q.Nx;
+        if (lowest) return std::min(std::min(r0[0], r0[1]), std::min(r1[0], r1[1]));
+        return (r0[0] * (1 - u) + r0[1] * u) * (1 - v) + (r1[0] * (1 - u) + r1[1] * u) * v;
+    }
+
     float EaglesAscent::Land(float x, float z) const
     {
         if (mLand.empty()) return -1e9f;
         const float fx = (x - mLandX) / mLandStep, fz = (z - mLandZ) / mLandStep;
-        if (fx < 0 || fz < 0 || fx > static_cast<float>(mLandNx - 1) || fz > static_cast<float>(mLandNz - 1)) return -1e9f;
+        if (fx < 0 || fz < 0 || fx > static_cast<float>(mLandNx - 1) || fz > static_cast<float>(mLandNz - 1)) return OuterLand(x, z, false);
         const int ix = std::min(static_cast<int>(fx), mLandNx - 2), iz = std::min(static_cast<int>(fz), mLandNz - 2);
         const float u = fx - static_cast<float>(ix), v = fz - static_cast<float>(iz);
         const float* r0 = &mLand[static_cast<size_t>(iz) * static_cast<size_t>(mLandNx) + static_cast<size_t>(ix)]; const float* r1 = r0 + mLandNx;
@@ -207,7 +230,7 @@ namespace CaucasianEagle
     {
         if (mLand.empty()) return -1e9f;
         const float fx = (x - mLandX) / mLandStep, fz = (z - mLandZ) / mLandStep;
-        if (fx < 0 || fz < 0 || fx > static_cast<float>(mLandNx - 1) || fz > static_cast<float>(mLandNz - 1)) return -1e9f;
+        if (fx < 0 || fz < 0 || fx > static_cast<float>(mLandNx - 1) || fz > static_cast<float>(mLandNz - 1)) return OuterLand(x, z, true);
         const int ix = std::min(static_cast<int>(fx), mLandNx - 2), iz = std::min(static_cast<int>(fz), mLandNz - 2);
         const auto& grid = mFloor.size() == mLand.size() ? mFloor : mLand;
         const float* r0 = &grid[static_cast<size_t>(iz) * static_cast<size_t>(mLandNx) + static_cast<size_t>(ix)]; const float* r1 = r0 + mLandNx;
@@ -440,7 +463,8 @@ namespace CaucasianEagle
         // falling inside the mountain: on foot, not grounded and 8 m under the land's lowest grid corner
         mInRock = !flying && !p.IsGrounded && p.Position.y < LandLow(p.Position.x, p.Position.z) - 8 && !InCave(p.Position) ? mInRock + dt : 0;
         // far from the trail is lost only when far from the rings too (2026-11-18: they go round the back of the mountain)
-        if (rescue && !Trail.empty() && (p.Position.y < -6 || (OffTrail > 1500 && RingDistance(p.Position) > 600) || mInRock > 1))
+        // ... and only off the mountain altogether (2026-11-18: the whole round mountain has heights now, Land(), and is hers to explore)
+        if (rescue && !Trail.empty() && (p.Position.y < -6 || (OffTrail > 1500 && RingDistance(p.Position) > 600 && Land(p.Position.x, p.Position.z) < -1e8f) || mInRock > 1))
         {
             const char* event = mInRock > 1 ? "rescued_from_inside_the_mountain" : "rescued";
             Visit(host, Checkpoint); Rescued = 3;

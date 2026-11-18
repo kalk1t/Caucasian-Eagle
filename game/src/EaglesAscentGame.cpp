@@ -59,6 +59,7 @@ namespace CaucasianEagle
     {
         session.SceneId = AscentSceneId;
         session.SceneCollision = true;   // the mountain's paths, stairs and terraces are the ground
+        session.CameraStopsAtGround = true;   // the camera stays out of the rock and inside the caves (owner 2026-11-18)
         session.WindowTitle = std::wstring(GameTitle) + L" - The Eagle's Ascent";
         session.UserDataFolder = UserDataFolder;   // the same settings as the road; nothing is saved here
     }
