@@ -131,7 +131,9 @@ python art\cities\build_cities.py <asset builder>
 python art\map\build_map.py
 
 # 3. Creatures and props (only when a Meshy model changes; needs the meshy\out folders)
-# 3a. Refine the Meshy models in Blender first (weld, remove fragments, normals, per-model settings; pictures in art\refine\out)
+# 3a. Refine the Meshy models in Blender first (weld, remove fragments, normals, per-model settings; pictures in art\refine\out;
+#     the QA gate's verdicts in art\refine\qa_report.txt). The prepare step writes the colour and normal maps beside each
+#     model; with --maps-only (and any word for <asset builder>) it writes only those, and no rig_models.py is needed.
 & "C:\Program Files\Blender Foundation\Blender 5.2\blender.exe" -b -P <repo>\art\refine\refine_assets.py -- <repo>
 python art\monsters\prepare_models.py art\monsters\meshy\out game\assets\Compiled\Monsters <asset builder> Chinka=chinka Ali=ali ...
 python art\monsters\prepare_models.py art\props\meshy\out game\assets\Compiled\Props <asset builder> DeadTree=deadtree Fir=fir Rocks=rocks Tower=tower

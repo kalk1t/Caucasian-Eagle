@@ -2,7 +2,7 @@
 
 Usage:  python prepare_models.py <meshy out folder> <export folder> <game texture folder>
 For Amirani, Eagle and Dog: copies the GLB with its mesh nodes renamed Doorways_<Name> (the
-importer only accepts render nodes with that prefix) and writes a 1024 px base-colour PNG.
+importer only accepts render nodes with that prefix) and writes 1024 px base-colour and normal-map PNGs (the game uses both).
 """
 import sys, json, struct, pathlib
 from PIL import Image
@@ -27,4 +27,5 @@ for name in ("Amirani", "Eagle", "Dog"):
     out = struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(body) + len(rest)) + struct.pack("<I4s", len(body), b"JSON") + body + rest
     (export / f"{name}.glb").write_bytes(out)
     Image.open(folder / "texture_urls_0_base_color.png").convert("RGB").resize((1024, 1024), Image.LANCZOS).save(textures / f"{name}BaseColor.png")
+    Image.open(folder / "texture_urls_0_normal.png").convert("RGB").resize((1024, 1024), Image.LANCZOS).save(textures / f"{name}Normal.png")   # Meshy's normal map
     print(name, "mesh nodes:", count)

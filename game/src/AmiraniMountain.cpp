@@ -31,10 +31,10 @@ namespace CaucasianEagle
             return XMVector3Normalize(XMVectorSet(MoonlightX, MoonlightY, MoonlightZ, 0));
         }
 
-        Material Surface(ID3D11ShaderResourceView* texture, XMFLOAT4 tint, float emission, bool fog = true)
+        Material Surface(ID3D11ShaderResourceView* texture, XMFLOAT4 tint, float emission, bool fog = true, ID3D11ShaderResourceView* normal = nullptr)
         {
             Material m{};
-            m.Diffuse = tint; m.DiffuseMap = texture;
+            m.Diffuse = tint; m.DiffuseMap = texture; m.NormalMap = normal;
             m.TexTransform = {1, 1, 0, 0}; m.MetallicFactor = 0; m.RoughnessFactor = .9f;
             m.SpecularColor = {0, 0, 0, 0}; m.EmissiveStrength = emission;
             m.DoubleSided = true; m.ReceiveFog = fog;
@@ -71,11 +71,12 @@ namespace CaucasianEagle
         };
 
         bool LoadTexture(Renderer& renderer, const std::filesystem::path& path,
-                         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& out, std::string& error)
+                         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& out, std::string& error,
+                         Doorways::DoorwaysMaterialTextureSemantic semantic = Doorways::DoorwaysMaterialTextureSemantic::BaseColor)
         {
             DoorwaysTextureLoadDesc desc;
             desc.Path = path;
-            desc.Semantic = Doorways::DoorwaysMaterialTextureSemantic::BaseColor;
+            desc.Semantic = semantic;
             desc.GenerateMips = true;
             DoorwaysTextureLoadResult result;
             if (!renderer.LoadDoorwaysTexture(desc, result, &error)) return false;
@@ -128,7 +129,9 @@ namespace CaucasianEagle
             mMountainYaw = (count > 0 && sum / count > 0) ? Pi : 0;
         }
         if (!renderer.CreateDoorwaysGpuMeshFromLoadedDMesh(mesh, out.Mesh, &error)) return false;
-        return LoadTexture(renderer, root / (std::string(name) + "BaseColor.png"), out.Texture, error);
+        if (!LoadTexture(renderer, root / (std::string(name) + "BaseColor.png"), out.Texture, error)) return false;
+        const auto normal = root / (std::string(name) + "Normal.png");   // Meshy's normal map, when the figure has one
+        return !std::filesystem::exists(normal) || LoadTexture(renderer, normal, out.Normal, error, Doorways::DoorwaysMaterialTextureSemantic::Normal);
     }
 
     bool AmiraniMountain::BuildSky(Renderer& renderer, std::string& error)
@@ -209,7 +212,7 @@ namespace CaucasianEagle
         // Amirani: breathing is the only motion a chained titan has left.
         const float breath = 1 + .006f * std::sin(mTime * .9f);
         renderer.DrawDoorwaysGpuMesh(mAmirani.Mesh, Place(mAmirani, AmiraniHeight * breath, AmiraniYaw, feet), viewProjection,
-                                     Surface(mAmirani.Texture.Get(), dim(1.15f, 1.1f, 1.05f), FigureEmission, false));
+                                     Surface(mAmirani.Texture.Get(), dim(1.15f, 1.1f, 1.05f), FigureEmission, false, mAmirani.Normal.Get()));
 
         // The eagle beats its wings at his right side and lunges at the wound every few seconds.
         const float cycle = std::fmod(mTime, EaglePeckPeriod) / EaglePeckPeriod;
@@ -219,12 +222,12 @@ namespace CaucasianEagle
                                  feet.z - EagleFromBody * (1 - .45f * lunge)};
         if (!mEagleAway && !mFreed)
             renderer.DrawDoorwaysGpuMesh(mEagle.Mesh, Place(mEagle, EagleHeight, EagleYaw, eagleFeet, EaglePitch + lunge * .40f), viewProjection,
-                                         Surface(mEagle.Texture.Get(), dim(1.5f, 1.6f, 1.6f), EagleEmission, false));
+                                         Surface(mEagle.Texture.Get(), dim(1.5f, 1.6f, 1.6f), EagleEmission, false, mEagle.Normal.Get()));
 
         // The dog works at the ankle chain.
         const XMFLOAT3 dogFeet{feet.x + DogSide, ledgeY, feet.z - DogFromBody};
         renderer.DrawDoorwaysGpuMesh(mDog.Mesh, Place(mDog, DogHeight, DogYaw, dogFeet, .05f * std::sin(mTime * 2.6f)), viewProjection,
-                                     Surface(mDog.Texture.Get(), dim(1.5f, 1.5f, 1.5f), EagleEmission, false));
+                                     Surface(mDog.Texture.Get(), dim(1.5f, 1.5f, 1.5f), EagleEmission, false, mDog.Normal.Get()));
 
         // Chains: wrists to the cave wall, ankles to the ledge.
         const Material iron = Surface(renderer.mWhiteTextureView.Get(), {.07f, .08f, .09f, 1}, .05f, false);

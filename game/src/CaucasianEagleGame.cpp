@@ -54,6 +54,7 @@ namespace CaucasianEagle
         session.FreeFlightCeiling = FlightCeiling;
         session.FreeFlightHoldSeconds = 1.0e9f; session.FreeFlightKeyClimb = true; session.FreeFlightKeepAloft = true;   // Space never takes off (on foot it jumps); in flight Space climbs, X sinks
         session.FreeFlightTakeoffHeight = FlightTakeoffHeight; session.FreeFlightTakeoffSeconds = FlightTakeoffSeconds;
+        session.FreeFlightSlowJumpSinks = true;                     // Ctrl + Space flies her down, as Space flies her up (owner, 2026-11-18)
         session.FreeFlightSteer = true; session.FreeFlightLevelPitch = CameraPitch; session.FreeFlightSteerGain = FlightSteerGain;
         session.OrbitCamera = true;
         session.LookScale = CameraLookScale;                        // a calmer camera than the engine's own
@@ -104,7 +105,7 @@ namespace CaucasianEagle
     bool Game::Prepare(DoorwaysGameHost& host, std::string& error)
     {
         char hero[32] = {};   // CAUCASIAN_EAGLE_HERO=<bundle>: another build of her body (it needs the Mixamo build's clips)
-        const bool other = GetEnvironmentVariableA(HeroEnvironmentVariable, hero, sizeof(hero)) > 0 && hero[0] && std::string(hero).find_first_of("/\.") == std::string::npos &&
+        const bool other = GetEnvironmentVariableA(HeroEnvironmentVariable, hero, sizeof(hero)) > 0 && hero[0] && std::string(hero).find_first_of("/\\.") == std::string::npos &&
             std::filesystem::exists(GetDoorwaysAssetPathRegistry().CompiledRoot / HeroBundleFolder / hero / "Character.dmesh");
         const std::filesystem::path bundle = GetDoorwaysAssetPathRegistry().CompiledRoot / (other ? (std::filesystem::path(HeroBundleFolder) / hero) : std::filesystem::path(HeroBundle));
 

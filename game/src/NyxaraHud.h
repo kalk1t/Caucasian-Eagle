@@ -11,6 +11,7 @@ namespace Doorways
     struct NyxaraHudState
     {
         bool Valid = false;
+        float Flight = 1, FlightCharge = 0; bool Flying = false;   // her flying energy 0..1; the take-off hold 0..1 (Space held); she is in flight
         float Cooldown[3] = {}, CooldownMax[3] = {4, 7, 9};
         bool ComboOpen = false; float ComboWindow = 0;      // LMB / RMB follow-ups available
         const wchar_t* ComboLeft = L""; const wchar_t* ComboRight = L"";

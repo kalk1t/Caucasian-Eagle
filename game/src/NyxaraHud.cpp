@@ -65,7 +65,9 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     ui.Bar(vx, hy, HealthWidth * S, HealthHeight * S, health, low ? Red : Soul, trail);
     ui.Centered(std::to_wstring(hp), vx + HealthWidth * S * .5f, hy + (HealthHeight * S - ui.Height(TextTiny * S)) * .5f, TextTiny * S, Ink);
     const float ny = hy + (HealthHeight + 6) * S;
-    ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, energy, Moon, 0, true);
+    (void)energy;   // the thin bar is her flying energy (2026-11-18); while Space is held on foot a gold line under it fills to the take-off
+    ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, hud.Flight, hud.Flight < .1f ? Red : Moon, 0, true);
+    if (hud.FlightCharge > 0) ui.Rect(vx, ny + (EnergyHeight + 1) * S, EnergyWidth * S * std::min(1.f, hud.FlightCharge), 2 * S, CaucasianEagle::Palette::Gold);
     // what she does now (her two swords are always in her hands)
     const float wy = ny + (EnergyHeight + 7) * S;
     ui.Text(hud.Action && hud.Action[0] ? hud.Action : L"TWO SWORDS", vx, wy, TextTiny * S, hud.Action && hud.Action[0] ? Ink : Faint);

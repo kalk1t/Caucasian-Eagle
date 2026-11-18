@@ -300,14 +300,14 @@ namespace CaucasianEagle
         }
         const bool allowed = inputAllowed && alive && !mSmoke && !mClimb;
 
-        // R: take off on foot; in flight, land (she sinks at LandSpeed until she stands)
-        if (Press('R', allowed))
+        // Space held 3 s takes her up (NyxaraKit: her flying energy lasts 30 s, then she falls). R in flight lands her
+        // early (she sinks at LandSpeed until she stands); on foot R does nothing (owner, 2026-11-18).
+        if (Press('R', allowed) && flying)
         {
-            if (flying) { session.FreeFlightEnd = true; session.FreeFlightLandSpeed = LandSpeed; }
-            else { session.FreeFlightTakeoff = true; session.FreeFlightLandSpeed = 0; }
+            session.FreeFlightEnd = true; session.FreeFlightLandSpeed = LandSpeed;
             Sound::Play("nyxara/wing", .8f);
         }
-        if (flying && !mFlying) Notify(L"IN FLIGHT", L"W flies where you look. Space climbs, X sinks, R lands.", 4);
+        if (flying && !mFlying) Notify(L"IN FLIGHT", L"W flies where you look. Space climbs, Ctrl+Space sinks, R lands. Her wings last 30 seconds.", 4);
         if (!flying)
         {
             if (mFlying) { Sound::Play("nyxara/land", .6f); session.FreeFlightLandSpeed = 0; }
@@ -381,6 +381,15 @@ namespace CaucasianEagle
         Ui ui(context, text);
         const float s = std::clamp(ui.S, .8f, 1.5f);
         if (NyxaraHud().Valid && context.World.CombatFeedback.MeleeActive) DrawNyxaraHud(ui, context);
+        else if (NyxaraHud().Valid)
+        {   // her flying energy (NyxaraKit: Space held 3 s takes her up; 30 s of flight), at the bottom in the middle
+            const auto& wings = NyxaraHud();
+            const float bw = 260 * s, bx = (ui.W - bw) * .5f, by = ui.H - 46 * s;
+            ui.Rect(bx - 6 * s, by - 20 * s, bw + 12 * s, 36 * s, {.015f, .025f, .04f, .7f});
+            ui.Text(wings.Flying ? L"WINGS  (R lands)" : wings.FlightCharge > 0 ? L"WINGS  taking off..." : L"WINGS  (hold Space 3 s to fly)", bx, by - 17 * s, 11 * s / DoorwaysUiFontHeight, Palette::Ink);
+            ui.Bar(bx, by, bw, 8 * s, wings.Flight, wings.Flight < .1f ? Palette::Red : Palette::Soul, 0, true);
+            if (wings.FlightCharge > 0) ui.Rect(bx, by + 10 * s, bw * (std::min)(1.f, wings.FlightCharge), 2 * s, Palette::Gold);
+        }
         const float body = 13 * s / DoorwaysUiFontHeight, title = 16 * s / DoorwaysUiFontHeight, big = 24 * s / DoorwaysUiFontHeight, tiny = 12 * s / DoorwaysUiFontHeight;
         const auto& p = context.World.MainPlayer;
 

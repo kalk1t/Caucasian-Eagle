@@ -40,7 +40,7 @@ namespace CaucasianEagle
         struct Model
         {
             Doorways::DoorwaysGpuMesh Mesh;
-            Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Texture;
+            Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Texture, Normal;   // Normal: <name>Normal.png when there is one
             DirectX::XMFLOAT3 Min{}, Max{}; // bounds of the compiled mesh
         };
         bool Load(Renderer& renderer, const char* name, Model& out, std::string& error);

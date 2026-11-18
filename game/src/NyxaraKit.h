@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -100,9 +101,28 @@ namespace Doorways
         // she must be able to jump off the mountain). 0, the default: the clip alone, as on the road. Unattended, the
         // session's ScriptedJump presses it.
         void SetRealJump(float speed) { mRealJump = speed; }
+        // Flying is a limited resource (owner, 2026-11-18). Space held FlightHoldSeconds on foot takes her up; she can
+        // fly FlightEnergySeconds on full energy; out of it, gravity brings her down (the Fall clip) and she lands on
+        // foot. On the ground it comes back in FlightRefillSeconds. Unattended runs (the tests) are not limited.
+        static constexpr float FlightHoldSeconds = 3, FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
+        float FlightEnergy() const { return mFlightEnergy; }                    // 0..1
+        float FlightCharge() const { return mFlightHold / FlightHoldSeconds; }  // 0..1: how far the take-off hold has come
+        bool Falling() const { return mFalling; }
         // Her height over the ground under her (the journey knows it; elsewhere it is not known and not needed): for
         // her landing, whose clip reaches for the ground before she touches it.
         void SetHeightOverGround(float height) { mHeightOverGround = height; }
+        // On foot her feet are set on the ground as it is drawn under each of them (rough land, stair treads): a foot
+        // is raised by bending its leg, and her body is lowered when a foot has to reach down. The owner may give the
+        // drawn surface where it differs from the collision she walks on (Map A's treads over their ramp): height at
+        // (x, z) nearest 'nearY', or NaN where it has none. Without one, or where it gives NaN, the scene's walkable
+        // ground is used; with neither, her feet stay as the clip has them.
+        using FootGround = std::function<float(float x, float z, float nearY)>;
+        void SetFootGround(FootGround ground) { mFootGround = std::move(ground); }
+        // Stairs (Map A): the middle of the tread of a given top nearest (x, z), and the stair's way along the ground.
+        // Climbing a stair she plays Stairs_Up by her height on it, and each foot standing is slid onto the middle of
+        // its tread. Without it (or off a stair) she walks up as on any slope.
+        using StairTread = std::function<bool(float x, float z, float top, float& cx, float& cz, float& ax, float& az)>;
+        void SetStairTread(StairTread stair) { mStairTread = std::move(stair); }
         // Her travel speed is multiplied by this (0 while a move carries her, slower stepping back). The kit applies
         // it to MoveSpeed itself; an owner that sets MoveSpeed after the kit's Update multiplies by it too.
         float SpeedScale() const { return mSpeedScale; }
@@ -157,6 +177,9 @@ namespace Doorways
         Keys mPrev;
         bool mOnFoot = false;
         float mHeightOverGround = -1;
+        float mFlightEnergy = 1, mFlightHold = 0; bool mFalling = false;
+        FootGround mFootGround;
+        StairTread mStairTread;
         float mSpeedScale = 1;
         int mFinishTarget = -1; bool mFinishReward = false;   // the enemy her finishing throw is for; it fell, her reward is due
         float mBrokenPulse = 0;             // s to the next ring under the broken enemies

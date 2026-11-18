@@ -7,6 +7,7 @@
 #include "DoorwaysGame.h"
 #include "DoorwaysGamepad.h"
 #include "DoorwaysRuntimePathResolver.h"
+#include "DoorwaysWalkableSurfaceQuery.h"
 #include "GameConstants.h"
 #include "NyxaraClips.h"
 #include "NyxaraHud.h"
@@ -22,8 +23,10 @@
 #include <Windows.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <map>
 
 using namespace DirectX;
@@ -63,7 +66,7 @@ namespace Doorways
         constexpr float AirDashSpeed = 12, AirDashSeconds = .55f;
         constexpr float SwordReach = 1.7f, JumpReach = 2.2f, SwordArc = FrontArc;
         constexpr int CutDamage = 45, LastDamage = 80, JumpDamage = 110;
-        constexpr float SteerRate = 110.f;   // degrees a second A and D turn her way
+        constexpr float SteerRate = 90.f;    // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it)
         constexpr float BackSpeed = 1.25f;   // metres a second stepping backwards
         constexpr float KickFirst = .2f, KickEvery = .23f, KickReach = 1.6f, ThrowLands = 2.35f;
         constexpr int KickDamage = 30, ThrowDamage = 1000000;   // the throw is a finisher: it kills
@@ -88,6 +91,11 @@ namespace Doorways
         constexpr int CastDamage = 90, CastPull = 60;
         constexpr float FlyHover = .5f;      // m she is shown over the ground when she rests on it in flight
         constexpr float RunFrom = 2.0f;      // m/s: slower than this she walks
+        // Stairs_Up (Mixamo's climb fitted to Map A's stairs) is off: the owner (2026-11-17) prefers her ordinary walk and run
+        // on stairs, mountain ground and hills alike, her feet set on the ground and treads under them. True plays it again.
+        constexpr bool StairClip = false;
+        constexpr float StairPace = 1.0f, StairRunPace = 1.6f;    // m/s along the ground up a stair (W, Shift): the stair clip (0.62 m/s on 0.37 m treads) 1.6 and 2.6 times over
+        constexpr float ClimbEnter = .3f, ClimbLeave = .15f;    // m up a metre forward on a stair's treads: from this she climbs it (Stairs_Up), below the second she walks again
         constexpr float CameraFollowLift = 25.f;
         // ---- the game's
         constexpr float SkillCooldown[3] = {4.f, 7.f, 9.f};   // F the slide, V the thrown swords, C the spinning swords
@@ -228,7 +236,22 @@ namespace Doorways
         int Hips = -1, Spine = -1, Spine1 = -1, Spine2 = -1;
         int LegJoint[4] = {-1, -1, -1, -1};                // left and right hip joints, left and right knees
         int SwordJoint[2] = {-1, -1};
+        // The swords are on her back in these clips and in her hands in all others (owner, 2026-11-18). Changing from one
+        // to the other her arms go through the bundle's Sword_Reach pose (hands on the handles over her shoulders), and
+        // the swords change place as her hands are there.
+        static bool SwordsAway(const std::string& clip) { return clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
+        std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
+        DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
+        XMFLOAT4X4 SwordOnBack[2]{}; bool HasBack = false;   // each sword on her back, as her chest (Spine2) carries it
+        int FootJoint[2] = {-1, -1}, ToeJoint[2] = {-1, -1};  // left and right ankle, left and right toes
         XMFLOAT3 SwordGrip[2]{}, SwordTip[2]{};            // in the sword bone's axes: the handle's middle, the blade's point
+        float FeetOn = 0, FeetDrop = 0, FeetRaise[2]{};    // feet on the drawn ground: how much; her body lowered; each foot raised (m)
+        float AnkleRest[2] = {1e9f, 1e9f};                 // the lowest each ankle stands in her clips (m over her feet): the foot is down
+        float SoleGap[2] = {0, 0};                          // (the log) each sole over the drawn ground under the middle of its foot (m; NaN: none found)
+        float FootPitch[2] = {0, 0};                        // each foot tipped to the slope under it (radians, toes up a hill)
+        float FootSlide[2][2] = {{0, 0}, {0, 0}};           // each foot slid along a stair onto its tread (m, world x and z)
+        float OnStair = 0;                                  // 0 off a stair, 1 climbing one (eased): her pace
+        float Climb = 0, ClimbRate = 0, LastY = -1e9f;      // how steeply and how fast she climbs (m/m, m/s); her height a frame ago
 
         // ---- the pose
         DoorwaysSkeletonPose Previous, BlendFrom, LegsPose;
@@ -300,7 +323,7 @@ namespace Doorways
         bool Moving() const { return !Attack.empty() || Cast != 0 || Air != 0 || Rise >= 0 || Touch >= 0; }
         static bool Loops(const std::string& name)
         {
-            return name == "Idle" || name == "Walk" || name == "Run" || name == "Fly" || name == "Cast_Fly";
+            return name == "Idle" || name == "Walk" || name == "Run" || name == "Fly" || name == "Cast_Fly" || name == "Fall";
         }
         float Duration(const std::string& name) const
         {
@@ -322,7 +345,7 @@ namespace Doorways
             const auto& p = world.MainPlayer;
             std::ofstream f(LogPath, std::ios::app);
             f << Clock << '\t' << event << '\t' << Current << '\t' << Speed << '\t' << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z
-              << '\t' << LiftNow << '\t' << FlyLean << '\n';
+              << '\t' << LiftNow << '\t' << FlyLean << '\t' << FeetDrop << '\t' << FeetRaise[0] << '\t' << FeetRaise[1] << '\t' << SoleGap[0] << '\t' << SoleGap[1] << '\n';
         }
 
         void StartAttack(const WorldState& world, const std::string& name, float into = 0)
@@ -410,6 +433,157 @@ namespace Doorways
             }
             SwordCapture = false;
         }
+        // Her feet on the ground as it is drawn (owner, 2026-11-17). Two ways:
+        // - Ground and slopes (any clip but Stairs_Up): each foot keeps the height over the ground under it that the clip
+        //   gives it over flat ground, standing or stepping: no foot is told when it is down, so nothing jumps when her
+        //   feet change. Her body comes down to the lower foot and the other leg bends; no leg is ever stretched past the
+        //   clip. A foot standing (its ankle low) is set on the ground under its heel and turned to the slope, toes up the
+        //   hill; a foot in the air is kept clear of the ground under heel and toes.
+        // - Stairs_Up: the clip itself is fitted to the map's stairs (art/nyxara/blender/build_from_mixamo.py) and played
+        //   by her height on the stair, so its feet stand on the treads' heights; each foot standing (StairsStance) is
+        //   only slid along the stair onto the middle of its tread, the map's treads being 0.30 to 0.45 m deep.
+        // A foot is moved by bending its leg: a two-bone turn of thigh and shin, the knee toward her toes.
+        float PlantFeet(const WorldState& world, const NyxaraKit::FootGround& ground, const NyxaraKit::StairTread& stair, DoorwaysSkeletonPose& out, float dt, bool on)
+        {
+            constexpr float Ease = 10, FootEase = 16, FootRise = 40, BodyEase = 8, BodyFall = 16, SlideEase = 14, Down = .35f, Up = .45f, MostPitch = .45f;
+            FeetOn += ((on ? 1.f : 0.f) - FeetOn) * (std::min)(1.f, dt * Ease);
+            for (int k = 0; k < 4; ++k) if (LegJoint[k] < 0) return 0;
+            if (FootJoint[0] < 0 || FootJoint[1] < 0 || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return 0;
+            const auto& p = world.MainPlayer;
+            const float scale = (std::max)(.01f, world.AnimatedPlayerVisual.Scale.y), c = std::cos(p.Yaw), sn = std::sin(p.Yaw);
+            const auto at = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto worldX = [&](XMVECTOR v) { return p.Position.x + (XMVectorGetX(v) * c + XMVectorGetZ(v) * sn) * scale; };
+            const auto worldZ = [&](XMVECTOR v) { return p.Position.z + (-XMVectorGetX(v) * sn + XMVectorGetZ(v) * c) * scale; };
+            const auto surface = [&](XMVECTOR v) -> float
+            {   // the drawn ground under this point of her body, as metres over the place she stands
+                const float x = worldX(v), z = worldZ(v);
+                float y = ground ? ground(x, z, p.Position.y) : std::numeric_limits<float>::quiet_NaN();
+                if (!std::isfinite(y) && world.RuntimeScene)
+                {
+                    const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*world.RuntimeScene, x, z, p.Position.y - Down - .1f, p.Position.y + Up + .1f);
+                    if (hit.Hit) y = hit.GroundY;
+                }
+                return std::isfinite(y) ? y - p.Position.y : std::numeric_limits<float>::quiet_NaN();
+            };
+            const bool stairClip = Current == "Stairs_Up";
+            float lifted[2] = {0, 0}, raiseTo[2] = {0, 0}, pitchTo[2] = {0, 0}, slideTo[2][2] = {{0, 0}, {0, 0}};
+            float body = 0;
+            for (int k = 0; k < 2; ++k)
+            {   // in the air (1) or down (0): its ankle against the lowest the ankle stands in her clips (8 cm up: in the air)
+                const float y = XMVectorGetY(at(FootJoint[k])) * scale;
+                if (on && !stairClip) AnkleRest[k] = (std::min)(AnkleRest[k], y);
+                const float h = AnkleRest[k] > 1e8f ? 0.f : std::clamp((y - (std::min)(AnkleRest[k], y) - .03f) / .05f, 0.f, 1.f);
+                lifted[k] = h * h * (3 - 2 * h);
+            }
+            if (!stairClip && FeetOn > .01f)
+            {
+                float h[2] = {0, 0};
+                for (int k = 0; k < 2; ++k)
+                {
+                    const XMVECTOR A = at(FootJoint[k]), T = ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A + XMVectorSet(0, 0, .12f / scale, 0);
+                    float heel = surface(A), mid = surface((A + T) * .5f), toe = surface(T);
+                    if (!std::isfinite(heel)) heel = std::isfinite(mid) ? mid : toe;
+                    if (!std::isfinite(toe)) toe = std::isfinite(mid) ? mid : heel;
+                    if (!std::isfinite(mid)) mid = (std::max)(heel, toe);
+                    if (!std::isfinite(heel)) continue;   // no ground found: as the clip has it
+                    // On a step (heel and toes more than 12 cm apart: a stair's edge, a ledge) the whole sole goes onto the
+                    // highest ground under it and stays level (owner, 2026-11-17: with her walk on a stair the toes were in the
+                    // next step); on a slope she stands on her heel's ground, the foot tipped to the slope.
+                    const float top = (std::max)({heel, mid, toe});
+                    const bool step = std::abs(toe - heel) > .12f || std::abs(mid - heel) > .12f;
+                    const float standing = step ? top : heel;
+                    h[k] = std::clamp(standing * (1 - lifted[k]) + top * lifted[k], -Down, Up) * FeetOn;
+                    const float reach = std::hypot(XMVectorGetX(T - A), XMVectorGetZ(T - A)) * scale;
+                    if (reach > .03f && !step) pitchTo[k] = std::clamp(std::atan2(toe - heel, reach), -MostPitch, MostPitch) * (1 - lifted[k]) * FeetOn;
+                }
+                body = std::clamp((std::min)(h[0], h[1]), -Down, 0.f);
+                for (int k = 0; k < 2; ++k) raiseTo[k] = h[k];
+            }
+            else if (stairClip && FeetOn > .01f)
+                for (int k = 0; k < 2; ++k)
+                {   // the stair clip stands on the treads by itself; a foot is only lifted out of a tread it would be in (a deep
+                    // tread, or the moment she comes onto the stair from a run, the clips blended)
+                    if (AnkleRest[k] > 1e8f) continue;
+                    const XMVECTOR A = at(FootJoint[k]), T = ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A;
+                    float g = -1e9f;
+                    for (const XMVECTOR v : {A, (A + T) * .5f}) if (const float s = surface(v); std::isfinite(s)) g = (std::max)(g, s);
+                    if (g > -1e8f) raiseTo[k] = std::clamp(g + AnkleRest[k] - XMVectorGetY(A) * scale, 0.f, Up) * FeetOn;
+                }
+            // eased, but quickly where the ground comes up under a foot or her body must come down (else a foot is in the hill a moment)
+            FeetDrop += (body - FeetDrop) * (std::min)(1.f, dt * (body < FeetDrop ? BodyFall : BodyEase));
+            if (stairClip && stair && FeetOn > .01f)
+                for (int k = 0; k < 2; ++k)
+                {   // standing on a tread (by the clip's phase): slid along the stair onto its middle
+                    const float from = NyxaraClips::StairsStance[k][0], length = NyxaraClips::StairsStance[k][1] - from;
+                    const float x = Phase - from - std::floor(Phase - from);
+                    if (x > length || AnkleRest[k] > 1e8f) continue;
+                    const auto edge = [](float v) { v = std::clamp(v / .06f, 0.f, 1.f); return v * v * (3 - 2 * v); };
+                    const float standing = edge(x) * edge(length - x);
+                    const XMVECTOR A = at(FootJoint[k]), T = ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A, mid = (A + T) * .5f;
+                    const float ankleY = p.Position.y + XMVectorGetY(A) * scale;
+                    const float top = .15f + NyxaraClips::StairsRise * std::round((ankleY - AnkleRest[k] - .15f) / NyxaraClips::StairsRise);
+                    float cx, cz, ax, az;
+                    if (!stair(worldX(mid), worldZ(mid), top, cx, cz, ax, az)) continue;
+                    const float d = std::clamp((cx - worldX(mid)) * ax + (cz - worldZ(mid)) * az, -.2f, .2f) * standing * FeetOn;
+                    slideTo[k][0] = ax * d; slideTo[k][1] = az * d;
+                }
+            bool moved = false;
+            const float ease = (std::min)(1.f, dt * FootEase), slideEase = (std::min)(1.f, dt * SlideEase);
+            for (int k = 0; k < 2; ++k)
+            {
+                const float raiseWant = raiseTo[k] - FeetDrop;
+                FeetRaise[k] += (raiseWant - FeetRaise[k]) * (raiseWant > FeetRaise[k] ? (std::min)(1.f, dt * FootRise) : ease);
+                FootPitch[k] += (pitchTo[k] - FootPitch[k]) * ease;
+                for (int i = 0; i < 2; ++i) FootSlide[k][i] += (slideTo[k][i] - FootSlide[k][i]) * slideEase;
+                // in her own space: up, and the slide turned from the world into her axes
+                const float raise = FeetRaise[k] / scale;
+                const float sx = (FootSlide[k][0] * c - FootSlide[k][1] * sn) / scale, sz = (FootSlide[k][0] * sn + FootSlide[k][1] * c) / scale;
+                if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f) continue;
+                const int hip = LegJoint[k], knee = LegJoint[k + 2], foot = FootJoint[k], above = Skeleton.Joints[hip].ParentIndex;
+                if (above < 0 || Skeleton.Joints[knee].ParentIndex != hip || Skeleton.Joints[foot].ParentIndex != knee) continue;
+                const XMVECTOR H = at(hip), K = at(knee), A = at(foot);
+                const float a = XMVectorGetX(XMVector3Length(K - H)), b = XMVectorGetX(XMVector3Length(A - K));
+                if (a < 1e-3f || b < 1e-3f) continue;
+                const XMVECTOR goal = A + XMVectorSet(sx, raise, sz, 0);
+                const XMVECTOR way = XMVector3Normalize(goal - H);
+                const float d = std::clamp(XMVectorGetX(XMVector3Length(goal - H)), std::abs(a - b) + 1e-3f, (a + b) * .999f);
+                // Which way the knee bends (owner, 2026-11-17: a nearly straight leg's knee pointed anywhere, often sideways;
+                // 2026-11-18: "bending his knees backward while walking", on stairs too). It was turned toward the toes laid
+                // flat; but a foot lifting off, toes down, has almost nothing flat left, and that little often points back:
+                // the knee flipped behind her for those frames. Now: the clip's own knee wherever it points forward, her
+                // facing (+z in her space) where it does not or the leg is nearly straight. Never behind her.
+                const auto across = [&](XMVECTOR v) { v = v - way * XMVectorGetX(XMVector3Dot(v, way)); return XMVectorGetX(XMVector3LengthSq(v)) < 1e-8f ? XMVectorZero() : XMVector3Normalize(v); };
+                const XMVECTOR clipKnee = across(K - H), aheadKnee = across(XMVectorSet(0, 0, 1, 0));
+                const float trust = XMVectorGetX(XMVector3LengthSq(clipKnee)) < .5f ? 0.f
+                                  : std::clamp((XMVectorGetX(XMVector3Dot(clipKnee, aheadKnee)) - .2f) / .4f, 0.f, 1.f);
+                XMVECTOR bend = clipKnee * trust + aheadKnee * (1 - trust);
+                if (XMVectorGetX(XMVector3LengthSq(bend)) < 1e-6f) bend = aheadKnee;
+                if (XMVectorGetX(XMVector3LengthSq(bend)) < 1e-6f) continue;
+                bend = XMVector3Normalize(bend);
+                const float cosA = std::clamp((a * a + d * d - b * b) / (2 * a * d), -1.f, 1.f);
+                const XMVECTOR K2 = H + way * (a * cosA) + bend * (a * std::sqrt(1 - cosA * cosA)), A2 = H + way * d;
+                const XMVECTOR turnThigh = ArcTurn(XMVector3Normalize(K - H), XMVector3Normalize(K2 - H));
+                const XMVECTOR shin = XMVector3Rotate(A - K, turnThigh);
+                const XMVECTOR turnShin = ArcTurn(XMVector3Normalize(shin), XMVector3Normalize(A2 - K2));
+                const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+                const XMVECTOR qAbove = turnOf(above), qHip = turnOf(hip), qKnee = turnOf(knee);
+                // the foot as the clip turns it, then tipped about her side axis to the slope (toes up a hill)
+                const XMVECTOR qFoot = XMQuaternionMultiply(turnOf(foot), XMQuaternionRotationAxis(XMVectorSet(1, 0, 0, 0), -FootPitch[k]));
+                const XMVECTOR newHip = XMQuaternionMultiply(qHip, turnThigh), newKnee = XMQuaternionMultiply(XMQuaternionMultiply(qKnee, turnThigh), turnShin);
+                XMStoreFloat4(&out.LocalJoints[hip].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newHip, XMQuaternionInverse(qAbove))));
+                XMStoreFloat4(&out.LocalJoints[knee].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newKnee, XMQuaternionInverse(newHip))));
+                XMStoreFloat4(&out.LocalJoints[foot].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(qFoot, XMQuaternionInverse(newKnee))));
+                moved = true;
+            }
+            if (moved && !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr)) return 0;
+            for (int k = 0; k < 2; ++k)
+            {   // for the log: how far each sole is over the ground under the middle of its foot, as she is drawn
+                const XMVECTOR A = at(FootJoint[k]), mid = ToeJoint[k] >= 0 ? (A + at(ToeJoint[k])) * .5f : A;
+                const float g = surface(mid);
+                SoleGap[k] = AnkleRest[k] > 1e8f || !std::isfinite(g) ? std::numeric_limits<float>::quiet_NaN() : XMVectorGetY(A) * scale + FeetDrop - AnkleRest[k] - g;
+            }
+            return FeetDrop;
+        }
         // Which way the sword bones' axes came through the importer is found: of the eight mirrorings, the one that in
         // Idle puts the handle in her fist and the blade's point up.
         void FindSwords()
@@ -423,7 +597,16 @@ namespace Doorways
                 const char* const legs[4] = {"LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg"};
                 for (int k = 0; k < 4; ++k)
                     if (n.ends_with(legs[k]) && LegJoint[k] < 0) LegJoint[k] = static_cast<int>(i);
+                for (int k = 0; k < 2; ++k)
+                {
+                    if (n.ends_with(k ? "RightFoot" : "LeftFoot") && FootJoint[k] < 0) FootJoint[k] = static_cast<int>(i);
+                    if (n.ends_with(k ? "RightToeBase" : "LeftToeBase") && ToeJoint[k] < 0) ToeJoint[k] = static_cast<int>(i);
+                }
                 if (n.find("Wing") == std::string::npos && n.find("Sword") == std::string::npos) BodyJoints.push_back(static_cast<int>(i));
+                ArmJoint.resize(Skeleton.Joints.size(), 0);
+                ArmJoint[i] = n.find("Wing") == std::string::npos && n.find("Sword") == std::string::npos &&
+                              (n.find("Left") != std::string::npos || n.find("Right") != std::string::npos) &&
+                              (n.find("Shoulder") != std::string::npos || n.find("Arm") != std::string::npos || n.find("Hand") != std::string::npos);
                 if (n.ends_with("SwordLeft")) SwordJoint[0] = static_cast<int>(i);
                 if (n.ends_with("SwordRight")) SwordJoint[1] = static_cast<int>(i);
             }
@@ -504,9 +687,24 @@ namespace Doorways
             }
             if (name != LastClip)
             {
+                if (!HasReach && Clips.find("Sword_Reach") != Clips.end()) HasReach = Sample("Sword_Reach", 0, ReachPose, nullptr);
+                if (!HasBack && Spine2 >= 0 && SwordJoint[0] >= 0 && SwordJoint[1] >= 0)
+                {
+                    DoorwaysSkeletonPose away;
+                    std::string why;
+                    if (Sample("Walk", 0, away, &why) && EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, away, &why))
+                    {
+                        const XMMATRIX chest = XMMatrixInverse(nullptr, XMLoadFloat4x4(&away.ModelSpaceMatrices[Spine2]));
+                        for (int k = 0; k < 2; ++k)
+                            XMStoreFloat4x4(&SwordOnBack[k], XMLoadFloat4x4(&away.ModelSpaceMatrices[SwordJoint[k]]) * chest);
+                        HasBack = true;
+                    }
+                }
+                Drawing = HasReach && !LastClip.empty() && SwordsAway(LastClip) != SwordsAway(name) && ReachPose.LocalJoints.size() == out.LocalJoints.size();
                 BlendFrom = Previous;
                 BlendTime = 0;
                 BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? .17f : .2f;
+                if (Drawing) BlendSeconds = name.rfind("Attack", 0) == 0 ? .26f : .36f;   // time for her hands to go to her back and come away
                 LastClip = name;
             }
             BlendTime += (std::max)(0.f, dt);
@@ -518,10 +716,39 @@ namespace Doorways
                 {
                     auto& to = out.LocalJoints[i];
                     const auto& from = BlendFrom.LocalJoints[i];
+                    if (static_cast<int>(i) == SwordJoint[0] || static_cast<int>(i) == SwordJoint[1])
+                    {   // a sword goes between her fist and her back (walk, run, stairs, jump: put away; 2026-11-18) at once,
+                        // halfway through the blend, not through her body
+                        if (w < .5f) to = from;
+                        continue;
+                    }
+                    if (Drawing && i < ArmJoint.size() && ArmJoint[i])
+                    {   // to the handles, then on to the new clip
+                        const auto ease = [](float v) { v = std::clamp(v, 0.f, 1.f); return v * v * (3 - 2 * v); };
+                        const float u = std::clamp(BlendTime / BlendSeconds, 0.f, 1.f);
+                        const XMVECTOR reach = XMLoadFloat4(&ReachPose.LocalJoints[i].Rotation);
+                        const XMVECTOR q = u < .5f ? XMQuaternionSlerp(XMLoadFloat4(&from.Rotation), reach, ease(u * 2))
+                                                   : XMQuaternionSlerp(reach, XMLoadFloat4(&to.Rotation), ease(u * 2 - 1));
+                        XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(q));
+                        continue;
+                    }
                     XMStoreFloat3(&to.Translation, XMVectorLerp(XMLoadFloat3(&from.Translation), XMLoadFloat3(&to.Translation), w));
                     XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&from.Rotation), XMLoadFloat4(&to.Rotation), w)));
                     XMStoreFloat3(&to.Scale, XMVectorLerp(XMLoadFloat3(&from.Scale), XMLoadFloat3(&to.Scale), w));
                 }
+                // While her hands go to her back or come away empty, the swords stay on her back: not with her hands.
+                std::string why;
+                if (Drawing && HasBack && (SwordsAway(name) ? w >= .5f : w < .5f) && EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, &why))
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        const int j = SwordJoint[k], parent = Skeleton.Joints[j].ParentIndex;
+                        if (parent < 0) continue;
+                        const XMMATRIX want = XMLoadFloat4x4(&SwordOnBack[k]) * XMLoadFloat4x4(&out.ModelSpaceMatrices[Spine2]);
+                        XMVECTOR sc, q, t;
+                        if (!XMMatrixDecompose(&sc, &q, &t, want * XMMatrixInverse(nullptr, XMLoadFloat4x4(&out.ModelSpaceMatrices[parent])))) continue;
+                        XMStoreFloat3(&out.LocalJoints[j].Translation, t);
+                        XMStoreFloat4(&out.LocalJoints[j].Rotation, XMQuaternionNormalize(q));
+                    }
             }
             PlaceSwords(world, out);
             if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, error)) return false;
@@ -646,7 +873,7 @@ namespace Doorways
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_LOG", log, sizeof(log)) > 0 && log[0])
         {
             b.LogPath = log;
-            std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\n";
+            std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\tfeet_drop\tleft_raise\tright_raise\tleft_gap\tright_gap\n";
         }
         OutputDebugStringA(("[PASS] Nyxara: her body " + bundle.filename().string() + " with " + std::to_string(b.Clips.size()) + " clips.\n").c_str());
         return true;
@@ -689,7 +916,7 @@ namespace Doorways
         mFx.clear(); mOrbs.clear(); mBody->Marks.clear();
         auto& session = GameSession();
         session.Active = true;
-        // A and D turn her way (and the view) instead of stepping sideways; she turns herself (HoldFacing)
+        // A and D turn her instead of stepping sideways (the engine's are taken away); W and S go along her facing
         for (const auto action : {DoorwaysInputAction::MoveLeft, DoorwaysInputAction::MoveRight})
             if (std::find(session.SuppressedActions.begin(), session.SuppressedActions.end(), action) == session.SuppressedActions.end())
                 session.SuppressedActions.push_back(action);
@@ -847,7 +1074,43 @@ namespace Doorways
         mScriptedSpaceWas = scriptedSpace;
         mPrev = k;
         const bool alive = combat.PlayerActionsAllowed();
-        const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+        bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+        {   // ---- flying is a limited resource (NyxaraKit.h: FlightEnergySeconds)
+            // A test: CAUCASIAN_EAGLE_NYXARA_FLIGHT=<seconds> in an unattended run holds Space for her, and her
+            // energy lasts that many seconds: she takes off, flies, falls, lands, and again.
+            static const float tried = [] { char v[32]{}; size_t n = 0; return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FLIGHT") == 0 && n > 1 ? static_cast<float>(std::atof(v)) : 0.f; }();
+            const bool holds = tried > 0 ? unattended : live && k.Space;
+            if (unattended && tried <= 0) { mFlightEnergy = 1; mFlightHold = 0; }
+            else if (flying)
+            {
+                mFlightHold = 0;
+                mFlightEnergy = (std::max)(0.f, mFlightEnergy - dt / (tried > 0 ? tried : FlightEnergySeconds));
+                if (mFlightEnergy <= 0 && !b.Dead)
+                {   // out of it: she is on foot in the air, and gravity brings her down
+                    p.TraversalMode = DoorwaysPlayerTraversalMode::Ground; p.JumpFlight.Active = false;
+                    p.VerticalVelocity = (std::min)(p.VerticalVelocity, 0.f);
+                    s.FreeFlightEnd = false; s.FreeFlightLandSpeed = 0; s.FreeFlightTakeoff = false;
+                    flying = false; mFalling = !p.IsGrounded;
+                    b.WasFlying = false; b.Rise = b.Touch = -1;
+                    mNotice = L"HER WINGS ARE SPENT"; mNoticeTimer = 1.5f;
+                    b.Log(world, "fall");
+                }
+            }
+            else
+            {
+                if (p.IsGrounded) mFlightEnergy = (std::min)(1.f, mFlightEnergy + dt / FlightRefillSeconds);
+                const bool can = holds && alive && !b.Dead && !mFalling && !b.Cast && !b.Carried() && !mGuarding;
+                if (can && mFlightEnergy < FlightLeastShare && mFlightHold <= 0) { mNotice = L"HER WINGS ARE RESTING"; mNoticeTimer = .5f; }
+                mFlightHold = can && mFlightEnergy >= (tried > 0 ? .99f : FlightLeastShare) ? mFlightHold + dt : 0;
+                if (mFlightHold >= FlightHoldSeconds)
+                {
+                    mFlightHold = 0;
+                    s.FreeFlightTakeoff = true; s.FreeFlightLandSpeed = 0; s.FreeFlightEnd = false;
+                    CaucasianEagle::Sound::Play("nyxara/wing", .8f);
+                }
+            }
+            if (mFalling && (p.IsGrounded || flying || b.Dead)) mFalling = false;
+        }
         for (auto& w : mWraiths) { w.Pinned = false; w.Hold = 0; }   // set again below for what she holds this frame
 
         // ---- the enemies as her moves see them: feet, neck (in the world), height, radius
@@ -1432,27 +1695,44 @@ namespace Doorways
         b.CameraLift += (b.LiftNow - b.CameraLift) * (std::min)(1.f, dt * CameraFollowLift);
         s.CameraPivotHeight = b.PivotBase + b.CameraLift;
 
-        // ---- travel: A and D steer (they turn the view and her way); S steps back; she turns to where she goes
+        // ---- travel (owner, 2026-11-18): A and D turn her round, on foot and in flight, and never the view (the mouse alone
+        // turns it); W goes the way she faces and S steps back (the engine's MoveAlongFacing). A scripted run still steers
+        // by the view, and she turns to where she goes.
         const bool carried = b.Carried();
         float impulse = !b.Dead && dt > 0 ? b.ForwardSpeed(world) : 0.f;
         s.ImpulseX = std::sin(p.Yaw) * impulse;
         s.ImpulseZ = std::cos(p.Yaw) * impulse;
         const bool keyW = live && IsDoorwaysKeyDown('W'), keyS = live && IsDoorwaysKeyDown('S');
-        const int steer = live && !b.Dead && dt > 0 ? (IsDoorwaysKeyDown('D') ? 1 : 0) - (IsDoorwaysKeyDown('A') ? 1 : 0) : 0;
-        const bool rooted = carried || b.Rise >= 0 || b.Touch >= 0 || b.Cast != 0 || b.Air != 0 || b.Dead || mGuarding;
-        if (steer)
-        {
-            auto& view = world.MainCamera;
-            view.Yaw = std::remainder(view.Yaw + static_cast<float>(steer) * XMConvertToRadians(SteerRate) * dt, XM_2PI);
-            if (!keyW && !keyS && !rooted)
-            {   // alone they also carry her forward, so she goes round in a curve
-                const float pace = (live && IsDoorwaysKeyDown(VK_CONTROL)) ? WalkPace : flying ? p.MoveSpeed : (live && IsDoorwaysKeyDown(VK_SHIFT)) ? CaucasianEagle::FootRunSpeed : CaucasianEagle::FootSpeed;
-                s.ImpulseX += std::sin(view.Yaw) * pace;
-                s.ImpulseZ += std::cos(view.Yaw) * pace;
+        int steer = live && !b.Dead && dt > 0 ? (IsDoorwaysKeyDown('D') ? 1 : 0) - (IsDoorwaysKeyDown('A') ? 1 : 0) : 0;
+        if (GameSession().Unattended && dt > 0)
+        {   // testing: CAUCASIAN_EAGLE_NYXARA_STEER="<from>:<to>:<-1 A | 1 D>" holds A or D over those seconds of her clock
+            // (she stands meanwhile); at the end how far she and the view turned goes to nyxara_steer.txt in %TEMP%
+            static const std::array<float, 3> hold = []
+            {
+                std::array<float, 3> h{-1, -1, 0}; char t[64] = {};
+                if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_STEER", t, sizeof(t))) sscanf_s(t, "%f:%f:%f", &h[0], &h[1], &h[2]);
+                return h;
+            }();
+            static float herFrom = 0, viewFrom = 0; static bool told = false;
+            if (b.Clock >= hold[0] && b.Clock < hold[1])
+            {
+                if (b.Clock - dt < hold[0]) { herFrom = p.Yaw; viewFrom = world.MainCamera.Yaw; }
+                steer = static_cast<int>(hold[2]); s.ScriptedMove = 0;
+            }
+            else if (hold[1] > 0 && b.Clock >= hold[1] && !told)
+            {
+                told = true; char path[MAX_PATH] = {}; GetTempPathA(MAX_PATH, path);
+                std::ofstream(std::string(path) + "nyxara_steer.txt") << "her " << XMConvertToDegrees(std::remainder(p.Yaw - herFrom, XM_2PI))
+                    << " view " << XMConvertToDegrees(std::remainder(world.MainCamera.Yaw - viewFrom, XM_2PI)) << " over " << hold[1] - hold[0] << " s" << std::endl;
             }
         }
+        const bool rooted = carried || b.Rise >= 0 || b.Touch >= 0 || b.Cast != 0 || b.Air != 0 || b.Dead || mGuarding;
+        if (steer && !carried && !b.Cast && !b.Dead)
+            p.Yaw = std::remainder(p.Yaw + static_cast<float>(steer) * XMConvertToRadians(SteerRate) * dt, XM_2PI);
         b.Back = keyS && !keyW && !b.Dead && !flying;
         s.HoldFacing = true;
+        s.MoveAlongFacing = true;
+        if (s.Unattended && s.ScriptedMove)
         {
             const float vx = p.ActualVelocity.x, vz = p.ActualVelocity.z;
             if (!b.Dead && !carried && !b.Cast && !b.Air && dt > 0 && std::hypot(vx, vz) > .15f)
@@ -1465,6 +1745,12 @@ namespace Doorways
             }
         }
         mSpeedScale = rooted ? 0.f : b.Back ? BackSpeed / CaucasianEagle::FootSpeed : 1.f;
+        {   // up a stair she climbs at a stair's pace (the jog would play the stair clip four times over): eased in and out
+            const float stair = b.Gait == "Stairs_Up" && !flying && !b.Dead ? 1.f : 0.f;
+            b.OnStair += (stair - b.OnStair) * (std::min)(1.f, dt * 4);
+            const float most = (live && IsDoorwaysKeyDown(VK_SHIFT)) ? StairRunPace : StairPace;
+            if (mSpeedScale > 0 && p.MoveSpeed > most) mSpeedScale *= 1 + ((most / p.MoveSpeed) - 1) * b.OnStair;
+        }
         p.MoveSpeed *= mSpeedScale;
         s.SlowWalkSpeed = rooted ? 0.f : WalkPace;
         if (rooted && flying)
@@ -1483,12 +1769,28 @@ namespace Doorways
         std::string clip = "Idle";
         float time = b.Clock;
         const bool striding = moving && !b.Dead && !flying;
+        {   // how steeply she climbs (rise over ground covered, from her own height), for the stair clip
+            const float rise = dt > 1e-4f && b.LastY > -1e8f ? (p.Position.y - b.LastY) / dt : 0.f;
+            const float grade = b.Speed > .2f && !flying ? rise / b.Speed : 0.f;
+            b.Climb += (grade - b.Climb) * (std::min)(1.f, dt * 6);
+            b.ClimbRate += ((std::max)(0.f, rise) - b.ClimbRate) * (std::min)(1.f, dt * 6);
+            b.LastY = p.Position.y;
+        }
         if (striding)
         {
             const bool runs = running && !b.Back;   // backwards she walks, the stride played the other way round
-            b.Gait = runs ? "Run" : "Walk";
-            const float rate = b.Speed / (runs ? RunPace : WalkPace);
-            b.Phase = std::fmod(b.Phase + (b.Back ? -1.f : 1.f) * dt * rate / b.Duration(b.Gait) + 1.f, 1.f);
+            // Going up a stair (owner, 2026-11-17): Mixamo's stair climb fitted to the map's stairs, played by her height on
+            // the stair (the steps she has climbed), so that each foot lands on a tread. Only on a stair's treads (a hill is
+            // walked up), in and out with a margin, so that she does not flicker between clips.
+            const bool onStair = mStairTread && mFootGround && std::isfinite(mFootGround(p.Position.x, p.Position.z, p.Position.y));
+            const bool climbing = StairClip && !b.Back && onStair && b.Duration("Stairs_Up") > 0 && b.Climb > (b.Gait == "Stairs_Up" ? ClimbLeave : ClimbEnter);
+            b.Gait = climbing ? "Stairs_Up" : runs ? "Run" : "Walk";
+            if (climbing)
+            {
+                const float u = (p.Position.y - .15f) / NyxaraClips::StairsRise - NyxaraClips::StairsShift;
+                b.Phase = u / 2 - std::floor(u / 2);
+            }
+            else b.Phase = std::fmod(b.Phase + (b.Back ? -1.f : 1.f) * dt * b.Speed / (runs ? RunPace : WalkPace) / b.Duration(b.Gait) + 1.f, 1.f);
         }
         const bool cutting = !b.Attack.empty() && !carried && !b.Dead;
         if (!cutting) b.Legs = 0;
@@ -1500,6 +1802,7 @@ namespace Doorways
         if (b.Dead) { clip = "Death"; time = b.DeathTime; }
         else if (b.Rise >= 0) { clip = "Fly_Rise"; time = b.Rise; }
         else if (b.Touch >= 0) { clip = "Fly_Land"; time = b.Touch; }
+        else if (mFalling && b.Attack.empty() && !b.Cast && b.Duration("Fall") > 0) { clip = "Fall"; time = std::fmod(b.Clock, b.Duration("Fall")); }
         else if (b.Cast == 4) { clip = "Cast_Fly"; time = std::fmod(b.CastTurns * b.CastTwist, 1.f) * b.Duration(clip); }   // (a whole turn: her first pose)
         else if (b.Cast == 5) { clip = "Cast_Pull"; time = b.CastTime; }
         else if (!b.Attack.empty()) { clip = b.Attack; time = b.AttackTime; }
@@ -1511,7 +1814,12 @@ namespace Doorways
         {
             DoorwaysSkeletonPose pose;
             std::string error;
-            if (!b.Compose(world, clip, time, dt, pose, &error) || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
+            // her feet on the drawn ground: on foot and standing on it, not while a move lifts or carries her
+            const bool planted = !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
+                                 b.Thrown < 0 && std::abs(b.LiftNow) < .05f;
+            const bool composed = b.Compose(world, clip, time, dt, pose, &error);
+            if (composed) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + b.PlantFeet(world, mFootGround, mStairTread, pose, dt, planted);
+            if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
             {
                 static int told = 0;
                 if (told++ < 5) OutputDebugStringA(("[FAIL] Nyxara pose: " + error + "\n").c_str());
@@ -1677,11 +1985,12 @@ namespace Doorways
         };
         hud.ActionStatus = std::wstring(L"NYXARA  TWO SWORDS  |  F SLIDE ") + skill(0) + L"  V SWORDS " + skill(1) + L"  C SPIN " + skill(2) +
             (mBoosting ? L"  |  WING BOOST" : L"");
-        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE (BROKEN: THROW)  V THROWN SWORDS  C SPINNING SWORDS  E BARRIER  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB  R FLY";
+        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE (BROKEN: THROW)  V THROWN SWORDS  C SPINNING SWORDS  E BARRIER  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB (HELD 3 S: FLY)  CTRL+SPACE SINK  R LAND";
         if (mNoticeTimer > 0) { hud.ActionNotice = mNotice; hud.ActionNoticeTimer = mNoticeTimer; }
 
         auto& h = NyxaraHud();   // the graphical HUD (DrawNyxaraHud)
         h.Valid = true;
+        h.Flight = mFlightEnergy; h.FlightCharge = FlightCharge(); h.Flying = world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";

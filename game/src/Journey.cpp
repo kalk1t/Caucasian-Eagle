@@ -1686,7 +1686,7 @@ namespace CaucasianEagle
                 const auto& hold=mStationHeld[i];
                 place=HeldPlace(model.Min,model.Max,model.Rig,def.Height,e.Yaw,feet,held,hold.Neck,hold.Feet);
             }
-            const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission);
+            const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission,false,model.Normal.Get());
             if(rigged)
             {
                 CreaturePose pose;pose.Time=m.Phase;pose.Stride=m.Phase*(def.Height>4?3.2f:7.5f);
@@ -3171,12 +3171,9 @@ namespace CaucasianEagle
             const bool asked = mLandAsk;
             const bool pressed = (key && !mModeKey) || asked;
             mModeKey = key; mLandAsk = false;
-            if (flying && !mFlying) Notify(HudArt::IconWings, Palette::Silver, L"IN FREE FLIGHT", L"W flies where you look. Come down low, then R lands.", 5);
-            if (pressed && !flying)
-            {
-                session.FreeFlightTakeoff = true; Sound::Play("nyxara/wing", .8f);
-            }
-            else if (pressed && flying && !mLanding)
+            if (flying && !mFlying) Notify(HudArt::IconWings, Palette::Silver, L"IN FREE FLIGHT", L"W flies where you look. Her wings last 30 seconds. Come down low, then R lands.", 5);
+            // (R no longer takes her up: Space held 3 s does, and her flying energy lasts 30 s: NyxaraKit. Owner, 2026-11-18.)
+            if (pressed && flying && !mLanding)
             {
                 if (height <= FlightLandReach || asked) { mLanding = true; mLandTime = FlightLandSeconds; Sound::Play("nyxara/wing", .8f); }
                 else Notify(HudArt::IconWings, Palette::Silver, L"TOO HIGH TO LAND", L"Fly down close to the ground, then press R.", 3);
@@ -3184,7 +3181,7 @@ namespace CaucasianEagle
             if (!flying)
             {
                 session.FreeFlightEnd = false;
-                if (mFlying) { Sound::Play("nyxara/land", .6f); Notify(HudArt::IconWings, Palette::Silver, L"ON FOOT", L"Shift runs; Ctrl walks; Space jumps. R takes her up.", 4); }
+                if (mFlying) { Sound::Play("nyxara/land", .6f); Notify(HudArt::IconWings, Palette::Silver, L"ON FOOT", L"Shift runs; Ctrl walks; Space jumps. Hold Space 3 seconds to fly.", 4); }
                 mLanding = false; session.FreeFlightLandSpeed = 0;
             }
             else if (mLanding)
@@ -3248,7 +3245,7 @@ namespace CaucasianEagle
             const Model& model = mPropModels[prop.Type];
             const float grow = Smooth(limit - d, 0, 30);
             renderer.DrawDoorwaysGpuMesh(model.Mesh, Place(model.Min, model.Max, prop.Height * grow, prop.Yaw, prop.P), viewProjection,
-                                         Surface(model.Texture.Get(), {PropTint, PropTint, PropTint, 1}, .03f));
+                                         Surface(model.Texture.Get(), {PropTint, PropTint, PropTint, 1}, .03f, false, model.Normal.Get()));
         }
 
         // ---- the cities (models and placement: art/cities/build_cities.py)
@@ -3362,11 +3359,11 @@ namespace CaucasianEagle
                 const bool flash = c.Slot >= 0 && enemies[c.Slot].Flash > 0;
                 const float pulse = .28f + .10f * std::sin(mTime * 3 + c.P.x);
                 renderer.DrawDoorwaysGpuMesh(chestModel.Mesh, Place(chestModel.Min, chestModel.Max, size, c.Yaw, c.P), viewProjection,
-                                             Surface(chestModel.Texture.Get(), flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{1.3f, 1.2f, 1.f, 1}, flash ? 1.f : pulse));
+                                             Surface(chestModel.Texture.Get(), flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{1.3f, 1.2f, 1.f, 1}, flash ? 1.f : pulse, false, chestModel.Normal.Get()));
             }
             else // broken open: it lies tipped over, dark
                 renderer.DrawDoorwaysGpuMesh(chestModel.Mesh, Place(chestModel.Min, chestModel.Max, size * .9f, c.Yaw, Add(c.P, {0, -.12f, 0}), .0f, 1.1f * c.Open),
-                                             viewProjection, Surface(chestModel.Texture.Get(), {.35f, .33f, .30f, 1}, .02f));
+                                             viewProjection, Surface(chestModel.Texture.Get(), {.35f, .33f, .30f, 1}, .02f, false, chestModel.Normal.Get()));
         }
 
         // ---- monsters
@@ -3424,7 +3421,7 @@ namespace CaucasianEagle
             const XMFLOAT4 tint = flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{MonsterTint, MonsterTint, MonsterTint, 1};
             const XMMATRIX place = e.Hold > 0 ? HeldPlace(model.Min, model.Max, model.Rig, def.Height, e.Yaw, feet, e.Hold, e.HeldNeck, e.HeldFeet)   // in her hold
                                               : Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
-            const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission);
+            const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission, false, model.Normal.Get());
             if (rigged)
             {   // limbs, spine and head move on their own joints
                 CreaturePose pose;

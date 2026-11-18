@@ -12,6 +12,7 @@ For each model in ASSETS it reads the raw Meshy GLB, and
   6. for scenery that stands on the ground, puts its foot on y = 0 and its middle on the origin,
   7. writes art/refine/out/<Name>.glb (same texture coordinates, so the Meshy colour map still fits) and a
      picture art/refine/out/<Name>.png (before on the left, after on the right) for looking at.
+  8. checks it with the QA gate (art/tools/model_qa.py) into art/refine/qa_report.txt.
 With 'inspect' it changes nothing and only prints what each model is like.
 
 art/monsters/prepare_models.py and art/mountain/prepare_models.py take art/refine/out/<Name>.glb instead of the raw
@@ -27,6 +28,9 @@ REPO = args[0]
 INSPECT = "inspect" in args
 ONLY = [a for a in args[1:] if a != "inspect"]
 OUT = os.path.join(REPO, "art", "refine", "out")
+sys.path.insert(0, os.path.join(REPO, "art", "tools"))
+import model_qa                       # the QA gate: art/refine/qa_report.txt
+QA_REPORT = os.path.join(REPO, "art", "refine", "qa_report.txt")
 
 M, P, L = "art/monsters/meshy/out", "art/props/meshy/out", "art/mountain/meshy/out"
 # name: folder, triangle budget, sharp angle (degrees), fragment share, ground (stand it on y = 0), note
@@ -213,3 +217,4 @@ for name, (folder, budget, sharp, share, ground, note) in ASSETS.items():
     bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, name + ".glb"), export_format="GLB", use_selection=True, export_apply=True,
                               export_yup=True, export_lights=False, export_cameras=False)
     print("  wrote", name + ".glb")
+    print("  QA", model_qa.check(obj, name, QA_REPORT))

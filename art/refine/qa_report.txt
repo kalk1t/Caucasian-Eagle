@@ -1,0 +1,20 @@
+# model	verdict	triangles	z-fighting	errors	warnings  (art/tools/model_qa.py: blender_skills/qa_check.py, game profile)
+Ali	FAIL	13156 tris	z-fight pairs 1	Mesh_0: 4 zero-area UV faces	hidden back-to-back faces: Mesh_0 (80 pairs) - delete to save tris; asset lowest point z=-0.9499 (not resting on ground plane z=0)
+Almasty	FAIL	12968 tris	z-fight pairs 2	Mesh_0: 12 zero-area UV faces	hidden back-to-back faces: Mesh_0 (56 pairs) - delete to save tris; asset lowest point z=-0.9473 (not resting on ground plane z=0)
+Amirani	FAIL	31237 tris	z-fight pairs 1	-	hidden back-to-back faces: Doorways_Amirani (24 pairs) - delete to save tris; asset lowest point z=-0.9518 (not resting on ground plane z=0)
+Chest	FAIL	5893 tris	z-fight pairs 7	-	hidden back-to-back faces: Mesh_0 (107 pairs) - delete to save tris
+Chinka	FAIL	9740 tris	z-fight pairs 2	Mesh_0: 1 zero-area UV faces	hidden back-to-back faces: Mesh_0 (50 pairs) - delete to save tris; asset lowest point z=-0.9487 (not resting on ground plane z=0)
+DeadTree	pass	7131 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (18 pairs) - delete to save tris
+Devi	pass	18702 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (20 pairs) - delete to save tris; asset lowest point z=-0.9519 (not resting on ground plane z=0)
+Dog	FAIL	16097 tris	z-fight pairs 1	Doorways_Dog: 2 zero-area UV faces	hidden back-to-back faces: Doorways_Dog (39 pairs) - delete to save tris; asset lowest point z=-0.5265 (not resting on ground plane z=0)
+Eagle	pass	30730 tris	z-fight pairs 0	-	hidden back-to-back faces: Doorways_Eagle (46 pairs) - delete to save tris; asset lowest point z=-0.6698 (not resting on ground plane z=0)
+Fir	FAIL	5501 tris	z-fight pairs 11	Mesh_0: 8 zero-area UV faces	hidden back-to-back faces: Mesh_0 (50 pairs) - delete to save tris
+Gveleshapi	pass	18778 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (7 pairs) - delete to save tris; asset lowest point z=-0.9511 (not resting on ground plane z=0)
+Kaji	FAIL	14381 tris	z-fight pairs 1	-	hidden back-to-back faces: Mesh_0 (24 pairs) - delete to save tris; asset lowest point z=-0.9499 (not resting on ground plane z=0)
+Kudiani	FAIL	13695 tris	z-fight pairs 5	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (65 pairs) - delete to save tris; asset lowest point z=-0.9506 (not resting on ground plane z=0)
+Mountain	pass	135200 tris	z-fight pairs 0	-	asset lowest point z=-90.0 (not resting on ground plane z=0)
+Ochokochi	FAIL	13819 tris	z-fight pairs 5	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (58 pairs) - delete to save tris; asset lowest point z=-0.9517 (not resting on ground plane z=0)
+Rocks	pass	6254 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (2 pairs) - delete to save tris
+Rokapi	FAIL	13886 tris	z-fight pairs 1	Mesh_0: 7 zero-area UV faces	hidden back-to-back faces: Mesh_0 (51 pairs) - delete to save tris; asset lowest point z=-0.9391 (not resting on ground plane z=0)
+Tower	FAIL	12198 tris	z-fight pairs 12	-	hidden back-to-back faces: Mesh_0 (28 pairs) - delete to save tris
+Uaig	FAIL	16069 tris	z-fight pairs 3	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (66 pairs) - delete to save tris; asset lowest point z=-0.9523 (not resting on ground plane z=0)

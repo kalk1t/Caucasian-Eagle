@@ -5,7 +5,13 @@
 #include <vector>
 namespace NyxaraClips
 {
-inline constexpr float WalkPace = 0.959433f, RunPace = 4.332812f;
+inline constexpr float WalkPace = 1.659278f, RunPace = 4.332812f;
+// Stairs_Up, fitted to stairs of StairsRise and StairsDepth (m a step; the map's treads have their tops at
+// 0.15 + 0.3 L). In place: her feet go back under her as she climbs. Its phase (0..1) is (u - StairsShift) / 2
+// round the loop, u = (her height - 0.15) / StairsRise: the steps she has climbed, so each foot lands on a tread.
+inline constexpr float StairsRise = 0.300000f, StairsDepth = 0.370000f, StairsShift = 1.706386f, StairsSeconds = 1.200000f;
+// the phase each foot stands on its tread, left then right: from, to (to may pass 1: round the loop)
+inline constexpr float StairsStance[2][2] = {{0.6667f, 1.2222f}, {0.1944f, 0.6944f}};
 struct AttackClip
 {
     float Hit = 0;                // seconds into the clip: the blade is fastest

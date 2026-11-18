@@ -8,7 +8,7 @@ Run:  blender --factory-startup -b --python build_from_mixamo.py
 What it changes on the way:
 - bone names lose Mixamo's "mixamorig:" prefix (Hips, Spine1, LeftArm ...; the engine knows these names);
 - the size Mixamo wrote (centimetres) is applied, so the model is in metres again, as in the Blender source;
-- Walk, Run and Jump are made to stay in place (the game moves her, the clip only moves her legs);
+- Walk, Run, Stairs_Up and Jump are made to stay in place (the game moves her, the clip only moves her legs);
   the speed each clip was walking at is printed, the lab uses it so that her feet do not slide;
 - every clip starts at frame 0;
 - BasicAttack is a placeholder (one second of Idle): the engine's importer wants a clip of that name. It goes
@@ -16,7 +16,7 @@ What it changes on the way:
 """
 import bpy, math, sys
 from pathlib import Path
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
@@ -24,11 +24,13 @@ FPS = 30
 # clip, file, what happens to her travel over the ground:
 #   False  nothing (the clip ends where it starts, or she stays where she falls)
 #   True   a loop: the steady travel is taken out, the clip stays in place
+#   "stairs" Stairs_Up: refitted to the map's stairs further down (its feet set on our treads), then in place
 #   "root" an attack that steps or leaps forward: her path over the ground is taken out of the clip and written
 #          to NyxaraLabClips.h, and the lab moves her along it (so the ground and walls still count)
 CLIPS = (
     ("Idle", "Idle.fbx", False),
-    ("Walk", "Strut Walking.fbx", True),
+    ("Walk", "Walking.fbx", True),       # an ordinary walk (owner, 2026-11-17; was Strut Walking.fbx, a catwalk strut)
+    ("Stairs_Up", "Walking Up The Stairs.fbx", "stairs"),   # fitted to the map's stairs below (Mixamo's: two 25 cm steps a loop)
     ("Run", "Running.fbx", True),          # the user's choice for W and for Shift, after trying Run Forward.fbx (a bigger, bouncier run made for 3.58 m/s)
     ("Death", "Standing React Death Forward.fbx", False),
     ("Jump", "Running Jump.fbx", True),
@@ -123,6 +125,8 @@ for name, _, in_place in CLIPS:
     act = actions[name]
     first = min(fc.keyframe_points[0].co[0] for fc in curves(act))
     last = max(fc.keyframe_points[-1].co[0] for fc in curves(act))
+    if in_place == "stairs":
+        in_place = False
     if in_place == "root":
         # her hips' path over the ground, smoothed over 0.3 s so that the sway of her body stays in the clip
         to_world = arm.data.bones["Hips"].matrix_local.to_3x3()
@@ -164,6 +168,8 @@ for name, _, in_place in CLIPS:
 # ---- Walk centred: Mixamo's strut carries her to one side of the line she stands on (left foot far out, right foot
 # on the line), so she hopped sideways when she began to walk. Her hips are moved so her feet are either side of it.
 for name in ("Walk",):
+    if name not in actions:
+        continue
     act = actions[name]
     arm.animation_data.action = act
     if hasattr(arm.animation_data, "action_slot") and act.slots:
@@ -186,7 +192,8 @@ for name in ("Walk",):
 
 # ---- room for her arms: Mixamo's run swings the fists across her chest, into the armour. Each upper arm is turned
 # outwards by the same angle on every frame (what Mixamo's "Character Arm-Space" slider does), so the swing stays.
-ARM_SPACE = {"Death": 40.0, "Run": 14.0}      # clip: degrees each upper arm is turned outwards (Mixamo folds her arms into her chest)
+ARM_SPACE = {"Death": 40.0}      # clip: degrees each upper arm is turned outwards (Mixamo folds her arms into her chest)
+# (Run no longer: its arms are all Walk's now, see ARMS_SHARE; 14 degrees left her fists crossing in front of her)
 ELBOW_OPEN = {}     # clip: degrees the forearm is let down from the elbow
 
 
@@ -242,7 +249,13 @@ ARMS_FROM = {"Run": "Walk"}
 # How much of the giving clip's arms is taken. 1 was used first (Walk's arms alone): her arms hung still while her
 # legs ran. 0 is the run's own arms: a sprinter's pumping, fists at her chest and the swords flailing. Half of each:
 # the arms swing with the run, lower and wider.
-ARMS_SHARE = {"Run": 0.5}
+ARMS_SHARE = {"Run": 1.0}
+# (2026-11-18, owner: with half of the run's own arms her fists crossed in front of her belly: Mixamo's run keeps her
+# elbows 3 cm and her hands 7 cm from her middle line, her shoulders being 16 cm out. With the swords on her back
+# her hands are empty, and Walk is now an ordinary walk (it was a catwalk strut when 1 hung her arms still): the
+# run takes all of Walk's arms, its swing made RUN_SWING times as wide and her elbows bent RUN_ELBOW degrees more.)
+# Then (2026-11-18, owner: "she crisscrosses her hands ... bends very ugly") Walk's and Run's arms are set outright, frame
+# by frame (SWING_ARMS below): Mixamo's own, scaled or bent further, still brought her hands across her body.
 
 
 def use(act):
@@ -327,6 +340,10 @@ body.data.materials.append(mat)
 SWORD_LENGTH = 0.908
 SLANT = float(sys.argv[sys.argv.index("--") + 1]) if "--" in sys.argv else 40.0
 HANDLE = (0.096, 0.197)      # the handle, as parts of the sword's length from the pommel's end
+# Not fighting, the swords are put away crossed on her back (owner, 2026-11-18: holding them up in the walk bent her
+# elbows upside down into her sides). In these clips her hands are empty: no grip, no wrist turn, no clearing of the
+# fists, Mixamo's arms as they are; the sword bones are set on her back at the end ("swords on her back" below).
+SHEATHED = ("Walk", "Run", "Stairs_Up", "Jump", "Fall")     # (Fall is made with the wings, below)
 import numpy as np
 from mathutils import Quaternion
 
@@ -374,6 +391,209 @@ def turn(pb, q, pivot):
 def off_line(p, c, d):
     v = p - c
     return (v - d * v.dot(d)).length
+
+
+# ---- arms that swing as a walker's and a runner's do (owner, 2026-11-18). With the swords on her back her hands are
+# empty; Mixamo's arms in these clips brought them across her middle. Here each arm is set on every frame: the upper
+# arm hangs beside her, OUT degrees away from her side, and swings forward and back about her chest's side-to-side
+# axis, SWING degrees each way, against the leg of its side (the left arm forward as the right foot is); the forearm
+# is bent forward from it by ELBOW degrees, so the hand stays in front of its own shoulder. The wrist keeps the clip's
+# own turn. clip: (SWING, ELBOW, OUT), degrees.
+SWING_ARMS = {"Walk": (16.0, 22.0, 7.0), "Run": (32.0, 78.0, 10.0)}
+sx_arms = 1.0 if arm.data.bones["LeftArm"].head_local.x > 0 else -1.0
+for name, (swing_deg, elbow_deg, out_deg) in SWING_ARMS.items():
+    if name not in actions:
+        continue
+    last = use(actions[name])
+    chest_ = arm.pose.bones["Spine2"]
+    lead = []
+    for f in range(last + 1):
+        bpy.context.scene.frame_set(f)
+        c3 = chest_.matrix.to_3x3() @ chest_.bone.matrix_local.to_3x3().inverted()
+        ahead_ = (c3 @ Vector((0.0, -1.0, 0.0))).normalized()
+        lead.append((arm.pose.bones["LeftFoot"].head - arm.pose.bones["RightFoot"].head).dot(ahead_))
+    big = max(abs(v) for v in lead) or 1.0
+    for f in range(last + 1):
+        bpy.context.scene.frame_set(f)
+        c3 = chest_.matrix.to_3x3() @ chest_.bone.matrix_local.to_3x3().inverted()
+        for side in ("Left", "Right"):
+            sgn = 1.0 if side == "Left" else -1.0
+            k = -sgn * lead[f] / big                      # the left arm forward as the left foot is back
+            a = math.radians(swing_deg) * k
+            o = math.radians(out_deg)
+            side_v = Vector((sgn * sx_arms, 0.0, 0.0))
+            def way(angle):
+                d = Vector((0.0, 0.0, -1.0)) * math.cos(angle) + Vector((0.0, -1.0, 0.0)) * math.sin(angle)
+                return (c3 @ (d * math.cos(o) + side_v * math.sin(o))).normalized()
+            up_, fo_, ha_ = arm.pose.bones[side + "Arm"], arm.pose.bones[side + "ForeArm"], arm.pose.bones[side + "Hand"]
+            turn(up_, (fo_.head - up_.head).normalized().rotation_difference(way(a)), up_.head.copy())
+            turn(fo_, (ha_.head - fo_.head).normalized().rotation_difference(way(a + math.radians(elbow_deg))), fo_.head.copy())
+            up_.keyframe_insert("rotation_quaternion", frame=f)
+            fo_.keyframe_insert("rotation_quaternion", frame=f)
+    print("SWING %-5s arms set: %.0f degrees each way, elbows %.0f, %.0f out from her sides" % (name, swing_deg, elbow_deg, out_deg))
+
+# back to the rest pose: the swords are fitted to her hands in it (below). Left in Run's last frame, they were fitted
+# to bent arms and stood in front of her body in every clip (2026-11-18).
+arm.animation_data.action = None
+for pb in arm.pose.bones:
+    pb.matrix_basis = Matrix.Identity(4)
+bpy.context.scene.frame_set(0)
+bpy.context.view_layer.update()
+
+# ---- Stairs_Up fitted to the map's stairs (owner, 2026-11-17: "the walking upstairs should be fit on the stairs we
+# use"). Mixamo's climb is made for steps of about 25 by 25 cm; the map's rise 0.3 m and are mostly 0.30-0.45 m deep
+# (STAIR_DEPTH: about their middle). Its feet are set anew: a foot standing stays on the middle of a tread of ours, a
+# foot in the air goes from its tread to the one two up at Mixamo's pace, with Mixamo's lift over the line between the
+# treads (scaled to our rise), and at least STAIR_CLEAR over the tread edges under its heel and toe. Her hips keep
+# Mixamo's height over the stair's slope and its sway, lowered where a leg would not reach. The clip is then in place
+# (the stair goes back under her as she climbs) and the game plays it by her height on the stair: StairsShift and
+# StairsStance in NyxaraClips.h.
+STAIR_RISE, STAIR_DEPTH, STAIR_CLEAR = 0.3, 0.37, 0.04
+STAIR_LIFT = 0.6     # of Mixamo's lift of a foot over the line between its treads (all of it: the knee came up to her hip, a march)
+stair_fit = {}
+if "Stairs_Up" in actions:
+    sc = bpy.context.scene
+    # what is shown before this pass is put back after it: the swords below are fitted to her hands as they are shown
+    # (owner, 2026-11-17: with the stair clip left showing, both swords hung in the air away from her)
+    shown, shown_frame = arm.animation_data.action, sc.frame_current
+    shown_pose = {pb.name: (pb.location.copy(), pb.rotation_quaternion.copy(), pb.scale.copy()) for pb in arm.pose.bones}
+    N = use(actions["Stairs_Up"])
+    FEET = ("Left", "Right")
+    fwd = lambda v: -v.y                     # she looks along -Y
+    Hm, Ap, Am, Tp, Jp = [], {s: [] for s in FEET}, {s: [] for s in FEET}, {s: [] for s in FEET}, {s: [] for s in FEET}
+    for f in range(N + 1):
+        sc.frame_set(f)
+        Hm.append(PB["Hips"].matrix.copy())
+        for s in FEET:
+            Ap[s].append(PB[s + "Foot"].head.copy()); Am[s].append(PB[s + "Foot"].matrix.copy())
+            Tp[s].append(PB[s + "ToeBase"].head.copy()); Jp[s].append(PB[s + "UpLeg"].head.copy())
+    Hp = [m.translation.copy() for m in Hm]
+    C = Hp[N] - Hp[0]                        # what one loop climbs
+    Dc, Rc = fwd(C) / 2, C.z / 2             # Mixamo's step
+    unroll = lambda seq, g: seq[g % N] + C * (g // N)
+    ankle_h = arm.data.bones["LeftFoot"].head_local.z
+    mid_x = sum(v.x for v in Hp[:N]) / N
+    fit = {}
+    for s in FEET:
+        still = [(Ap[s][f + 1] - Ap[s][f]).length * FPS < 0.35 for f in range(N)]
+        best = (0, 0)
+        for f0 in range(N):
+            if still[f0] and not still[f0 - 1]:
+                n = 0
+                while n < N and still[(f0 + n) % N]:
+                    n += 1
+                best = max(best, (n, f0))
+        n, g0 = best
+        g1 = g0 + n                          # frames g0..g1 the foot stands
+        P = sum((unroll(Ap[s], g) for g in range(g0, g1 + 1)), Vector()) / (n + 1)
+        T = sum((unroll(Tp[s], g) for g in range(g0, g1 + 1)), Vector()) / (n + 1)
+        c_off = (fwd(T) - fwd(P)) / 2        # the middle of her foot, ahead of the ankle
+        gm = (g0 + g1) / 2
+        idx = (fwd(P) + c_off - (fwd(Hp[0]) + 2 * Dc * gm / N)) / Dc + 2 * gm / N
+        fit[s] = dict(g0=g0, g1=g1, P=P, c_off=c_off, toe=fwd(T) - fwd(P) + 0.08, idx=idx)
+    shift = round(fit["Left"]["idx"]) - fit["Left"]["idx"]
+    u_of = lambda g: 2 * g / N + shift       # treads climbed at frame g (the game: (height - 0.15) / rise)
+    P_L = fit["Left"]["P"]
+    top_L, ctr_L = P_L.z - ankle_h, fwd(P_L) + fit["Left"]["c_off"]
+    for s in FEET:
+        d = fit[s]
+        d["k"] = round(d["idx"] + shift)
+        print("STAIRS %s foot stands frames %d-%d of %d on tread %d, %.2f of a tread off it (Mixamo's step %.3f up, %.3f deep)"
+              % (s, d["g0"], d["g1"], N, d["k"], d["idx"] + shift - d["k"], Rc, Dc))
+    if (fit["Left"]["k"] - fit["Right"]["k"]) % 2 == 0:
+        fit["Right"]["k"] += 1 if fit["Right"]["idx"] + shift > fit["Right"]["k"] else -1
+        print("STAIRS the right foot moved to tread %d: the feet take turns" % fit["Right"]["k"])
+    surface = lambda x: STAIR_RISE * round(x / STAIR_DEPTH)    # the top of our tread over x (along the stair)
+    feet_t = {s: [] for s in FEET}
+    hips_t = []
+    for f in range(N):
+        # her hips: Mixamo's height over its own stair's slope, and its sway ahead and aside
+        along_c = fwd(Hp[0]) + 2 * Dc * f / N
+        slope_c = top_L + (along_c - ctr_L) * Rc / Dc
+        hips_t.append(Vector((Hp[f].x - mid_x, -(fwd(Hp[f]) - along_c), Hp[f].z - slope_c)))
+        for s in FEET:
+            d = fit[s]
+            g = f
+            while g < d["g0"]:
+                g += N
+            while g >= d["g0"] + N:
+                g -= N
+            A = unroll(Ap[s], g)
+            air = g > d["g1"]
+            tt, lift = 0.0, 0.0
+            if air:
+                P0, P1 = d["P"], d["P"] + C
+                tt = min(max((fwd(A) - fwd(P0)) / (fwd(P1) - fwd(P0)), 0.0), 1.0)
+                lift = (A.z - (P0.z + tt * (P1.z - P0.z))) * STAIR_LIFT
+            ug = u_of(g)
+            along = (d["k"] + 2 * tt) * STAIR_DEPTH - d["c_off"]
+            up = (d["k"] + 2 * tt) * STAIR_RISE + ankle_h + lift
+            if air:                          # over the edges: heel and toe STAIR_CLEAR above the treads under them
+                up = max(up, max(surface(along - 0.05), surface(along + d["toe"])) + ankle_h + STAIR_CLEAR)
+            feet_t[s].append(Vector((A.x - mid_x, -(along - ug * STAIR_DEPTH), up - ug * STAIR_RISE)))
+    # where a leg would not reach its tread, her hips come down (smoothed round the loop)
+    reach = {s: ((arm.data.bones[s + "Leg"].head_local - arm.data.bones[s + "UpLeg"].head_local).length
+                 + (arm.data.bones[s + "Foot"].head_local - arm.data.bones[s + "Leg"].head_local).length) * 0.97 for s in FEET}
+    low = []
+    for f in range(N):
+        need = 0.0
+        for s in FEET:
+            v = feet_t[s][f] - (hips_t[f] + (Jp[s][f] - Hp[f]))
+            flat = math.hypot(v.x, v.y)
+            if flat < reach[s]:
+                need = max(need, -v.z - math.sqrt(reach[s] ** 2 - flat ** 2))
+        low.append(need)
+    low = [max(low[(f + k) % N] for k in range(-3, 4)) for f in range(N)]
+    low = [sum(low[(f + k) % N] for k in range(-3, 4)) / 7 for f in range(N)]
+    print("STAIRS hips lowered up to %.3f m (mean %.3f) for her legs to reach our treads" % (max(low), sum(low) / N))
+    for f in range(N):
+        hips_t[f].z -= low[f]
+    worst = 0.0
+    for f in range(N + 1):
+        fi = f % N
+        sc.frame_set(f)
+        m = Hm[f].copy()
+        m.translation = hips_t[fi]
+        PB["Hips"].matrix = m
+        bpy.context.view_layer.update()
+        PB["Hips"].keyframe_insert("location", frame=f)
+        for s in FEET:
+            th, sh, ft = PB[s + "UpLeg"], PB[s + "Leg"], PB[s + "Foot"]
+            J, K0, A0, A = th.head.copy(), sh.head.copy(), ft.head.copy(), feet_t[s][fi]
+            la, lb = (K0 - J).length, (A0 - K0).length
+            w = A - J
+            dd = min(max(w.length, abs(la - lb) + 1e-3), (la + lb) * 0.999)
+            ax = w.normalized()
+            bend = (K0 - J) - ax * (K0 - J).dot(ax)
+            if bend.length < 1e-4:
+                bend = Vector((0, -1, 0)) - ax * (-ax.y)
+            bend.normalize()
+            ca = (la * la + dd * dd - lb * lb) / (2 * la * dd)
+            K = J + ax * la * ca + bend * la * math.sqrt(max(0.0, 1 - ca * ca))
+            turn(th, (K0 - J).rotation_difference(K - J), J)
+            K1, A1 = sh.head.copy(), ft.head.copy()
+            turn(sh, (A1 - K1).rotation_difference(J + ax * dd - K1), K1)
+            mf = Am[s][f].copy()
+            mf.translation = ft.head.copy()
+            ft.matrix = mf
+            bpy.context.view_layer.update()
+            worst = max(worst, (ft.head - A).length)
+            for pb in (th, sh, ft):
+                pb.keyframe_insert("rotation_quaternion", frame=f)
+    print("STAIRS fitted: rise %.2f depth %.2f, shift %.3f; feet off their marks by %.3f m at most" % (STAIR_RISE, STAIR_DEPTH, shift, worst))
+    stance = []
+    for s in FEET:
+        a0 = (fit[s]["g0"] % N) / N
+        stance += [a0, a0 + (fit[s]["g1"] - fit[s]["g0"]) / N]
+    stair_fit = dict(rise=STAIR_RISE, depth=STAIR_DEPTH, shift=shift % 2, seconds=N / FPS, stance=stance)
+    if shown is not None:
+        use(shown)
+    else:
+        arm.animation_data.action = None
+    sc.frame_set(shown_frame)
+    for pb in arm.pose.bones:
+        pb.location, pb.rotation_quaternion, pb.scale = shown_pose[pb.name]
+    bpy.context.view_layer.update()
 
 
 before = set(bpy.data.objects)
@@ -568,12 +788,14 @@ for name, act in actions.items():
             PB[off + "Hand"].rotation_quaternion = guard[off + "Hand"]
             bpy.context.view_layer.update()
         for bone, m in turn_of.items():
-            if natural and bone != (off or "") + "Hand":
+            if name in SHEATHED or (natural and bone != (off or "") + "Hand"):
                 continue
             PB[bone].matrix = PB[bone].matrix @ m
             bpy.context.view_layer.update()
             PB[bone].keyframe_insert("rotation_quaternion", frame=f)
         for bone, q in grip.items():
+            if name in SHEATHED:
+                break
             PB[bone].rotation_quaternion = q
             PB[bone].keyframe_insert("rotation_quaternion", frame=f)
 
@@ -653,7 +875,7 @@ head_on_chest = PB["Spine2"].matrix.to_quaternion().inverted() @ head_idle
 # The same is done while she walks, runs and jumps: Mixamo swings her head left and right with every step. There
 # her head keeps the way it looks on average in that clip (so the clip's own carriage of the head stays), and only
 # HEAD_STEADY_LIFE of the swinging is left.
-HEAD_STEADY = ("Walk", "Run", "Jump")
+HEAD_STEADY = ("Walk", "Run", "Jump", "Stairs_Up")
 HEAD_STEADY_LIFE = 0.15
 for name, act in actions.items():
     if not (name.startswith("Attack") or name in HEAD_STEADY):
@@ -864,6 +1086,9 @@ for name, side_name in AIM:
 # and then spread smoothly over the frames around it: a correction that switched on and off from one frame to the
 # next made the sword jerk in her hand instead of following the swing.
 CLEAR = 0.07
+# In these clips each hand is also kept this far (m) out on its own side of her middle line: Mixamo's jump twists her
+# and lays her left arm across her belly to her right hip, and her right hand across to her left (owner, 2026-11-18).
+OWN_SIDE = {"Jump": 0.14}
 BLADE_CLEAR = 0.02
 TRUNK = ("Hips", "Spine", "Spine1", "Spine2")
 gi = {body.vertex_groups[b].index for b in TRUNK if b in body.vertex_groups}
@@ -928,8 +1153,10 @@ def jerk(deltas):
 
 
 for name, act in actions.items():
+    # (In the SHEATHED clips her hands are empty: only her hands are kept clear, there is no blade in them. They were
+    # left out altogether at first, and in Jump, which twists her, both hands went through her hips and belly.)
     last = use(act)
-    loop = name in ("Idle", "Walk", "Run")
+    loop = name in ("Idle", "Walk", "Run", "Stairs_Up")
     n = last if loop else last + 1          # a loop's last frame is its first again
     bones = [PB[s_ + b] for s_ in ("Left", "Right") for b in ("Arm", "Hand")]
     base = {pb.name: [] for pb in bones}
@@ -949,7 +1176,20 @@ for name, act in actions.items():
                 if axis.length < 1e-6:
                     break
                 turn(upper, Quaternion(axis.normalized(), math.radians(2)), upper.head.copy())
-            for part in (0.25, 0.5, 0.75, 1.0):                   # along the blade to its point, by the wrist
+            if name in OWN_SIDE:                                  # the hand stays on its own side of her
+                hips_, neck_ = PB["Hips"].head, PB["Neck"].head
+                up_ = (neck_ - hips_).normalized()
+                side_ = PB["LeftArm"].head - PB["RightArm"].head
+                side_ = (side_ - up_ * side_.dot(up_)).normalized() * (1 if side_name == "Left" else -1)
+                for _ in range(60):
+                    p = pose_point(hand, held[hand.name])
+                    if (p - hips_).dot(side_) >= OWN_SIDE[name]:
+                        break
+                    axis = (p - upper.head).cross(side_)
+                    if axis.length < 1e-6:
+                        break
+                    turn(upper, Quaternion(axis.normalized(), math.radians(2)), upper.head.copy())
+            for part in (() if name in SHEATHED else (0.25, 0.5, 0.75, 1.0)):   # along the blade to its point, by the wrist
                 for _ in range(25):
                     c, t = pose_point(hand, held[hand.name]), pose_point(hand, blade[hand.name])
                     p = c + (t - c) * part
@@ -1042,6 +1282,13 @@ def hit_time(act, hands):
 lines = ["// Written by art/nyxara/blender/build_from_mixamo.py. Do not edit: build the model again instead.",
          "#pragma once", "#include <map>", "#include <string>", "#include <vector>", "namespace NyxaraLab", "{",
          "inline constexpr float WalkPace = %.6ff, RunPace = %.6ff;" % (speeds.get("Walk", 1), speeds.get("Run", 4)),
+         "// Stairs_Up, fitted to stairs of StairsRise and StairsDepth (m a step; the map's treads have their tops at",
+         "// 0.15 + 0.3 L). In place: her feet go back under her as she climbs. Its phase (0..1) is (u - StairsShift) / 2",
+         "// round the loop, u = (her height - 0.15) / StairsRise: the steps she has climbed, so each foot lands on a tread.",
+         "inline constexpr float StairsRise = %.6ff, StairsDepth = %.6ff, StairsShift = %.6ff, StairsSeconds = %.6ff;"
+         % (stair_fit.get("rise", 0.3), stair_fit.get("depth", 0.37), stair_fit.get("shift", 0), stair_fit.get("seconds", 1.2)),
+         "// the phase each foot stands on its tread, left then right: from, to (to may pass 1: round the loop)",
+         "inline constexpr float StairsStance[2][2] = {{%.4ff, %.4ff}, {%.4ff, %.4ff}};" % tuple(stair_fit.get("stance", (0, 0.5, 0.5, 1))),
          "struct AttackClip", "{", "    float Hit = 0;                // seconds into the clip: the blade is fastest",
          "    std::vector<float> Forward;   // metres forward at each 1/30 s; empty: she stays on the spot", "};",
          "inline const std::map<std::string, AttackClip> Attacks{"]
@@ -1061,9 +1308,10 @@ lines += ["};",
 (SRC.parents[1] / "testing" / "CharacterLab" / "NyxaraLabClips.h").write_text("\n".join(lines), encoding="utf-8", newline="\n")
 # the game's copy (game/src/NyxaraClips.h): the same, in a namespace of its own
 game_lines = [l.replace("namespace NyxaraLab", "namespace NyxaraClips") for l in lines]
-game_lines[0] = game_lines[0].replace("Do not edit", "(a copy of testing/CharacterLab/NyxaraLabClips.h). Do not edit")
+game_lines[0] = game_lines[0].replace("py. Do not edit", "py (a copy of testing/CharacterLab/NyxaraLabClips.h). Do not edit")
 (SRC.parents[1] / "game" / "src" / "NyxaraClips.h").write_text(chr(10).join(game_lines), encoding="utf-8", newline=chr(10))
 
+held_grip = dict(held)      # each hand's grip point, for the swords on her back (the wings pass reuses the name)
 # ---- wings on her back. The wings model (art/nyxara/Wings.glb, a spread pair 1.9 m wide, a copy of the user's
 # Desktop/blndr/nyxara-wings/base_basic_pbr.glb) is turned so its tips lie behind her, set with its roots in her back
 # between the shoulder blades, and given three bones a wing (root to the top of the arch, to the middle of the long
@@ -1079,12 +1327,12 @@ WING_BREATH = math.radians(3.5)  # the slow rise and fall of the open wing
 WING_MOST = math.radians(28)     # no swing goes further than this
 WING_BEAT, WING_DAMP = 2 * math.pi * 1.6, 0.5   # how fast a wing swings back (1.6 times a second), how soon it settles
 WING_RISE, WING_TURN, WING_START = 1.2, 0.6, 0.5  # how much it answers her chest going up, turning, going forward
-WING_SWEEP = {"Run": math.radians(12), "Walk": math.radians(3), "Jump": math.radians(10)}   # held back in the wind
+WING_SWEEP = {"Run": math.radians(12), "Walk": math.radians(3), "Stairs_Up": math.radians(3), "Jump": math.radians(10)}   # held back in the wind
 # While she walks and runs her chest twists left and right with every step, and wings fixed to it swept back and
 # forth as fast. There the wings keep to the way her chest stands on average (WING_STEADY of the twist is taken out)
 # and answer her steps only weakly (WING_GAIN).
-WING_STEADY = {"Walk": 0.85, "Run": 0.9}
-WING_GAIN = {"Walk": 0.4, "Run": 0.2}
+WING_STEADY = {"Walk": 0.85, "Stairs_Up": 0.85, "Run": 0.9}
+WING_GAIN = {"Walk": 0.4, "Stairs_Up": 0.4, "Run": 0.2}
 WING_POINTS = ((0.04, 0.13, 0.73), (0.28, 0.05, 0.91), (0.60, -0.06, 0.58), (0.90, -0.14, 0.20))   # in the model
 WING_SRC = SRC / "Wings.glb"
 if WING_SRC.exists():
@@ -1256,6 +1504,9 @@ if WING_SRC.exists():
     BRACE = dict(hl=-12, sp=4, nk=4, hd=5, rt=-84, rk=30, rf=-14, lt=-84, lk=30, lf=-14, op=4, dz=0.0)
     THRUST = dict(hl=-27, sp=-2, nk=4, hd=6, rt=-70, rk=2, rf=-25, lt=-70, lk=2, lf=-25, op=3, dz=0.0)
     DRAWN = dict(hl=-6, sp=1, nk=1, hd=1, rt=-42, rk=66, rf=10, lt=-30, lk=52, lf=14, op=8, dz=0.0)
+    FALL_A = dict(hl=-8, sp=-3, nk=5, hd=9, rt=-38, rk=62, rf=24, lt=-8, lk=30, lf=32, op=5, dz=0.0)
+    FALL_B = dict(hl=-6, sp=-3, nk=5, hd=9, rt=-10, rk=34, rf=30, lt=-34, lk=58, lf=26, op=5, dz=0.0)
+    FALL_ARMS = (62.0, 9.0)      # degrees each upper arm is lifted out from her side, and how far it shakes either way
     PULL_UPPER = ("Spine", "Spine1", "Spine2", "Neck", "Head")
     pull_bones = [pb.name for pb in PB if pb.name in PULL_UPPER or
                   (pb.name.startswith(("Left", "Right")) and any(k in pb.name for k in ("Shoulder", "Arm", "Hand")))]
@@ -1275,6 +1526,11 @@ if WING_SRC.exists():
                      ((0, 8), (9, 52), (15, -30), (24, 28), (36, 10))),
         "Fly_Land": (30, ((0, FLYING), (12, REACH), (18, crouch(30, 12)), (30, STANDS)),
                      ((0, 10), (6, 45), (12, -15), (16, 42), (20, 30), (30, 8))),
+        # Fall (owner, 2026-11-18: her flying energy is out and gravity brings her down): a loop of one second. She
+        # drops upright, leaning a little back, looking down, her legs pedalling under her, her arms flung out and up
+        # (FALL_ARMS), her wings streaming up over her and shaking. Her swords are on her back (SHEATHED).
+        "Fall": (30, ((0, FALL_A), (15, FALL_B), (30, FALL_A)),
+                 ((0, 62), (5, 70), (10, 58), (15, 68), (20, 60), (25, 71), (30, 62))),
     }
     # Later still the user asked for her to go to her swords twisting: her wings folded over her body (WRAPS: degrees
     # each wing is brought round before her; in Cast_Pull they open again as she arrives), and her whole body turning
@@ -1309,6 +1565,11 @@ if WING_SRC.exists():
                 lean(side_name + "UpLeg", P[t + "t"])
                 lean(side_name + "Leg", P[t + "k"])
                 lean(side_name + "Foot", P[t + "f"])
+            if move == "Fall":
+                c3 = PB["Spine2"].matrix.to_3x3() @ PB["Spine2"].bone.matrix_local.to_3x3().inverted()
+                for bone, sign in (("LeftArm", -1), ("RightArm", 1)):
+                    shake = math.sin(2 * math.pi * 2 * f / frames + (0 if sign > 0 else 1.3))
+                    turn(PB[bone], Quaternion((c3 @ Vector((0, 1, 0))).normalized(), math.radians(sign * (FALL_ARMS[0] + FALL_ARMS[1] * shake))), PB[bone].head.copy())
             if move == "Cast_Fly":      # the twist: about the line from her hips to her head
                 along = (PB["Head"].head - PB["Hips"].head).normalized()
                 turn(PB["Hips"], Quaternion(along, 2 * math.pi * f / frames), PB["Hips"].head.copy())
@@ -1358,7 +1619,7 @@ if WING_SRC.exists():
                         PB[bone].keyframe_insert("rotation_quaternion", frame=f)
             print("WINGS Fly            beat once a second, the root %.0f degrees either way" % math.degrees(FLY_FLAP[0][0]))
             continue
-        loop = name in ("Idle", "Walk", "Run")
+        loop = name in ("Idle", "Walk", "Run", "Stairs_Up")
         n = last if loop else last + 1
         chest = PB["Spine2"]
         where, turned, stands = [], [], []
@@ -1418,6 +1679,170 @@ if WING_SRC.exists():
                     PB[bone].rotation_quaternion = turn
                     PB[bone].keyframe_insert("rotation_quaternion", frame=f)
         print("WINGS %-14s move with her body, swinging up to %2.0f degrees" % (name, most))
+
+# ---- her dress on its own bones (owner, 2026-11-17: "the dress is bending with leg ... keep dress in free roam and move
+# only her legs"). Mixamo's rig weighted the panels of her coat-dress to the thigh and shin bones, so the game's foot
+# placement, which bends her legs onto steps and slopes, swung the dress with them. Each leg gets two dress bones, copies
+# of its thigh and shin at rest (DressLeft under Hips, DressLeftKnee under it; Right the same), keyed in every clip
+# exactly as the thigh and shin: the dress walks, runs and kicks as before, and the game bends only the real legs.
+# What is dress: skin weighted to a leg that lies more than DRESS_FROM m from the leg's bones (her legs' own skin lies
+# 4-9 cm from them below the knee and 6-10 cm at the thigh; the panels 12-28 cm), fully past DRESS_FULL, and only above
+# DRESS_LOW m (no dress at her boots); in between the weight is shared, so there is no seam.
+DRESS_FROM, DRESS_FULL, DRESS_LOW = 0.10, 0.14, 0.32
+from mathutils.geometry import intersect_point_line
+for o in bpy.data.objects:
+    o.select_set(o is arm)
+bpy.context.view_layer.objects.active = arm
+bpy.ops.object.mode_set(mode="EDIT")
+EB = arm.data.edit_bones
+for side in ("Left", "Right"):
+    for leg, dress, parent in ((side + "UpLeg", "Dress" + side, "Hips"), (side + "Leg", "Dress" + side + "Knee", "Dress" + side)):
+        b = EB.new(dress)
+        b.head, b.tail, b.roll = EB[leg].head.copy(), EB[leg].tail.copy(), EB[leg].roll
+        b.parent = EB[parent]
+        b.use_connect = False
+        b.use_deform = True
+bpy.ops.object.mode_set(mode="OBJECT")
+PB = arm.pose.bones
+AWm = arm.matrix_world
+def bone_line(n):
+    b = arm.data.bones[n]
+    return AWm @ b.head_local, AWm @ b.tail_local
+def off_bone(p, line):
+    q, t = intersect_point_line(p, *line)
+    t = max(0.0, min(1.0, t))
+    return (p - (line[0] + (line[1] - line[0]) * t)).length
+moved = 0
+for side in ("Left", "Right"):
+    lines = (bone_line(side + "UpLeg"), bone_line(side + "Leg"))
+    pairs = ((body.vertex_groups[side + "UpLeg"], body.vertex_groups.new(name="Dress" + side)),
+             (body.vertex_groups[side + "Leg"], body.vertex_groups.new(name="Dress" + side + "Knee")))
+    for v in body.data.vertices:
+        p = body.matrix_world @ v.co
+        if p.z < DRESS_LOW:
+            continue
+        has = {g.group: g.weight for g in v.groups}
+        if not any(src.index in has for src, _ in pairs):
+            continue
+        x = (min(off_bone(p, lines[0]), off_bone(p, lines[1])) - DRESS_FROM) / (DRESS_FULL - DRESS_FROM)
+        x = max(0.0, min(1.0, x)); share = x * x * (3 - 2 * x)
+        x = max(0.0, min(1.0, (p.z - DRESS_LOW) / 0.08)); share *= x * x * (3 - 2 * x)
+        if share <= 0.0:
+            continue
+        for src, dst in pairs:
+            w = has.get(src.index, 0.0)
+            if w <= 0.0:
+                continue
+            dst.add([v.index], w * share, "ADD")
+            if w * (1 - share) > 1e-4:
+                src.add([v.index], w * (1 - share), "REPLACE")
+            else:
+                src.remove([v.index])
+        moved += 1
+for name, act in actions.items():
+    last = use(act)
+    for f in range(0, last + 1):
+        bpy.context.scene.frame_set(f)
+        for side in ("Left", "Right"):
+            for leg, dress in ((side + "UpLeg", "Dress" + side), (side + "Leg", "Dress" + side + "Knee")):
+                PB[dress].rotation_mode = "QUATERNION"
+                PB[dress].rotation_quaternion = PB[leg].rotation_quaternion
+                PB[dress].keyframe_insert("rotation_quaternion", frame=f)
+print("DRESS %d vertices moved onto the dress bones; %d bones now" % (moved, len(arm.data.bones)))
+
+# ---- swords on her back (owner, 2026-11-18: "hang her swords on her back while she is not fighting"). In the SHEATHED
+# clips each sword bone is set, on every frame, crossed on her back and carried by her chest: the handle over its own
+# shoulder, the blade down across her back to the other hip, its flat on her back, the left one a little further out
+# so the blades do not cut each other. Every other clip keys the sword bones at rest (in her fist), so no clip keeps
+# what another left in them.
+SHEATH_DOWN = math.radians(25)      # the blade's lean from straight down, towards the other hip
+sx_ = 1.0 if arm.data.bones["LeftArm"].head_local.x > 0 else -1.0
+back_y = arm.data.bones["Spine1"].head_local.y + HALF_DEPTH * 0.8 + 0.03     # she faces -Y: her back is +Y
+shoulder_z = arm.data.bones["LeftArm"].head_local.z
+chest_rest = arm.data.bones["Spine2"].matrix_local
+sheath = {}
+for side in ("Left", "Right"):
+    s_ = sx_ if side == "Left" else -sx_
+    G = Vector((s_ * 0.10, back_y + (0.03 if side == "Left" else 0.0), shoulder_z + 0.10))
+    D = Vector((-s_ * math.sin(SHEATH_DOWN), 0.0, -math.cos(SHEATH_DOWN)))
+    E = D.cross(Vector((0.0, 1.0, 0.0))).normalized()
+    if E.z < 0:
+        E = -E                                                  # the edge up, away from the hip
+    hn = side + "Hand"
+    b_ = (blade[hn] - held_grip[hn]).normalized()
+    e_ = (edge_of[hn] - b_ * edge_of[hn].dot(b_)).normalized()
+    L_ = Matrix((b_, e_, b_.cross(e_))).transposed()
+    sheath[side] = (G, D, E, L_, held_grip[hn])
+# Sword_Reach (owner, 2026-11-18: "taking out swords and putting back them on her back"): Idle's body with both hands
+# up over her shoulders on the handles of the swords on her back. One still pose (two frames); the game passes her
+# arms through it whenever the swords change place (NyxaraKit: Compose), and moves the swords at that moment.
+def turn_about(pb, q, pivot):          # (the name turn is a variable by now)
+    pb.matrix = Matrix.Translation(pivot) @ q.to_matrix().to_4x4() @ Matrix.Translation(-pivot) @ pb.matrix
+    bpy.context.view_layer.update()
+
+
+REACH_FRAMES = 10     # (two frames were exported as a stepped clip, which the importer refuses)
+reach = actions["Idle"].copy()
+reach.name = "Sword_Reach"
+reach.use_fake_user = True
+use(reach)
+for fc in curves(reach):
+    for i in range(len(fc.keyframe_points) - 1, -1, -1):
+        if fc.keyframe_points[i].co[0] > REACH_FRAMES:
+            fc.keyframe_points.remove(fc.keyframe_points[i])
+    fc.update()
+for f in range(REACH_FRAMES + 1):
+    bpy.context.scene.frame_set(f)
+    C = PB["Spine2"].matrix @ chest_rest.inverted()
+    C3 = C.to_3x3()
+    for side in ("Left", "Right"):
+        sgn = sx_ if side == "Left" else -sx_
+        up_, fo_, ha_ = PB[side + "Arm"], PB[side + "ForeArm"], PB[side + "Hand"]
+        S, T = up_.head.copy(), C @ sheath[side][0]
+        la, lb = (fo_.head - up_.head).length, (ha_.head - fo_.head).length
+        w_ = T - S
+        dd = min(max(w_.length, abs(la - lb) + 0.01), la + lb - 0.01)
+        n_ = w_.normalized()
+        e_ = C3 @ Vector((sgn * 0.7, -0.5, 0.5))                 # the elbow: out, forward and up
+        e_ = (e_ - n_ * e_.dot(n_)).normalized()
+        ca = (la * la + dd * dd - lb * lb) / (2 * la * dd)
+        K = S + n_ * (la * ca) + e_ * (la * math.sqrt(max(0.0, 1 - ca * ca)))
+        turn_about(up_, (fo_.head - up_.head).normalized().rotation_difference((K - S).normalized()), S)
+        turn_about(fo_, (ha_.head - fo_.head).normalized().rotation_difference((S + n_ * dd - fo_.head).normalized()), fo_.head.copy())
+        up_.keyframe_insert("rotation_quaternion", frame=f)
+        fo_.keyframe_insert("rotation_quaternion", frame=f)
+actions["Sword_Reach"] = reach
+bpy.context.scene.frame_set(0)
+print("REACH hands at %s; the handles at %s" % ([[round(v, 2) for v in PB[sd + "Hand"].head] for sd in ("Left", "Right")],
+                                                [[round(v, 2) for v in (PB["Spine2"].matrix @ chest_rest.inverted()) @ sheath[sd][0]] for sd in ("Left", "Right")]))
+for name, act in actions.items():
+    last = use(act)
+    for f in range(last + 1):
+        bpy.context.scene.frame_set(f)
+        for side in ("Left", "Right"):
+            pb = PB["Sword" + side]
+            pb.rotation_mode = "QUATERNION"
+            if name in SHEATHED:
+                G, D, E, L_, grip_ = sheath[side]
+                C = PB["Spine2"].matrix @ chest_rest.inverted()
+                C3 = C.to_3x3()
+                Dw, Ew = (C3 @ D).normalized(), (C3 @ E).normalized()
+                Ew = (Ew - Dw * Ew.dot(Dw)).normalized()
+                M3 = Matrix((Dw, Ew, Dw.cross(Ew))).transposed() @ L_.transposed()
+                M = M3.to_4x4()
+                M.translation = (C @ G) - M3 @ grip_
+                pb.matrix = M
+            else:
+                pb.location = Vector((0.0, 0.0, 0.0))
+                pb.rotation_quaternion = Quaternion()
+            bpy.context.view_layer.update()
+            pb.keyframe_insert("location", frame=f)
+            pb.keyframe_insert("rotation_quaternion", frame=f)
+    if name in SHEATHED:
+        print("HANDS %-10s from her middle line: %s (shoulders at %.3f)" % (name, hands_from_middle(act, last), abs(arm.data.bones["LeftArm"].head_local.x)))
+        bpy.context.scene.frame_set(0)
+        tips = [pose_point(PB["Sword" + sd], blade[sd + "Hand"]) for sd in ("Left", "Right")]
+        print("SHEATH %-10s swords on her back; points at %s" % (name, [[round(v, 2) for v in t_] for t_ in tips]))
 
 # ---- every clip on its own track, so the exporter writes each under its name
 arm.animation_data.action = None
