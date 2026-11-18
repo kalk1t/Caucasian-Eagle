@@ -86,6 +86,30 @@ namespace CaucasianEagle
             else if (word == "moment") { Moment m; in >> m.Name >> m.P.x >> m.P.y >> m.P.z; std::replace(m.Name.begin(), m.Name.end(), '_', ' '); Moments.push_back(m); }
             else if (word == "trail") { XMFLOAT3 p; in >> p.x >> p.y >> p.z; Trail.push_back(p); }
             else if (word == "tread") { Tread r; if (in >> r.X >> r.Z >> r.Ax >> r.Az >> r.Along >> r.Across >> r.Top) mTreads.push_back(r); }
+            else if (word == "ring")
+            {
+                int n = 0; std::vector<XMFLOAT3> r;
+                if (in >> n) for (int i = 0; i < n; ++i) { XMFLOAT3 q; if (!(in >> q.x >> q.y >> q.z)) break; r.push_back(q); }
+                if (r.size() >= 2) mRings.push_back(std::move(r));
+            }
+            else if (word == "cave")
+            {
+                std::string kind; int n = 0; Cave c;
+                if (in >> kind >> n && n >= 2)
+                {
+                    c.Kind = kind;
+                    c.MinX = c.MinZ = c.MinY = 1e30f; c.MaxX = c.MaxZ = c.MaxY = -1e30f;
+                    for (int i = 0; i < n; ++i)
+                    {
+                        CavePoint q; if (!(in >> q.X >> q.Y >> q.Z >> q.Half >> q.Tall)) break;
+                        c.MinX = std::min(c.MinX, q.X - q.Half - 2); c.MaxX = std::max(c.MaxX, q.X + q.Half + 2);
+                        c.MinZ = std::min(c.MinZ, q.Z - q.Half - 2); c.MaxZ = std::max(c.MaxZ, q.Z + q.Half + 2);
+                        c.MinY = std::min(c.MinY, q.Y - 2); c.MaxY = std::max(c.MaxY, q.Y + q.Tall + 2);
+                        c.Line.push_back(q);
+                    }
+                    if (c.Line.size() >= 2) mCaves.push_back(std::move(c));
+                }
+            }
             else if (word == "terrain") mHasTerrain = static_cast<bool>(in >> mTerrain[0] >> mTerrain[1] >> mTerrain[2] >> mTerrain[3] >> mTerrain[4] >> mTerrain[5]);
         }
         mDataPath = path;
@@ -233,9 +257,64 @@ namespace CaucasianEagle
         return zone;
     }
 
+    float EaglesAscent::RingDistance(const XMFLOAT3& p) const
+    {
+        float best = 1e30f;
+        for (const auto& r : mRings)
+            for (const auto& q : r) best = std::min(best, (q.x - p.x) * (q.x - p.x) + (q.y - p.y) * (q.y - p.y) + (q.z - p.z) * (q.z - p.z));
+        return best < 1e29f ? std::sqrt(best) : 1e30f;
+    }
+
+    bool EaglesAscent::InCave(const XMFLOAT3& p, CaveSpot* spot) const
+    {
+        float best = 1e30f; bool found = false;
+        for (const auto& c : mCaves)
+        {
+            if (p.x < c.MinX || p.x > c.MaxX || p.z < c.MinZ || p.z > c.MaxZ || p.y < c.MinY || p.y > c.MaxY) continue;
+            for (size_t i = 0; i + 1 < c.Line.size(); ++i)
+            {
+                const auto& a = c.Line[i]; const auto& b = c.Line[i + 1];
+                const float ex = b.X - a.X, ez = b.Z - a.Z, l2 = ex * ex + ez * ez;
+                if (l2 < 1e-6f) continue;
+                const float t = std::clamp(((p.x - a.X) * ex + (p.z - a.Z) * ez) / l2, 0.f, 1.f);
+                const float l = std::sqrt(l2), rx = ez / l, rz = -ex / l;          // level, to the right of a -> b
+                const float cx = a.X + ex * t, cz = a.Z + ez * t;
+                const float across = (p.x - cx) * rx + (p.z - cz) * rz;
+                const float half = a.Half + (b.Half - a.Half) * t, floor = a.Y + (b.Y - a.Y) * t, tall = a.Tall + (b.Tall - a.Tall) * t;
+                if (std::abs(across) > half + .6f || p.y < floor - 1.5f || p.y > floor + tall + .5f) continue;
+                const float d = std::abs(across) / std::max(half, .1f) + std::abs(p.y - floor - tall * .4f) / std::max(tall, .1f);
+                if (d < best)
+                {
+                    best = d; found = true;
+                    if (spot) *spot = {floor, floor + tall, across, half, rx, rz};
+                }
+            }
+        }
+        return found;
+    }
+
     void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt)
     {
         Sliding = false;
+        CaveSpot cave;
+        if (InCave(p.Position, &cave))
+        {   // In a cave (2026-11-18): the land's rules do not hold under the mountain. The tube is her collision on foot;
+            // in flight she is kept inside it: off the floor, under the roof, off the walls.
+            if (flying)
+            {
+                const float room = std::max(cave.Half - .9f, 0.f);
+                if (std::abs(cave.Across) > room)
+                {
+                    const float push = (std::abs(cave.Across) - room) * (cave.Across > 0 ? 1.f : -1.f);
+                    p.Position.x -= cave.RightX * push; p.Position.z -= cave.RightZ * push;
+                }
+                p.Position.y = std::clamp(p.Position.y, cave.Floor + .05f, std::max(cave.Floor + .05f, cave.Roof - 1.9f));
+            }
+            else if (p.Position.y < cave.Floor - .3f) { p.Position.y = cave.Floor; p.VerticalVelocity = std::max(p.VerticalVelocity, 0.f); }
+            mSlideStill = 0; mSlidAgo = 1;
+            mFlown = p.Position; mHasFlown = true;
+            return;
+        }
         if (flying)
         {
             const float clear = .05f;                    // m over the land (more, and where the land is level with the path a landing hovers over it and never touches down)
@@ -359,8 +438,9 @@ namespace CaucasianEagle
                     std::hypot(p.Position.x - Stations[i].P.x, p.Position.z - Stations[i].P.z) < 22)
                     Checkpoint = static_cast<int>(i);
         // falling inside the mountain: on foot, not grounded and 8 m under the land's lowest grid corner
-        mInRock = !flying && !p.IsGrounded && p.Position.y < LandLow(p.Position.x, p.Position.z) - 8 ? mInRock + dt : 0;
-        if (rescue && !Trail.empty() && (p.Position.y < -6 || OffTrail > 1500 || mInRock > 1))
+        mInRock = !flying && !p.IsGrounded && p.Position.y < LandLow(p.Position.x, p.Position.z) - 8 && !InCave(p.Position) ? mInRock + dt : 0;
+        // far from the trail is lost only when far from the rings too (2026-11-18: they go round the back of the mountain)
+        if (rescue && !Trail.empty() && (p.Position.y < -6 || (OffTrail > 1500 && RingDistance(p.Position) > 600) || mInRock > 1))
         {
             const char* event = mInRock > 1 ? "rescued_from_inside_the_mountain" : "rescued";
             Visit(host, Checkpoint); Rescued = 3;

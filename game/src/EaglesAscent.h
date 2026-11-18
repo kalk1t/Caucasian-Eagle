@@ -76,6 +76,16 @@ namespace CaucasianEagle
         // drawn rock and land on a 1 m grid; elsewhere Land. 2026-11-18: the 6 m grid let her into a cleft's drawn walls.
         float FlightLand(float x, float z) const;
         float LandLow(float x, float z) const;   // the lowest corner of the grid cell: a cleft's floor, not its rims averaged in
+        // Caves (records "cave <kind> <n> x y z halfwidth height ...", 2026-11-18): is p inside a tunnel? Then the
+        // floor under her, the roof over her, and how far she is to the right of its middle (rightX, rightZ the way).
+        struct CaveSpot { float Floor = 0, Roof = 0, Across = 0, Half = 0, RightX = 0, RightZ = 0; };
+        bool InCave(const DirectX::XMFLOAT3& p, CaveSpot* spot = nullptr) const;
+        struct CavePoint { float X = 0, Y = 0, Z = 0, Half = 0, Tall = 0; };
+        struct Cave { std::string Kind; std::vector<CavePoint> Line; float MinX = 0, MaxX = 0, MinZ = 0, MaxZ = 0, MinY = 0, MaxY = 0; };
+        const std::vector<Cave>& Caves() const { return mCaves; }
+        // The rings round the mountain (records "ring <n> x y z ...", 2026-11-18): trails joining the main one at its bends.
+        const std::vector<std::vector<DirectX::XMFLOAT3>>& Rings() const { return mRings; }
+        float RingDistance(const DirectX::XMFLOAT3& p) const;   // m to the nearest point of a ring; 1e30 with none
                                                  // (on the floor grid when the map has one: the carved rock's ledges included)
         const Zone* ZoneAt(float y) const;
         // The top of the stair tread drawn at (x, z) nearest 'nearY' (within a step and a half), NaN where there is none.
@@ -116,6 +126,8 @@ namespace CaucasianEagle
         // Stair treads (records "tread"): centre, the path's way, m along it and across, top; found through 4 m cells
         struct Tread { float X = 0, Z = 0, Ax = 0, Az = 1, Along = 0, Across = 0, Top = 0; };
         std::vector<Tread> mTreads;
+        std::vector<Cave> mCaves;
+        std::vector<std::vector<DirectX::XMFLOAT3>> mRings;
         std::unordered_map<long long, std::vector<int>> mTreadCells;
         DirectX::XMFLOAT3 mFlown{}; bool mHasFlown = false; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
         float mInRock = 0;             // seconds she has been falling inside the mountain
