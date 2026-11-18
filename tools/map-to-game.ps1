@@ -32,6 +32,10 @@ New-Item -ItemType Directory -Force (Join-Path $to 'Compiled\Scenes'), (Join-Pat
 Copy-Item -LiteralPath $dscene -Destination (Join-Path $to "Compiled\Scenes\$Scene.dscene") -Force
 Copy-Item -LiteralPath $data -Destination (Join-Path $to "Maps\$As.txt") -Force
 Copy-Item -LiteralPath ([IO.Path]::ChangeExtension($data, '.heights')) -Destination (Join-Path $to "Maps\$As.heights") -Force
+foreach ($splat in 'splat_a', 'splat_b') {   # the ground's splat for the terrain shader (testing/MapLab/terrain_splat.py)
+    $file = [IO.Path]::ChangeExtension($data, ".$splat.dds")
+    if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination (Join-Path $to "Maps\$As.$splat.dds") -Force }
+}
 $size = (Get-ChildItem -LiteralPath (Join-Path $to 'Compiled') -Recurse -File | Where-Object { $_.FullName -match [regex]::Escape($Scene) } | Measure-Object Length -Sum).Sum
 Write-Host ("Copied $Map ($Scene) into game\assets: {0:N0} MB compiled, data file Maps\$As.txt" -f ($size / 1MB))
 

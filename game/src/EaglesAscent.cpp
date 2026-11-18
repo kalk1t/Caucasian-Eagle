@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -85,7 +86,9 @@ namespace CaucasianEagle
             else if (word == "moment") { Moment m; in >> m.Name >> m.P.x >> m.P.y >> m.P.z; std::replace(m.Name.begin(), m.Name.end(), '_', ' '); Moments.push_back(m); }
             else if (word == "trail") { XMFLOAT3 p; in >> p.x >> p.y >> p.z; Trail.push_back(p); }
             else if (word == "tread") { Tread r; if (in >> r.X >> r.Z >> r.Ax >> r.Az >> r.Along >> r.Across >> r.Top) mTreads.push_back(r); }
+            else if (word == "terrain") mHasTerrain = static_cast<bool>(in >> mTerrain[0] >> mTerrain[1] >> mTerrain[2] >> mTerrain[3] >> mTerrain[4] >> mTerrain[5]);
         }
+        mDataPath = path;
         if (Stations.empty()) { error = "map data has no station: " + path.string(); return false; }
         mTreadCells.clear();
         for (int i = 0; i < static_cast<int>(mTreads.size()); ++i)
@@ -128,6 +131,25 @@ namespace CaucasianEagle
             DoorwaysTextureLoadResult result;
             if (!renderer.LoadDoorwaysTexture(desc, result, &error)) return false;
             out.Texture = result.SRV;
+        }
+        // The ground (2026-11-18): the shared CC0 layers (Compiled/Textures/Terrain) and this map's splat. Without them
+        // the ML_Terrain* materials draw their own pictures, as before: nothing here is required.
+        renderer.UnloadTerrain();
+        const auto layers = root / "Textures" / "Terrain";
+        if (mHasTerrain && std::filesystem::exists(layers / "albedo.dds") && mTerrain[2] > 0 && mTerrain[3] > 0)
+        {
+            auto a = mDataPath; a.replace_extension(".splat_a.dds");
+            auto b = mDataPath; b.replace_extension(".splat_b.dds");
+            const bool splat = std::filesystem::exists(a) && std::filesystem::exists(b);
+            std::string terrainError;
+            if (renderer.LoadTerrain(layers, splat ? a : std::filesystem::path(), splat ? b : std::filesystem::path(), terrainError))
+            {
+                float debug = 0;   // CAUCASIAN_EAGLE_TERRAIN_DEBUG=1: the ground's weights as colours (review shots)
+                char value[8] = {}; size_t got = 0;
+                if (getenv_s(&got, value, sizeof(value), "CAUCASIAN_EAGLE_TERRAIN_DEBUG") == 0 && got > 1) debug = static_cast<float>(std::atof(value));
+                renderer.SetTerrainParams({mTerrain[0], mTerrain[1], 1.f / mTerrain[2], 1.f / mTerrain[3]},
+                                          {mTerrain[4], 150.f, mTerrain[5], 0.f}, {7.f, 41.f, 3.5f, 19.f}, {1.f, 1.f, debug, 0.f});
+            }
         }
         return true;
     }
@@ -385,6 +407,10 @@ namespace CaucasianEagle
         // The engine's sky box is a room round the origin; the map is far bigger. It is pushed out of sight, so the sky is the clear colour.
         e.Sky.Distance = 40000; e.Sky.Height = 80000; e.Sky.FrontBackPanelWidth = 80000; e.Sky.SidePanelLength = 80000; e.Sky.CenterY = 0; e.Sky.TopY = 40000;
         e.Sky.PanelDiffuse = sky[i]; e.Sky.PanelEmissiveStrength = 1; e.Sky.HorizonDiffuse = {0, 0, 0, 0}; e.Sky.HorizonCenterY = -30000;
+        // By day and at dawn the engine's procedural sky (2026-11-18): the haze colour at the horizon, deeper overhead,
+        // the sun and clouds. Night keeps the clear colour.
+        static const XMFLOAT4 zenith[3]{{.30f, .47f, .74f, 1}, {.36f, .42f, .62f, 1}, {.01f, .02f, .05f, 1}};
+        e.Sky.Procedural = i < 2; e.Sky.ZenithColor = zenith[i]; e.Sky.CloudCover = i == 0 ? .42f : .55f;
         e.Fog.Color = sky[i]; e.Fog.HeightFogEnabled = 0; e.Fog.HeightFogStrength = 0; e.Fog.MoonHazeStrength = 0; e.Fog.BaseFogAmount = 0;
         if (fog == 0) e.Fog.Strength = 0;
         // haze: the map's aerial perspective (Gate 4): nothing on the path, about a seventh at 5 km (the far mountain
