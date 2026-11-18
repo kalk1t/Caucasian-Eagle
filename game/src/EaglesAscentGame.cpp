@@ -152,7 +152,7 @@ namespace CaucasianEagle
 
     float EaglesAscentGame::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
     {
-        return mPaused ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
+        return mPaused || mView.Open ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
     }
 
     // Unattended (CAUCASIAN_EAGLE_DEMO=1): she is put on every station and must stand on its ground at its height; at
@@ -288,6 +288,20 @@ namespace CaucasianEagle
         mMap.KeepOutOfRock(p, flying, dt);
 
         // Esc: the pause panel (DrawHud); its keys
+        // M: the whole mountain from outside, to turn and look over (MountainView.h). The game stands still; M or Esc closes it.
+        if (MountainView::Tried() && !mView.Open && mClock > 1 && mClock < 1.5f) mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit);
+        if (!mPaused && !mSmoke && !mClimb && Press('M', inputAllowed)) mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit);
+        if (mView.Open)
+        {
+            if (session.EscapePressed) { session.EscapePressed = false; mView.Hide(session, world.MainCamera); }
+            else
+            {
+                mView.Update(world.MainCamera, p.Position, realDt, inputAllowed);
+                kit.SetInputBlocked(true);
+                kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
+                return;
+            }
+        }
         if (session.EscapePressed) { session.EscapePressed = false; mPaused = !mPaused; }
         if (mPaused)
         {
@@ -367,7 +381,7 @@ namespace CaucasianEagle
 
     void EaglesAscentGame::AdjustEnvironment(EnvironmentSettings& environment)
     {
-        EaglesAscent::StyleEnvironment(environment, 0, 1);   // day, with the map's haze (Map A Gate 4)
+        EaglesAscent::StyleEnvironment(environment, 0, mView.Open ? 0 : 1);   // day, with the map's haze (Map A Gate 4); clear air for the whole mountain (M)
     }
 
     void EaglesAscentGame::DrawStartScreen(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused)
@@ -380,6 +394,7 @@ namespace CaucasianEagle
         if (mSmoke) return true;
         Ui ui(context, text);
         const float s = std::clamp(ui.S, .8f, 1.5f);
+        if (mView.Open) { mView.DrawHud(ui, context.World.MainCamera, context.World.MainPlayer.Position, mMap.Summit); return true; }
         if (NyxaraHud().Valid && context.World.CombatFeedback.MeleeActive) DrawNyxaraHud(ui, context);
         else if (NyxaraHud().Valid)
         {   // her flying energy (NyxaraKit: Space held 3 s takes her up; 30 s of flight), at the bottom in the middle

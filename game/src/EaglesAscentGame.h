@@ -2,6 +2,7 @@
 
 #include "DoorwaysGame.h"
 #include "EaglesAscent.h"
+#include "MountainView.h"
 
 #include <array>
 #include <fstream>
@@ -38,6 +39,7 @@ namespace CaucasianEagle
         EaglesAscent mMap;
         std::array<bool, 256> mKeys{};
         bool mPaused = false, mFlying = false, mWasDead = false;
+        MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;
         std::wstring mNoticeTitle, mNoticeLine; float mNotice = 0;
         int mReached = 0;                          // the highest station she has stood at
