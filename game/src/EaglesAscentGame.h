@@ -32,6 +32,7 @@ namespace CaucasianEagle
         bool Press(int key, bool allowed);
         void Notify(const std::wstring& title, const std::wstring& line, float seconds);
         void Smoke(Doorways::DoorwaysGameHost& host, float realDeltaTime);
+        void Climb(Doorways::DoorwaysGameHost& host, float dt);
         void Evidence(const WorldState& world, const char* event);
 
         EaglesAscent mMap;
@@ -42,6 +43,8 @@ namespace CaucasianEagle
         int mReached = 0;                          // the highest station she has stood at
         // the smoke test (CAUCASIAN_EAGLE_DEMO=1): every station stood on, then a take-off
         bool mSmoke = false; int mSmokeStation = -1, mSmokeBad = 0; float mSmokeClock = 0, mSmokeY = 0;
+        // the whole climb (CAUCASIAN_EAGLE_DEMO=2): on foot up the trail, every stretch only wings cross flown with the keys
+        bool mClimb = false; size_t mClimbFly = 0; int mClimbPhase = 0, mClimbNext = 1; float mClimbBest = 0, mClimbStuck = 0, mClimbPhaseClock = 0, mClimbLastY = 0; bool mClimbFell = false;
         std::string mLog;
     };
 }

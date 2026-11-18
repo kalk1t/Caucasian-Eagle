@@ -76,12 +76,18 @@ namespace CaucasianEagle
         session.FreeFlightCeiling = 0;                         // no ceiling: the mountain is 4 km high
         session.FastMultiplier = FootRunSpeed / FootSpeed;     // she starts on foot
         host.World.MainPlayer.MoveSpeed = FootSpeed;
+        host.World.MainPlayer.JumpSpeed = EaglesAscent::JumpSpeed;
+        session.WalkOffLedges = true;                          // she can go over any edge (and jump from its brink)
+        GetNyxaraKit().SetRealJump(EaglesAscent::JumpSpeed);   // Space on foot is a real jump here
         auto& camera = host.World.MainCamera;
         camera.FarZ = 14000; camera.NearZ = .25f;              // the summit must be in view from the shore
         if (!Ui::LoadArt(host.Render, error)) return false;
         if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error)) { error = "Nyxara combat kit: " + error; return false; }
         if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
         GetNyxaraKit().SetOnFoot(true);
+        // her feet on the stair treads as drawn (she walks the ramp under them); this game lives as long as the program
+        GetNyxaraKit().SetFootGround([this](float x, float z, float nearY) { return mMap.TreadTop(x, z, nearY); });
+        GetNyxaraKit().SetStairTread([this](float x, float z, float top, float& cx, float& cz, float& ax, float& az) { return mMap.TreadCenter(x, z, top, cx, cz, ax, az); });
 
         // she begins on the shore (testing: CAUCASIAN_EAGLE_START=<station>)
         const std::string first = Env(StartEnvironmentVariable);
@@ -109,9 +115,10 @@ namespace CaucasianEagle
         Sound::StartMusic("music/menu");
 
         mSmoke = Env(DemoEnvironmentVariable) == "1";   // the unattended test of the mode
+        mClimb = Env(DemoEnvironmentVariable) == "2";   // the whole climb, unattended
         mLog = Env(AscentLogEnvironmentVariable);
         if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
-        if (mSmoke)
+        if (mSmoke || mClimb)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -179,13 +186,106 @@ namespace CaucasianEagle
         }
     }
 
+    // Unattended (CAUCASIAN_EAGLE_DEMO=2, 2026-11-18): the whole climb from the shore, as a player would make it. On foot she
+    // runs up the trail (W, Shift; the camera turned to the trail 8 m ahead). At each stretch only wings cross she takes
+    // off at its launch mark (R), turns to its LAND mark, climbs over what is ahead (Space), flies (W), sinks to it (X),
+    // lets W go over the mark and lands (R); then runs on. Nothing moves her but her keys. Fails if she makes no way for
+    // 25 s, if a safety net takes her, or a crossing takes over 90 s. Ends CLIMB_PASS at the summit's station.
+    void EaglesAscentGame::Climb(DoorwaysGameHost& host, float dt)
+    {
+        auto& session = GameSession(); auto& p = host.World.MainPlayer; auto& camera = host.World.MainCamera;
+        session.ScriptedMove = 0; session.ScriptedFast = false; session.ScriptedJump = session.ScriptedDescend = false;
+        if (mClock < 3 || mMap.Trail.size() < 4) return;
+        const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+        const auto finish = [&](bool ok) { Evidence(host.World, ok ? "CLIMB_PASS" : "CLIMB_FAIL"); mClimb = false; PostQuitMessage(ok ? 0 : 2); };
+        std::vector<const EaglesAscent::Flight*> flies;   // the stretches only wings cross, in order (flight lines FLYnn)
+        for (const auto& f : mMap.Flights) if (f.Id.rfind("FLY", 0) == 0) flies.push_back(&f);
+        const int stations = static_cast<int>(mMap.Stations.size());
+        if (mClimbNext < stations)
+        {
+            const auto& s = mMap.Stations[static_cast<size_t>(mClimbNext)];
+            if (!flying && std::hypot(p.Position.x - s.P.x, p.Position.z - s.P.z) < 12 && std::abs(p.Position.y - s.P.y) < 3)
+            {
+                mSmokeStation = mClimbNext; Evidence(host.World, "climb_station"); mSmokeStation = -1;
+                if (++mClimbNext >= stations) { finish(true); return; }
+            }
+        }
+        mClimbPhaseClock += dt;
+        static float sampleAt = 0; if (mClock - sampleAt >= 1) { sampleAt = mClock; Evidence(host.World, ("climb_sample_" + std::to_string(static_cast<int>(mMap.Along)) + "_" + std::to_string(mClimbPhase)).c_str()); }
+        if (mClimbPhase == 0)
+        {   // on foot
+            // the trail 8 m ahead, running, bends too (a careless runner: she cuts every corner; the parapets over a lower
+            // leg must hold her). CAUCASIAN_EAGLE_CLIMB_CAREFUL=1: in a sharp bend 4 m ahead, at a jog.
+            static const bool careful = Env("CAUCASIAN_EAGLE_CLIMB_CAREFUL") == "1";
+            const size_t at = std::min(static_cast<size_t>(mMap.Along / EaglesAscent::TrailStep), mMap.Trail.size() - 4);
+            const auto& t0 = mMap.Trail[at]; const auto& t1 = mMap.Trail[at + 1]; const auto& t3 = mMap.Trail[at + 3];
+            const float h0 = std::atan2(t1.x - t0.x, t1.z - t0.z), h3 = std::atan2(t3.x - mMap.Trail[at + 2].x, t3.z - mMap.Trail[at + 2].z);
+            const bool bend = careful && std::abs(std::remainder(h3 - h0, 6.2831853f)) > .87f;
+            XMFLOAT3 aim = mMap.Trail[at + (bend ? 1 : 2)];
+            if (!mClimbFell && mClimbLastY - p.Position.y > 2.5f && p.IsGrounded) { mClimbFell = true; Evidence(host.World, ("climb_fell_off_at_" + std::to_string(static_cast<int>(mMap.Along))).c_str()); }
+            if (p.IsGrounded) { mClimbLastY = p.Position.y; mClimbFell = false; }
+            if (mClimbFly < flies.size())
+            {
+                const auto& f = *flies[mClimbFly];
+                const float d = std::hypot(p.Position.x - f.From.x, p.Position.z - f.From.z);
+                if (d < 2.5f && std::abs(p.Position.y - f.From.y) < 3)
+                { mClimbPhase = 1; mClimbPhaseClock = 0; Evidence(host.World, ("climb_launch_" + f.Id).c_str()); return; }
+                if (d < 14) aim = f.From;                 // the launch mark when it is near: the trail goes no further
+            }
+            const float to = std::hypot(aim.x - p.Position.x, aim.z - p.Position.z);
+            camera.Yaw = std::atan2(aim.x - p.Position.x, aim.z - p.Position.z);
+            session.ScriptedMove = 'W'; session.ScriptedFast = to > 6 && !bend;
+            if (mMap.Along > mClimbBest + 1) { mClimbBest = mMap.Along; mClimbStuck = 0; } else mClimbStuck += dt;
+            if (mClimbStuck > 25) { Evidence(host.World, "climb_stuck"); finish(false); }
+            return;
+        }
+        const auto& f = *flies[mClimbFly];
+        const float dx = f.To.x - p.Position.x, dz = f.To.z - p.Position.z, flat = std::hypot(dx, dz);
+        switch (mClimbPhase)
+        {
+        case 1:                                           // R
+            session.FreeFlightEnd = false; session.FreeFlightTakeoff = true; session.FreeFlightLandSpeed = 0; mClimbPhase = 2; mClimbPhaseClock = 0; break;
+        case 2:
+            if (flying) mClimbPhase = 3;
+            else if (mClimbPhaseClock > 6) { Evidence(host.World, "climb_no_takeoff"); finish(false); }
+            break;
+        case 3:
+        {
+            camera.Yaw = std::atan2(dx, dz);
+            float need = f.To.y + 3, ahead = -1e9f;
+            for (int i = 0; i <= 32; ++i)
+            {
+                const float t = static_cast<float>(i) / 32, h = mMap.FlightLand(p.Position.x + dx * t, p.Position.z + dz * t);
+                if (flat * t > 3) need = std::max(need, h + 3);
+                if (flat * t < 8) ahead = std::max(ahead, h);
+            }
+            if (p.Position.y < need - .3f) session.ScriptedJump = true;
+            else if (flat < 30 && p.Position.y > f.To.y + 6) session.ScriptedDescend = true;
+            if ((p.Position.y >= need - 1 || p.Position.y > ahead + 1.5f) && flat > .8f) session.ScriptedMove = 'W';
+            else if (flat <= .8f && std::abs(p.Position.y - (f.To.y + 3)) < 3)
+            { session.FreeFlightEnd = true; session.FreeFlightLandSpeed = LandSpeed; mClimbPhase = 4; mClimbPhaseClock = 0; }
+            if (mClimbPhaseClock > 90) { Evidence(host.World, ("climb_never_crossed_" + f.Id).c_str()); finish(false); }
+            break;
+        }
+        default:                                          // down onto the far side, then on foot again
+            if (!flying && p.IsGrounded)
+            {
+                const bool ok = flat < 6 && std::abs(p.Position.y - f.To.y) < 3;
+                Evidence(host.World, ((ok ? "climb_crossed_" : "climb_landed_off_") + f.Id).c_str());
+                if (!ok) { finish(false); return; }
+                ++mClimbFly; mClimbPhase = 0; mClimbBest = mMap.Along; mClimbStuck = 0;
+            }
+            else if (mClimbPhaseClock > 15) { Evidence(host.World, ("climb_no_landing_" + f.Id).c_str()); finish(false); }
+        }
+    }
+
     void EaglesAscentGame::Update(DoorwaysGameHost& host, float dt, float realDt, bool inputAllowed)
     {
         mClock += realDt; mNotice = std::max(0.f, mNotice - realDt);
         auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         const bool alive = host.Combat.PlayerActionsAllowed();
-        mMap.KeepOutOfRock(p, flying);
+        mMap.KeepOutOfRock(p, flying, dt);
 
         // Esc: the pause panel (DrawHud); its keys
         if (session.EscapePressed) { session.EscapePressed = false; mPaused = !mPaused; }
@@ -198,7 +298,7 @@ namespace CaucasianEagle
             kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
             return;
         }
-        const bool allowed = inputAllowed && alive && !mSmoke;
+        const bool allowed = inputAllowed && alive && !mSmoke && !mClimb;
 
         // R: take off on foot; in flight, land (she sinks at LandSpeed until she stands)
         if (Press('R', allowed))
@@ -221,15 +321,19 @@ namespace CaucasianEagle
         session.FastMultiplier = flying ? WingBoostMultiplier : FootRunSpeed / FootSpeed;
         kit.SetOnFoot(!flying);
         kit.SetHeightOverGround(std::max(0.f, p.Position.y - mMap.Land(p.Position.x, p.Position.z)));
-        kit.SetInputBlocked(mSmoke);
+        kit.SetInputBlocked(mSmoke || mClimb);
         if (mSmoke) Smoke(host, realDt);
+        if (mClimb) Climb(host, dt);
         kit.Update(world, host.WorldRender, host.Combat, dt, realDt, allowed);
 
         // the map: where she is, the air, the checkpoints, the safety nets
         mMap.Locate(p.Position);
         const int before = mMap.Checkpoint;
-        if (mMap.Air(host, dt, flying, !mSmoke && mClock > 5 && alive))
+        if (const char* net = mMap.Air(host, dt, flying, !mSmoke && mClock > 5 && alive))
+        {
             Notify(L"BACK AT THE CHECKPOINT", L"The mountain did not hold her: she is back at " + Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name) + L".", 4);
+            if (mClimb) { Evidence(host.World, net); Evidence(host.World, "CLIMB_FAIL"); mClimb = false; PostQuitMessage(2); }
+        }
         else if (mMap.Checkpoint != before && mMap.Checkpoint > mReached)
         {
             mReached = mMap.Checkpoint;

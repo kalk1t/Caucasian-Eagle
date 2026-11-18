@@ -841,7 +841,10 @@ namespace Doorways
         const Keys k = ReadKeys(inputAllowed);
         const auto pressed = [](bool now, bool before) { return now && !before; };
         const bool clickL = pressed(k.Lmb, mPrev.Lmb), clickR = pressed(k.Rmb, mPrev.Rmb), keyF = pressed(k.K1, mPrev.K1),
-                   keyV = pressed(k.K2, mPrev.K2), keyC = pressed(k.K3, mPrev.K3), space = pressed(k.Space, mPrev.Space);
+                   keyV = pressed(k.K2, mPrev.K2), keyC = pressed(k.K3, mPrev.K3);
+        const bool scriptedSpace = unattended && mRealJump > 0 && s.ScriptedJump;
+        const bool space = pressed(k.Space, mPrev.Space) || pressed(scriptedSpace, mScriptedSpaceWas);
+        mScriptedSpaceWas = scriptedSpace;
         mPrev = k;
         const bool alive = combat.PlayerActionsAllowed();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
@@ -979,6 +982,14 @@ namespace Doorways
         {
             b.Attack.clear(); b.Queued = 0; b.Jumping = true; b.JumpTime = 0;
             b.Log(world, "jump");
+            // a real jump where the game asks for one: from the ground, or from the brink of an edge she stands on
+            if (mRealJump > 0 && p.VerticalVelocity <= 0 &&
+                (p.IsGrounded || p.GroundState == Doorways::DoorwaysPhysicsGroundState::UnsupportedAirPrepared))
+            {
+                p.VerticalVelocity = mRealJump; p.IsGrounded = false;
+                p.GroundState = Doorways::DoorwaysPhysicsGroundState::Airborne;
+                p.MissingAuthoritativeGround = false; p.GroundY = p.TargetGroundY = p.Position.y;
+            }
         }
         else if (b.Jumping && (b.JumpTime += dt) >= b.Duration("Jump")) { b.Jumping = false; b.Phase = 0; }
         {   // in flight Space is the engine's climb; on foot the kit owns it

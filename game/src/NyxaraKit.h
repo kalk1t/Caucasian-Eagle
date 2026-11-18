@@ -96,6 +96,10 @@ namespace Doorways
         void Notice(const wchar_t* text, float seconds) { mNotice = text; mNoticeTimer = seconds; }
         bool Airborne() const;   // in the air: flying, jumping, or lifted by a move
         void SetOnFoot(bool onFoot) { mOnFoot = onFoot; }
+        // > 0: on foot Space is a real jump at this speed (m/s up), not only the jump clip (The Eagle's Ascent, 2026-11-18:
+        // she must be able to jump off the mountain). 0, the default: the clip alone, as on the road. Unattended, the
+        // session's ScriptedJump presses it.
+        void SetRealJump(float speed) { mRealJump = speed; }
         // Her height over the ground under her (the journey knows it; elsewhere it is not known and not needed): for
         // her landing, whose clip reaches for the ground before she touches it.
         void SetHeightOverGround(float height) { mHeightOverGround = height; }
@@ -126,6 +130,7 @@ namespace Doorways
         float mMercy = 0;
         const Keys* mAutoKeys = nullptr;
         bool mInputBlocked = false;
+        float mRealJump = 0; bool mScriptedSpaceWas = false;
         enum class FxKind { Ring, Spark, Feather };
         struct Fx
         {

@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <limits>
 #include <sstream>
 
 // The rules of a mountain map (EaglesAscent.h). Moved here from Map Lab on 2026-11-17 (Map A Gate 5), unchanged.
@@ -70,10 +71,30 @@ namespace CaucasianEagle
                     if (!bin.read(reinterpret_cast<char*>(mFloor.data()), static_cast<std::streamsize>(mFloor.size() * sizeof(float)))) mFloor.clear();
                 }
             }
+            else if (word == "patch")
+            {   // a fine grid in <map>.heights at a float offset (written after the land's grids)
+                Patch q; long long offset = 0; in >> q.X >> q.Z >> q.Step >> q.Nx >> q.Nz >> offset;
+                auto file2 = path; file2.replace_extension(".heights");
+                std::ifstream bin(file2, std::ios::binary);
+                if (q.Nx >= 2 && q.Nz >= 2 && q.Step > 0 && bin && bin.seekg(offset * static_cast<long long>(sizeof(float))))
+                {
+                    q.H.resize(static_cast<size_t>(q.Nx) * static_cast<size_t>(q.Nz));
+                    if (bin.read(reinterpret_cast<char*>(q.H.data()), static_cast<std::streamsize>(q.H.size() * sizeof(float)))) mPatches.push_back(std::move(q));
+                }
+            }
             else if (word == "moment") { Moment m; in >> m.Name >> m.P.x >> m.P.y >> m.P.z; std::replace(m.Name.begin(), m.Name.end(), '_', ' '); Moments.push_back(m); }
             else if (word == "trail") { XMFLOAT3 p; in >> p.x >> p.y >> p.z; Trail.push_back(p); }
+            else if (word == "tread") { Tread r; if (in >> r.X >> r.Z >> r.Ax >> r.Az >> r.Along >> r.Across >> r.Top) mTreads.push_back(r); }
         }
         if (Stations.empty()) { error = "map data has no station: " + path.string(); return false; }
+        mTreadCells.clear();
+        for (int i = 0; i < static_cast<int>(mTreads.size()); ++i)
+        {   // each tread in every 4 m cell its corners reach
+            const auto& r = mTreads[static_cast<size_t>(i)]; const float reach = .5f * std::hypot(r.Along, r.Across);
+            for (int cx = static_cast<int>(std::floor((r.X - reach) / 4)); cx <= static_cast<int>(std::floor((r.X + reach) / 4)); ++cx)
+                for (int cz = static_cast<int>(std::floor((r.Z - reach) / 4)); cz <= static_cast<int>(std::floor((r.Z + reach) / 4)); ++cz)
+                    mTreadCells[(static_cast<long long>(cx) << 32) ^ static_cast<unsigned>(cz)].push_back(i);
+        }
         if (Summit <= 0) for (const auto& s : Stations) Summit = std::max(Summit, s.P.y);
         ModelCount = static_cast<int>(mProps.size());
         return true;
@@ -122,6 +143,20 @@ namespace CaucasianEagle
         return (r0[0] * (1 - u) + r0[1] * u) * (1 - v) + (r1[0] * (1 - u) + r1[1] * u) * v;
     }
 
+    float EaglesAscent::FlightLand(float x, float z) const
+    {
+        for (const auto& q : mPatches)
+        {
+            const float fx = (x - q.X) / q.Step, fz = (z - q.Z) / q.Step;
+            if (fx < 0 || fz < 0 || fx > static_cast<float>(q.Nx - 1) || fz > static_cast<float>(q.Nz - 1)) continue;
+            const int ix = std::min(static_cast<int>(fx), q.Nx - 2), iz = std::min(static_cast<int>(fz), q.Nz - 2);
+            const float u = fx - static_cast<float>(ix), v = fz - static_cast<float>(iz);
+            const float* r0 = &q.H[static_cast<size_t>(iz) * static_cast<size_t>(q.Nx) + static_cast<size_t>(ix)]; const float* r1 = r0 + q.Nx;
+            return (r0[0] * (1 - u) + r0[1] * u) * (1 - v) + (r1[0] * (1 - u) + r1[1] * u) * v;
+        }
+        return Land(x, z);
+    }
+
     float EaglesAscent::LandLow(float x, float z) const
     {
         if (mLand.empty()) return -1e9f;
@@ -133,6 +168,42 @@ namespace CaucasianEagle
         return std::min(std::min(r0[0], r0[1]), std::min(r1[0], r1[1]));
     }
 
+    float EaglesAscent::TreadTop(float x, float z, float nearY) const
+    {
+        float best = std::numeric_limits<float>::quiet_NaN();
+        const auto found = mTreadCells.find((static_cast<long long>(std::floor(x / 4)) << 32) ^ static_cast<unsigned>(static_cast<int>(std::floor(z / 4))));
+        if (found == mTreadCells.end()) return best;
+        for (const int i : found->second)
+        {
+            const auto& r = mTreads[static_cast<size_t>(i)];
+            const float dx = x - r.X, dz = z - r.Z, along = dx * r.Ax + dz * r.Az, across = dx * r.Az - dz * r.Ax;   // (as build_mountain.py turns them)
+            if (std::abs(along) > r.Along / 2 || std::abs(across) > r.Across / 2 || std::abs(r.Top - nearY) > .45f) continue;
+            if (!std::isfinite(best) || std::abs(r.Top - nearY) < std::abs(best - nearY)) best = r.Top;
+        }
+        return best;
+    }
+
+    bool EaglesAscent::TreadCenter(float x, float z, float top, float& cx, float& cz, float& ax, float& az) const
+    {
+        float best = 2.f;   // m: the nearest tread of that height within this
+        for (int i = -1; i <= 1; ++i)
+            for (int j = -1; j <= 1; ++j)
+            {
+                const auto found = mTreadCells.find((static_cast<long long>(std::floor(x / 4) + i) << 32) ^ static_cast<unsigned>(static_cast<int>(std::floor(z / 4)) + j));
+                if (found == mTreadCells.end()) continue;
+                for (const int n : found->second)
+                {
+                    const auto& r = mTreads[static_cast<size_t>(n)];
+                    if (std::abs(r.Top - top) > .05f) continue;
+                    const float dx = x - r.X, dz = z - r.Z, across = std::abs(dx * r.Az - dz * r.Ax);
+                    if (across > r.Across / 2) continue;
+                    const float d = std::abs(dx * r.Ax + dz * r.Az);
+                    if (d < best) { best = d; cx = r.X; cz = r.Z; ax = r.Ax; az = r.Az; }
+                }
+            }
+        return best < 2.f;
+    }
+
     const EaglesAscent::Zone* EaglesAscent::ZoneAt(float y) const
     {
         const Zone* zone = nullptr;
@@ -140,16 +211,25 @@ namespace CaucasianEagle
         return zone;
     }
 
-    void EaglesAscent::KeepOutOfRock(Player& p, bool flying)
+    void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt)
     {
+        Sliding = false;
         if (flying)
         {
             const float clear = .05f;                    // m over the land (more, and where the land is level with the path a landing hovers over it and never touches down)
-            const auto blocked = [&](float x, float z)
+            const auto blockedAt = [&](float x, float z, float fx, float fz)
             {   // under the land there, and the land rises more steeply from where she was than feet could climb
-                const float h = Land(x, z); if (p.Position.y >= h + clear) return false;
-                const float run = std::hypot(x - mFlown.x, z - mFlown.z);
-                return h - std::max(Land(mFlown.x, mFlown.z), mFlown.y - clear) > .95f * run + .05f;   // the stairs climb .83 at most: she is lifted along them, rock stops her
+                const float h = FlightLand(x, z); if (p.Position.y >= h + clear) return false;
+                const float run = std::hypot(x - fx, z - fz);
+                return h - std::max(FlightLand(fx, fz), mFlown.y - clear) > .95f * run + .05f;   // the stairs climb .83 at most: she is lifted along them, rock stops her
+            };
+            const auto blocked = [&](float x, float z)
+            {   // her middle, and a ring 0.9 m round it (her body and most of her wings; 2026-11-18, the cleft probe)
+                if (blockedAt(x, z, mFlown.x, mFlown.z)) return true;
+                constexpr float r = .9f;
+                for (const auto& [ox, oz] : {std::pair{r, 0.f}, std::pair{-r, 0.f}, std::pair{0.f, r}, std::pair{0.f, -r}})
+                    if (blockedAt(x + ox, z + oz, mFlown.x + ox, mFlown.z + oz)) return true;
+                return false;
             };
             if (mHasFlown && blocked(p.Position.x, p.Position.z))
             {   // slide along the rock where one direction is free
@@ -157,8 +237,52 @@ namespace CaucasianEagle
                 else if (!blocked(mFlown.x, p.Position.z)) p.Position.x = mFlown.x;
                 else { p.Position.x = mFlown.x; p.Position.z = mFlown.z; }
             }
-            const float h = Land(p.Position.x, p.Position.z); if (p.Position.y < h + clear) p.Position.y = h + clear;
+            // lifted onto what is under her; in a fine patch only a little: there the highest drawn rock can be an overhang
+            // over her (the grid sees rock from above), and she must stay under it, not be put through it
+            const float h = FlightLand(p.Position.x, p.Position.z), low = Land(p.Position.x, p.Position.z);
+            if (p.Position.y < h + clear && (h - p.Position.y < 2.f || h <= low + .01f)) p.Position.y = h + clear;
+            else if (p.Position.y < low + clear) p.Position.y = low + clear;
         }
+        else if (!p.IsGrounded && mHasFlown)
+        {   // On foot in the air: a jump, or a fall off an edge (the session's WalkOffLedges). The engine stands her only on
+            // ground under 60 degrees; on steeper rock she would fall into the mountain and be fetched back to the
+            // checkpoint (13 of 156 falls in the leap test, 2026-11-18). She is held on the rock's face instead and slides
+            // down it, the steeper the faster, until she reaches ground she can stand on. Only when she has just gone in
+            // (from above it a step before): never up through an overhang she jumped under.
+            const float h = FlightLand(p.Position.x, p.Position.z);
+            const float was = FlightLand(mFlown.x, mFlown.z);
+            if (p.Position.y < h - .05f && mFlown.y >= was - .5f)
+            {
+                constexpr float e = .75f;
+                const float gx = (FlightLand(p.Position.x + e, p.Position.z) - FlightLand(p.Position.x - e, p.Position.z)) / (2 * e);
+                const float gz = (FlightLand(p.Position.x, p.Position.z + e) - FlightLand(p.Position.x, p.Position.z - e)) / (2 * e);
+                const float g = std::hypot(gx, gz);
+                if (g > .01f)
+                {
+                    const float slide = std::min(16.f, 5.f + 4.f * g);   // m/s down the face
+                    p.Position.x -= gx / g * slide * dt; p.Position.z -= gz / g * slide * dt;
+                }
+                p.Position.y = std::max(p.Position.y, FlightLand(p.Position.x, p.Position.z) + .02f);
+                p.VerticalVelocity = std::max(p.VerticalVelocity, -14.f);   // the rock checks her fall
+                Sliding = true; mSlidAgo = 0;
+            }
+            else mSlidAgo += dt;
+            // At the bottom of a notch both faces are too steep to stand on and she would slide to and fro for ever,
+            // never on her feet (the slots of FLY05, FLY15 and FLY20 in the miss test). Slid to rest (within 1.5 m of one
+            // spot for 0.5 s, sliding at least every 0.3 s: she rocks across the notch's floor, a step on the rock, a step
+            // over it): she stands there, and can jump or take wing as from any ground.
+            const float went = std::hypot(p.Position.x - mSlideAnchor.x, p.Position.z - mSlideAnchor.z) + std::abs(p.Position.y - mSlideAnchor.y);
+            if (mSlidAgo > .3f) mSlideStill = 0;
+            else if (mSlideStill <= 0 || went > 1.5f) { mSlideAnchor = p.Position; mSlideStill = dt; }
+            else mSlideStill += dt;
+            if (mSlideStill > .5f)
+            {
+                p.IsGrounded = true; p.VerticalVelocity = 0;
+                p.GroundState = Doorways::DoorwaysPhysicsGroundState::Grounded; p.MissingAuthoritativeGround = false;
+                p.GroundY = p.TargetGroundY = p.Position.y;
+            }
+        }
+        else { mSlideStill = 0; mSlidAgo = 1; }
         mFlown = p.Position; mHasFlown = true;
     }
 

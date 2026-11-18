@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class Renderer;
@@ -43,6 +44,10 @@ namespace CaucasianEagle
         struct Fly { std::string Kind; float From = 0, To = 0; bool Done = false; }; // a stretch only wings cross (metres along the trail)
         struct Moment { std::string Name; DirectX::XMFLOAT3 P{}; };                  // a named place
         static constexpr float TrailStep = 4.f;   // m between the data file's trail samples
+        // Her jump on the mountain (2026-11-18, the owner: "the jump is so weak"): 9.5 m/s against the engine's 18 m/s2 is
+        // 2.5 m up and about a second in the air (the engine's own 6.5 m/s was 1.2 m: it did not clear a parapet). With the
+        // session's WalkOffLedges she can run or jump off any edge and fall, or take wing on the way down.
+        static constexpr float JumpSpeed = 9.5f;
 
         // <file>.txt and <file>.heights beside it.
         bool Load(const std::filesystem::path& file, std::string& error);
@@ -50,8 +55,10 @@ namespace CaucasianEagle
         bool LoadModels(Renderer& renderer, std::string& error);
 
         // At the start of the game's update (the engine has just moved her): in flight she is kept out of the rock, judged
-        // from where she was at the last call.
-        void KeepOutOfRock(Player& player, bool flying);
+        // from where she was at the last call. On foot in the air (a jump or a fall off an edge) she is kept on the rock's
+        // face where it is too steep to stand on, and slides down it to ground she can stand on (2026-11-18).
+        void KeepOutOfRock(Player& player, bool flying, float dt = 1.f / 60.f);
+        bool Sliding = false;          // this step she slid down rock too steep to stand on
         // Where she is along the trail (Along, OffTrail, Slope).
         void Locate(const DirectX::XMFLOAT3& position);
         // The air, the checkpoints and the safety nets. Returns the event when she was returned to the last checkpoint
@@ -65,9 +72,17 @@ namespace CaucasianEagle
         static void StyleEnvironment(EnvironmentSettings& environment, int light, int fog);
 
         float Land(float x, float z) const;      // the land's height there (bilinear on the grid); -1e9 off the grid
+        // What flight is kept over: in a fine patch (records "patch", round each stretch only wings cross) the highest
+        // drawn rock and land on a 1 m grid; elsewhere Land. 2026-11-18: the 6 m grid let her into a cleft's drawn walls.
+        float FlightLand(float x, float z) const;
         float LandLow(float x, float z) const;   // the lowest corner of the grid cell: a cleft's floor, not its rims averaged in
                                                  // (on the floor grid when the map has one: the carved rock's ledges included)
         const Zone* ZoneAt(float y) const;
+        // The top of the stair tread drawn at (x, z) nearest 'nearY' (within a step and a half), NaN where there is none.
+        // She walks the ramp under the treads; her feet are set on them (NyxaraKit::SetFootGround).
+        float TreadTop(float x, float z, float nearY) const;
+        // the middle of the tread of this top nearest (x, z) along the stair, and the stair's way (false: none within 2 m)
+        bool TreadCenter(float x, float z, float top, float& cx, float& cz, float& ax, float& az) const;
 
         // the map (read by the lab's tests and HUD)
         std::vector<Station> Stations;
@@ -96,7 +111,13 @@ namespace CaucasianEagle
         // Optional second grid (record "heights ... 2"): at each point the lowest walkable ground in the cells round it.
         // The carved rock lies up to 20 m under the land's grid on a steep face, and its ledges are ground (Gate 5).
         std::vector<float> mFloor;
-        DirectX::XMFLOAT3 mFlown{}; bool mHasFlown = false;
+        struct Patch { float X = 0, Z = 0, Step = 1; int Nx = 0, Nz = 0; std::vector<float> H; };
+        std::vector<Patch> mPatches;
+        // Stair treads (records "tread"): centre, the path's way, m along it and across, top; found through 4 m cells
+        struct Tread { float X = 0, Z = 0, Ax = 0, Az = 1, Along = 0, Across = 0, Top = 0; };
+        std::vector<Tread> mTreads;
+        std::unordered_map<long long, std::vector<int>> mTreadCells;
+        DirectX::XMFLOAT3 mFlown{}; bool mHasFlown = false; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
         float mInRock = 0;             // seconds she has been falling inside the mountain
     };
 }
