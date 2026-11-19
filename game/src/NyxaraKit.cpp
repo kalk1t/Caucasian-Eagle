@@ -298,6 +298,8 @@ namespace Doorways
         bool JumpReal = false, JumpAir = false, WasGrounded = true;   // a jump that the world moves her in; she has left the ground in it
         float JumpClock = 0, AirSeconds = 0, Dropped = 0, FellAt = 0; // seconds of this jump; off the ground on foot; held reaching down; her fall a frame ago (m/s)
         float Squat = 0, SquatGo = 0;      // her knees taking a landing: her hips let down (m), and how fast
+        bool Struck = false;               // something hurt her since her last frame
+        float Flinch = 0, FlinchGo = 0;    // knocked back by it: her picture tipped back (radians), and how fast
         float FlyTime = 0, FlyLean = 0, Hover = 0, Rise = -1, Touch = -1;
         bool WasFlying = false;
         int Air = 0; float AirTime = 0;    // F in flight: 1 the dart forward, 2 flying to the creature she will throw
@@ -488,10 +490,12 @@ namespace Doorways
         }
 
         // She looks where she turns (2026-11-19): her head and neck lead a turn, as far as she turns fast, and come
-        // back after it. turn: radians a second, to her right.
-        void LookAbout(DoorwaysSkeletonPose& out, float dt, float turn, float share)
+        // back after it. turn: radians a second, to her right. And she keeps an eye on the nearest creature before
+        // her: toward, where it is from her facing (radians, to her right; NaN: none in sight).
+        void LookAbout(DoorwaysSkeletonPose& out, float dt, float turn, float toward, float share)
         {
-            Look += (std::clamp(turn * .28f, -.5f, .5f) * share - Look) * (std::min)(1.f, dt * 5);
+            const float to = std::isfinite(toward) ? std::clamp(toward * .85f, -.95f, .95f) : std::clamp(turn * .28f, -.5f, .5f);
+            Look += (to * share - Look) * (std::min)(1.f, dt * 5);
             if (NeckJoint < 0 || HeadJoint < 0 || std::abs(Look) < 1e-3f || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return;
             const int above = Skeleton.Joints[NeckJoint].ParentIndex;
             if (above < 0 || Skeleton.Joints[HeadJoint].ParentIndex != NeckJoint) return;
@@ -2040,13 +2044,25 @@ namespace Doorways
             const bool afoot = !flying && p.IsGrounded && !b.Dead && !b.Carried() && !b.Cast && b.Rise < 0 && b.Touch < 0;
             const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
             const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
+            {   // Struck, she is knocked back a little and comes upright again (2026-11-19: a blow took her health and
+                // did nothing else to her), and her wings start up (below, with her guard).
+                constexpr float Spring = 13.f;
+                if (b.Struck && !b.Dead) b.FlinchGo -= 4.5f;
+                for (float left = dt; left > 1e-6f;)
+                {
+                    const float h = (std::min)(left, 1 / 120.f); left -= h;
+                    b.FlinchGo += (-Spring * Spring * b.Flinch - 2 * Spring * b.FlinchGo) * h;
+                    b.Flinch += b.FlinchGo * h;
+                }
+                if (b.Dead || b.Cast) b.Flinch = b.FlinchGo = 0;
+            }
             b.LeanRoll += (roll - b.LeanRoll) * (std::min)(1.f, dt * 5);
             b.LeanPitch += (pitch - b.LeanPitch) * (std::min)(1.f, dt * 7);
             // in flight she banks into a turn, as a bird does (2026-11-19: she turned in the air upright, as on a spit)
             const bool winging = flying && !p.IsGrounded && !b.Dead && !b.Cast && b.Rise < 0 && b.Touch < 0;
             b.Bank += ((winging ? std::clamp(-b.TurnRate * .24f, -.42f, .42f) : 0.f) - b.Bank) * (std::min)(1.f, dt * 3.5f);
         }
-        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch, 0, b.LeanRoll + b.Bank};
+        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch + b.Flinch, 0, b.LeanRoll + b.Bank};
         b.Hover += ((flying && p.IsGrounded && !landing && b.Rise < 0 ? 1.f : 0.f) - b.Hover) * (std::min)(1.f, dt * 3);
         const float up = b.Cast == 4 ? 1.f : b.Cast == 5 && b.CastTime < CastThrust && !flying ? CastBrace / CastLift : 0.f;
         b.CastUp += (up - b.CastUp) * (std::min)(1.f, dt * 7);
@@ -2187,7 +2203,9 @@ namespace Doorways
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
             // stands at ease (Stand), her swords on her back, and walks off without having to put them away.
             constexpr float GuardSeconds = 5.f, GuardNear = 14.f;
-            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Thrown >= 0;
+            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Thrown >= 0 || b.Struck;
+            if (b.Struck) for (auto& w : b.WingSpring) w.FlapGo += 3.f;
+            b.Struck = false;
             for (const auto& w : mWraiths)
                 if (!threat && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
             // (walking off with nothing near, she is done: her swords go to her back for the stride anyway, and she
@@ -2261,7 +2279,19 @@ namespace Doorways
                 world.AnimatedPlayerVisual.Translation.x = Chest * std::sin(b.Bank);
                 world.AnimatedPlayerVisual.Translation.y += Chest * (1 - std::cos(b.Bank));
             }
-            if (composed) b.LookAbout(pose, dt, b.TurnRate, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 ? 0.f : 1.f);
+            float toward = std::numeric_limits<float>::quiet_NaN();
+            {   // the nearest creature within LookFar of her and not behind her (a third of a turn either way)
+                constexpr float LookFar = 22.f, LookWide = 2.1f;
+                float nearest = LookFar;
+                for (const auto& w : mWraiths)
+                {
+                    const float dx = w.Pos.x - p.Position.x, dz = w.Pos.z - p.Position.z, d = std::hypot(dx, dz);
+                    if (!w.Alive || d < .6f || d >= nearest || std::abs(w.Pos.y - p.Position.y) > LookFar) continue;
+                    const float a = std::remainder(std::atan2(dx, dz) - p.Yaw, XM_2PI);
+                    if (std::abs(a) < LookWide) { nearest = d; toward = a; }
+                }
+            }
+            if (composed) b.LookAbout(pose, dt, b.TurnRate, toward, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 ? 0.f : 1.f);
             {   // Standing at ease for a while she opens her wings, shakes them out and lowers them again (2026-11-19): every
                 // quarter of a minute or so, not by a clock. A blow up on both wings as they open, one down after it.
                 constexpr float StretchSeconds = 1.7f, Shake = .65f;
@@ -2417,6 +2447,7 @@ namespace Doorways
         mMercy = CaucasianEagle::MercySeconds;
         if (mTrainingMode) ++mTrainingPlayerHits;
         else combat.ApplyIncomingDamage(world, damage);
+        mBody->Struck = true;
         CaucasianEagle::Sound::Play("combat/blow", .9f); CaucasianEagle::Sound::Play("nyxara/hurt", .9f);
         return true;
     }
