@@ -75,6 +75,8 @@ namespace Doorways
         constexpr float WristUlnar[2] = {32.f, 45.f}, WristRadial[2] = {20.f, 32.f}, WristFlex[2] = {60.f, 80.f};
         constexpr float WristTakes = .25f;        // seconds over which her wrists come to be so held as her swords come into her hands (and go)
         constexpr float SkillOut = .42f;          // seconds from the end of a skill back to her guard, or on her way
+        constexpr float CutOut = .34f;            // and from the end of a cut (one not followed by another)
+        constexpr float SkillIn = .30f;           // seconds into the spin, the cast or the throw (slow away and slow in)
         constexpr float WhirlIn = .15f, WhirlOut = .40f;   // her spin with the swords gathers speed so long, and slows to a stand so long (s)
         // Her arms' way to the handles and from them (ReachArms):
         constexpr float ElbowFollows = 16.f;     // her elbow goes after where it is wanted on its circle: this much of what is left, a second
@@ -110,6 +112,7 @@ namespace Doorways
         constexpr float ThrowSettleFrom = 2.0f, ThrowSettleTo = 2.4f, ThrowFloor = .03f, ThrowCorrect = 6.f;
         constexpr float ThrowRiseFrom = .65f, ThrowRiseTo = 1.05f, ThrowFallFrom = 1.75f;
         constexpr float ThrowLies = 3.3f, ThrowUp = 4.3f;
+        constexpr float ThrowLiftBack = 6.f;   // a throw broken off: her picture comes back to her place at this pace (of what is left, a second)
         constexpr float FlyLeanHover = .07f, FlyLeanFast = 1.05f, FlyLeanSpeed = 7.f;
         constexpr float RiseLifts = .4f, LandReachTime = .4f;
         constexpr float CastRange = 7, CastRate = 1.7f, CastSwordSpeed = 26, CastWait = .22f, CastDash = 12, CastTake = .15f;
@@ -359,6 +362,7 @@ namespace Doorways
         // the new one, and how fast it was moving), instead of a mix with the old pose held still.
         std::vector<XMFLOAT3> CarryAt, CarryGo, CarryTurn, CarrySpin;
         float CarrySeconds = 0, LastDt = 0; bool CarryArms = true;
+        float UpperOut = 0;                                // (>0) her body above her hips is carried on so long (s), not the change's own time
         float Legs = 0, Phase = 0, BlendTime = 0, BlendSeconds = 0, Speed = 0, Clock = 0;
         bool FlyBody = false;
         XMFLOAT3 Clamp{0, 1.64f, .28f};    // the place between her thighs, in her own space (from the last pose)
@@ -383,6 +387,7 @@ namespace Doorways
         // ---- the throw (F at a broken creature)
         int Thrown = -1;
         float ThrowTime = 0, ThrowNeck = 1.64f, ThrowStick = 1, ThrowGround = 0, ThrowGone = -1;
+        float ThrowLiftWas = 0;                            // how far the throw last had her picture raised (or lowered)
         XMFLOAT3 ThrowFrom{}, ThrowWay{0, 0, 1}, ThrowHeld{}, ThrowFeet{}, ThrowFeetWas{}, ThrowStood{};
 
         // ---- the thrown swords (V)
@@ -856,22 +861,28 @@ namespace Doorways
         }
         // Her wrist no further than a wrist bends (WristUlnar, WristRadial, WristFlex): within the first of each pair as it
         // is; beyond, giving ever less up to the second (soft), or held at the first (!soft). weight: how much of that.
+        // A wrist is bent so far and some way (toward its little finger or thumb, up or down, or between): how far it may
+        // go each way is an ellipse through the sideways and the up-down limits, and only how far is held, not the way.
+        // (Held as a sideways and an up-down angle each alone, a hand bent near 90 degrees sideways - the spin's - has an
+        // up-down angle that means nothing: it read -158, was held to -80, and the hand stayed bent 83 degrees.)
         XMVECTOR HoldWrist(int s, XMVECTOR qHand, XMVECTOR foreLine, bool soft, float weight = 1) const
         {
-            float sideways = 0, updown = 0;
-            WristBend(s, qHand, foreLine, sideways, updown);
-            const auto held = [soft](float x, const float* most)
+            const XMVECTOR f = XMVector3Rotate(foreLine, XMQuaternionConjugate(qHand));         // her forearm's line as her hand sees it
+            const XMVECTOR line = XMLoadFloat3(&HandLine[s]), across = XMLoadFloat3(&HandAcross[s]), palm = XMLoadFloat3(&HandPalm[s]);
+            const float on = XMVectorGetX(XMVector3Dot(f, line)), over = XMVectorGetX(XMVector3Dot(f, across)), outward = XMVectorGetX(XMVector3Dot(f, palm));
+            const float aside = std::sqrt(over * over + outward * outward);
+            if (aside < 1e-5f) return qHand;
+            const float bent = std::atan2(aside, on), c = over / aside, sn = outward / aside;
+            const auto reach = [c, sn](int k)
             {
-                const float a = std::abs(x);
-                if (a <= most[0]) return x;
-                const float y = soft ? most[0] + (most[1] - most[0]) * std::tanh((a - most[0]) / (most[1] - most[0])) : most[0];
-                return x < 0 ? -y : y;
+                const float side = XMConvertToRadians(c >= 0 ? WristUlnar[k] : WristRadial[k]), flex = XMConvertToRadians(WristFlex[k]);
+                return 1 / std::sqrt((c / side) * (c / side) + (sn / flex) * (sn / flex));
             };
-            const float sd = held(sideways, sideways >= 0 ? WristUlnar : WristRadial), ud = held(updown, WristFlex);
-            if (sd == sideways && ud == updown) return qHand;
-            const float s1 = XMConvertToRadians(sideways + (sd - sideways) * weight), u1 = XMConvertToRadians(updown + (ud - updown) * weight);
-            const XMVECTOR allowed = XMLoadFloat3(&HandLine[s]) * (std::cos(s1) * std::cos(u1)) + XMLoadFloat3(&HandAcross[s]) * std::sin(s1) +
-                                     XMLoadFloat3(&HandPalm[s]) * (std::cos(s1) * std::sin(u1));
+            const float knee = reach(0);
+            if (bent <= knee) return qHand;
+            const float most = reach(1), held = soft ? knee + (most - knee) * std::tanh((bent - knee) / (most - knee)) : knee;
+            const float b1 = bent + (held - bent) * weight;
+            const XMVECTOR allowed = line * std::cos(b1) + (across * c + palm * sn) * std::sin(b1);
             return XMQuaternionNormalize(After(ArcTurn(XMVector3Normalize(XMVector3Rotate(allowed, qHand)), foreLine), qHand));
         }
         // Her wrists (2026-11-19; owner: "hands are not following the skills and combos properly"). The clips bend them
@@ -2170,10 +2181,22 @@ namespace Doorways
                 BlendFrom = Previous;
                 BlendTime = 0;
                 BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? (CutBlend > 0 ? CutBlend : .17f) : .2f;
-                // (out of a skill back to her guard, or on her way: the spin and the throw ended turned from it and still
-                // turning, and a fifth of a second threw her hands about at 10 to 16 m/s)
-                if ((LastClip.rfind("Skill", 0) == 0 || LastClip == "Cast_Pull" || LastClip == "Attack_Jump") && (name == "Idle" || name == "Stand" || name == "Move"))
-                    BlendSeconds = SkillOut;
+                // Out of a cut or a skill back to her guard, or on her way (2026-11-19). Each cut ends with her chest 24 to 71
+                // degrees from her guard and her cutting hand 25 to 67 cm from it; the spin and the throw ended turned
+                // and still turning; and in a fifth of a second she was thrown back, her hands at 7 to 16 m/s. Now she is
+                // given time: standing, all of her; going on her way, her body above her hips, her legs taking up her
+                // stride at once.
+                UpperOut = 0;
+                const bool fromSkill = LastClip.rfind("Skill", 0) == 0 || LastClip == "Cast_Pull" || LastClip == "Attack_Jump";
+                if (!Drawing && (fromSkill || LastClip.rfind("Attack", 0) == 0) && (name == "Idle" || name == "Stand" || name == "Move"))
+                {
+                    if (name == "Move") UpperOut = fromSkill ? SkillOut : CutOut;
+                    else BlendSeconds = fromSkill ? SkillOut : CutOut;
+                }
+                // (into the spin, the cast or the throw her arms go a little longer, slow away and slow in: from her guard
+                // they were flung out to the spin's in a fifth of a second, her hands at 7 to 8 m/s in its first frames)
+                const bool skillIn = !Drawing && (name == "Skill_Kick" || name == "Skill_Cast" || name == "Skill_Throw");
+                if (skillIn) BlendSeconds = SkillIn;
                 if (Drawing)
                 {   // Her arms have their own time: up to the handles, and on to the new clip. A cut out of standing at
                     // ease took her hand from her hip to the handle over her shoulder in an eighth of a second (20 m/s at
@@ -2192,8 +2215,9 @@ namespace Doorways
                 // what is carried on: for every joint, the old pose against the new one, and how the old one was moving
                 // (no faster than would cross that difference three times in the time of the change: no overshoot of note)
                 const size_t n = out.LocalJoints.size();
-                CarrySmooth = name.rfind("Attack", 0) == 0 && name != "Attack_Jump" && (CutBlend > 0 || Drawing);
+                CarrySmooth = (name.rfind("Attack", 0) == 0 && name != "Attack_Jump" && (CutBlend > 0 || Drawing)) || skillIn;
                 CarrySeconds = Previous.LocalJoints.size() != n || same ? 0.f : CarrySmooth ? BlendSeconds : BlendSeconds * 1.6f;
+                if (CarrySeconds > 0 && !CarrySmooth) CarrySeconds = (std::max)(CarrySeconds, UpperOut * 1.6f);
                 CarryArms = !Drawing;
                 ArmTo.assign(out.LocalJoints.size(), XMFLOAT4{0, 0, 0, 0});
                 CarryAt.assign(n, {}); CarryGo.assign(n, {}); CarryTurn.assign(n, {}); CarrySpin.assign(n, {});
@@ -2224,14 +2248,18 @@ namespace Doorways
                 const float gone = BlendTime / CarrySeconds, rest = 1 - gone;
                 const float wAt = CarrySmooth ? 1 - gone * gone * gone * (10 - 15 * gone + 6 * gone * gone) : (1 + y * BlendTime) * e;
                 const float wGo = CarrySmooth ? BlendTime * rest * rest * rest : BlendTime * e;
+                // (her body above her hips more slowly, out of a cut or a skill as she goes on her way: UpperOut)
+                const float yUp = UpperOut > 0 ? 5.5f / UpperOut : y, eUp = std::exp(-yUp * BlendTime);
+                const float wAtUp = UpperOut > 0 ? (1 + yUp * BlendTime) * eUp : wAt, wGoUp = UpperOut > 0 ? BlendTime * eUp : wGo;
                 for (size_t i = 0; i < out.LocalJoints.size(); ++i)
                 {
                     if (static_cast<int>(i) == SwordJoint[0] || static_cast<int>(i) == SwordJoint[1]) continue;   // (below)
                     if (!CarryArms && i < ArmJoint.size() && ArmJoint[i]) continue;                                // (to the handles, below)
                     auto& to = out.LocalJoints[i];
+                    const bool slow = UpperOut > 0 && i < Upper.size() && Upper[i];
                     const XMVECTOR at = XMLoadFloat3(&CarryAt[i]), turned = XMLoadFloat3(&CarryTurn[i]);
-                    XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + at * wAt + XMLoadFloat3(&CarryGo[i]) * wGo);
-                    const XMVECTOR turn = turned * wAt + XMLoadFloat3(&CarrySpin[i]) * wGo;
+                    XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + at * (slow ? wAtUp : wAt) + XMLoadFloat3(&CarryGo[i]) * (slow ? wGoUp : wGo));
+                    const XMVECTOR turn = turned * (slow ? wAtUp : wAt) + XMLoadFloat3(&CarrySpin[i]) * (slow ? wGoUp : wGo);
                     XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionMultiply(XMLoadFloat4(&to.Rotation), TurnOf(turn))));
                 }
             }
@@ -3313,6 +3341,14 @@ namespace Doorways
 
         // ---- the creatures she holds: pushed over by V, thrown by F
         float lift = 0;
+        // (a throw ended or broken off - the creature gone - leaves her picture where the throw had it, and it comes back
+        // from there: it went at once, and she was thrown up 1.3 m in a frame)
+        if (!(b.Thrown >= 0 && b.Air != 2 && b.Attack == "Skill_Throw") && b.ThrowLiftWas != 0)
+        {
+            b.ThrowLiftWas *= std::exp(-(std::max)(0.f, dt) * ThrowLiftBack);
+            if (std::abs(b.ThrowLiftWas) < 1e-3f) b.ThrowLiftWas = 0;
+            lift = b.ThrowLiftWas;
+        }
         if (b.Pushed >= 0)
         {
             b.PushTime += dt;
@@ -3337,12 +3373,16 @@ namespace Doorways
             auto& w = mWraiths[b.Thrown];
             if (!w.Alive && b.ThrowGone < 0) b.ThrowGone = b.ThrowTime;
             const bool hers = b.Attack == "Skill_Throw";
-            const float here = p.Position.y - b.ThrowGround;   // her height over the ground it stands on
+            // her height over the ground: under her where that is known, else under the creature (2026-11-19: over the
+            // creature's ground she was taken down to it wherever it stood lower than she did, into the ground under her)
+            const float under = mFootGround ? mFootGround(p.Position.x, p.Position.z, p.Position.y) : NAN;
+            const float here = p.Position.y - (std::isfinite(under) ? under : b.ThrowGround);
             if (hers)
             {   // her height: the clip's, scaled to this creature's neck, and down to the ground if she began in the air
                 const float fitted = ease(b.ThrowTime, ThrowRiseFrom, ThrowRiseTo) * (1 - ease(b.ThrowTime, ThrowSettleFrom, ThrowSettleTo));
                 lift = fitted * (b.ThrowNeck / ThrowNeckWas - 1) * b.Clamp.y - ease(b.ThrowTime, ThrowRiseFrom, ThrowRiseTo) * (1 - ease(b.ThrowTime, ThrowLands + .5f, ThrowLies + .2f)) * here;
                 lift = (std::max)(lift, (std::min)(0.f, ThrowFloor - b.Lowest - here));
+                b.ThrowLiftWas = lift;
             }
             if ((!hers && (b.ThrowTime < ThrowFallFrom || b.ThrowTime >= ThrowUp)) || b.Dead || (b.ThrowGone >= 0 && b.ThrowTime > b.ThrowGone + GoneSeconds))
                 b.Thrown = -1;   // broken off before it went down, or over, or it is gone
