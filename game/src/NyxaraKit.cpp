@@ -69,8 +69,14 @@ namespace Doorways
         // standing at ease her hands went up at 16 m/s and came down onto the cut turning at 3000 degrees a second.)
         constexpr float DrawReachPressed = .22f, DrawOnPressed = .18f;
         constexpr float DrawOnCut = .22f;    // (into a cut: from the handles into the swing, there just before the blow)
+        // A wrist bends so far (2026-11-19), degrees: toward its little finger (ulnar), toward its thumb (radial), up or
+        // down. Within the first of each pair her hand is as the clip has it; beyond, it gives ever less up to the second
+        // (HoldWrists). On a handle on her back the first is as far as it goes (GripOnBack).
+        constexpr float WristUlnar[2] = {32.f, 45.f}, WristRadial[2] = {20.f, 32.f}, WristFlex[2] = {60.f, 80.f};
+        constexpr float WristTakes = .25f;        // seconds over which her wrists come to be so held as her swords come into her hands (and go)
+        constexpr float SkillOut = .42f;          // seconds from the end of a skill back to her guard, or on her way
+        constexpr float WhirlIn = .15f, WhirlOut = .40f;   // her spin with the swords gathers speed so long, and slows to a stand so long (s)
         // Her arms' way to the handles and from them (ReachArms):
-        constexpr float WristSideMost = 35.f, WristBendMost = 65.f;   // degrees a wrist bends sideways, and up or down, on a handle
         constexpr float ElbowFollows = 16.f;     // her elbow goes after where it is wanted on its circle: this much of what is left, a second
         constexpr float RollFollows = 40.f;      // her forearm and hand roll after the sword: so too
         constexpr float RollMost = 1800.f;       // and no faster than this (degrees a second)
@@ -327,6 +333,7 @@ namespace Doorways
         bool GripKnown = false;
         struct ArmState { bool Known = false; XMFLOAT3 Side{}, Axis{}, ForeLine{}; XMFLOAT4 Frame{0, 0, 0, 1}; } Reaching[2];   // each arm leaving its handle, a frame ago: its elbow's side, the line from shoulder to wrist, its forearm's line, and the frame its forearm and hand turn in
         bool SwordKept = false;                            // through this change her swords stay in her fists
+        float WristHeld = 0;                               // how far her wrists are held to what a wrist does (HoldWrists)
         bool SwordWasInHand = true, SettleKnown = false;   // a sword taken or let go settles into its new place:
         float SwordSettle = 9;                             // seconds since
         XMFLOAT4X4 SwordBefore[2]{};                       // where each was (her space)
@@ -726,7 +733,7 @@ namespace Doorways
         // degrees on the way. Now (worked out in a model of her arm before it was built):
         // - the grip: the sword lies on her back as her chest carries it; her hand closes round the handle's middle with
         //   its knuckles along the blade, turned about the handle to where her forearm comes from, and no further bent
-        //   than a wrist bends (WristSideMost, WristBendMost): by what is over, the handle lies askew in her fist;
+        //   than a wrist bends (the first of WristUlnar, WristRadial, WristFlex): by what is over, the handle lies askew in her fist;
         // - her wrist's way: from where the pose has it, round before and above her shoulder (never nearer the joint
         //   than a hand's breadth), to the grip; slow away and slow in;
         // - her elbow: two bones of fixed length leave it a circle; where on it is given by a curve of elbow places (the
@@ -847,15 +854,124 @@ namespace Doorways
             sideways = XMConvertToDegrees(std::asin(std::clamp(over, -1.f, 1.f)));
             updown = XMConvertToDegrees(std::atan2(out, on));
         }
-        XMVECTOR LimitWrist(int s, XMVECTOR qHand, XMVECTOR foreLine, float sideMost, float updownMost) const
+        // Her wrist no further than a wrist bends (WristUlnar, WristRadial, WristFlex): within the first of each pair as it
+        // is; beyond, giving ever less up to the second (soft), or held at the first (!soft). weight: how much of that.
+        XMVECTOR HoldWrist(int s, XMVECTOR qHand, XMVECTOR foreLine, bool soft, float weight = 1) const
         {
             float sideways = 0, updown = 0;
             WristBend(s, qHand, foreLine, sideways, updown);
-            const float sd = XMConvertToRadians(std::clamp(sideways, -sideMost, sideMost)), ud = XMConvertToRadians(std::clamp(updown, -updownMost, updownMost));
-            if (std::abs(sideways) <= sideMost && std::abs(updown) <= updownMost) return qHand;
-            const XMVECTOR allowed = XMLoadFloat3(&HandLine[s]) * (std::cos(sd) * std::cos(ud)) + XMLoadFloat3(&HandAcross[s]) * std::sin(sd) +
-                                     XMLoadFloat3(&HandPalm[s]) * (std::cos(sd) * std::sin(ud));
+            const auto held = [soft](float x, const float* most)
+            {
+                const float a = std::abs(x);
+                if (a <= most[0]) return x;
+                const float y = soft ? most[0] + (most[1] - most[0]) * std::tanh((a - most[0]) / (most[1] - most[0])) : most[0];
+                return x < 0 ? -y : y;
+            };
+            const float sd = held(sideways, sideways >= 0 ? WristUlnar : WristRadial), ud = held(updown, WristFlex);
+            if (sd == sideways && ud == updown) return qHand;
+            const float s1 = XMConvertToRadians(sideways + (sd - sideways) * weight), u1 = XMConvertToRadians(updown + (ud - updown) * weight);
+            const XMVECTOR allowed = XMLoadFloat3(&HandLine[s]) * (std::cos(s1) * std::cos(u1)) + XMLoadFloat3(&HandAcross[s]) * std::sin(s1) +
+                                     XMLoadFloat3(&HandPalm[s]) * (std::cos(s1) * std::sin(u1));
             return XMQuaternionNormalize(After(ArcTurn(XMVector3Normalize(XMVector3Rotate(allowed, qHand)), foreLine), qHand));
+        }
+        // Her wrists (2026-11-19; owner: "hands are not following the skills and combos properly"). The clips bend them
+        // further than a wrist goes through most of every cut and skill: the cutting hand 51 to 53 degrees toward its
+        // little finger, the guard's right hand 59 toward its thumb, the spinning swords 87 and 78 (each blade laid along
+        // its arm), the slide, the cast and the throw 55 to 82 toward the thumb and 92 to 106 up or down. With her swords
+        // in her hands each wrist is now held to what a wrist does (HoldWrist), and her sword keeps its own way: the hand
+        // gives, the handle turns in her fist about its middle (a sabre's grip, the handle aslant across the palm), and the
+        // blade is where the clip has it. weight: how much of this (it comes as her swords come into her hands, and goes).
+        void HoldWrists(DoorwaysSkeletonPose& out, float weight)
+        {
+            if (!GripKnown || weight <= 0 || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr)) return;
+            const auto place = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            for (int s = 0; s < 2; ++s)
+            {
+                const int fa = ArmChain[s][2], ha = ArmChain[s][3], sj = SwordJoint[s];
+                const XMVECTOR wrist = place(ha), qFore = turnOf(fa), qHand = turnOf(ha);
+                const XMVECTOR foreLine = Unit(wrist - place(fa), XMVectorZero());
+                if (XMVectorGetX(XMVector3LengthSq(foreLine)) < .5f) continue;
+                const XMVECTOR held = HoldWrist(s, qHand, foreLine, true, weight);
+                if (XMVector4Equal(held, qHand)) continue;
+                XMStoreFloat4(&out.LocalJoints[ha].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(qFore), held)));
+                if (!InHand || SwordsOut) continue;
+                // her sword: its own turn kept, the middle of its handle where the middle of her fist now is
+                XMVECTOR sc, q, t;
+                if (!XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[ha]))) sc = XMVectorSplatOne();
+                const XMVECTOR qSword = turnOf(sj), swordAt = place(sj);
+                const XMVECTOR middle = XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), XMLoadFloat4x4(&out.ModelSpaceMatrices[sj]));
+                const XMVECTOR middleNow = wrist + XMVector3Rotate(XMVector3Rotate(middle - wrist, XMQuaternionConjugate(qHand)), held);
+                XMStoreFloat4(&out.LocalJoints[sj].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(held), qSword)));
+                XMStoreFloat3(&out.LocalJoints[sj].Translation, XMVector3Rotate(swordAt + middleNow - middle - wrist, XMQuaternionConjugate(held)) / XMVectorSetW(sc, 1));
+            }
+        }
+        // The spinning swords (Skill_Kick; 2026-11-19). The bundle lays each blade along its arm: each hand was bent 87 and
+        // 78 degrees toward its little finger to do so, and was turned about its arm afresh in every frame (up to 5000
+        // degrees a second: the swords whirled about themselves in her fists). Her spin began 49 degrees and ended 101
+        // degrees from her guard, at full speed, and a fifth of a second flung her back to it. Now each hand keeps one turn
+        // on its forearm (its blade along it, the hand not twisted on its wrist; HoldWrists takes what a wrist cannot), and
+        // her hips start from where her guard has them, gather speed (WhirlIn) and slow to a stand (WhirlOut) where her
+        // guard has them again, whole turns later.
+        void SteadyWhirl()
+        {
+            const auto whirl = Clips.find("Skill_Kick");
+            if (!GripKnown || whirl == Clips.end() || Hips < 0) return;
+            auto& spin = whirl->second;
+            const auto trackOf = [&](int j)
+            {
+                decltype(&spin.JointTracks[0]) got = nullptr;
+                for (auto& tr : spin.JointTracks) if (static_cast<int>(tr.JointIndex) == j) got = &tr;
+                return got;
+            };
+            if (spin.JointTracks.empty()) return;
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto hand = trackOf(ArmChain[s][3]);
+                if (!hand || hand->RotationKeys.empty()) continue;
+                const XMVECTOR bind = XMQuaternionNormalize(XMLoadFloat4(&Skeleton.Joints[ArmChain[s][3]].LocalBindRotation));
+                const XMVECTOR blade = XMVector3Rotate(XMVector3Rotate(XMLoadFloat3(&BladeInSword[s]), XMLoadFloat4(&SwordTurnInHand[s])), bind);
+                const XMVECTOR steady = XMQuaternionNormalize(After(ArcTurn(XMVector3Normalize(blade), XMVector3Normalize(XMLoadFloat3(&ForeAxis[s]))), bind));
+                for (auto& key : hand->RotationKeys) XMStoreFloat4(&key.Value, steady);
+            }
+            // her hips: the spin's own pace, eased in and out, and stretched to whole turns from her guard's facing
+            const auto hipsTrack = trackOf(Hips);
+            DoorwaysSkeletonPose guardPose;
+            if (!hipsTrack || hipsTrack->RotationKeys.size() < 3 || !Sample("Idle", 0, guardPose, nullptr)) return;
+            auto& spinKeys = hipsTrack->RotationKeys;
+            const size_t count = spinKeys.size();
+            const XMVECTOR firstTurn = XMQuaternionConjugate(XMQuaternionNormalize(XMLoadFloat4(&spinKeys[0].Value)));
+            XMVECTOR spinAxis = XMVectorZero();
+            float widest = 0;
+            for (const auto& key : spinKeys)
+            {
+                const XMVECTOR d = After(XMLoadFloat4(&key.Value), firstTurn);
+                const float l = XMVectorGetX(XMVector3Length(d));
+                if (l > widest) { widest = l; spinAxis = d / l; }
+            }
+            if (widest < .2f) return;
+            const auto aboutAxis = [&](XMVECTOR d) { return 2 * std::atan2(XMVectorGetX(XMVector3Dot(d, spinAxis)), XMVectorGetW(d)); };
+            std::vector<float> keyAngle(count), spun(count, 0.f);
+            for (size_t i = 0; i < count; ++i)
+            {
+                float a = aboutAxis(After(XMLoadFloat4(&spinKeys[i].Value), firstTurn));
+                if (i > 0) { while (a - keyAngle[i - 1] > XM_PI) a -= XM_2PI; while (a - keyAngle[i - 1] < -XM_PI) a += XM_2PI; }
+                keyAngle[i] = a;
+            }
+            float faceHome = aboutAxis(After(XMLoadFloat4(&guardPose.LocalJoints[Hips].Rotation), firstTurn));
+            while (faceHome > XM_PI) faceHome -= XM_2PI;
+            while (faceHome < -XM_PI) faceHome += XM_2PI;
+            const float last = spinKeys[count - 1].TimeSeconds;
+            for (size_t i = 1; i < count; ++i)
+            {
+                const float mid = (spinKeys[i - 1].TimeSeconds + spinKeys[i].TimeSeconds) / 2;
+                spun[i] = spun[i - 1] + (keyAngle[i] - keyAngle[i - 1]) * Ramp(mid, 0, WhirlIn) * (1 - Ramp(mid, last - WhirlOut, last));
+            }
+            const float total = spun[count - 1];
+            if (std::abs(total) < XM_PI) return;
+            const float stretch = XM_2PI * std::round(total / XM_2PI) / total;
+            for (size_t i = 0; i < count; ++i)
+                XMStoreFloat4(&spinKeys[i].Value, XMQuaternionNormalize(After(XMQuaternionRotationAxis(spinAxis, faceHome + stretch * spun[i] - keyAngle[i]), XMLoadFloat4(&spinKeys[i].Value))));
         }
 #pragma warning(push)
 #pragma warning(disable : 4324)     // (padded for the vectors' sake)
@@ -903,7 +1019,7 @@ namespace Doorways
                     const XMVECTOR to = XMVector3Normalize(line);
                     roll = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(line0, to), g.Blade)), XMVectorGetX(XMVector3Dot(line0, to)));
                 }
-                g.Hand = LimitWrist(s, After(XMQuaternionRotationAxis(g.Blade, roll), whole), comes, WristSideMost, WristBendMost);
+                g.Hand = HoldWrist(s, After(XMQuaternionRotationAxis(g.Blade, roll), whole), comes, false);
             }
             return g;
         }
@@ -2054,6 +2170,10 @@ namespace Doorways
                 BlendFrom = Previous;
                 BlendTime = 0;
                 BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? (CutBlend > 0 ? CutBlend : .17f) : .2f;
+                // (out of a skill back to her guard, or on her way: the spin and the throw ended turned from it and still
+                // turning, and a fifth of a second threw her hands about at 10 to 16 m/s)
+                if ((LastClip.rfind("Skill", 0) == 0 || LastClip == "Cast_Pull" || LastClip == "Attack_Jump") && (name == "Idle" || name == "Stand" || name == "Move"))
+                    BlendSeconds = SkillOut;
                 if (Drawing)
                 {   // Her arms have their own time: up to the handles, and on to the new clip. A cut out of standing at
                     // ease took her hand from her hip to the handle over her shoulder in an eighth of a second (20 m/s at
@@ -2163,6 +2283,9 @@ namespace Doorways
                 // (her shoulders and fingers go so; her arms and hands by the way an arm takes)
                 if (drawing) led = ReachArms(out, atHandles, atHandles ? 1 - (BlendTime - DrawReach) / (std::max)(.01f, DrawSeconds - DrawReach) : BlendTime / (std::max)(.01f, DrawReach), dt);
             }
+            // her wrists no further than a wrist bends, while her swords are in her hands (HoldWrists)
+            WristHeld = std::clamp(WristHeld + (InHand ? 1.f : -1.f) * (std::max)(0.f, dt) / WristTakes, 0.f, 1.f);
+            HoldWrists(out, WristHeld * WristHeld * (3 - 2 * WristHeld));
             // On her back her swords are carried by her chest, whatever her arms do (2026-11-19). The clips key them
             // against her hands so that they lie on her back as the clip moves her arms; but through every change of
             // clip her arms are not where the clip has them, and her swords slid 10-18 cm over her back at every start
@@ -2338,6 +2461,7 @@ namespace Doorways
         b.SmoothWrists();
         b.LearnSwings();
         b.LearnGrip();
+        b.SteadyWhirl();
         char log[MAX_PATH] = {};
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_LOG", log, sizeof(log)) > 0 && log[0])
         {
