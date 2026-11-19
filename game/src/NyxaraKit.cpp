@@ -69,6 +69,12 @@ namespace Doorways
         // standing at ease her hands went up at 16 m/s and came down onto the cut turning at 3000 degrees a second.)
         constexpr float DrawReachPressed = .22f, DrawOnPressed = .18f;
         constexpr float DrawOnCut = .22f;    // (into a cut: from the handles into the swing, there just before the blow)
+        // Her arms' way to the handles and from them (ReachArms):
+        constexpr float WristSideMost = 35.f, WristBendMost = 65.f;   // degrees a wrist bends sideways, and up or down, on a handle
+        constexpr float ElbowFollows = 16.f;     // her elbow goes after where it is wanted on its circle: this much of what is left, a second
+        constexpr float RollFollows = 40.f;      // her forearm and hand roll after the sword: so too
+        constexpr float RollMost = 1800.f;       // and no faster than this (degrees a second)
+        constexpr float BladeLeads = .75f;       // the blade is where the pose has it when her hand has gone this much of its way from the handle
         // Each hand's cuts in a row, in the order in which they go into one another (2026-11-19). From the end of one cut
         // to where the next one's swing begins her hand had 0.8 and 1.7 m to go in the left row (slash, thrust, slash: the
         // thrust ends with her arm stretched out before her, far from every wind-up) and 0.4, 1.0 and 1.0 m in the right;
@@ -311,10 +317,16 @@ namespace Doorways
         bool CarrySmooth = false;                          // what is carried on dies away evenly (into a cut), not as a spring does
         // her hands to the handles on her back (ReachArms)
         int Knuckle[2][2] = {{-1, -1}, {-1, -1}};          // each hand: its first and third fingers' first joints
-        XMFLOAT4X4 SwordInHand[2]{};                       // each sword in its fist (against the hand)
         XMFLOAT3 HandLine[2]{};                            // which way each hand points, from its wrist to its knuckles (in its own axes)
+        XMFLOAT3 HandAcross[2]{}, HandPalm[2]{};           // and along its knuckles (from the third finger's to the first's), and across both
+        XMFLOAT4 SwordTurnInHand[2]{};                     // each sword in its fist: its turn against the hand,
+        XMFLOAT3 GripInHand[2]{};                          // where the handle's middle is from the wrist (in the hand's axes, m),
+        XMFLOAT3 GripInSword[2]{}, BladeInSword[2]{};      // and from the sword bone (in its axes, m); which way its blade points (so too)
+        XMFLOAT3 ForeAxis[2]{};                            // which way each forearm's bone points (in its own axes)
         struct BentArm { XMFLOAT4 Upper{0, 0, 0, 1}, Fore{0, 0, 0, 1}; XMFLOAT3 UpperLine{}, ForeLine{}, Hinge{}; } ArmBent[2];   // an arm bent, as the reach pose has it: its bones' turns, their lines, the elbow's axis (her space)
         bool GripKnown = false;
+        struct ArmState { bool Known = false; XMFLOAT3 Side{}, Axis{}, ForeLine{}; XMFLOAT4 Frame{0, 0, 0, 1}; } Reaching[2];   // each arm leaving its handle, a frame ago: its elbow's side, the line from shoulder to wrist, its forearm's line, and the frame its forearm and hand turn in
+        bool SwordKept = false;                            // through this change her swords stay in her fists
         bool SwordWasInHand = true, SettleKnown = false;   // a sword taken or let go settles into its new place:
         float SwordSettle = 9;                             // seconds since
         XMFLOAT4X4 SwordBefore[2]{};                       // where each was (her space)
@@ -708,16 +720,28 @@ namespace Doorways
         // pose (the bundle's Sword_Reach) and on. From arms hanging that way is out to the sides: both arms were flung
         // wide (a T for a frame or two, her hands at 13 to 16 m/s) and then folded behind her head, elbows out; and the
         // pose's hands are 16 and 24 cm short of where the handles lie, so each sword jumped that far into its fist.
-        // Now each hand is taken to the handle itself, as an arm goes there:
-        // - where: the sword lies on her back as her chest carries it; her hand closes round the handle's middle with its
-        //   knuckles along the blade, turned about the handle to where her forearm comes from (its wrist the least bent);
-        // - the way: from where her hand is, up before her shoulder and back over it (a hand that is already high goes
-        //   straight); slow away and slow in;
-        // - her elbow: found from her hand (two bones of fixed length); it is behind her as her arm hangs, goes out to
-        //   her side as her hand comes up, and is up by her ear with her hand at the handle;
-        // - her upper arm and forearm are turned about their own lengths as an elbow allows (a hinge: as the bundle's
-        //   reach pose has them against the plane her arm bends in), coming from how the pose she leaves had them.
-        // The same way back, to whatever her arms do next.
+        // A first remedy took each hand to the handle itself, its turn going evenly between the pose's and the grip's:
+        // her blades then passed through her head and neck (6 to 9 cm from the middle of her head), her elbows jumped
+        // for a frame where a wrist passed 5 cm from its shoulder (17 to 26 m/s), and her wrists were bent 100 to 128
+        // degrees on the way. Now (worked out in a model of her arm before it was built):
+        // - the grip: the sword lies on her back as her chest carries it; her hand closes round the handle's middle with
+        //   its knuckles along the blade, turned about the handle to where her forearm comes from, and no further bent
+        //   than a wrist bends (WristSideMost, WristBendMost): by what is over, the handle lies askew in her fist;
+        // - her wrist's way: from where the pose has it, round before and above her shoulder (never nearer the joint
+        //   than a hand's breadth), to the grip; slow away and slow in;
+        // - her elbow: two bones of fixed length leave it a circle; where on it is given by a curve of elbow places (the
+        //   pose's, out at her side, up by her ear) and followed at a limited pace, carried along with the line from
+        //   her shoulder to her wrist: it cannot flip;
+        // - her upper arm is turned as an elbow allows (a hinge: the plane her arm bends in), keeping the roll the pose
+        //   has against that plane; her forearm and hand are carried from frame to frame with her forearm's line and
+        //   rolled about it toward where the blade her fist would hold is nearest the sword's own, at a limited rate;
+        //   her wrist's bend goes between the pose's and the grip's; near the pose her arm is the pose's own, carried
+        //   to where her elbow and wrist are;
+        // - the sword: its blade goes a way of its own between her back and the pose (out past her shoulder, never
+        //   through her head), evenly along it and ahead of her hand; its handle's middle stays in her fist's middle.
+        //   So it turns in her fist by what is left, and is on her back or in the pose's grip exactly at either end.
+        // Leaving the handles this is gone through as time passes (the pose she goes to moves on); going to them it is
+        // the same way back: gone through from the handle to where her hand is, anew every frame.
         static XMVECTOR ElbowAt(XMVECTOR shoulder, XMVECTOR& hand, float upper, float fore, XMVECTOR pole, XMVECTOR* side)
         {
             XMVECTOR to = hand - shoulder;
@@ -760,17 +784,29 @@ namespace Doorways
             for (int s = 0; s < 2; ++s)
                 if (Skeleton.Joints[SwordJoint[s]].ParentIndex != ArmChain[s][3] || Skeleton.Joints[ArmChain[s][3]].ParentIndex != ArmChain[s][2] ||
                     Skeleton.Joints[ArmChain[s][2]].ParentIndex != ArmChain[s][1] || Skeleton.Joints[ArmChain[s][1]].ParentIndex < 0) return;
-            // a sword in its fist, and which way a hand points (from its wrist to the middle of its knuckles)
+            // a sword in its fist, and a hand's own lines: from its wrist to the middle of its knuckles, along its
+            // knuckles, out of its palm
             if (!Sample("Idle", 0, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
             const auto place = [&](int j) { const auto& m = pose.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
             const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&pose.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
             for (int s = 0; s < 2; ++s)
             {
-                const auto& held = pose.LocalJoints[SwordJoint[s]];
-                XMStoreFloat4x4(&SwordInHand[s], XMMatrixScalingFromVector(XMLoadFloat3(&held.Scale)) * XMMatrixRotationQuaternion(XMLoadFloat4(&held.Rotation)) *
-                                                 XMMatrixTranslationFromVector(XMLoadFloat3(&held.Translation)));
-                const XMVECTOR line = XMVector3Normalize((place(Knuckle[s][0]) + place(Knuckle[s][1])) * .5f - place(ArmChain[s][3]));
-                XMStoreFloat3(&HandLine[s], XMVector3Rotate(line, XMQuaternionInverse(turnOf(ArmChain[s][3]))));
+                const XMVECTOR qHand = turnOf(ArmChain[s][3]), qSword = turnOf(SwordJoint[s]), wrist = place(ArmChain[s][3]);
+                const XMVECTOR intoHand = XMQuaternionConjugate(qHand), intoSword = XMQuaternionConjugate(qSword);
+                const XMMATRIX sword = XMLoadFloat4x4(&pose.ModelSpaceMatrices[SwordJoint[s]]);
+                const XMVECTOR middle = XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), sword), tip = XMVector3TransformCoord(XMLoadFloat3(&SwordTip[s]), sword);
+                const XMVECTOR line = XMVector3Normalize((place(Knuckle[s][0]) + place(Knuckle[s][1])) * .5f - wrist);
+                XMVECTOR along = place(Knuckle[s][0]) - place(Knuckle[s][1]);
+                along -= line * XMVector3Dot(along, line);
+                if (XMVectorGetX(XMVector3LengthSq(along)) < 1e-8f || XMVectorGetX(XMVector3LengthSq(tip - middle)) < 1e-6f) return;
+                along = XMVector3Normalize(along);
+                XMStoreFloat3(&HandLine[s], XMVector3Rotate(line, intoHand));
+                XMStoreFloat3(&HandAcross[s], XMVector3Rotate(along, intoHand));
+                XMStoreFloat3(&HandPalm[s], XMVector3Rotate(XMVector3Cross(line, along), intoHand));
+                XMStoreFloat3(&GripInHand[s], XMVector3Rotate(middle - wrist, intoHand));
+                XMStoreFloat3(&GripInSword[s], XMVector3Rotate(middle - place(SwordJoint[s]), intoSword));
+                XMStoreFloat3(&BladeInSword[s], XMVector3Rotate(XMVector3Normalize(tip - middle), intoSword));
+                XMStoreFloat4(&SwordTurnInHand[s], XMQuaternionNormalize(After(intoHand, qSword)));
             }
             // her arms bent, as the bundle's reach pose has them: how an upper arm and a forearm are turned about themselves
             if (!Sample("Sword_Reach", 0, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
@@ -781,95 +817,280 @@ namespace Doorways
                 if (XMVectorGetX(XMVector3LengthSq(hinge)) < .04f) return;      // (not bent: no use)
                 XMStoreFloat4(&ArmBent[s].Upper, turnOf(ArmChain[s][1])); XMStoreFloat4(&ArmBent[s].Fore, turnOf(ArmChain[s][2]));
                 XMStoreFloat3(&ArmBent[s].UpperLine, upper); XMStoreFloat3(&ArmBent[s].ForeLine, fore); XMStoreFloat3(&ArmBent[s].Hinge, XMVector3Normalize(hinge));
+                XMStoreFloat3(&ForeAxis[s], XMVector3Rotate(fore, XMQuaternionConjugate(turnOf(ArmChain[s][2]))));
             }
             GripKnown = true;
         }
-        // Her arms on the way between the pose they come from, or go to (there: 0), and the handles (there: 1).
-        void ReachArms(DoorwaysSkeletonPose& out, bool leaving, float there)
+        static float Ramp(float x, float from, float to) { x = std::clamp((x - from) / (to - from), 0.f, 1.f); return x * x * (3 - 2 * x); }
+        static XMVECTOR After(XMVECTOR second, XMVECTOR first) { return XMQuaternionMultiply(first, second); }   // one turn after another
+        static XMVECTOR Unit(XMVECTOR v, XMVECTOR otherwise) { const float l = XMVectorGetX(XMVector3Length(v)); return l > 1e-6f ? v / l : otherwise; }
+        static XMVECTOR Across(XMVECTOR v, XMVECTOR axis, bool& some)   // what of v lies across axis, a length of one (some: there is any)
+        {
+            const XMVECTOR o = v - axis * XMVector3Dot(v, axis);
+            const float l = XMVectorGetX(XMVector3Length(o));
+            some = l > 1e-5f && l > 1e-3f * XMVectorGetX(XMVector3Length(v));
+            return some ? o / l : XMVectorZero();
+        }
+        static XMVECTOR TwistLast(XMVECTOR q, XMVECTOR axis)   // q as a swing and then a turn about axis: that turn
+        {
+            const XMVECTOR back = XMQuaternionConjugate(q);
+            const XMVECTOR t = XMVectorSetW(axis * XMVector3Dot(back, axis), XMVectorGetW(back));
+            if (XMVectorGetX(XMVector4LengthSq(t)) < 1e-12f) return XMQuaternionIdentity();
+            return XMQuaternionConjugate(XMQuaternionNormalize(t));
+        }
+        // how far a wrist is bent: sideways (toward its knuckles' line) and up or down, degrees; her forearm's line as her hand sees it
+        void WristBend(int s, XMVECTOR qHand, XMVECTOR foreLine, float& sideways, float& updown) const
+        {
+            const XMVECTOR f = XMVector3Rotate(foreLine, XMQuaternionConjugate(qHand));
+            const float on = XMVectorGetX(XMVector3Dot(f, XMLoadFloat3(&HandLine[s]))), over = XMVectorGetX(XMVector3Dot(f, XMLoadFloat3(&HandAcross[s])));
+            const float out = XMVectorGetX(XMVector3Dot(f, XMLoadFloat3(&HandPalm[s])));
+            sideways = XMConvertToDegrees(std::asin(std::clamp(over, -1.f, 1.f)));
+            updown = XMConvertToDegrees(std::atan2(out, on));
+        }
+        XMVECTOR LimitWrist(int s, XMVECTOR qHand, XMVECTOR foreLine, float sideMost, float updownMost) const
+        {
+            float sideways = 0, updown = 0;
+            WristBend(s, qHand, foreLine, sideways, updown);
+            const float sd = XMConvertToRadians(std::clamp(sideways, -sideMost, sideMost)), ud = XMConvertToRadians(std::clamp(updown, -updownMost, updownMost));
+            if (std::abs(sideways) <= sideMost && std::abs(updown) <= updownMost) return qHand;
+            const XMVECTOR allowed = XMLoadFloat3(&HandLine[s]) * (std::cos(sd) * std::cos(ud)) + XMLoadFloat3(&HandAcross[s]) * std::sin(sd) +
+                                     XMLoadFloat3(&HandPalm[s]) * (std::cos(sd) * std::sin(ud));
+            return XMQuaternionNormalize(After(ArcTurn(XMVector3Normalize(XMVector3Rotate(allowed, qHand)), foreLine), qHand));
+        }
+#pragma warning(push)
+#pragma warning(disable : 4324)     // (padded for the vectors' sake)
+        struct HandleGrip { XMVECTOR Wrist, Elbow, Side, Hand, Blade, Middle, Lies; };   // her hand on a handle on her back: where her wrist and elbow are, her elbow's side, her hand's turn; the blade, the handle's middle, the sword's turn as it lies
+        struct ArmWay       // one arm's way between a pose and its handle: what a frame gives
+        {
+            XMVECTOR Shoulder, ElbowThen, WristThen;        // the pose's arm, on her body as it is
+            XMVECTOR UpperThen, ForeThen, HandThen;         // its bones' turns
+            XMVECTOR SwordThen, GripThen;                   // the sword's turn as that hand holds it, and its handle's middle in that hand
+            XMVECTOR Chest;                                 // her chest's turn
+            HandleGrip Grip;
+            XMVECTOR Blades[17];                            // the blade's way from her back to the pose
+            float Gone[17];                                 // how far along each of them is (radians)
+            float Sign = 1, Upper = 0, Fore = 0, Low = 0, Front = 0;
+            int Arm = 0;
+        };
+        struct ArmNow { XMVECTOR Upper, Fore, Hand, Wrist, Sword, SwordAt; };       // an arm on its way: its bones' turns, her wrist; the sword's turn and place
+#pragma warning(pop)
+        // Her hand on the handle of the sword on her back.
+        HandleGrip GripOnBack(int s, const XMMATRIX& chest, XMVECTOR chestTurn, XMVECTOR shoulder, float upper, float fore) const
+        {
+            const float sign = s == 0 ? 1.f : -1.f;       // her left is +x
+            HandleGrip g{};
+            const XMMATRIX lies = XMLoadFloat4x4(&SwordOnBack[s]) * chest;
+            XMVECTOR sc, turned, at;
+            if (!XMMatrixDecompose(&sc, &turned, &at, lies)) turned = XMQuaternionIdentity();
+            g.Lies = XMQuaternionNormalize(turned);
+            g.Middle = XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), lies);
+            g.Blade = Unit(XMVector3TransformCoord(XMLoadFloat3(&SwordTip[s]), lies) - g.Middle, XMVectorSet(0, -1, 0, 0));
+            const XMVECTOR whole = After(g.Lies, XMQuaternionConjugate(XMLoadFloat4(&SwordTurnInHand[s])));       // the hand that holds it as it lies
+            const XMVECTOR inHand = XMLoadFloat3(&GripInHand[s]), line0 = XMVector3Rotate(XMLoadFloat3(&HandLine[s]), whole);
+            const XMVECTOR elbowUp = XMVector3Rotate(XMVectorSet(sign * .09f, .22f, .04f, 0), chestTurn);           // her elbow up by her ear
+            g.Hand = whole;
+            for (int pass = 0; ; ++pass)
+            {
+                g.Wrist = g.Middle - XMVector3Rotate(inHand, g.Hand);
+                g.Elbow = ElbowAt(shoulder, g.Wrist, upper, fore, elbowUp, &g.Side);
+                if (pass == 8) break;
+                // turned about the handle to where her forearm comes from, and no further bent than a wrist bends
+                const XMVECTOR comes = XMVector3Normalize(g.Wrist - g.Elbow);
+                const XMVECTOR line = comes - g.Blade * XMVector3Dot(comes, g.Blade);
+                float roll = 0;
+                if (XMVectorGetX(XMVector3LengthSq(line)) > 1e-4f)
+                {
+                    const XMVECTOR to = XMVector3Normalize(line);
+                    roll = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(line0, to), g.Blade)), XMVectorGetX(XMVector3Dot(line0, to)));
+                }
+                g.Hand = LimitWrist(s, After(XMQuaternionRotationAxis(g.Blade, roll), whole), comes, WristSideMost, WristBendMost);
+            }
+            return g;
+        }
+        // The blade's way from her back to where the pose has it: out past her shoulder (a hand that is low and before
+        // her: back and up over it), a curve on the ball of directions, known by how far along it is.
+        void BladeWay(ArmWay& w) const
+        {
+            const XMVECTOR from = w.Grip.Blade, to = Unit(XMVector3Rotate(XMLoadFloat3(&BladeInSword[w.Arm]), w.SwordThen), w.Grip.Blade);
+            const XMVECTOR backward = XMVector3Rotate(XMVector3Normalize(XMVectorSet(w.Sign * .60f, .15f, -1.f, 0)), w.Chest);
+            const XMVECTOR upward = XMVector3Rotate(XMVector3Normalize(XMVectorSet(w.Sign * .30f, .95f, -.10f, 0)), w.Chest);
+            const XMVECTOR outward = XMVector3Rotate(XMVector3Normalize(XMVectorSet(w.Sign * .70f, -.70f, -.10f, 0)), w.Chest);
+            const XMVECTOR first = Unit(from + Unit(XMVectorLerp(outward, backward, w.Front), outward) * 1.6f, from);
+            const XMVECTOR second = Unit(XMVectorLerp(to, upward, w.Front), to);
+            for (int i = 0; i <= 16; ++i)
+            {
+                const float a = i / 16.f, b = 1 - a;
+                w.Blades[i] = Unit(from * (b * b * b) + first * (4.5f * a * b * b) + second * (4.5f * a * a * b) + to * (a * a * a), i ? w.Blades[i - 1] : from);
+                w.Gone[i] = i ? w.Gone[i - 1] + std::acos(std::clamp(XMVectorGetX(XMVector3Dot(w.Blades[i - 1], w.Blades[i])), -1.f, 1.f)) : 0.f;
+            }
+        }
+        static XMVECTOR BladeAt(const ArmWay& w, float a)
+        {
+            const float want = a * w.Gone[16];
+            int i = 0;
+            while (i < 15 && w.Gone[i + 1] < want) ++i;
+            const float span = w.Gone[i + 1] - w.Gone[i];
+            return Unit(XMVectorLerp(w.Blades[i], w.Blades[i + 1], span > 1e-6f ? std::clamp((want - w.Gone[i]) / span, 0.f, 1.f) : 0.f), w.Blades[i]);
+        }
+        // One arm, v of its way from the handle (0) to the pose (1), dt after the step before (st: what that step left).
+        void ArmGoes(const ArmWay& w, float v, float dt, ArmState& st, ArmNow& now) const
+        {
+            const int s = w.Arm;
+            const HandleGrip& g = w.Grip;
+            const XMVECTOR at = w.Shoulder;
+            v = std::clamp(v, 0.f, 1.f);
+            const float rest = 1 - v, e = rest * rest * rest * (10 - 15 * rest + 6 * rest * rest), f = 1 - e;       // (e: 1 at the handle)
+            // her wrist's way
+            const XMVECTOR by = XMVectorLerp((w.WristThen + g.Wrist) * .5f, at + XMVector3Rotate(XMVectorSet(w.Sign * .16f, .30f, .26f, 0), w.Chest), w.Low);
+            XMVECTOR wrist = w.WristThen * (f * f) + by * (2 * e * f) + g.Wrist * (e * e);
+            // her elbow's side
+            const XMVECTOR mid = XMVector3Rotate(XMVectorLerp(XMVectorSet(w.Sign * .26f, -.05f, -.10f, 0), XMVectorSet(w.Sign * .26f, .04f, .14f, 0), w.Low), w.Chest);
+            const XMVECTOR pole = (w.ElbowThen - at) * (f * f) + mid * (2 * e * f) + (g.Elbow - at) * (e * e);
+            const XMVECTOR axis = Unit(wrist - at, XMVectorSet(0, -1, 0, 0));
+            bool wanted = false;
+            const XMVECTOR want = Across(pole, axis, wanted);
+            XMVECTOR side = wanted ? want : g.Side;
+            if (st.Known)
+            {
+                bool kept = false;
+                const XMVECTOR was = XMLoadFloat3(&st.Side);
+                XMVECTOR carried = Across(XMVector3Rotate(was, ArcTurn(XMLoadFloat3(&st.Axis), axis)), axis, kept);
+                if (!kept) carried = was;
+                side = carried;
+                if (wanted)
+                {
+                    const float turn = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(carried, want), axis)), XMVectorGetX(XMVector3Dot(carried, want)));
+                    const float follow = (std::max)(1 - std::exp(-ElbowFollows * dt), Ramp(std::abs(2 * e - 1), .94f, 1.f));    // (at either end: where it belongs)
+                    side = XMVector3Rotate(carried, XMQuaternionRotationAxis(axis, turn * follow));
+                }
+            }
+            const XMVECTOR elbow = ElbowAt(at, wrist, w.Upper, w.Fore, side, &side);
+            const XMVECTOR upperLine = XMVector3Normalize(elbow - at), foreLine = XMVector3Normalize(wrist - elbow), hinge = XMVector3Cross(side, axis);
+            const XMVECTOR bentHinge = XMLoadFloat3(&ArmBent[s].Hinge), bentUpperLine = XMLoadFloat3(&ArmBent[s].UpperLine), bentForeLine = XMLoadFloat3(&ArmBent[s].ForeLine);
+            const XMVECTOR bentUpper = XMLoadFloat4(&ArmBent[s].Upper), bentFore = XMLoadFloat4(&ArmBent[s].Fore), foreAxis = XMLoadFloat3(&ForeAxis[s]);
+            const XMVECTOR hinged = After(FrameTurn(bentUpperLine, bentHinge, upperLine, hinge), bentUpper);
+            // the pose's own: the plane its arm bends in (a straight arm has none: the one her arm has now), its wrist's
+            // roll and bend
+            const XMVECTOR toElbow = w.ElbowThen - at, axisThen = Unit(w.WristThen - at, axis);
+            bool own = false, lends = false;
+            const XMVECTOR sideOwn = Across(toElbow, axisThen, own);
+            XMVECTOR sideLent = Across(side, axisThen, lends);
+            if (!lends) sideLent = side;
+            const float bent = XMVectorGetX(XMVector3Length(toElbow - axisThen * XMVector3Dot(toElbow, axisThen)));
+            const XMVECTOR sideThen = own ? Unit(XMVectorLerp(sideLent, sideOwn, Ramp(bent, .01f, .03f)), sideOwn) : sideLent;
+            const XMVECTOR upperLineThen = Unit(toElbow, upperLine), foreLineThen = Unit(w.WristThen - w.ElbowThen, foreLine);
+            const XMVECTOR hingedThen = After(FrameTurn(bentUpperLine, bentHinge, upperLineThen, XMVector3Cross(sideThen, axisThen)), bentUpper);
+            const XMVECTOR rollThen = TwistLast(After(XMQuaternionConjugate(w.ForeThen), w.HandThen), foreAxis);
+            const XMVECTOR bendThen = After(After(XMQuaternionConjugate(rollThen), XMQuaternionConjugate(w.ForeThen)), w.HandThen);
+            // the grip's: its wrist's bend, with her forearm rolled as her hand is turned
+            const XMVECTOR foreLineGrip = XMVector3Normalize(g.Wrist - g.Elbow);
+            const XMVECTOR hingedGrip = After(FrameTurn(bentForeLine, bentHinge, foreLineGrip, XMVector3Cross(g.Side, Unit(g.Wrist - at, axis))), bentFore);
+            const XMVECTOR frameGrip = After(hingedGrip, TwistLast(After(XMQuaternionConjugate(hingedGrip), g.Hand), foreAxis));
+            const XMVECTOR bend = XMQuaternionSlerp(bendThen, After(XMQuaternionConjugate(frameGrip), g.Hand), e);
+            // her upper arm as the pose rolled it, carried with the plane her arm bends in
+            const XMVECTOR upperTurn = After(After(hinged, XMQuaternionConjugate(hingedThen)), w.UpperThen);
+            // the sword's way: ahead of her hand
+            const float a = Ramp((std::min)(1.f, v / BladeLeads), 0.f, 1.f);
+            const XMVECTOR bladeIn = XMLoadFloat3(&BladeInSword[s]), bladeWanted = BladeAt(w, a);
+            const XMVECTOR base = XMQuaternionSlerp(g.Lies, w.SwordThen, a);
+            const XMVECTOR swordTurn = XMQuaternionNormalize(After(ArcTurn(Unit(XMVector3Rotate(bladeIn, base), bladeWanted), bladeWanted), base));
+            // her forearm and hand: as they were, carried to where her forearm is now, and rolled about it toward where
+            // the blade her fist would hold is nearest the sword's: at a limited rate, as far as that is well defined
+            const XMVECTOR frameAtGrip = After(ArcTurn(foreLineGrip, foreLine), frameGrip);
+            XMVECTOR frame = frameAtGrip;
+            if (st.Known)
+            {
+                frame = After(ArcTurn(XMLoadFloat3(&st.ForeLine), foreLine), XMLoadFloat4(&st.Frame));
+                const XMVECTOR held = XMVector3Rotate(bladeIn, After(After(frame, bend), XMLoadFloat4(&SwordTurnInHand[s])));
+                const XMVECTOR b0 = held - foreLine * XMVector3Dot(held, foreLine), w0 = bladeWanted - foreLine * XMVector3Dot(bladeWanted, foreLine);
+                const float sure = Ramp((std::min)(XMVectorGetX(XMVector3Length(b0)), XMVectorGetX(XMVector3Length(w0))), .12f, .40f);
+                if (sure > 0)
+                {
+                    const float goal = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(b0, w0), foreLine)), XMVectorGetX(XMVector3Dot(b0, w0)));
+                    const float most = XMConvertToRadians(RollMost) * dt;
+                    frame = After(XMQuaternionRotationAxis(foreLine, std::clamp(goal * (1 - std::exp(-RollFollows * dt)) * sure, -most, most)), frame);
+                }
+                frame = XMQuaternionSlerp(frame, frameAtGrip, Ramp(e, .94f, 1.f));       // (at the grip: the grip's own)
+            }
+            frame = XMQuaternionNormalize(frame);
+            st.Known = true;
+            XMStoreFloat3(&st.Side, side); XMStoreFloat3(&st.Axis, axis); XMStoreFloat3(&st.ForeLine, foreLine); XMStoreFloat4(&st.Frame, frame);
+            // toward the pose her arm is the pose's own, carried to where her elbow and wrist are
+            const float mine = Ramp(e, 0.f, .5f);
+            const XMVECTOR carry = ArcTurn(foreLineThen, foreLine);
+            now.Upper = XMQuaternionNormalize(XMQuaternionSlerp(After(ArcTurn(upperLineThen, upperLine), w.UpperThen), upperTurn, mine));
+            now.Fore = XMQuaternionNormalize(XMQuaternionSlerp(After(carry, w.ForeThen), After(frame, XMQuaternionConjugate(rollThen)), mine));
+            now.Hand = XMQuaternionNormalize(XMQuaternionSlerp(After(carry, w.HandThen), After(frame, bend), mine));
+            now.Wrist = wrist;
+            now.Sword = swordTurn;
+            now.SwordAt = wrist + XMVector3Rotate(XMVectorLerp(XMLoadFloat3(&GripInHand[s]), w.GripThen, a), now.Hand) - XMVector3Rotate(XMLoadFloat3(&GripInSword[s]), swordTurn);
+        }
+        // Her arms on the way between the pose they come from, or go to (there: 0), and the handles (there: 1); with the
+        // swords, while they are in her hands. False: not done (her arms are left as they were).
+        bool ReachArms(DoorwaysSkeletonPose& out, bool leaving, float there, float dt)
         {
             const size_t n = out.LocalJoints.size();
-            if (!GripKnown || !HasBack || Spine2 < 0 || BlendFrom.LocalJoints.size() != n || ArmTo.size() != n) return;
+            if (!GripKnown || !HasBack || Spine2 < 0 || BlendFrom.LocalJoints.size() != n || ArmTo.size() != n) return false;
             XMFLOAT4 kept[2][3];
             for (int s = 0; s < 2; ++s)
-                for (int w = 1; w < 4; ++w)
+                for (int b = 1; b < 4; ++b)
                 {   // her arms as the other pose has them, on her body as it is now
-                    const int j = ArmChain[s][w];
-                    kept[s][w - 1] = out.LocalJoints[j].Rotation;
+                    const int j = ArmChain[s][b];
+                    kept[s][b - 1] = out.LocalJoints[j].Rotation;
                     out.LocalJoints[j].Rotation = leaving ? ArmTo[j] : BlendFrom.LocalJoints[j].Rotation;
                 }
-            if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr))
-            {
-                for (int s = 0; s < 2; ++s) for (int w = 1; w < 4; ++w) out.LocalJoints[ArmChain[s][w]].Rotation = kept[s][w - 1];
-                return;
-            }
+            const auto putBack = [&](int arm) { for (int bone = 1; bone < 4; ++bone) out.LocalJoints[ArmChain[arm][bone]].Rotation = kept[arm][bone - 1]; };
+            if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr)) { putBack(0); putBack(1); return false; }
             const auto place = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
             const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
-            const auto ramp = [](float v, float from, float to) { v = std::clamp((v - from) / (to - from), 0.f, 1.f); return v * v * (3 - 2 * v); };
             const XMMATRIX chest = XMLoadFloat4x4(&out.ModelSpaceMatrices[Spine2]);
             const XMVECTOR chestTurn = turnOf(Spine2);
             there = std::clamp(there, 0.f, 1.f);
-            const float e = there * there * there * (10 - 15 * there + 6 * there * there);
             for (int s = 0; s < 2; ++s)
             {
-                const float out_ = s == 0 ? 1.f : -1.f;       // her left is +x
-                const int ua = ArmChain[s][1], fa = ArmChain[s][2], ha = ArmChain[s][3];
-                const XMVECTOR shoulder = place(ua), elbowThen = place(fa), handThen = place(ha);
-                const XMVECTOR qAbove = turnOf(Skeleton.Joints[ua].ParentIndex), qUpperThen = turnOf(ua), qForeThen = turnOf(fa), qHandThen = turnOf(ha);
-                const float upper = XMVectorGetX(XMVector3Length(elbowThen - shoulder)), fore = XMVectorGetX(XMVector3Length(handThen - elbowThen));
-                if (upper < .01f || fore < .01f) continue;
-                // the sword on her back, and the hand that holds it as it lies
-                const XMMATRIX lies = XMLoadFloat4x4(&SwordOnBack[s]) * chest;
-                XMVECTOR sc, qHand0, handle0;
-                if (!XMMatrixDecompose(&sc, &qHand0, &handle0, XMMatrixInverse(nullptr, XMLoadFloat4x4(&SwordInHand[s])) * lies)) continue;
-                qHand0 = XMQuaternionNormalize(qHand0);
-                const XMVECTOR middle = XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), lies);
-                const XMVECTOR blade = XMVector3Normalize(XMVector3TransformCoord(XMLoadFloat3(&SwordTip[s]), lies) - middle);
-                const XMVECTOR line0 = XMVector3Rotate(XMLoadFloat3(&HandLine[s]), qHand0);
-                // (turned about the handle to where her forearm comes from: her elbow up by her ear)
-                const XMVECTOR elbowUp = shoulder + XMVector3Rotate(XMVectorSet(out_ * .09f, .22f, .04f, 0), chestTurn);
-                float roll = 0;
-                XMVECTOR handle = handle0, elbowThere = elbowUp;
-                for (int pass = 0; pass < 3; ++pass)
-                {
-                    handle = middle + XMVector3Rotate(handle0 - middle, XMQuaternionRotationAxis(blade, roll));
-                    elbowThere = ElbowAt(shoulder, handle, upper, fore, elbowUp - (shoulder + handle) * .5f, nullptr);
-                    if (pass == 2) break;
-                    const XMVECTOR comes = XMVector3Normalize(handle - elbowThere);
-                    XMVECTOR line = comes - blade * XMVector3Dot(comes, blade);
-                    if (XMVectorGetX(XMVector3LengthSq(line)) < 1e-4f) break;
-                    line = XMVector3Normalize(line);
-                    roll = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(line0, line), blade)), XMVectorGetX(XMVector3Dot(line0, line)));
+                const int ua = ArmChain[s][1], fa = ArmChain[s][2], ha = ArmChain[s][3], sj = SwordJoint[s];
+                ArmWay way;
+                way.Arm = s; way.Sign = s == 0 ? 1.f : -1.f;       // her left is +x
+                way.Shoulder = place(ua); way.ElbowThen = place(fa); way.WristThen = place(ha);
+                way.UpperThen = turnOf(ua); way.ForeThen = turnOf(fa); way.HandThen = turnOf(ha); way.Chest = chestTurn;
+                way.Upper = XMVectorGetX(XMVector3Length(way.ElbowThen - way.Shoulder)); way.Fore = XMVectorGetX(XMVector3Length(way.WristThen - way.ElbowThen));
+                if (way.Upper < .01f || way.Fore < .01f) { putBack(s); continue; }
+                // the sword as the pose's hand has it: its own while it is in her hand, else as a fist would hold it
+                way.SwordThen = InHand ? turnOf(sj) : After(way.HandThen, XMLoadFloat4(&SwordTurnInHand[s]));
+                way.GripThen = InHand ? XMVector3Rotate(XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), XMLoadFloat4x4(&out.ModelSpaceMatrices[sj])) - way.WristThen, XMQuaternionConjugate(way.HandThen))
+                                      : XMLoadFloat3(&GripInHand[s]);
+                way.Grip = GripOnBack(s, chest, chestTurn, way.Shoulder, way.Upper, way.Fore);
+                way.Low = Ramp(XMVectorGetY(way.Shoulder - way.WristThen), .05f, .30f);       // a hand below her shoulder goes round it, before her
+                way.Front = Ramp(XMVectorGetX(XMVector3Dot(way.WristThen - way.Shoulder, XMVector3Rotate(XMVectorSet(0, 0, 1, 0), chestTurn))), -.05f, .15f) * way.Low;
+                BladeWay(way);
+                ArmNow now{};
+                if (leaving) ArmGoes(way, 1 - there, dt, Reaching[s], now);
+                else
+                {   // to the handle: the way from it, gone through as far as where her hand is
+                    const int steps = (std::max)(4, static_cast<int>(std::lround(DrawReach * 60)));
+                    const float along = (1 - there) * steps;
+                    const int last = (std::min)(steps, static_cast<int>(along) + 1);
+                    ArmState st;
+                    ArmNow before{};
+                    for (int i = 0; i <= last; ++i) { before = now; ArmGoes(way, static_cast<float>(i) / steps, DrawReach / steps, st, now); }
+                    const float part = std::clamp(along - (last - 1), 0.f, 1.f);
+                    now.Upper = XMQuaternionSlerp(before.Upper, now.Upper, part); now.Fore = XMQuaternionSlerp(before.Fore, now.Fore, part);
+                    now.Hand = XMQuaternionSlerp(before.Hand, now.Hand, part); now.Sword = XMQuaternionSlerp(before.Sword, now.Sword, part);
+                    now.Wrist = XMVectorLerp(before.Wrist, now.Wrist, part); now.SwordAt = XMVectorLerp(before.SwordAt, now.SwordAt, part);
                 }
-                const XMVECTOR qGrip = XMQuaternionNormalize(XMQuaternionMultiply(qHand0, XMQuaternionRotationAxis(blade, roll)));
-                // the way of her hand
-                const float low = ramp(XMVectorGetY(shoulder - handThen), .05f, .30f);       // a hand below her shoulder goes round it, before her
-                const XMVECTOR round = shoulder + XMVector3Rotate(XMVectorSet(out_ * .08f, .10f, .42f, 0), chestTurn);
-                const XMVECTOR by = XMVectorLerp((handThen + handle) * .5f, round, low);
-                XMVECTOR hand = handThen * ((1 - e) * (1 - e)) + by * (2 * e * (1 - e)) + handle * (e * e);
-                // her elbow: off the line from her shoulder to her hand, on the side it was, then out, then up
-                XMVECTOR poleThen = elbowThen - (shoulder + handThen) * .5f;
-                poleThen = XMVectorGetX(XMVector3LengthSq(poleThen)) > 1e-4f ? XMVector3Normalize(poleThen) : XMVector3Rotate(XMVector3Normalize(XMVectorSet(0, -.3f, -1, 0)), chestTurn);
-                const XMVECTOR poleThere = XMVector3Normalize(elbowThere - (shoulder + handle) * .5f);
-                const XMVECTOR poleOut = XMVector3Rotate(XMVector3Normalize(XMVectorSet(out_, -.25f, .15f, 0)), chestTurn);
-                XMVECTOR pole = poleThen * ((1 - e) * (1 - e)) + poleOut * (2 * e * (1 - e) * low) + poleThere * (e * e);
-                if (XMVectorGetX(XMVector3LengthSq(pole)) < 1e-4f) pole = poleOut;
-                XMVECTOR side;
-                const XMVECTOR elbow = ElbowAt(shoulder, hand, upper, fore, pole, &side);
-                const XMVECTOR upperLine = XMVector3Normalize(elbow - shoulder), foreLine = XMVector3Normalize(hand - elbow);
-                const XMVECTOR hinge = XMVector3Cross(side, XMVector3Normalize(hand - shoulder));
-                // turned about themselves: as the pose she comes from had them, then as an elbow allows
-                const XMVECTOR upperWas = XMQuaternionMultiply(qUpperThen, ArcTurn(XMVector3Normalize(elbowThen - shoulder), upperLine));
-                const XMVECTOR foreWas = XMQuaternionMultiply(qForeThen, ArcTurn(XMVector3Normalize(handThen - elbowThen), foreLine));
-                const XMVECTOR bentHinge = XMLoadFloat3(&ArmBent[s].Hinge);
-                const XMVECTOR upperBent = XMQuaternionMultiply(XMLoadFloat4(&ArmBent[s].Upper), FrameTurn(XMLoadFloat3(&ArmBent[s].UpperLine), bentHinge, upperLine, hinge));
-                const XMVECTOR foreBent = XMQuaternionMultiply(XMLoadFloat4(&ArmBent[s].Fore), FrameTurn(XMLoadFloat3(&ArmBent[s].ForeLine), bentHinge, foreLine, hinge));
-                const float bent = ramp(e, 0, .6f);
-                const XMVECTOR newUpper = XMQuaternionNormalize(XMQuaternionSlerp(upperWas, upperBent, bent)), newFore = XMQuaternionNormalize(XMQuaternionSlerp(foreWas, foreBent, bent));
-                const XMVECTOR newHand = XMQuaternionNormalize(XMQuaternionSlerp(qHandThen, qGrip, e));
-                XMStoreFloat4(&out.LocalJoints[ua].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newUpper, XMQuaternionInverse(qAbove))));
-                XMStoreFloat4(&out.LocalJoints[fa].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newFore, XMQuaternionInverse(newUpper))));
-                XMStoreFloat4(&out.LocalJoints[ha].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newHand, XMQuaternionInverse(newFore))));
+                const XMVECTOR above = turnOf(Skeleton.Joints[ua].ParentIndex);
+                XMStoreFloat4(&out.LocalJoints[ua].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(above), now.Upper)));
+                XMStoreFloat4(&out.LocalJoints[fa].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(now.Upper), now.Fore)));
+                XMStoreFloat4(&out.LocalJoints[ha].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(now.Fore), now.Hand)));
+                if (InHand)
+                {   // the sword on its own way, its handle in her fist
+                    XMVECTOR sc, q, t;
+                    if (!XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[ha]))) sc = XMVectorSplatOne();     // (her hand's size, if it has one)
+                    XMStoreFloat4(&out.LocalJoints[sj].Rotation, XMQuaternionNormalize(After(XMQuaternionConjugate(now.Hand), now.Sword)));
+                    XMStoreFloat3(&out.LocalJoints[sj].Translation, XMVector3Rotate(now.SwordAt - now.Wrist, XMQuaternionConjugate(now.Hand)) / XMVectorSetW(sc, 1));
+                }
             }
+            return true;
         }
 
         void StartAttack(const WorldState& world, const std::string& name, float into = 0)
@@ -1826,8 +2047,10 @@ namespace Doorways
                 // before her hands were at the handles left them on her back, and the next clip had them in her fists
                 // without her ever taking them. Dying, she does not draw: they stay where they are.
                 if (LastClip.empty()) InHand = !Away(name);
+                const bool hadThem = InHand;
                 Drawing = HasReach && name != "Death" && InHand == Away(name) && ReachPose.LocalJoints.size() == out.LocalJoints.size();
                 if (!Drawing && name != "Death") InHand = !Away(name);
+                SwordKept = hadThem && InHand && !Drawing;
                 BlendFrom = Previous;
                 BlendTime = 0;
                 BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? (CutBlend > 0 ? CutBlend : .17f) : .2f;
@@ -1838,9 +2061,12 @@ namespace Doorways
                     // the handle; unhurried when nothing presses, and slowest putting them away to stand at ease.
                     const bool pressed = name.rfind("Attack", 0) == 0 || name.rfind("Skill", 0) == 0 || name.rfind("Cast", 0) == 0;
                     const bool cut = name.rfind("Attack", 0) == 0 && name != "Attack_Jump";
+                    // (Putting them away the blade is taken back over her shoulder: that is given its time.)
+                    const bool putting = InHand, atEase = name == "Stand";
                     BlendSeconds = cut ? DrawReachPressed + DrawOnCut : pressed ? .26f : .36f;   // (into a cut her body goes with her arms: there just before the blow)
-                    DrawReach = pressed ? DrawReachPressed : name == "Stand" ? .32f : .26f;
-                    DrawSeconds = DrawReach + (cut ? DrawOnCut : pressed ? DrawOnPressed : name == "Stand" ? .34f : .26f);
+                    DrawReach = pressed ? DrawReachPressed : putting ? (atEase ? .42f : .32f) : .26f;
+                    DrawSeconds = DrawReach + (cut ? DrawOnCut : pressed ? DrawOnPressed : putting ? (atEase ? .34f : .28f) : .30f);
+                    Reaching[0] = Reaching[1] = ArmState{};
                 }
                 LastClip = name;
                 // what is carried on: for every joint, the old pose against the new one, and how the old one was moving
@@ -1891,6 +2117,7 @@ namespace Doorways
             }
             const bool drawing = Drawing && BlendTime < DrawSeconds;      // her arms on their way to the handles and on
             const bool atHandles = BlendTime >= DrawReach;                // (in a draw) her hands have been there
+            bool led = false;                                             // her arms and swords go the handles' way (ReachArms)
             if (Drawing && atHandles) InHand = !Away(name);               // taken, or put away
             if (((BlendSeconds > 0 && BlendTime < BlendSeconds) || drawing) && BlendFrom.LocalJoints.size() == out.LocalJoints.size())
             {
@@ -1902,8 +2129,15 @@ namespace Doorways
                     const auto& from = BlendFrom.LocalJoints[i];
                     if (static_cast<int>(i) == SwordJoint[0] || static_cast<int>(i) == SwordJoint[1])
                     {   // a sword goes between her fist and her back (walk, run, stairs, jump: put away; 2026-11-18) at once,
-                        // as her hands are at the handles, not through her body: until then it is where it was
-                        if (Drawing ? !atHandles : w < .5f) to = from;
+                        // as her hands are at the handles, not through her body: until then it is where it was. One that
+                        // stays in her fist goes evenly to how the new clip holds it: a draw broken off (a cut asked for
+                        // as she takes them) leaves it turned in her fist, and it would jump half-way through the change.
+                        if (SwordKept)
+                        {
+                            XMStoreFloat3(&to.Translation, XMVectorLerp(XMLoadFloat3(&from.Translation), XMLoadFloat3(&to.Translation), w));
+                            XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&from.Rotation), XMLoadFloat4(&to.Rotation), w)));
+                        }
+                        else if (Drawing ? !atHandles : w < .5f) to = from;
                         continue;
                     }
                     if (drawing && i < ArmJoint.size() && ArmJoint[i])
@@ -1927,7 +2161,7 @@ namespace Doorways
                     }
                 }
                 // (her shoulders and fingers go so; her arms and hands by the way an arm takes)
-                if (drawing) ReachArms(out, atHandles, atHandles ? 1 - (BlendTime - DrawReach) / (std::max)(.01f, DrawSeconds - DrawReach) : BlendTime / (std::max)(.01f, DrawReach));
+                if (drawing) led = ReachArms(out, atHandles, atHandles ? 1 - (BlendTime - DrawReach) / (std::max)(.01f, DrawSeconds - DrawReach) : BlendTime / (std::max)(.01f, DrawReach), dt);
             }
             // On her back her swords are carried by her chest, whatever her arms do (2026-11-19). The clips key them
             // against her hands so that they lie on her back as the clip moves her arms; but through every change of
@@ -1946,13 +2180,13 @@ namespace Doorways
                     XMStoreFloat4(&out.LocalJoints[j].Rotation, XMQuaternionNormalize(q));
                 }
             // A sword taken or let go is not at once where its new holder has it (2026-11-19): it was, and jumped there
-            // (16 to 24 cm, and turned). Her hand closes on the handle where it lies, but turned about it as a forearm
-            // can come to it, a quarter turn from how the sword lies on her back. So, taken, the sword turns about its
-            // handle into her fist as she pulls it; and let go, it turns back onto her back as her hand leaves it.
+            // (16 to 24 cm, and turned). Where her hands go the handles' way (ReachArms) the sword is taken where it
+            // lies and goes on from there: nothing jumps. Otherwise (no way known: a rig without the reach pose) the
+            // sword turns about its handle into its new place over a short time.
             if (InHand != SwordWasInHand)
             {
                 SwordWasInHand = InHand; SettleKnown = false;
-                SwordSettle = Previous.ModelSpaceMatrices.size() == Skeleton.Joints.size() && SwordJoint[0] >= 0 && SwordJoint[1] >= 0 ? 0.f : SettleSeconds;
+                SwordSettle = Previous.ModelSpaceMatrices.size() == Skeleton.Joints.size() && SwordJoint[0] >= 0 && SwordJoint[1] >= 0 && !led ? 0.f : SettleSeconds;
                 if (SwordSettle < SettleSeconds)
                     for (int k = 0; k < 2; ++k) SwordBefore[k] = Previous.ModelSpaceMatrices[SwordJoint[k]];
             }
