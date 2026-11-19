@@ -69,6 +69,11 @@ namespace Doorways
         constexpr int CutDamage = 45, LastDamage = 80, JumpDamage = 110;
         constexpr float SteerRate = 90.f;    // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it)
         constexpr float BackSpeed = 1.25f;   // metres a second stepping backwards
+        // The Jump clip (Mixamo's Running Jump as build_from_mixamo.py leaves it, 0.9 s), measured from the clip: she
+        // leaves the ground at its start, is at the top at JumpApex, her first foot is down again at JumpLand; falling
+        // faster than she jumped she holds the pose at JumpHold (her leg reaching down). After JumpLand: her step out.
+        constexpr float JumpApex = .333f, JumpHold = .575f, JumpLand = .617f;
+        constexpr float DropSeconds = .45f;  // held that long in the reaching pose, a drop becomes a fall (the Fall clip)
         constexpr float KickFirst = .2f, KickEvery = .23f, KickReach = 1.6f, ThrowLands = 2.35f;
         constexpr int KickDamage = 30, ThrowDamage = 1000000;   // the throw is a finisher: it kills
         constexpr float SlideFrom = .25f, SlideTo = .95f, SlideEvery = .22f, SlideReach = 1.7f, SlideArc = FrontArc;
@@ -240,7 +245,7 @@ namespace Doorways
         // The swords are on her back in these clips and in her hands in all others (owner, 2026-11-18). Changing from one
         // to the other her arms go through the bundle's Sword_Reach pose (hands on the handles over her shoulders), and
         // the swords change place as her hands are there.
-        static bool SwordsAway(const std::string& clip) { return clip == "Move" || clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
+        static bool SwordsAway(const std::string& clip) { return clip == "Stand" || clip == "Move" || clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
         std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         XMFLOAT4X4 SwordOnBack[2]{}; bool HasBack = false;   // each sword on her back, as her chest (Spine2) carries it
@@ -252,6 +257,7 @@ namespace Doorways
         float FootPitch[2] = {0, 0};                        // each foot tipped to the slope under it (radians, toes up a hill)
         float FootSlide[2][2] = {{0, 0}, {0, 0}};           // each foot slid along a stair onto its tread (m, world x and z)
         float OnStair = 0;                                  // 0 off a stair, 1 climbing one (eased): her pace
+        float Guard = 0;                   // seconds she still stands on guard (Idle: swords out); 0: at ease (Stand: swords on her back)
         float Climb = 0, ClimbRate = 0, LastY = -1e9f;      // how steeply and how fast she climbs (m/m, m/s); her height a frame ago
 
         // ---- the pose
@@ -277,6 +283,9 @@ namespace Doorways
         int Step = 0, Queued = 0;          // place in the combo; the button pressed during a cut (1 left, 2 right)
         bool Jumping = false, Back = false, Dead = false;
         float JumpTime = 0, DeathTime = 0;
+        bool JumpReal = false, JumpAir = false, WasGrounded = true;   // a jump that the world moves her in; she has left the ground in it
+        float JumpClock = 0, AirSeconds = 0, Dropped = 0, FellAt = 0; // seconds of this jump; off the ground on foot; held reaching down; her fall a frame ago (m/s)
+        float Squat = 0, SquatGo = 0;      // her knees taking a landing: her hips let down (m), and how fast
         float FlyTime = 0, FlyLean = 0, Hover = 0, Rise = -1, Touch = -1;
         bool WasFlying = false;
         int Air = 0; float AirTime = 0;    // F in flight: 1 the dart forward, 2 flying to the creature she will throw
@@ -334,7 +343,7 @@ namespace Doorways
         bool Moving() const { return !Attack.empty() || Cast != 0 || Air != 0 || Rise >= 0 || Touch >= 0; }
         static bool Loops(const std::string& name)
         {
-            return name == "Idle" || name == "Walk" || name == "Run" || name == "Fly" || name == "Cast_Fly" || name == "Fall";
+            return name == "Idle" || name == "Stand" || name == "Walk" || name == "Run" || name == "Fly" || name == "Cast_Fly" || name == "Fall";
         }
         float Duration(const std::string& name) const
         {
@@ -586,7 +595,9 @@ namespace Doorways
                     const float reach = std::hypot(XMVectorGetX(T - A), XMVectorGetZ(T - A)) * scale;
                     if (reach > .03f && !step) pitchTo[k] = std::clamp(std::atan2(toe - heel, reach), -MostPitch, MostPitch) * (1 - lifted[k]) * FeetOn;
                 }
-                body = std::clamp((std::min)(h[0], h[1]), -Down, 0.f);
+                // her body goes down to her lower foot's ground, and up to it where the drawn ground lies over the ground she
+                // is held on (2026-11-19: there she stood with her knees bent, which at ease, her legs straight, looked a crouch)
+                body = std::clamp((std::min)(h[0], h[1]), -Down, .3f);
                 for (int k = 0; k < 2; ++k) raiseTo[k] = h[k];
             }
             else if (stairClip && FeetOn > .01f)
@@ -626,7 +637,7 @@ namespace Doorways
                 FootPitch[k] += (pitchTo[k] - FootPitch[k]) * ease;
                 for (int i = 0; i < 2; ++i) FootSlide[k][i] += (slideTo[k][i] - FootSlide[k][i]) * slideEase;
                 // in her own space: up, and the slide turned from the world into her axes
-                const float raise = FeetRaise[k] / scale;
+                const float raise = (FeetRaise[k] + Squat) / scale;      // (her knees taking a landing: her body is let down, her feet stay)
                 const float sx = (FootSlide[k][0] * c - FootSlide[k][1] * sn) / scale, sz = (FootSlide[k][0] * sn + FootSlide[k][1] * c) / scale;
                 const float drawnIn = (StrideScale - 1) * FeetOn;     // short steps: each foot drawn in under its hip, along her way
                 if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f && std::abs(drawnIn) < 1e-3f) continue;
@@ -671,9 +682,9 @@ namespace Doorways
             {   // for the log: how far each sole is over the ground under the middle of its foot, as she is drawn
                 const XMVECTOR A = at(FootJoint[k]), mid = ToeJoint[k] >= 0 ? (A + at(ToeJoint[k])) * .5f : A;
                 const float g = surface(mid);
-                SoleGap[k] = AnkleRest[k] > 1e8f || !std::isfinite(g) ? std::numeric_limits<float>::quiet_NaN() : XMVectorGetY(A) * scale + FeetDrop - AnkleRest[k] - g;
+                SoleGap[k] = AnkleRest[k] > 1e8f || !std::isfinite(g) ? std::numeric_limits<float>::quiet_NaN() : XMVectorGetY(A) * scale + FeetDrop - Squat - AnkleRest[k] - g;
             }
-            return FeetDrop;
+            return FeetDrop - Squat;
         }
         // Which way the sword bones' axes came through the importer is found: of the eight mirrorings, the one that in
         // Idle puts the handle in her fist and the blade's point up.
@@ -1396,6 +1407,7 @@ namespace Doorways
         if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && !mGuarding && alive)
         {
             b.Attack.clear(); b.Queued = 0; b.Jumping = true; b.JumpTime = 0;
+            b.JumpReal = false; b.JumpAir = false; b.JumpClock = 0; b.Dropped = 0;
             b.Log(world, "jump");
             // a real jump where the game asks for one: from the ground, or from the brink of an edge she stands on
             if (mRealJump > 0 && p.VerticalVelocity <= 0 &&
@@ -1404,9 +1416,70 @@ namespace Doorways
                 p.VerticalVelocity = mRealJump; p.IsGrounded = false;
                 p.GroundState = Doorways::DoorwaysPhysicsGroundState::Airborne;
                 p.MissingAuthoritativeGround = false; p.GroundY = p.TargetGroundY = p.Position.y;
+                b.JumpReal = true;
+            }
+        }
+        else if (b.Jumping && b.JumpReal)
+        {   // A jump the world moves her in (2026-11-19): the clip is played by her rise and fall, not by the clock. It
+            // lasts 0.9 s and she is 1.06 s in the air on flat ground (and as long as it takes off a ledge): by the clock
+            // its landing played in mid-air, and then her stride, running on nothing. Rising, the clip goes from its start
+            // to its top as she loses her speed upwards; falling, from the top towards its landing as she gathers speed
+            // downwards, and waits there, a leg reaching down, for the ground.
+            b.JumpClock += dt;
+            const bool up = !p.IsGrounded && !flying;
+            if (up) b.JumpAir = true;
+            if (flying) b.Jumping = false;
+            else if (up || (!b.JumpAir && b.JumpClock < .15f))
+            {
+                const float v = p.VerticalVelocity / (mRealJump > 0 ? mRealJump : 9.5f);
+                const float goal = v > 0 ? JumpApex * (1 - (std::min)(1.f, v)) : JumpApex + (JumpHold - JumpApex) * (std::min)(1.f, -v);
+                b.JumpTime = std::clamp(goal, b.JumpTime, b.JumpTime + dt * 3);
+                b.Dropped = v <= -1 ? b.Dropped + dt : 0;
+            }
+            else
+            {
+                // On the ground: into her stride at the moment its left foot comes down (the foot the clip lands on), or
+                // into her stand; her knees take the landing (below). The clip's own landing is a deep lunge on one knee,
+                // which at a run slid along the ground for a quarter of a second: it is not played.
+                b.Dropped = 0; b.Jumping = false;
+                b.Phase = .276f + (.381f - .276f) * b.GaitRun;
             }
         }
         else if (b.Jumping && (b.JumpTime += dt) >= b.Duration("Jump")) { b.Jumping = false; b.Phase = 0; }
+        {   // Off an edge on foot (2026-11-19): she went on walking or standing in the air until the ground came. Now, a
+            // moment off the ground, she is in the jump from its top on: falling, a leg reaching down, and lands as from a jump.
+            b.AirSeconds = !p.IsGrounded && !flying && alive ? b.AirSeconds + dt : 0;
+            if (!b.Jumping && !busy && !b.Cast && !b.Carried() && b.Attack.empty() && !mFalling && !mGuarding && b.Duration("Jump") > JumpLand &&
+                (b.AirSeconds > .18f || (b.AirSeconds > .05f && p.VerticalVelocity < -4)))
+            {
+                b.Jumping = true; b.JumpReal = true; b.JumpAir = true; b.JumpClock = 1; b.JumpTime = JumpApex + .03f; b.Dropped = 0;
+                b.Log(world, "off an edge");
+            }
+        }
+        {   // Her knees take a landing (2026-11-19): she came down onto straight legs. Coming to the ground on foot her hips
+            // are let down by how hard she lands (12 cm from a jump on flat ground, 25 from a long drop) and come up again
+            // in a quarter of a second, a spring without a bounce; her feet stay where they are (PlantFeet bends her legs).
+            constexpr float Spring = 14.f, Most = .28f;
+            if (!p.IsGrounded) b.FellAt = flying ? 0.f : p.VerticalVelocity;
+            else if (!b.WasGrounded)
+            {
+                if (!flying && b.Touch < 0 && !b.Dead && !b.Carried() && !b.Cast && b.FellAt < -2)
+                {
+                    const float hard = -b.FellAt;
+                    b.SquatGo += (std::min)(hard, 10.f) * .5f + (std::clamp(hard, 10.f, 18.f) - 10.f) * .6f;
+                }
+                b.FellAt = 0;
+            }
+            b.WasGrounded = p.IsGrounded;
+            for (float left = dt; left > 1e-6f;)
+            {
+                const float h = (std::min)(left, 1 / 120.f); left -= h;
+                b.SquatGo += (-Spring * Spring * b.Squat - 2 * Spring * b.SquatGo) * h;
+                b.Squat += b.SquatGo * h;
+            }
+            if (b.Squat > Most) { b.Squat = Most; b.SquatGo = (std::min)(0.f, b.SquatGo); }
+            if (b.Squat < 0 || flying || b.Dead) { b.Squat = 0; b.SquatGo = (std::max)(0.f, b.SquatGo); }
+        }
         {   // in flight Space is the engine's climb; on foot the kit owns it
             auto& held = s.SuppressedActions;
             const auto found = std::find(held.begin(), held.end(), DoorwaysInputAction::JumpOrAscend);
@@ -1828,7 +1901,7 @@ namespace Doorways
             b.Gain += (std::clamp(gained, -30.f, 30.f) - b.Gain) * ease;
             const bool afoot = !flying && p.IsGrounded && !b.Dead && !b.Carried() && !b.Cast && b.Rise < 0 && b.Touch < 0;
             const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
-            const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) : 0.f;
+            const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
             b.LeanRoll += (roll - b.LeanRoll) * (std::min)(1.f, dt * 5);
             b.LeanPitch += (pitch - b.LeanPitch) * (std::min)(1.f, dt * 7);
         }
@@ -1931,15 +2004,17 @@ namespace Doorways
             }
             else
             {
-                if (b.Throttle > 0 && p.IsGrounded)
+                if (b.Throttle > 0)
                 {
                     b.Glide = b.Went; b.Went = {0, 0};   // (the engine has stopped her already this frame)
-                    const float had = std::hypot(b.Glide.x, b.Glide.y);
+                    float had = std::hypot(b.Glide.x, b.Glide.y);
+                    if (had > CaucasianEagle::FootRunSpeed) { b.Glide.x *= CaucasianEagle::FootRunSpeed / had; b.Glide.y *= CaucasianEagle::FootRunSpeed / had; had = CaucasianEagle::FootRunSpeed; }
                     b.GlideLose = had / (.12f + .025f * had);
                 }
                 b.Throttle = 0;
-                const float had = std::hypot(b.Glide.x, b.Glide.y), left = (std::max)(0.f, had - b.GlideLose * dt);
-                if (had > 1e-3f && left > 0 && p.IsGrounded) { b.Glide.x *= left / had; b.Glide.y *= left / had; }
+                // (in the air nothing stops her: the key let go in a jump, she flies on as she went, and loses it on the ground)
+                const float had = std::hypot(b.Glide.x, b.Glide.y), left = (std::max)(0.f, had - (p.IsGrounded ? b.GlideLose : 1.f) * dt);
+                if (had > 1e-3f && left > 0) { b.Glide.x *= left / had; b.Glide.y *= left / had; }
                 else b.Glide = {0, 0};
             }
             s.ImpulseX += b.Glide.x; s.ImpulseZ += b.Glide.y;
@@ -1966,7 +2041,17 @@ namespace Doorways
 
         // ---- the clip and her pose
         const bool moving = b.Speed > .08f || std::hypot(b.Glide.x, b.Glide.y) > .08f;   // (carried on after the key: still her stride)
-        std::string clip = "Idle";
+        {   // On guard or at ease (2026-11-19). Idle is a fighter's guard, both swords up: she stood so everywhere, and
+            // drew both swords every time she stopped walking. Now she stands on guard only while something threatens
+            // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
+            // stands at ease (Stand), her swords on her back, and walks off without having to put them away.
+            constexpr float GuardSeconds = 5.f, GuardNear = 14.f;
+            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Thrown >= 0;
+            for (const auto& w : mWraiths)
+                if (!threat && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
+            b.Guard = threat ? GuardSeconds : (std::max)(0.f, b.Guard - dt);
+        }
+        std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
         float time = b.Clock;
         const bool striding = moving && !b.Dead && !flying;
         {   // how steeply she climbs (rise over ground covered, from her own height), for the stair clip
@@ -2007,6 +2092,7 @@ namespace Doorways
         else if (!b.Attack.empty()) { clip = b.Attack; time = b.AttackTime; }
         else if (b.Air) { clip = "Fly"; time = b.FlyTime; }
         else if (flying) { clip = "Fly"; time = b.FlyTime; }
+        else if (b.Jumping && b.JumpReal && b.Dropped > DropSeconds && b.Duration("Fall") > 0) { clip = "Fall"; time = std::fmod(b.Clock, b.Duration("Fall")); }
         else if (b.Jumping) { clip = "Jump"; time = b.JumpTime; }
         else if (moving) { clip = b.Gait; time = b.GaitTime(); }
         b.Current = clip;

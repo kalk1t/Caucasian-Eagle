@@ -343,7 +343,7 @@ HANDLE = (0.096, 0.197)      # the handle, as parts of the sword's length from t
 # Not fighting, the swords are put away crossed on her back (owner, 2026-11-18: holding them up in the walk bent her
 # elbows upside down into her sides). In these clips her hands are empty: no grip, no wrist turn, no clearing of the
 # fists, Mixamo's arms as they are; the sword bones are set on her back at the end ("swords on her back" below).
-SHEATHED = ("Walk", "Run", "Stairs_Up", "Jump", "Fall")     # (Fall is made with the wings, below)
+SHEATHED = ("Walk", "Run", "Stairs_Up", "Jump", "Fall", "Stand")     # (Fall and Stand are made with the wings, below)
 import numpy as np
 from mathutils import Quaternion
 
@@ -1323,6 +1323,7 @@ WING_SIZE = 1.222                # of the model's size: 0.94 fits her height (th
 WING_BACK, WING_UP = 0.28, 0.50  # where the model's origin goes: metres behind her middle, metres over the ground (roots kept in her back at the same height)
 WING_TRIANGLES = 36000
 WING_LIFT = math.radians(8)      # the root is held this much higher than the model has it: wings opened
+WING_HELD = {"Stand": math.radians(-3)}     # at ease they hang a little lower than the model has them
 WING_BREATH = math.radians(3.5)  # the slow rise and fall of the open wing
 WING_MOST = math.radians(28)     # no swing goes further than this
 WING_BEAT, WING_DAMP = 2 * math.pi * 1.6, 0.5   # how fast a wing swings back (1.6 times a second), how soon it settles
@@ -1590,6 +1591,107 @@ if WING_SRC.exists():
         actions[move] = act
         print("MOVE %s %d frames, legs %.3f" % (move, frames, legs))
 
+    # ---- Stand: she stands at ease (2026-11-19), made here. Idle is a fighter's guard: knees bent, feet wide, both
+    # swords up. She stood so everywhere, and drew both swords every time she stopped walking. Stand is for when
+    # nothing threatens her (the game chooses: NyxaraKit): upright, her weight on her left leg, the right foot half a
+    # step out and its knee eased, her hips out over the standing leg and tipped, her shoulders tipped back the other
+    # way; her arms hang as they do in Walk at the moment both are beside her (the hands are Mixamo's walking hands,
+    # open); her swords are on her back (SHEATHED). A loop of 8 s: she breathes twice, her weight wanders a little
+    # over the standing foot, her head looks slowly about. Her feet are held where they stand: each leg is bent to it.
+    STAND_FRAMES = 240
+    STAND_SHIFT, STAND_SWAY = 0.035, 0.008       # her hips over the standing leg, and wandering (m)
+    STAND_TILT, STAND_DROP = 3.0, 0.012          # hips tipped (degrees: the free side lower), and lowered (m)
+    STAND_FEET = (0.10, 0.15)                    # her feet from her middle line (m): the standing one, the free one (at rest they are 0.18 out: too wide to stand at ease)
+    STAND_FREE = (0.07, 14.0)                    # the free foot: forward (m), toes turned out (degrees)
+    STAND_TOES = 5.0                             # the standing foot's toes out
+    if "Walk" in actions:
+        last_w = use(actions["Walk"])
+
+        def hands_apart(f):
+            bpy.context.scene.frame_set(f)
+            return abs((PB["LeftHand"].head - PB["RightHand"].head).y)
+        f_hang = min(range(last_w), key=hands_apart)
+        bpy.context.scene.frame_set(f_hang)
+        hang = {pb.name: pb.rotation_quaternion.copy() for pb in PB
+                if pb.name.startswith(("Left", "Right")) and any(k in pb.name for k in ("Shoulder", "Arm", "Hand"))}
+        stand = actions["Idle"].copy()
+        stand.name = "Stand"
+        stand.use_fake_user = True
+        use(stand)
+        for fc in curves(stand):
+            for i in range(len(fc.keyframe_points) - 1, -1, -1):
+                if fc.keyframe_points[i].co[0] > STAND_FRAMES:
+                    fc.keyframe_points.remove(fc.keyframe_points[i])
+            fc.update()
+        sl = 1.0 if arm.data.bones["LeftArm"].head_local.x > 0 else -1.0       # which way is her left
+        rest_feet = {s_: (arm.data.bones[s_ + "Foot"].head_local.copy(), arm.data.bones[s_ + "Foot"].matrix_local.to_3x3())
+                     for s_ in ("Left", "Right")}
+        hips_in = PB["Hips"].bone.matrix_local.to_3x3().inverted()
+        up_axis, fwd_axis = Vector((0, 0, 1)), Vector((0, 1, 0))
+
+        def about(bone, axis, degrees):
+            pb = PB[bone]
+            turn(pb, Quaternion(axis, math.radians(degrees)), pb.head.copy())
+
+        for f in range(STAND_FRAMES + 1):
+            t = 2 * math.pi * f / STAND_FRAMES
+            breath = math.sin(2 * t - 0.4)              # two breaths a loop: in at +1
+            bpy.context.scene.frame_set(f)
+            for pb in PB:
+                if not pb.name.startswith("Wing"):
+                    pb.rotation_quaternion = hang.get(pb.name, Quaternion())
+            shift = STAND_SHIFT + STAND_SWAY * math.sin(t)
+            PB["Hips"].location = hips_in @ Vector((sl * shift, 0.004 * math.sin(t + 1.1), -STAND_DROP + 0.002 * breath))
+            bpy.context.view_layer.update()
+            tilt = STAND_TILT + 0.7 * math.sin(t)
+            about("Hips", fwd_axis, -sl * tilt)                       # the free (right) side lower
+            about("Hips", up_axis, sl * (4.0 + 1.2 * math.sin(t + 0.6)))   # her hips turned a little: the free side forward
+            lean("Hips", 1.5)
+            # her legs to her feet: the standing foot where it is at rest, the free one half a step out
+            for side_name in ("Left", "Right"):
+                free = side_name == "Right"
+                sg = sl if side_name == "Left" else -sl
+                rest_at, rest_turn = rest_feet[side_name]
+                goal = Vector((sg * STAND_FEET[1 if free else 0], rest_at.y - (STAND_FREE[0] if free else 0.0), rest_at.z))
+                up_, lo_, ft_ = PB[side_name + "UpLeg"], PB[side_name + "Leg"], PB[side_name + "Foot"]
+                S = up_.head.copy()
+                la, lb = (lo_.head - up_.head).length, (ft_.head - lo_.head).length
+                w_ = goal - S
+                dd = min(max(w_.length, abs(la - lb) + 0.01), la + lb - 0.001)
+                n_ = w_.normalized()
+                e_ = Vector((sg * (0.30 if free else 0.08), -1.0, 0.0))    # the knee: ahead, the free one a little out
+                e_ = (e_ - n_ * e_.dot(n_)).normalized()
+                ca = (la * la + dd * dd - lb * lb) / (2 * la * dd)
+                K = S + n_ * (la * ca) + e_ * (la * math.sqrt(max(0.0, 1 - ca * ca)))
+                turn(up_, (lo_.head - up_.head).normalized().rotation_difference((K - S).normalized()), S)
+                turn(lo_, (ft_.head - lo_.head).normalized().rotation_difference((S + n_ * dd - lo_.head).normalized()), lo_.head.copy())
+                toes = Quaternion(up_axis, math.radians(sg * (STAND_FREE[1] if free else STAND_TOES))).to_matrix()
+                flat = (toes @ rest_turn).to_4x4()
+                flat.translation = ft_.head.copy()
+                ft_.matrix = flat
+                bpy.context.view_layer.update()
+            # her trunk back over her feet, her shoulders tipped against her hips; breathing
+            for b in ("Spine", "Spine1", "Spine2"):
+                about(b, fwd_axis, sl * (tilt * 0.45))
+                about(b, up_axis, -sl * 1.6)
+            lean("Spine", -1.0)
+            lean("Spine1", -1.0 - 0.7 * breath)
+            lean("Spine2", -0.5 - 0.9 * breath)
+            for s_name, sg in (("Left", sl), ("Right", -sl)):
+                about(s_name + "Shoulder", fwd_axis, -sg * 0.9 * breath)       # her shoulders rise as she breathes in
+            lean("Neck", 1.0 + 0.6 * breath)
+            lean("Head", 1.5 + 0.5 * breath + 1.5 * math.sin(2 * t + 2.0))
+            about("Head", up_axis, 6.0 * math.sin(t + 2.4) + 2.0 * math.sin(3 * t))
+            about("Neck", up_axis, 2.5 * math.sin(t + 2.1))
+            for pb in PB:
+                if not pb.name.startswith("Wing"):
+                    pb.keyframe_insert("rotation_quaternion", frame=f)
+            PB["Hips"].keyframe_insert("location", frame=f)
+        actions["Stand"] = stand
+        bpy.context.scene.frame_set(0)
+        print("STAND %d frames; arms from Walk's frame %d; feet at %s and %s, hips at %s" % (
+            STAND_FRAMES, f_hang, [round(v, 3) for v in PB["LeftFoot"].head], [round(v, 3) for v in PB["RightFoot"].head], [round(v, 3) for v in PB["Hips"].head]))
+
     # ---- their movement in every clip
     def wing_local(bone, axis, angle):
         return Quaternion(arm.data.bones[bone].matrix_local.to_3x3().inverted() @ Vector(axis), angle)
@@ -1619,7 +1721,7 @@ if WING_SRC.exists():
                         PB[bone].keyframe_insert("rotation_quaternion", frame=f)
             print("WINGS Fly            beat once a second, the root %.0f degrees either way" % math.degrees(FLY_FLAP[0][0]))
             continue
-        loop = name in ("Idle", "Walk", "Run", "Stairs_Up")
+        loop = name in ("Idle", "Walk", "Run", "Stairs_Up", "Stand")
         n = last if loop else last + 1
         chest = PB["Spine2"]
         where, turned, stands = [], [], []
@@ -1667,7 +1769,7 @@ if WING_SRC.exists():
                 breath = WING_BREATH * math.sin(2 * math.pi * (breaths * g / n if loop else 0.35 * g / FPS))
                 for k, (late, share) in enumerate(((0, 1.0), (2, 0.55), (4, 0.5))):
                     fl, bk = at(track, g - late)
-                    up = fl * share + (WING_LIFT + breath if k == 0 else breath * 0.5)
+                    up = fl * share + (WING_HELD.get(name, WING_LIFT) + breath if k == 0 else breath * 0.5)
                     behind = bk * share + (sweep if k == 0 else sweep * 0.35)
                     most = max(most, abs(math.degrees(fl)), abs(math.degrees(bk)))
                     bone = "Wing%s%d" % (side_name, k + 1)
