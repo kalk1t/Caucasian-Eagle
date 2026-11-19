@@ -57,7 +57,7 @@ namespace CaucasianEagle
         // At the start of the game's update (the engine has just moved her): in flight she is kept out of the rock, judged
         // from where she was at the last call. On foot in the air (a jump or a fall off an edge) she is kept on the rock's
         // face where it is too steep to stand on, and slides down it to ground she can stand on (2026-11-18).
-        void KeepOutOfRock(Player& player, bool flying, float dt = 1.f / 60.f);
+        void KeepOutOfRock(Player& player, bool flying, float dt = 1.f / 60.f, const DoorwaysRuntimeScene* scene = nullptr);
         bool Sliding = false;          // this step she slid down rock too steep to stand on
         // Where she is along the trail (Along, OffTrail, Slope).
         void Locate(const DirectX::XMFLOAT3& position);

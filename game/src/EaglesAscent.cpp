@@ -9,6 +9,7 @@
 #include "DoorwaysGame.h"
 #include "DoorwaysMaterialRuntime.h"
 #include "DoorwaysRuntimePathResolver.h"
+#include "DoorwaysWalkableSurfaceQuery.h"
 #include "EnvironmentSettings.h"
 #include "Renderer.h"
 
@@ -316,7 +317,7 @@ namespace CaucasianEagle
         return found;
     }
 
-    void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt)
+    void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt, const DoorwaysRuntimeScene* scene)
     {
         Sliding = false;
         CaveSpot cave;
@@ -375,7 +376,24 @@ namespace CaucasianEagle
             // (from above it a step before): never up through an overhang she jumped under.
             const float h = FlightLand(p.Position.x, p.Position.z);
             const float was = FlightLand(mFlown.x, mFlown.z);
-            if (p.Position.y < h - .05f && mFlown.y >= was - .5f)
+            // Ground she can stand on comes first (2026-11-18, the owner: "some path has gaps when nyxara jumps up it
+            // falls inside those gaps of roads"). The land's grid is 6 m coarse: on the stairs it lies up to 4 m over the
+            // steps in places and up to 0.6 m under them in others. A jump on a stair ended under this rule: she was
+            // taken for in the rock, put on the grid and slid down it, over or under the stair, for metres (the hopping
+            // walk, 2026-11-18: from 113 m back to 104 m, again and again). Where the scene has walkable ground within
+            // reach under her feet, or less than a step over them, this rule has no say: the engine lands her on it. If
+            // it is over her feet she is in it by less than a step, and is put on it.
+            bool standable = false;
+            if (scene)
+            {
+                const auto under = Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, p.Position.x, p.Position.z, p.Position.y - 2.5f, p.Position.y + .6f);
+                if (under.Hit)
+                {
+                    standable = true;
+                    if (under.GroundY > p.Position.y) { p.Position.y = under.GroundY; p.VerticalVelocity = std::min(p.VerticalVelocity, 0.f); }
+                }
+            }
+            if (!standable && p.Position.y < h - .05f && mFlown.y >= was - .5f)
             {
                 constexpr float e = .75f;
                 const float gx = (FlightLand(p.Position.x + e, p.Position.z) - FlightLand(p.Position.x - e, p.Position.z)) / (2 * e);

@@ -286,7 +286,7 @@ namespace CaucasianEagle
         auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         const bool alive = host.Combat.PlayerActionsAllowed();
-        mMap.KeepOutOfRock(p, flying, dt);
+        mMap.KeepOutOfRock(p, flying, dt, world.RuntimeScene);
 
         // Esc: the pause panel (DrawHud); its keys
         // M: the whole mountain from outside, to turn and look over (MountainView.h). The game stands still; M or Esc closes it.
