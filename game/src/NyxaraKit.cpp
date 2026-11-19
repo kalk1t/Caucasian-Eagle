@@ -254,6 +254,18 @@ namespace Doorways
         int FootJoint[2] = {-1, -1}, ToeJoint[2] = {-1, -1};  // left and right ankle, left and right toes
         bool FootHeld[2] = {false, false};                   // a foot that is down is held where it came down:
         float FootAt[2][2]{}, FootOff[2][2]{};                // where (the world's x and z), and how far that is from where her clip has it
+        float FootFree[2] = {9, 9}, FootGo[2] = {0, 0};      // seconds since each foot was let go; how fast its ball goes over the ground (m/s)
+        float FootStood[2] = {0, 0};                         // seconds since each foot came down
+        float RaiseWant[2] = {0, 0}, BodyWas = 0;            // a frame ago: what each foot was to be raised by; how high her body was in the world
+        float SwingAt[2] = {1e9f, 1e9f};                     // on a stair: how high each foot's way through the air is, in the world
+        float LandsAt[2] = {1e9f, 1e9f}, StoodAt[2] = {1e9f, 1e9f};   // and how high the tread it is coming down to, and the one it last stood on
+        float SwingOf[2] = {0, 0}, LandSpeed[2] = {0, 0};    // each foot's own last swing: how long it took, and how fast she went as it ended (0: none yet)
+        float FootWas[2][2]{}; bool FootWasKnown[2] = {false, false};   // where its ball was a frame ago (the world's x and z)
+        float SwingSeconds = 0, LandAhead[2] = {0, 0};                  // her last swing (of either foot): how long it took; and of each foot, how far before her hip its ball came down (m, as her clip has it)
+        float HerSpeed = 0, SpeedBefore = 0;                          // her speed, without the single frames in which it reads nothing (m/s)
+        float FootAir[2] = {0, 0};                           // on a stair: in the air (1) or standing (0), by what the foot does
+        bool FootOnStair[2] = {false, false};                // each foot over the map's stair treads
+        float FootToGo[2] = {0, 0}, FootLifted[2] = {0, 0};  // (the log)
         int WingJoint[2][3] = {{-1, -1, -1}, {-1, -1, -1}};   // left and right wing: its three bones, root to tip
         float WingRightIs = 1;                                // +1: the wing named right is on her +x side as she was made; -1: the other (the importer mirrors)
         int NeckJoint = -1, HeadJoint = -1;
@@ -267,6 +279,7 @@ namespace Doorways
         static constexpr float FoldFlap[3] = {-.50f, -.25f, -.15f}, FoldBack[3] = {.35f, .22f, .12f};   // lowered: each bone down, and back (radians; more back and the tips cross behind her)
         XMFLOAT3 SwordGrip[2]{}, SwordTip[2]{};            // in the sword bone's axes: the handle's middle, the blade's point
         float FeetOn = 0, FeetDrop = 0, FeetRaise[2]{};    // feet on the drawn ground: how much; her body lowered; each foot raised (m)
+        XMFLOAT3 KneeAxis[2][2]{};                         // each knee's axis as her clips have it, in its thigh's own frame and in its shin's (0: not seen bent yet)
         float AnkleRest[2] = {1e9f, 1e9f};                 // the lowest each ankle stands in her clips (m over her feet): the foot is down
         float BallRest[2] = {1e9f, 1e9f};                  // the lowest the ball of each foot (its toe joint) stands in them
         float SoleGap[2] = {0, 0};                          // (the log) each sole over the drawn ground under the middle of its foot (m; NaN: none found)
@@ -458,6 +471,9 @@ namespace Doorways
                 XMFLOAT3 at; XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat4x4(&pose.ModelSpaceMatrices[j]).r[3], place));
                 PoseFile << '\t' << at.x << '\t' << at.y << '\t' << at.z;
             }
+            for (int k = 0; k < 2; ++k)
+                PoseFile << '\t' << FootHeld[k] << '\t' << FootAir[k] << '\t' << FootGo[k] << '\t' << FootToGo[k] << '\t' << FootLifted[k] << '\t' << FootOnStair[k]
+                         << '\t' << FootFree[k] << '\t' << SwingSeconds << '\t' << LandAhead[k];
             PoseFile << '\n';
         }
 
@@ -594,14 +610,15 @@ namespace Doorways
         static XMVECTOR ArcTurn(XMVECTOR from, XMVECTOR to)   // the shortest turn that takes one direction to another
         {
             const float d = XMVectorGetX(XMVector3Dot(from, to));
-            if (d > .9999f) return XMQuaternionIdentity();
             if (d < -.9999f)
             {
                 XMVECTOR axis = XMVector3Cross(from, XMVectorSet(1, 0, 0, 0));
                 if (XMVectorGetX(XMVector3LengthSq(axis)) < 1e-4f) axis = XMVector3Cross(from, XMVectorSet(0, 1, 0, 0));
                 return XMQuaternionRotationAxis(XMVector3Normalize(axis), XM_PI);
             }
-            return XMQuaternionRotationAxis(XMVector3Normalize(XMVector3Cross(from, to)), std::acos(d));
+            // (the turn itself, down to no turn at all: under 0.8 degrees it was none, and a thigh so turned jumped 6 mm
+            // at the knee as it came over that)
+            return XMQuaternionNormalize(XMVectorSetW(XMVector3Cross(from, to), 1 + d));
         }
         // While the swords are out of her hands their two bones are put where the swords are in the world.
         void PlaceSwords(const WorldState& world, DoorwaysSkeletonPose& out)
@@ -665,10 +682,11 @@ namespace Doorways
             const auto at = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
             const auto worldX = [&](XMVECTOR v) { return p.Position.x + (XMVectorGetX(v) * c + XMVectorGetZ(v) * sn) * scale; };
             const auto worldZ = [&](XMVECTOR v) { return p.Position.z + (-XMVectorGetX(v) * sn + XMVectorGetZ(v) * c) * scale; };
-            const auto surface = [&](XMVECTOR v) -> float
-            {   // the drawn ground under this point of her body, as metres over the place she stands
+            const auto surface = [&](XMVECTOR v, float nearTo = 0.f) -> float
+            {   // the drawn ground under this point of her body, as metres over the place she stands (nearTo: about how high
+                // there, for a stair's treads)
                 const float x = worldX(v), z = worldZ(v);
-                float y = ground ? ground(x, z, p.Position.y) : std::numeric_limits<float>::quiet_NaN();
+                float y = ground ? ground(x, z, p.Position.y + nearTo) : std::numeric_limits<float>::quiet_NaN();
                 if (!std::isfinite(y) && world.RuntimeScene)
                 {
                     const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*world.RuntimeScene, x, z, p.Position.y - Down - .1f, p.Position.y + Up + .1f);
@@ -683,6 +701,7 @@ namespace Doorways
             const auto leanLift = [&](XMVECTOR v) { return (XMVectorGetY(XMVector3TransformNormal(v, leaning)) - XMVectorGetY(v)) * scale; };
             float lifted[2] = {0, 0}, raiseTo[2] = {0, 0}, pitchTo[2] = {0, 0}, slideTo[2][2] = {{0, 0}, {0, 0}};
             bool ballDown[2] = {false, false};
+            float fitTo[2][2] = {{0, 0}, {0, 0}};      // (on a stair) how far each foot has still to go to stand clear of the risers (m, world x and z)
             float body = 0;
             for (int k = 0; k < 2; ++k)
             {   // in the air (1) or down (0): its ankle against the lowest the ankle stands in her clips (8 cm up: in the air)
@@ -700,10 +719,26 @@ namespace Doorways
             if (!stairClip && FeetOn > .01f)
             {
                 float h[2] = {0, 0};
+                // (her speed reads nothing for a frame as a key is let go: a foot in the air over a stair dropped 9 cm for it)
+                HerSpeed += ((std::max)(Speed, SpeedBefore) - HerSpeed) * (std::min)(1.f, dt * 20);
+                SpeedBefore = Speed;
+                // the map's stair treads alone, as metres over the place she stands (NaN: none there)
+                const auto tread = [&](XMVECTOR v, float nearTo) -> float
+                {
+                    return ground ? ground(worldX(v), worldZ(v), p.Position.y + nearTo) - p.Position.y : std::numeric_limits<float>::quiet_NaN();
+                };
                 for (int k = 0; k < 2; ++k)
                 {
-                    const XMVECTOR A = at(FootJoint[k]), T = ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A + XMVectorSet(0, 0, .12f / scale, 0);
-                    float heel = surface(A), mid = surface((A + T) * .5f), toe = surface(T);
+                    // Where the foot is: the clip's place and what it was moved by a frame ago (held on its spot, slid onto
+                    // a tread, drawn in for a short step). The ground was read under the clip's place: on a stair that is
+                    // often another tread than the one the foot is held on.
+                    const XMVECTOR A0 = at(FootJoint[k]), T0 = ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A0 + XMVectorSet(0, 0, .12f / scale, 0);
+                    const float mx = FootSlide[k][0] + FootOff[k][0], mz = FootSlide[k][1] + FootOff[k][1];
+                    const float drawn = (StrideScale - 1) * FeetOn * XMVectorGetZ(A0 - at(LegJoint[k]));     // (short steps: drawn in under her hip)
+                    const XMVECTOR moved = XMVectorSet((mx * c - mz * sn) / scale, 0, (mx * sn + mz * c) / scale + drawn, 0);
+                    const XMVECTOR A = A0 + moved, T = T0 + moved;
+                    const float nearTo = std::clamp(FeetRaise[k] + FeetDrop, -Down, Up);     // about where its ground was a frame ago
+                    float heel = surface(A, nearTo), mid = surface((A + T) * .5f, nearTo), toe = surface(T, nearTo);
                     if (!std::isfinite(heel)) heel = std::isfinite(mid) ? mid : toe;
                     if (!std::isfinite(toe)) toe = std::isfinite(mid) ? mid : heel;
                     if (!std::isfinite(mid)) mid = (std::max)(heel, toe);
@@ -713,8 +748,209 @@ namespace Doorways
                     // next step); on a slope she stands on her heel's ground, the foot tipped to the slope.
                     const float top = (std::max)({heel, mid, toe});
                     const bool step = std::abs(toe - heel) > .12f || std::abs(mid - heel) > .12f;
-                    const float standing = step ? top : heel;
-                    h[k] = std::clamp(standing * (1 - lifted[k]) + top * lifted[k] - leanLift(A), -Down, Up) * FeetOn;
+                    float standing = step ? top : heel, swinging = top, air = lifted[k];
+                    bool onStair = false;
+                    // On a stair, with her ordinary stride (2026-11-19). A foot came down wherever the stride put it: often
+                    // with its toes over the next tread, and then the whole sole was lifted level to that tread and stood in
+                    // the air over the lower one; and a foot in the air was thrown up 16-19 cm in one frame each time its
+                    // toes came over a riser, three times in a stride. Now a foot's way over a stair is laid out:
+                    // - Standing, it is on the tread under the middle of its sole, and no part of the sole is in a riser: a
+                    //   sole across one is set on onto the upper tread (its heel may hang over the edge) or drawn back clear
+                    //   of it, whichever is nearer.
+                    // - Pushing off (its heel coming up) it is lifted where it stands, toward the line through the edges of
+                    //   the treads before it; let go, it goes up along that line, over each tread before it comes to it.
+                    // - Where it will come down is forecast (this foot's swing before took SwingOf and ended with the ball
+                    //   LandAhead before her hip, at LandSpeed): the treads beyond that place do not lift it, so it comes
+                    //   down onto its tread as it arrives, not after; and it is steered clear of a riser there while still
+                    //   in the air. What it was coming down to counts: at an edge it is not chosen anew each frame.
+                    // - Going down, its way is kept as a height in the world (SwingAt) and let down evenly over the ground it
+                    //   has still to go to the next edge or to where it comes down: no hump, no drop at the edge.
+                    // - Down, it stays where it is in the world while her body rises and falls (FeetRaise, below); let go,
+                    //   it leaves the tread it stood on (StoodAt), not the one its middle happens to be over.
+                    // - In the air or not is by what the foot does, not by the height of its ankle in the clip alone: held
+                    //   on its spot it stands; dragged over the ground (her first step out of standing) it is lifted over
+                    //   what it is dragged across; low but fast (a jog's reach) it is still on its way.
+                    // Its sole along her way: from the foremost to the rearmost of its toes' end (8 cm past the ball) and its
+                    // heel's (5 cm behind the ankle). (Along her way, not along the foot: a foot let go hangs toes down
+                    // behind its ankle for the first of its swing, and its own length then points behind her.)
+                    const float wayZ = Back ? -1.f : 1.f;
+                    const XMVECTOR fwd = XMVectorSet(0, 0, wayZ, 0);
+                    XMVECTOR along = XMVectorSetY(T - A, 0);
+                    along = XMVectorGetX(XMVector3LengthSq(along)) < 1e-8f ? XMVectorSet(0, 0, 1, 0) : XMVector3Normalize(along);
+                    const float turned = XMVectorGetZ(along) * wayZ, ankleAt = XMVectorGetZ(A) * wayZ * scale, ballAt = XMVectorGetZ(T) * wayZ * scale;
+                    const float front = (std::max)(ballAt + .08f * turned, ankleAt - .05f * turned), rear = (std::min)(ballAt + .08f * turned, ankleAt - .05f * turned);
+                    const float half = (std::max)(.02f, (front - rear) * .5f);
+                    const XMVECTOR sole = (A + T) * .5f + fwd * (((front + rear) * .5f - (ankleAt + ballAt) * .5f) / scale);
+                    const float underNear = tread(sole, nearTo);
+                    // (going down a stair a foot's way lies higher over the tread it comes over than a tread is looked for
+                    // about its own height: looked for once more, lower. Without, the foot was a frame without its stair.)
+                    if (const float under = std::isfinite(underNear) ? underNear : tread(sole, nearTo - .45f); std::isfinite(under))
+                    {
+                        constexpr float Riser = .12f, LookAhead = 1.2f, Each = .1f, Unsure = .04f, Clear = .05f;
+                        const auto ramp = [](float v, float from, float to) { v = std::clamp((v - from) / (to - from), 0.f, 1.f); return v * v * (3 - 2 * v); };
+                        const bool held = FootHeld[k];
+                        const float reachTo = half + .02f, soon = (reachTo - .01f) * .5f;
+                        // how far it has still to go over the ground before it comes down (held: it stays)
+                        const bool told = !held && SwingSeconds > 0 && LandSpeed[k] > 0;
+                        const float ballAhead = (XMVectorGetZ(T0 - at(LegJoint[k])) + drawn) * scale * wayZ;
+                        // Her swing: this foot's own last one (her left and right differ by a thirtieth of a second, which
+                        // at a jog is 10 cm of ground), unless her pace has changed since: then the last of either foot.
+                        // Its reach before her hip: as learned (at a walk and at a jog it is the same), less under a walk's
+                        // speed: stopping, the foot comes down under her, and forecast to go on, it was let down into the
+                        // tread before it, 20 cm into the stone.
+                        const float swing = std::abs(SwingOf[k] - SwingSeconds) < .15f * SwingSeconds ? SwingOf[k] : SwingSeconds;
+                        const float reach = LandAhead[k] * (std::min)(1.f, HerSpeed / (std::min)(LandSpeed[k], 1.5f));
+                        // (and no less than it takes a foot to stop from the speed it has: 70 m/s2 is the hardest her clips
+                        // bring a foot down; a swing longer than her last one, as she gathers speed, was forecast to have landed)
+                        const float toGo = told ? (std::max)({0.f, HerSpeed * (std::max)(0.f, swing - FootFree[k]) + reach - ballAhead, FootGo[k] * FootGo[k] / 140}) : 0.f;
+                        // in the air (1) or standing (0)
+                        const float low = std::clamp((1 - lifted[k]) * 1.6f, 0.f, 1.f), dragged = ramp(FootGo[k], .25f, .9f);
+                        const float settle = low * (std::max)(1 - ramp(FootGo[k], 1.f, 3.f), told ? 1 - ramp(toGo, .05f, .3f) : 0.f);
+                        const float want = held ? (std::max)(lifted[k], dragged) : 1 - settle;
+                        const float rise = dt / (held && dragged < lifted[k] ? .16f : .07f);
+                        FootAir[k] = want > FootAir[k] ? (std::min)(want, FootAir[k] + rise) : (std::max)(want, FootAir[k] - dt / .08f);
+                        air = FootAir[k];
+                        onStair = true;
+                        FootToGo[k] = told ? toGo : -1.f;
+                        const float going = ramp(HerSpeed, .15f, .5f);
+                        // the stair before the middle of its sole, as she goes: each edge, how far off, the tread before it and the one after
+                        struct Edge { float At, From, To; };
+                        Edge edges[6]; int count = 0;
+                        {
+                            const float lookTo = reachTo + (going * air > .01f ? LookAhead : toGo);
+                            float before = under;
+                            for (float s = Each; s < lookTo + Each && count < 6; s += Each)
+                            {
+                                const float now = tread(sole + fwd * (s / scale), before);
+                                if (!std::isfinite(now)) break;
+                                if (std::abs(now - before) > Riser)
+                                {
+                                    float lo = s - Each, hi = s;
+                                    for (int i = 0; i < 5; ++i)
+                                    {
+                                        const float m = (lo + hi) * .5f;
+                                        if (std::abs(tread(sole + fwd * (m / scale), before) - before) > Riser) hi = m; else lo = m;
+                                    }
+                                    edges[count++] = {hi, before, now};
+                                }
+                                before = now;
+                            }
+                        }
+                        // and the edge under the rear of its sole, where the tread behind is the higher (she comes down a stair)
+                        float backAt = -1, backTop = under;
+                        if (const float behind = tread(sole - fwd * (reachTo / scale), under); std::isfinite(behind) && behind > under + Riser)
+                        {
+                            float lo = 0, hi = reachTo;
+                            for (int i = 0; i < 5; ++i)
+                            {
+                                const float m = (lo + hi) * .5f;
+                                if (tread(sole - fwd * (m / scale), under) > under + Riser) hi = m; else lo = m;
+                            }
+                            backAt = hi; backTop = behind;
+                        }
+                        // Where its middle comes down (where it is, held), on which tread, and what the sole has still to go to
+                        // stand well there. Across a riser up it is set on onto the upper tread if its middle is nearly there
+                        // (its heel may hang over the edge), else drawn back clear of the riser. Across an edge down it is
+                        // drawn back until the ball of the foot is on the upper tread, or set on until its heel is clear of
+                        // that tread, whichever is nearer. And it stands on that tread from the first (on the lower one until
+                        // its middle was over the edge, its toes were in the riser).
+                        // What it was coming down to counts. In the air, a place just between two treads is not chosen anew
+                        // each frame. And come down, it goes on to the tread it was coming down to, though it came down
+                        // short or far of where it was forecast: a foot let down to the lower tread, its heel still over
+                        // the upper one, was thrown up 11 cm onto the upper one in the frame it landed.
+                        const float ballBack = (std::max)(.01f, half - .07f), nearer = (reachTo - ballBack) * .5f;
+                        const float meant = LandsAt[k] < 1e8f ? LandsAt[k] - p.Position.y : 1e9f, sway = held ? reachTo : .03f;
+                        const auto toward = [&](float upper, float lower) { return std::abs(meant - upper) < Riser ? sway : std::abs(meant - lower) < Riser ? -sway : 0.f; };
+                        float fit = 0, lands = under;
+                        for (int i = 0; i < count; ++i)
+                        {
+                            const float g = edges[i].At - toGo;     // the edge before (+) or behind (-) the place its middle comes down
+                            if (g >= reachTo) break;
+                            if (edges[i].To > edges[i].From)
+                            {
+                                const float onto = soon + toward(edges[i].To, edges[i].From);
+                                if (g > 0) fit = g < onto ? g + .01f : g - reachTo;
+                                if (g < onto) lands = edges[i].To;
+                            }
+                            else if (g <= 0)
+                            {
+                                const float back = nearer + toward(edges[i].From, edges[i].To);
+                                lands = edges[i].To;
+                                if (-g < reachTo) { fit = -g < back ? g - ballBack : reachTo + g; if (-g < back) lands = edges[i].From; }
+                            }
+                            if (g > 0) break;
+                        }
+                        if (const float past = backAt + toGo; backAt >= 0 && fit == 0 && past < reachTo)
+                        {
+                            const float back = nearer + toward(backTop, under);
+                            fit = past < back ? -(past + ballBack) : reachTo - past;
+                            if (past < back) lands = backTop;
+                        }
+                        LandsAt[k] = held && FootStood[k] > .15f ? 1e9f : p.Position.y + lands;
+                        const float ux = XMVectorGetX(fwd), uz = XMVectorGetZ(fwd), steer = held ? 1.f : told ? 1 - ramp(toGo, .1f, .5f) : low;
+                        fitTo[k][0] = (ux * c + uz * sn) * fit; fitTo[k][1] = (-ux * sn + uz * c) * fit;
+                        for (int i = 0; i < 2; ++i) slideTo[k][i] = std::clamp((FootSlide[k][i] + fitTo[k][i]) * steer, -.2f, .2f);
+                        // In the air it is over the highest tread under its sole, from end to end,
+                        float over = under;
+                        for (const float s : {-half, half}) if (const float t = tread(sole + fwd * (s / scale), under); std::isfinite(t)) over = (std::max)(over, t);
+                        swinging = over;
+                        if (going * air > .01f)
+                        {
+                            // and going up, on the line through the edges of the risers before it: as steep as the steepest
+                            // pair of them (one riser alone: 45 degrees).
+                            float found[4][2] = {}; int rises = 0;
+                            for (int i = 0; i < count && rises < 4; ++i)
+                                if (edges[i].To > edges[i].From) { found[rises][0] = edges[i].At; found[rises][1] = edges[i].To; ++rises; }
+                            float steep = 1.f;
+                            for (int i = 0; i + 1 < rises; ++i)
+                            {
+                                const float between = (found[i + 1][1] - found[i][1]) / (std::max)(.05f, found[i + 1][0] - found[i][0]);
+                                steep = i ? (std::max)(steep, between) : between;
+                            }
+                            steep = std::clamp(steep, .3f, 1.5f);
+                            // A tread counts as far as it is sure the middle of the sole will come onto it (or within 'soon'
+                            // of it: then it is set on onto it); one the foot stops short of is not climbed. Held, it has
+                            // come down where it is; and pushing off, a little later, they all count. (Come down, it was
+                            // taken for pushing off at once, and for the frames it came to rest in it was lifted toward
+                            // the next tread: 7 to 10 cm up and down again after every landing.)
+                            const float pushing = held ? ramp(FootStood[k], .05f, .12f) : 1.f;
+                            float line = under;
+                            for (int i = 0; i < rises; ++i)
+                            {
+                                const float here = ramp(toGo - found[i][0] + soon, -Unsure, Unsure), sure = told ? here : here + (1 - here) * pushing;
+                                line = (std::max)(line, under + (found[i][1] - under) * sure - steep * (std::max)(0.f, found[i][0] - half) / (std::max)(sure, .08f));
+                            }
+                            // Its way comes down (a stair going down; a tread it will not reach after all): it is not dropped
+                            // by a tread's height as its sole comes clear of an edge, nor left up until it has stopped: it is
+                            // let down evenly over the ground it has still to go to the next thing it must be down for: the
+                            // far edge of the tread it is over, or the place it comes down on, whichever is first. (Kept as
+                            // a height in the world: she goes down herself meanwhile.)
+                            const float wayAt = p.Position.y + (std::max)(over, under + (line - under) * going);
+                            if (!(std::abs(SwingAt[k] - wayAt) < 1.f) || wayAt >= SwingAt[k]) SwingAt[k] = wayAt;
+                            else
+                            {
+                                float room = told ? (std::max)(0.f, toGo + fit * steer) : LookAhead;
+                                for (int i = 0; i < count; ++i) if (edges[i].To < edges[i].From) { room = (std::min)(room, edges[i].At + half); break; }
+                                const float gone = FootGo[k] * dt, drop = SwingAt[k] - wayAt;
+                                SwingAt[k] -= (std::min)(drop, (std::max)(1.5f * dt, drop * gone / (room + gone + 1e-4f)));
+                            }
+                            // (and Clear over all of it: the clip's toes pass a few centimetres over a floor, and so over an edge)
+                            swinging = SwingAt[k] - p.Position.y + Clear * going;
+                        }
+                        else SwingAt[k] = p.Position.y + over;
+                        // Let go, it leaves the tread it stood on (that one, kept as a height in the world: not the one its
+                        // middle is over, which for a foot that stood across an edge is another, and changes as it goes:
+                        // 13 cm down and up again in the two frames after it was let go). A tenth of a second later it is
+                        // in the air, and what it stands on is where it comes down: the tread forecast, and never lower
+                        // than the tread under it now.
+                        const float onto = (std::max)(lands, under);
+                        if (held) StoodAt[k] = p.Position.y + onto;
+                        const float from = std::abs(StoodAt[k] - p.Position.y - under) < 1.f ? StoodAt[k] - p.Position.y : under;
+                        standing = held || FootFree[k] > .1f ? onto : from;
+                    }
+                    if (!onStair) { FootAir[k] = lifted[k]; SwingAt[k] = LandsAt[k] = StoodAt[k] = 1e9f; }
+                    FootLifted[k] = lifted[k]; FootOnStair[k] = onStair;
+                    h[k] = std::clamp(standing * (1 - air) + swinging * air - leanLift(A), -Down, Up) * FeetOn;
                     const float reach = std::hypot(XMVectorGetX(T - A), XMVectorGetZ(T - A)) * scale;
                     if (reach > .03f && !step) pitchTo[k] = std::clamp(std::atan2(toe - heel, reach), -MostPitch, MostPitch) * (1 - lifted[k]) * FeetOn;
                 }
@@ -753,10 +989,29 @@ namespace Doorways
                 }
             bool moved = false;
             const float ease = (std::min)(1.f, dt * FootEase), slideEase = (std::min)(1.f, dt * SlideEase);
+            // how much her body went up in the world since the frame before: she herself, and what she is let down by
+            const float bodyAt = p.Position.y + FeetDrop, bodyRose = std::abs(bodyAt - BodyWas) < .3f ? bodyAt - BodyWas : 0.f;
+            BodyWas = bodyAt;
             for (int k = 0; k < 2; ++k)
             {
                 const float raiseWant = raiseTo[k] - FeetDrop;
-                FeetRaise[k] += (raiseWant - FeetRaise[k]) * (raiseWant > FeetRaise[k] ? (std::min)(1.f, dt * FootRise) : ease);
+                if (FootHeld[k])
+                {   // Held, it stays where it is in the world while her body rises and falls, and is eased only to what its
+                    // ground is found to be otherwise (2026-11-19). It was eased after its ground in her own frame: going
+                    // up a stair, the tread sinking under her at 1 to 2 m/s, it hung 5 to 20 cm over the tread for the
+                    // first of every stance, and uphill and downhill the same in little.
+                    FeetRaise[k] -= bodyRose;
+                    FeetRaise[k] += (raiseWant - FeetRaise[k]) * (raiseWant > FeetRaise[k] ? (std::min)(1.f, dt * FootRise) : ease);
+                }
+                else if (FootOnStair[k])
+                {   // In the air over a stair its way is laid out, and smooth: it goes as its way goes, and only what it
+                    // is off it (coming off its tread) is eased away. (Eased after its way, it went 8 cm under it going
+                    // up at a walk, and 19 cm over it going down.)
+                    FeetRaise[k] += std::clamp(raiseWant - RaiseWant[k], -8 * dt, 8 * dt);
+                    FeetRaise[k] += (raiseWant - FeetRaise[k]) * (std::min)(1.f, dt * FootRise);
+                }
+                else FeetRaise[k] += (raiseWant - FeetRaise[k]) * (raiseWant > FeetRaise[k] ? (std::min)(1.f, dt * FootRise) : ease);
+                RaiseWant[k] = raiseWant;
                 FootPitch[k] += (pitchTo[k] - FootPitch[k]) * ease;
                 for (int i = 0; i < 2; ++i) FootSlide[k][i] += (slideTo[k][i] - FootSlide[k][i]) * slideEase;
                 // in her own space: up, and the slide turned from the world into her axes
@@ -777,9 +1032,25 @@ namespace Doorways
                     const XMVECTOR A0 = at(FootJoint[k]), H0 = at(LegJoint[k]);
                     const XMVECTOR placed = (ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A0) + XMVectorSet(sx, 0, sz + drawnIn * XMVectorGetZ(A0 - H0), 0);
                     const float wx = worldX(placed), wz = worldZ(placed);
-                    if (on && !stairClip && (lifted[k] < .3f || (FootHeld[k] && ballDown[k])) && FeetOn > .9f)
+                    // (Latched arriving, not passing low: in her walk the left ankle dips to 4 cm over the ground late in
+                    // its swing, the foot going at three times her speed, and latched there it hung back for four frames of
+                    // every stride. A foot coming down goes over the ground no faster than she does.)
+                    const bool heldBefore = FootHeld[k], arriving = heldBefore || FootGo[k] < 1.f + HerSpeed;
+                    if (on && !stairClip && ((lifted[k] < .3f && arriving) || (heldBefore && ballDown[k])) && FeetOn > .9f)
                     {
-                        if (!FootHeld[k]) { FootHeld[k] = true; FootAt[k][0] = wx + FootOff[k][0]; FootAt[k][1] = wz + FootOff[k][1]; }
+                        if (!FootHeld[k])
+                        {
+                            FootHeld[k] = true; FootAt[k][0] = wx + FootOff[k][0]; FootAt[k][1] = wz + FootOff[k][1];
+                            if (FootFree[k] > .15f && FootFree[k] < 1.f && Speed > .5f)
+                            {   // a swing ended: how long it took, where before her hip its ball came down, and how fast she went
+                                SwingSeconds = SwingOf[k] = FootFree[k];
+                                LandAhead[k] = (XMVectorGetZ((ToeJoint[k] >= 0 ? at(ToeJoint[k]) : A0) - H0) + drawnIn * XMVectorGetZ(A0 - H0)) * scale * (Back ? -1.f : 1.f);
+                                LandSpeed[k] = (std::max)(.5f, HerSpeed);
+                                // (her other foot, if it has not landed from a stride yet: as this one)
+                                if (LandSpeed[1 - k] <= 0) { SwingOf[1 - k] = SwingOf[k]; LandAhead[1 - k] = LandAhead[k]; LandSpeed[1 - k] = LandSpeed[k]; }
+                            }
+                        }
+                        else for (int i = 0; i < 2; ++i) FootAt[k][i] += fitTo[k][i] * (std::min)(1.f, dt * 14);   // (on a stair: the rest of the way clear of the risers)
                         float ox = FootAt[k][0] - wx, oz = FootAt[k][1] - wz;
                         const float apart = std::hypot(ox, oz);
                         if (apart > .6f) ox = oz = 0;      // (she was put somewhere else)
@@ -794,6 +1065,12 @@ namespace Doorways
                         FootOff[k][0] *= keep; FootOff[k][1] *= keep;
                     }
                     lx = (FootOff[k][0] * c - FootOff[k][1] * sn) / scale; lz = (FootOff[k][0] * sn + FootOff[k][1] * c) / scale;
+                    const float nowX = wx + FootOff[k][0], nowZ = wz + FootOff[k][1];
+                    // (come down in this frame it is at rest: the speed it came with was taken, a frame later, for a held foot dragged)
+                    FootGo[k] = FootHeld[k] && !heldBefore ? 0.f : FootWasKnown[k] && dt > 1e-5f ? std::hypot(nowX - FootWas[k][0], nowZ - FootWas[k][1]) / dt : 0.f;
+                    FootWas[k][0] = nowX; FootWas[k][1] = nowZ; FootWasKnown[k] = true;
+                    FootFree[k] = FootHeld[k] ? 0.f : (std::min)(9.f, FootFree[k] + dt);
+                    FootStood[k] = FootHeld[k] ? (std::min)(9.f, FootStood[k] + dt) : 0.f;
                 }
                 if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f && std::abs(drawnIn) < 1e-3f &&
                     std::abs(lx) + std::abs(lz) < 1e-3f) continue;
@@ -805,17 +1082,54 @@ namespace Doorways
                 const XMVECTOR goal = A + XMVectorSet(sx + lx, raise, sz + lz + drawnIn * XMVectorGetZ(A - H), 0);
                 const XMVECTOR way = XMVector3Normalize(goal - H);
                 const float d = std::clamp(XMVectorGetX(XMVector3Length(goal - H)), std::abs(a - b) + 1e-3f, (a + b) * .999f);
+                const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+                const XMVECTOR qAbove = turnOf(above), qHip = turnOf(hip), qKnee = turnOf(knee);
                 // Which way the knee bends (owner, 2026-11-17: a nearly straight leg's knee pointed anywhere, often sideways;
-                // 2026-11-18: "bending his knees backward while walking", on stairs too). It was turned toward the toes laid
-                // flat; but a foot lifting off, toes down, has almost nothing flat left, and that little often points back:
-                // the knee flipped behind her for those frames. Now: the clip's own knee wherever it points forward, her
-                // facing (+z in her space) where it does not or the leg is nearly straight. Never behind her.
-                const auto across = [&](XMVECTOR v) { v = v - way * XMVectorGetX(XMVector3Dot(v, way)); return XMVectorGetX(XMVector3LengthSq(v)) < 1e-8f ? XMVectorZero() : XMVector3Normalize(v); };
-                const XMVECTOR clipKnee = across(K - H), aheadKnee = across(XMVectorSet(0, 0, 1, 0));
-                const float trust = XMVectorGetX(XMVector3LengthSq(clipKnee)) < .5f ? 0.f
-                                  : std::clamp((XMVectorGetX(XMVector3Dot(clipKnee, aheadKnee)) - .2f) / .4f, 0.f, 1.f);
-                XMVECTOR bend = clipKnee * trust + aheadKnee * (1 - trust);
-                if (XMVectorGetX(XMVector3LengthSq(bend)) < 1e-6f) bend = aheadKnee;
+                // 2026-11-18: "bending his knees backward while walking", on stairs too; 2026-11-19: "it adds some odd
+                // animation for each step", "each leg").
+                // The knee is a hinge, and the clip says where its axis lies: across its thigh and its shin where the knee
+                // is bent; and where the leg is straight, and they say nothing, where the thigh and the shin carry the axis
+                // they had while it was bent (kept in each bone's own frame). That axis is carried over to the leg as it
+                // is laid now, by the shortest turn from the clip's hip-to-ankle line to the new one, and the knee bends
+                // about it: so a foot moved does to the knee what moving it would, and nothing else.
+                // (Before: first the knee was turned toward the toes laid flat, and a foot lifting off, toes down, sent
+                // it behind her. Then it was the clip's own knee where that pointed forward and her facing where it did
+                // not: but the clip's knee as seen from the NEW hip-to-ankle line. With the foot far from the clip's place
+                // - 20 cm on a slope, 45 on a stair - that is no direction at all, and it changed side as the lines
+                // crossed: in every step of each leg the knee swung 15 cm across her body as the leg came up and snapped
+                // back in one frame, and was thrown 20 cm outward in the frame after the foot came down. 1700 m/s2 at the
+                // knee, twice a step, on every slope and stair; five times the worst of anything else in her.)
+                const auto across = [](XMVECTOR v, XMVECTOR line) { v = v - line * XMVectorGetX(XMVector3Dot(v, line)); return XMVectorGetX(XMVector3LengthSq(v)) < 1e-8f ? XMVectorZero() : XMVector3Normalize(v); };
+                const XMVECTOR way0 = XMVector3Normalize(A - H), crossed = XMVector3Cross(K - H, A - K);
+                const float bent = XMVectorGetX(XMVector3Length(crossed)) / (a * b);      // the sine of the knee's angle in the clip
+                const XMVECTOR seen = bent > 1e-4f ? crossed / (a * b * bent) : XMVectorZero();
+                if (bent > .4f)
+                {   // well bent: where the axis lies in the thigh's own frame, and in the shin's
+                    const float w = (std::min)(1.f, dt * 4);
+                    XMStoreFloat3(&KneeAxis[k][0], XMVectorLerp(XMLoadFloat3(&KneeAxis[k][0]), XMVector3Rotate(seen, XMQuaternionInverse(qHip)), w));
+                    XMStoreFloat3(&KneeAxis[k][1], XMVectorLerp(XMLoadFloat3(&KneeAxis[k][1]), XMVector3Rotate(seen, XMQuaternionInverse(qKnee)), w));
+                }
+                XMVECTOR carried = XMVector3Rotate(XMLoadFloat3(&KneeAxis[k][0]), qHip) + XMVector3Rotate(XMLoadFloat3(&KneeAxis[k][1]), qKnee);
+                const bool known = XMVectorGetX(XMVector3LengthSq(carried)) > 1.f;        // (both learned and agreeing: 4)
+                carried = known ? XMVector3Normalize(carried) : XMVectorZero();
+                const float sure = known ? std::clamp((bent - .1f) / .2f, 0.f, 1.f) : bent > .03f ? 1.f : 0.f, seenFor = sure * sure * (3 - 2 * sure);
+                XMVECTOR axis = seen * seenFor + carried * (1 - seenFor);
+                // (no axis at all - a straight leg before she has taken a step - : that of a knee that bends ahead of her)
+                // The fore side of a leg's line: ahead of her for a leg that hangs straight down, and turned with the line
+                // as it leans: under a leg that reaches back, over one that reaches forward. (It was her facing laid across
+                // the line. For a foot behind her and higher than her hip - the foot she leaves a stair's tread with, going
+                // down at a jog, her body let down - that points up: the knee went over her hip, and flipped under it as
+                // the foot came down past the hip's height. 3000 to 4000 m/s2 at the knee, in every step down.)
+                const auto fore = [](XMVECTOR line) { return XMVector3Rotate(XMVectorSet(0, 0, 1, 0), ArcTurn(XMVectorSet(0, -1, 0, 0), line)); };
+                if (XMVectorGetX(XMVector3LengthSq(axis)) < .25f) axis = XMVector3Cross(fore(way0), way0);
+                if (XMVectorGetX(XMVector3LengthSq(axis)) < .25f) continue;
+                XMVECTOR bend = across(XMVector3Cross(way, XMVector3Rotate(XMVector3Normalize(axis), ArcTurn(way0, way))), way);
+                // (and never on the back side of its leg, whatever a clip and a far reach make of it)
+                {
+                    const XMVECTOR aheadKnee = fore(way);
+                    const float trust = XMVectorGetX(XMVector3LengthSq(bend)) < .5f ? 0.f : std::clamp((XMVectorGetX(XMVector3Dot(bend, aheadKnee)) + .15f) / .3f, 0.f, 1.f);
+                    bend = bend * trust + aheadKnee * (1 - trust);
+                }
                 if (XMVectorGetX(XMVector3LengthSq(bend)) < 1e-6f) continue;
                 bend = XMVector3Normalize(bend);
                 const float cosA = std::clamp((a * a + d * d - b * b) / (2 * a * d), -1.f, 1.f);
@@ -823,8 +1137,6 @@ namespace Doorways
                 const XMVECTOR turnThigh = ArcTurn(XMVector3Normalize(K - H), XMVector3Normalize(K2 - H));
                 const XMVECTOR shin = XMVector3Rotate(A - K, turnThigh);
                 const XMVECTOR turnShin = ArcTurn(XMVector3Normalize(shin), XMVector3Normalize(A2 - K2));
-                const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
-                const XMVECTOR qAbove = turnOf(above), qHip = turnOf(hip), qKnee = turnOf(knee);
                 // the foot as the clip turns it, then tipped about her side axis to the slope (toes up a hill)
                 const XMVECTOR qFoot = XMQuaternionMultiply(turnOf(foot), XMQuaternionRotationAxis(XMVectorSet(1, 0, 0, 0), -FootPitch[k]));
                 const XMVECTOR newHip = XMQuaternionMultiply(qHip, turnThigh), newKnee = XMQuaternionMultiply(XMQuaternionMultiply(qKnee, turnThigh), turnShin);
@@ -1220,6 +1532,8 @@ namespace Doorways
                         for (const char* axis : {"_x", "_y", "_z"}) b.PoseFile << '\t' << name << axis;
                         break;
                     }
+            for (const char* foot : {"left", "right"})
+                for (const char* what : {"_held", "_air", "_go", "_togo", "_lifted", "_stair", "_free", "_swing", "_land"}) b.PoseFile << '\t' << foot << what;
             b.PoseFile << '\n' << std::setprecision(6);
         }
         OutputDebugStringA(("[PASS] Nyxara: her body " + bundle.filename().string() + " with " + std::to_string(b.Clips.size()) + " clips.\n").c_str());

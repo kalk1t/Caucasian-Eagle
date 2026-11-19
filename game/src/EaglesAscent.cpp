@@ -257,7 +257,9 @@ namespace CaucasianEagle
             const auto& r = mTreads[static_cast<size_t>(i)];
             const float dx = x - r.X, dz = z - r.Z, along = dx * r.Ax + dz * r.Az, across = dx * r.Az - dz * r.Ax;   // (as build_mountain.py turns them)
             if (std::abs(along) > r.Along / 2 || std::abs(across) > r.Across / 2 || std::abs(r.Top - nearY) > .45f) continue;
-            if (!std::isfinite(best) || std::abs(r.Top - nearY) < std::abs(best - nearY)) best = r.Top;
+            // (the higher of two that both hold the point: a tread's box reaches a little under the nose of the next, and
+            // what is drawn there is the upper one; 2026-11-19: the nearer to her own height was taken, the hidden one)
+            if (!std::isfinite(best) || r.Top > best) best = r.Top;
         }
         return best;
     }

@@ -89,7 +89,8 @@ namespace CaucasianEagle
         float RingDistance(const DirectX::XMFLOAT3& p) const;   // m to the nearest point of a ring; 1e30 with none
                                                  // (on the floor grid when the map has one: the carved rock's ledges included)
         const Zone* ZoneAt(float y) const;
-        // The top of the stair tread drawn at (x, z) nearest 'nearY' (within a step and a half), NaN where there is none.
+        // The top of the stair tread drawn at (x, z) about 'nearY' (within a step and a half of it; of two there, the
+        // higher: the one seen), NaN where there is none.
         // She walks the ramp under the treads; her feet are set on them (NyxaraKit::SetFootGround).
         float TreadTop(float x, float z, float nearY) const;
         // the middle of the tread of this top nearest (x, z) along the stair, and the stair's way (false: none within 2 m)
