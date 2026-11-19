@@ -250,6 +250,15 @@ namespace Doorways
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         XMFLOAT4X4 SwordOnBack[2]{}; bool HasBack = false;   // each sword on her back, as her chest (Spine2) carries it
         int FootJoint[2] = {-1, -1}, ToeJoint[2] = {-1, -1};  // left and right ankle, left and right toes
+        int WingJoint[2][3] = {{-1, -1, -1}, {-1, -1, -1}};   // left and right wing: its three bones, root to tip
+        int NeckJoint = -1, HeadJoint = -1;
+        float Look = 0;                    // her head turned into her turn (radians, + to her right)
+        float TurnSteps = 0;               // turning on the spot: how much her legs are the stride's (0..1)
+        float Bank = 0;                    // in flight: rolled into her turn (radians)
+        struct WingSwing { float Flap = 0, FlapGo = 0, Back = 0, BackGo = 0, Flap2 = 0, Flap3 = 0, Back2 = 0, Back3 = 0; } WingSpring[2];
+        float WingClimb = 0, WingShare = 0; bool WingKnown = false;   // her rise a frame ago (m/s); how much her wings answer
+        float WingFold = 0;                // her wings lowered and drawn in (0 as the clip holds them .. 1 at ease)
+        static constexpr float FoldFlap[3] = {-.50f, -.25f, -.15f}, FoldBack[3] = {.35f, .22f, .12f};   // lowered: each bone down, and back (radians; more back and the tips cross behind her)
         XMFLOAT3 SwordGrip[2]{}, SwordTip[2]{};            // in the sword bone's axes: the handle's middle, the blade's point
         float FeetOn = 0, FeetDrop = 0, FeetRaise[2]{};    // feet on the drawn ground: how much; her body lowered; each foot raised (m)
         float AnkleRest[2] = {1e9f, 1e9f};                 // the lowest each ankle stands in her clips (m over her feet): the foot is down
@@ -473,6 +482,91 @@ namespace Doorways
                 speed += ThrowCorrect * (should - gone);
             }
             return speed;
+        }
+
+        // She looks where she turns (2026-11-19): her head and neck lead a turn, as far as she turns fast, and come
+        // back after it. turn: radians a second, to her right.
+        void LookAbout(DoorwaysSkeletonPose& out, float dt, float turn, float share)
+        {
+            Look += (std::clamp(turn * .28f, -.5f, .5f) * share - Look) * (std::min)(1.f, dt * 5);
+            if (NeckJoint < 0 || HeadJoint < 0 || std::abs(Look) < 1e-3f || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return;
+            const int above = Skeleton.Joints[NeckJoint].ParentIndex;
+            if (above < 0 || Skeleton.Joints[HeadJoint].ParentIndex != NeckJoint) return;
+            const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            const XMVECTOR upright = XMVectorSet(0, 1, 0, 0);
+            const XMVECTOR neck = XMQuaternionMultiply(turnOf(NeckJoint), XMQuaternionRotationAxis(upright, Look * .4f));
+            const XMVECTOR head = XMQuaternionMultiply(turnOf(HeadJoint), XMQuaternionRotationAxis(upright, Look));
+            XMStoreFloat4(&out.LocalJoints[NeckJoint].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(neck, XMQuaternionInverse(turnOf(above)))));
+            XMStoreFloat4(&out.LocalJoints[HeadJoint].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(head, XMQuaternionInverse(neck))));
+            EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr);
+        }
+
+        // Her wings answer what the world does to her (2026-11-19). In her clips they swing as the clip's own chest
+        // moves, worked out in Blender: so they knew nothing of a jump, a fall, a landing, a turn, a start or a stop, and
+        // stood through all of them as painted on. Here each wing is a damped spring about where the clip holds it, up
+        // and down (Flap) and back and forth (Back): falling, the air lifts it, and rising presses it down; a jump off
+        // and a landing knock it down and it swings back; in a turn the outer wing trails and the inner one swings
+        // forward; gathering speed both are left behind, losing it they swing forward. The two outer bones follow the
+        // root late, so the wing bends along its length. climb: m/s up, off the ground on foot; gain: m/s2 along her
+        // facing; turn: radians a second, to her right; share: how much of it all (less in flight: Fly beats them).
+        // fold: how far they are lowered and drawn in (at ease: she does not stand with her wings spread as for flight).
+        void SwingWings(DoorwaysSkeletonPose& out, float dt, float climb, float gain, float turn, float share, float fold)
+        {
+            constexpr float Beat = XM_2PI * 1.3f, Damp = .42f, Most = .6f;
+            WingFold += (fold - WingFold) * (std::min)(1.f, dt * (fold > WingFold ? 1.8f : 5.f));   // lowered slowly, opened quickly
+            for (const auto& wing : WingJoint) for (const int j : wing) if (j < 0) return;
+            if (dt <= 1e-5f || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return;
+            WingShare += (share - WingShare) * (std::min)(1.f, dt * 6);
+            float blow = WingKnown ? climb - WingClimb : 0.f;      // her rise changed at once: she jumped off, or landed
+            if (std::abs(blow) < 3) blow = 0;
+            WingClimb = climb; WingKnown = true;
+            const float flapTo = WingShare * (climb < 0 ? (std::min)(.45f, -climb * .03f) : -(std::min)(.14f, climb * .015f));
+            const auto at = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            bool moved = false;
+            for (int k = 0; k < 2; ++k)
+            {
+                auto& w = WingSpring[k];
+                const int* j = WingJoint[k];
+                const int above = Skeleton.Joints[j[0]].ParentIndex;
+                if (above < 0 || Skeleton.Joints[j[1]].ParentIndex != j[0] || Skeleton.Joints[j[2]].ParentIndex != j[1]) continue;
+                const XMVECTOR root = at(j[0]);
+                XMVECTOR d = at(j[2]) - root;
+                if (XMVectorGetX(XMVector3LengthSq(d)) < 1e-6f) continue;
+                d = XMVector3Normalize(d);
+                const float side = XMVectorGetX(d) >= 0 ? 1.f : -1.f;     // the right wing (+x) or the left
+                const float backTo = WingShare * std::clamp(-side * turn * .13f, -.3f, .3f);
+                w.FlapGo -= WingShare * blow * .14f;
+                for (float left = dt; left > 1e-6f;)
+                {
+                    const float h = (std::min)(left, 1 / 120.f); left -= h;
+                    w.FlapGo += (-Beat * Beat * (w.Flap - flapTo) - 2 * Damp * Beat * w.FlapGo) * h;
+                    w.Flap = std::clamp(w.Flap + w.FlapGo * h, -Most, Most);
+                    w.BackGo += (-Beat * Beat * (w.Back - backTo) - 2 * Damp * Beat * w.BackGo + WingShare * gain * 1.1f) * h;
+                    w.Back = std::clamp(w.Back + w.BackGo * h, -Most, Most);
+                }
+                const float late = (std::min)(1.f, dt * 9);
+                w.Flap2 += (w.Flap - w.Flap2) * late; w.Flap3 += (w.Flap2 - w.Flap3) * late;
+                w.Back2 += (w.Back - w.Back2) * late; w.Back3 += (w.Back2 - w.Back3) * late;
+                const float flaps[3] = {w.Flap + WingFold * FoldFlap[0], w.Flap2 * .5f + WingFold * FoldFlap[1], w.Flap3 * .4f + WingFold * FoldFlap[2]};
+                const float backs[3] = {w.Back + WingFold * FoldBack[0], w.Back2 * .45f + WingFold * FoldBack[1], w.Back3 * .35f + WingFold * FoldBack[2]};
+                if (std::abs(flaps[0]) + std::abs(flaps[1]) + std::abs(flaps[2]) + std::abs(backs[0]) + std::abs(backs[1]) + std::abs(backs[2]) < 1e-4f) continue;
+                // up and back as the wing sees them: across its own length
+                const auto across = [&](XMVECTOR v) { v = v - d * XMVectorGetX(XMVector3Dot(v, d)); return XMVectorGetX(XMVector3LengthSq(v)) < 1e-6f ? XMVectorZero() : XMVector3Normalize(v); };
+                const XMVECTOR up = across(XMVectorSet(0, 1, 0, 0)), back = across(XMVectorSet(0, 0, -1, 0));
+                XMVECTOR all = XMQuaternionIdentity(), parent = turnOf(above);
+                for (int i = 0; i < 3; ++i)
+                {
+                    const XMVECTOR lifted = XMVector3Normalize(d * std::cos(flaps[i]) + up * std::sin(flaps[i]));
+                    const XMVECTOR swept = XMVector3Normalize(lifted * std::cos(backs[i]) + back * std::sin(backs[i]));
+                    all = XMQuaternionNormalize(XMQuaternionMultiply(all, ArcTurn(d, swept)));     // this bone's turn on top of those before it
+                    const XMVECTOR now = XMQuaternionNormalize(XMQuaternionMultiply(turnOf(j[i]), all));
+                    XMStoreFloat4(&out.LocalJoints[j[i]].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(now, XMQuaternionInverse(parent))));
+                    parent = now;
+                }
+                moved = true;
+            }
+            if (moved) EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr);
         }
 
         static XMVECTOR ArcTurn(XMVECTOR from, XMVECTOR to)   // the shortest turn that takes one direction to another
@@ -703,12 +797,16 @@ namespace Doorways
                 {
                     if (n.ends_with(k ? "RightFoot" : "LeftFoot") && FootJoint[k] < 0) FootJoint[k] = static_cast<int>(i);
                     if (n.ends_with(k ? "RightToeBase" : "LeftToeBase") && ToeJoint[k] < 0) ToeJoint[k] = static_cast<int>(i);
+                    for (int w = 0; w < 3; ++w)
+                        if (n.ends_with(std::string(k ? "WingR" : "WingL") + static_cast<char>('1' + w)) && WingJoint[k][w] < 0) WingJoint[k][w] = static_cast<int>(i);
                 }
                 if (n.find("Wing") == std::string::npos && n.find("Sword") == std::string::npos) BodyJoints.push_back(static_cast<int>(i));
                 ArmJoint.resize(Skeleton.Joints.size(), 0);
                 ArmJoint[i] = n.find("Wing") == std::string::npos && n.find("Sword") == std::string::npos &&
                               (n.find("Left") != std::string::npos || n.find("Right") != std::string::npos) &&
                               (n.find("Shoulder") != std::string::npos || n.find("Arm") != std::string::npos || n.find("Hand") != std::string::npos);
+                if (n.ends_with("Neck") && NeckJoint < 0) NeckJoint = static_cast<int>(i);
+                if (n.ends_with("Head") && HeadJoint < 0) HeadJoint = static_cast<int>(i);
                 if (n.ends_with("SwordLeft")) SwordJoint[0] = static_cast<int>(i);
                 if (n.ends_with("SwordRight")) SwordJoint[1] = static_cast<int>(i);
             }
@@ -1904,8 +2002,11 @@ namespace Doorways
             const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
             b.LeanRoll += (roll - b.LeanRoll) * (std::min)(1.f, dt * 5);
             b.LeanPitch += (pitch - b.LeanPitch) * (std::min)(1.f, dt * 7);
+            // in flight she banks into a turn, as a bird does (2026-11-19: she turned in the air upright, as on a spit)
+            const bool winging = flying && !p.IsGrounded && !b.Dead && !b.Cast && b.Rise < 0 && b.Touch < 0;
+            b.Bank += ((winging ? std::clamp(-b.TurnRate * .24f, -.42f, .42f) : 0.f) - b.Bank) * (std::min)(1.f, dt * 3.5f);
         }
-        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch, 0, b.LeanRoll};
+        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch, 0, b.LeanRoll + b.Bank};
         b.Hover += ((flying && p.IsGrounded && !landing && b.Rise < 0 ? 1.f : 0.f) - b.Hover) * (std::min)(1.f, dt * 3);
         const float up = b.Cast == 4 ? 1.f : b.Cast == 5 && b.CastTime < CastThrust && !flying ? CastBrace / CastLift : 0.f;
         b.CastUp += (up - b.CastUp) * (std::min)(1.f, dt * 7);
@@ -2076,6 +2177,14 @@ namespace Doorways
             }
             else b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), b.Back, dt);   // (the frame the key is let go the engine has her at rest; she is carried on from the next)
         }
+        {   // Turning on the spot she steps (2026-11-19: she was turned as a statue on a plate). Her legs are the walk's,
+            // stepping in place (her stride drawn in to nothing), her body goes on standing.
+            const bool turning = !moving && !b.Dead && !flying && p.IsGrounded && b.Attack.empty() && !b.Cast && !b.Jumping && !carried &&
+                                 b.Rise < 0 && b.Touch < 0 && std::abs(b.TurnRate) > .5f;
+            if (turning) { b.Gait = "Move"; b.Stride(0, false, dt); }
+            else if (!striding) b.StrideScale += (1 - b.StrideScale) * (std::min)(1.f, dt * 10);   // (standing: her feet where her clip has them)
+            b.TurnSteps += ((turning ? 1.f : 0.f) - b.TurnSteps) * (std::min)(1.f, dt * (turning ? 10.f : 6.f));
+        }
         const bool cutting = !b.Attack.empty() && !carried && !b.Dead;
         if (!cutting) b.Legs = 0;
         else if (b.LastClip.rfind("Attack", 0) != 0) b.Legs = striding ? 1.f : 0.f;
@@ -2096,6 +2205,7 @@ namespace Doorways
         else if (b.Jumping) { clip = "Jump"; time = b.JumpTime; }
         else if (moving) { clip = b.Gait; time = b.GaitTime(); }
         b.Current = clip;
+        if (!cutting && !b.FlyBody && (clip == "Stand" || clip == "Idle") && b.TurnSteps > .02f && b.Sample("Move", b.GaitTime(), b.LegsPose, nullptr)) b.Legs = b.TurnSteps;
         {
             DoorwaysSkeletonPose pose;
             std::string error;
@@ -2104,6 +2214,16 @@ namespace Doorways
                                  b.Thrown < 0 && std::abs(b.LiftNow) < .05f;
             const bool composed = b.Compose(world, clip, time, dt, pose, &error);
             if (composed) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + b.PlantFeet(world, mFootGround, mStairTread, pose, dt, planted);
+            {   // (her bank turns about her chest, not about her feet: her picture is put back by what the roll moves her chest)
+                constexpr float Chest = 1.15f;
+                world.AnimatedPlayerVisual.Translation.x = Chest * std::sin(b.Bank);
+                world.AnimatedPlayerVisual.Translation.y += Chest * (1 - std::cos(b.Bank));
+            }
+            if (composed) b.LookAbout(pose, dt, b.TurnRate, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 ? 0.f : 1.f);
+            if (composed)
+                b.SwingWings(pose, dt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
+                             b.Dead || b.Cast ? 0.f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
+                             clip == "Stand" ? 1.f : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
             if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
             {
                 static int told = 0;
