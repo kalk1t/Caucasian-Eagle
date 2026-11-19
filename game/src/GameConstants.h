@@ -80,15 +80,6 @@ namespace CaucasianEagle
     constexpr float SlashChainAfterHit = .12f;   // clip s after a slash lands: the next buffered slash or heavy blow starts
     constexpr float HeavyChainAfterHit = .30f;   // clip s after the heavy blow lands: a buffered slash starts
     constexpr float SlashChainSeconds = 1.5f;    // s after a slash in which the next click swings the other sword
-    // ---- the finishing blow: an enemy brought this low is broken (a gold ring pulses under it), and the right button
-    // near it is no longer the heavy blow but the finishing blow, which always fells it
-    constexpr float FinisherHealthPart = .30f;   // of its full health, for an enemy that can be thrown
-    constexpr float FinisherBossPart = .12f;     // for one that cannot (bosses)
-    constexpr int FinisherMinHealth = 40;        // full health below this is never broken (chests)
-    constexpr float FinisherReach = 8.f;         // m, how far she goes to it
-    constexpr int FinisherHeal = 12;             // health she gets back for it
-    constexpr float FinisherCooldownPart = .5f;  // her skills' remaining wait is multiplied by this
-    constexpr float FinisherMercy = 2.2f;        // s she cannot be hurt from its start
     constexpr float SlashStringSeconds = 1.6f;   // s after a slash starts in which the next one counts on in the string (the third is the flurry)
     constexpr float GuardCooldownSeconds = .6f;  // s after the barrier drops before it can rise again
     constexpr float WallReach = 12.f;            // m beyond the road's edge: within it the wall of an unwon arena stops her; farther out she walks round it

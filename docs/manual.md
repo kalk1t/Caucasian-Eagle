@@ -129,7 +129,7 @@ The chest in each arena always holds an Eagle Feather; a boss's hoard holds thre
 
 | Creature | How it fights | Advice |
 |---|---|---|
-| Chinka | Small, fast, in packs | Spinning swords (C) strike all round her |
+| Chinka | Small, fast, in packs | The feather storm (C) strikes every one near her |
 | Ali, Kudiani | Keep away and throw orbs | Hold the Sword Barrier (E), or reach them with the thrown swords (V) |
 | Ochokochi | Fast, leaps at you | Step aside when the ring under him flares |
 | Almasty, Kaji | Heavy blows, thrown rocks and embers | Hit, move, hit |
@@ -212,9 +212,9 @@ An Xbox-layout controller (anything Windows sees as an XInput controller) works 
 | B | Nothing (there is no controller button for R yet: taking wing and landing need the keyboard) |
 | X | Left sword (left mouse button) |
 | Y | Right sword (right mouse button) |
-| RB | The slide, or the flying throw (F) |
+| RB | The slide; flying, the dart (F) |
 | RT | The thrown swords (V) |
-| D-pad up | Spinning swords (C) |
+| D-pad up | The feather storm (C) |
 | LB (hold) | Sword barrier (E) |
 | LT (hold) | Wing boost (Shift) |
 | Left stick click (hold) | Walk on foot (Ctrl) |
@@ -235,15 +235,14 @@ Nyxara fights with two swords, one in each hand, and her wings. (Before this ver
 | Left click | A cut of the **left** sword. Clicks during it go on through the left cuts: three in a row |
 | Right click | A cut of the **right** sword: four in a row. The last cut of either chain hurts most (80; the others 45) |
 | Space, then a click | **The leaping cut**, in the jump: the hardest cut (110) and the longest reach |
-| C | **Spinning swords**: she turns with both blades spread and strikes everything round her, five times (30 each). 9 s to come back |
+| C | **The feather storm**: she leaps up, turns round three times in the air and throws her wing feathers all about her like daggers: straight out, as far as 27 m, where they stick in the ground. Each time she is half-way round, every creature within 27 m is struck by them (40 each time, 120 in all). From the ground only. 9 s to come back |
 | F | **The slide**: low along the ground, cutting what is before her (35 a cut). Flying: a dart forward that cuts the same way. 4 s to come back |
-| F at a broken creature | **The flying throw**: she leaps, closes her legs round its neck, turns over with it and brings it down; it dies. A creature is broken when a gold ring pulses under it (under 30 % of its health; a boss under 12 %). It heals her a little and brings her skills back sooner, and nothing can hurt her while she throws |
 | V | **The thrown swords**: both swords fly into the middle of the nearest creature before her (within 7 m; flying, 21 m) (90). She flies after them twisting, her wings folded, plants her feet on it, pulls them out (60) and kicks off (40), and a creature that can be moved falls over backwards and gets up again. 7 s to come back. With no creature before her V does nothing |
 | E (hold) | **Sword barrier**: two spectral blades rise in front of her and block blows and orbs from the front, for up to 5 seconds |
 | A / D | Turn her way, and the view with it; alone they also carry her round in a curve |
 | S | Step back, slowly, still facing ahead |
 
-You can walk and run while you cut: her legs keep their stride and her body cuts. While a skill, the throw or the thrown swords play, the move itself carries her. In the air her cuts are made in flight, her wings still beating; her blows cannot reach a creature she is high over.
+You can walk and run while you cut: her legs keep their stride and her body cuts. While a skill or the thrown swords play, the move itself carries her. In the air her cuts are made in flight, her wings still beating; her blows cannot reach a creature she is high over.
 
 What a blow leaves: a bright streak along the cut, sparks, and blood thrown the way the blade went, which falls and lies on the ground for a few seconds.
 

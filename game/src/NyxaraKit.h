@@ -8,9 +8,9 @@
 //
 //   LMB / RMB      the left / the right sword: one click, one cut; clicks in a row go through the cuts (left 3,
 //                  right 4); a click in a jump is the leaping cut
-//   C              spinning swords: she turns with both blades spread and strikes all round her
-//   F              the slide, low along the ground, cutting what is before her; at a broken creature (gold ring
-//                  under it) the flying throw: her legs round its neck, over and down, and it dies
+//   C              the feather storm: she leaps, turns three times in the air and throws her wing feathers all round
+//                  her like daggers (to 27 m, stuck in the ground); at each turn every creature within 27 m is struck
+//   F              the slide, low along the ground, cutting what is before her (in flight: the dart forward)
 //   V              the thrown swords: they stick in the middle of the nearest creature before her, she flies after
 //                  them twisting with her wings folded, plants her feet on it, pulls them out and kicks it over
 //   E (hold)       two spectral swords rise as a barrier and block blows and shade orbs
@@ -160,18 +160,22 @@ namespace Doorways
             DirectX::XMFLOAT4 Color{1, 1, 1, 1};
             bool Mirror = false;
             bool Air = false;        // drawn as cut air (pale, no glow), not as light
-            int Target = -1;         // -2: a feather of the wing boost, which falls
+            int Target = -1;         // -2: a feather of the wing boost, which falls; -3: one of the feather storm's; 0 on: aimed at that creature
+            int Damage = 0;          // (aimed) what it does to the creature
+            bool Glow = true;        // a light about it
+            float Floor = -1e9f;     // (the storm's) the ground where it was thrown, if no ground is found under it
+            bool Stuck = false;      // (the storm's) in the ground
         };
         Keys ReadKeys(bool inputAllowed) const;
 
         void UpdateWraiths(WorldState& world, CombatSystem& combat, float dt);
         void UpdateEffects(float dt);
+        int mFeatherBlows = 0;                                             // blows her storm's feathers struck since the last frame (for the log)
         // A blow of hers at one enemy: damage (scaled), the hit's flash, push and launch, a short freeze and shake;
         // a creature at no health dies (its owner sees Alive go false).
         void DamageWraith(int index, int damage, const DirectX::XMFLOAT3& from, float push, float launch);
         void Burst(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size);
         void PublishHud(WorldState& world) const;
-        bool Broken(const Wraith& w) const;                                // low enough for the finishing throw
 
         bool mReady = false;
         Keys mPrev;
@@ -181,8 +185,6 @@ namespace Doorways
         FootGround mFootGround;
         StairTread mStairTread;
         float mSpeedScale = 1;
-        int mFinishTarget = -1; bool mFinishReward = false;   // the enemy her finishing throw is for; it fell, her reward is due
-        float mBrokenPulse = 0;             // s to the next ring under the broken enemies
         float mBarrier = 0;                 // 0..1 barrier swords risen
         float mGuardHeld = 0, mGuardCooldown = 0;
         bool mGuarding = false;
@@ -202,7 +204,7 @@ namespace Doorways
 
         // Procedural effect meshes and alpha masks.
         DoorwaysGpuMesh mRingMesh, mQuadMesh, mFeatherMesh, mSphereMesh, mConeMesh, mBladeMesh;
-        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mGlowTex, mRingTex, mFeatherTex;
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mGlowTex, mRingTex, mFeatherTex, mWingFeatherTex;
     };
 
     NyxaraKit& GetNyxaraKit();

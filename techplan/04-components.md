@@ -53,9 +53,8 @@ One object, reached through `Doorways::GetNyxaraKit()`. Her moves are a port of 
 | LMB / RMB | left chain (3 cuts) / right chain (4 cuts); a click during a cut goes on | `Attack_L1..L3`, `Attack_R1..R4` |
 | LMB / RMB in a jump | the leaping cut | `Attack_Jump` |
 | Space (on foot) | a jump (a clip; the engine's jump is suppressed on foot, kept in flight for climbing) | `Jump` |
-| C | spinning swords, all round her | `Skill_Kick` |
+| C | the feather storm: a leap, three turns in the air, her feathers thrown all round like daggers (to 27 m, stuck in the ground where they come down), and at every creature within 27 m at each turn | `Skill_Storm` (made at load from `Fly_Rise`, `Fly_Land`, `Fly` and `Idle`: `MakeStorm`) |
 | F | the slide; flying, the dart | `Skill_Slide`; `Fly` |
-| F at a broken creature | the flying throw, fitted to the creature's neck height and distance; it kills | `Skill_Throw` |
 | V | the thrown swords, the twist after them, the pull and the kick | `Skill_Cast`, `Cast_Fly`, `Cast_Pull` |
 | E (hold) | the sword barrier | (her stance) |
 | R (journey) | take-off and landing | `Fly_Rise`, `Fly`, `Fly_Land` |
@@ -70,13 +69,13 @@ Every target is a `Wraith`: its `Height` and `Neck` (over its feet, facing +z) f
 | Engine hook | Used for |
 |---|---|
 | `ImportedAnimatedCharacter.ApplyGamePresentationPose` | Her pose, every frame |
-| `AnimatedPlayerVisual.Translation / Rotation` | Lifts (the throw, the swords, hover in flight) and the lean in flight |
+| `AnimatedPlayerVisual.Translation / Rotation` | Lifts (the feather storm, the swords, hover in flight) and the lean in flight |
 | `GameSession().ImpulseX/Z` | The forward path of each move, and steering with A / D |
 | `GameSession().HoldFacing` | She turns herself toward where she goes |
 | `GameSession().SuppressedActions` | A / D never step sideways; Space on foot is the kit's |
 | `GameSession().CameraPivotHeight`, `CameraShake` | The camera follows her lifts; blows shake it |
 | `MainPlayer.MoveSpeed`, `FlightSpeed` | 0 while a move carries her (`SpeedScale`, also applied by the journey) |
-| `CombatSystem::ApplyIncomingDamage`, `RestorePlayerHealth` | Hits on her; the finishing reward |
+| `CombatSystem::ApplyIncomingDamage`, `RestorePlayerHealth` | Hits on her |
 
 Testing: `CAUCASIAN_EAGLE_NYXARA_LOG=<file>` writes what she does (clip, speed, place, lift) every 0.1 s and every move; `CAUCASIAN_EAGLE_NYXARA_KEYS="<seconds>:<key>,..."` presses keys in an unattended run (L, R, F, V, C, E, J for Space).
 
@@ -331,7 +330,7 @@ Not done: finger joints and grip poses, a second bow or swords in play (the deli
 
 **Closed hands.** `HeroBundle` is `Characters/Nyxara/EagleV3`: EagleV2 with another `Character.dmesh` and `Character.meshbind`. `close_hands.py <in.glb> <out.glb>` moves only the positions and normals of the vertices that follow `Hand_L` or `Hand_R` (weight 0.35 or more), bending each hand as a strip at three places; the skeleton, the weights and the clips are untouched, so the rig signature is the same. Compile with `character-pipeline` into a fresh folder and copy the two files.
 
-**The finishing blow.** `NyxaraKit::Broken(wraith)`: alive, `Weak` at least 0.01 (a shielded enemy is never broken), full health at least `FinisherMinHealth` (chests are below it), health at or below `FinisherHealthPart` of full (`FinisherBossPart` when `PushScale` is 0.5 or less). `FinishTarget` is the nearest broken enemy within `FinisherReach`: any within 3 m, further ones only if the view looks toward them. The right button with a finish target starts `Act::Finisher` (clip `Finisher`, hits at 0.63 and 1.57 clip seconds) instead of the heavy blow, also out of a slash or the heavy blow. Hit 0 throws the target up without damage; before hit 1 she dives to where the target is then; hit 1 sets its health to 1 and calls `DamageWraith`, so the journey sees an ordinary death, then `Area` 4.5 m, 36. The reward (`FinisherHeal`, cooldowns times `FinisherCooldownPart`) is given in `Update`, where the combat system is at hand. `mMercy` is raised to `FinisherMercy` at the start. The log has `[FINISH] start` and `[FINISH] kill`.
+**The finishing blow** (taken out on 2026-11-19, with `Broken`, the gold rings and the reward; kept here as a record). `NyxaraKit::Broken(wraith)`: alive, `Weak` at least 0.01 (a shielded enemy is never broken), full health at least `FinisherMinHealth` (chests are below it), health at or below `FinisherHealthPart` of full (`FinisherBossPart` when `PushScale` is 0.5 or less). `FinishTarget` is the nearest broken enemy within `FinisherReach`: any within 3 m, further ones only if the view looks toward them. The right button with a finish target starts `Act::Finisher` (clip `Finisher`, hits at 0.63 and 1.57 clip seconds) instead of the heavy blow, also out of a slash or the heavy blow. Hit 0 throws the target up without damage; before hit 1 she dives to where the target is then; hit 1 sets its health to 1 and calls `DamageWraith`, so the journey sees an ordinary death, then `Area` 4.5 m, 36. The reward (`FinisherHeal`, cooldowns times `FinisherCooldownPart`) is given in `Update`, where the combat system is at hand. `mMercy` is raised to `FinisherMercy` at the start. The log has `[FINISH] start` and `[FINISH] kill`.
 
 **The clip.** `blender -b art/nyxara/blender/Nyxara_game.blend -P art/nyxara/blender/finishers.py -- <out.glb>` samples Combo1R (0.40 to 1.30 s) and Combo3R (0.45 to 2.50 s) frame by frame, cross-fades 0.2 s, and exports only Idle, BasicAttack and Finisher; the .blend is not saved. `character-pipeline <out.glb> <fresh dir> Idle BasicAttack Finisher`, then `Finisher.danim` is copied into every body's bundle (EagleV1, EagleV2, EagleV3, RodinV1). The clip is in the list of `CaucasianEagleGame.cpp`, and a bundle without it does not load.
 

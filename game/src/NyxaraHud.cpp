@@ -79,7 +79,7 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"RIGHT", &HudArt::IconHeavy, 0, 1, hud.Heavy, false, Silver, 0},
         {Ui::KeyLabel(L"F", 'F'), L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
         {Ui::KeyLabel(L"V", 'V'), L"SWORDS", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
-        {Ui::KeyLabel(L"C", 'C'), L"SPIN", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},
+        {Ui::KeyLabel(L"C", 'C'), L"STORM", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},   // the feather storm (a leap)
         {Ui::KeyLabel(L"E", 'E'), L"GUARD", &HudArt::IconGuard, 0, 1, hud.Guarding, false, Moon, 2},
         {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
     const int count = static_cast<int>(std::size(slots));
