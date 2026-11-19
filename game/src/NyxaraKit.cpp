@@ -250,6 +250,8 @@ namespace Doorways
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         XMFLOAT4X4 SwordOnBack[2]{}; bool HasBack = false;   // each sword on her back, as her chest (Spine2) carries it
         int FootJoint[2] = {-1, -1}, ToeJoint[2] = {-1, -1};  // left and right ankle, left and right toes
+        bool FootHeld[2] = {false, false};                   // a foot that is down is held where it came down:
+        float FootAt[2][2]{}, FootOff[2][2]{};                // where (the world's x and z), and how far that is from where her clip has it
         int WingJoint[2][3] = {{-1, -1, -1}, {-1, -1, -1}};   // left and right wing: its three bones, root to tip
         int NeckJoint = -1, HeadJoint = -1;
         float Look = 0;                    // her head turned into her turn (radians, + to her right)
@@ -257,7 +259,8 @@ namespace Doorways
         float Bank = 0;                    // in flight: rolled into her turn (radians)
         struct WingSwing { float Flap = 0, FlapGo = 0, Back = 0, BackGo = 0, Flap2 = 0, Flap3 = 0, Back2 = 0, Back3 = 0; } WingSpring[2];
         float WingClimb = 0, WingShare = 0; bool WingKnown = false;   // her rise a frame ago (m/s); how much her wings answer
-        float WingFold = 0;                // her wings lowered and drawn in (0 as the clip holds them .. 1 at ease)
+        float WingFold = 0, WingFoldGo = 0; // her wings lowered and drawn in (0 as the clip holds them .. 1 at ease), and how fast
+        float AtEase = 0, NextStretch = 11, Stretch = -1;   // seconds she has stood at ease; when she next stretches her wings; seconds into a stretch
         static constexpr float FoldFlap[3] = {-.50f, -.25f, -.15f}, FoldBack[3] = {.35f, .22f, .12f};   // lowered: each bone down, and back (radians; more back and the tips cross behind her)
         XMFLOAT3 SwordGrip[2]{}, SwordTip[2]{};            // in the sword bone's axes: the handle's middle, the blade's point
         float FeetOn = 0, FeetDrop = 0, FeetRaise[2]{};    // feet on the drawn ground: how much; her body lowered; each foot raised (m)
@@ -513,7 +516,12 @@ namespace Doorways
         void SwingWings(DoorwaysSkeletonPose& out, float dt, float climb, float gain, float turn, float share, float fold)
         {
             constexpr float Beat = XM_2PI * 1.3f, Damp = .42f, Most = .6f;
-            WingFold += (fold - WingFold) * (std::min)(1.f, dt * (fold > WingFold ? 1.8f : 5.f));   // lowered slowly, opened quickly
+            for (float left = dt; left > 1e-6f;)
+            {   // lowered slowly (over a second), opened quickly (under half a second); neither with a start
+                const float h = (std::min)(left, 1 / 120.f), quick = fold > WingFold ? 3.6f : 10.f; left -= h;
+                WingFoldGo += (quick * quick * (fold - WingFold) - 2 * quick * WingFoldGo) * h;
+                WingFold = std::clamp(WingFold + WingFoldGo * h, 0.f, 1.f);
+            }
             for (const auto& wing : WingJoint) for (const int j : wing) if (j < 0) return;
             if (dt <= 1e-5f || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return;
             WingShare += (share - WingShare) * (std::min)(1.f, dt * 6);
@@ -734,13 +742,45 @@ namespace Doorways
                 const float raise = (FeetRaise[k] + Squat) / scale;      // (her knees taking a landing: her body is let down, her feet stay)
                 const float sx = (FootSlide[k][0] * c - FootSlide[k][1] * sn) / scale, sz = (FootSlide[k][0] * sn + FootSlide[k][1] * c) / scale;
                 const float drawnIn = (StrideScale - 1) * FeetOn;     // short steps: each foot drawn in under its hip, along her way
-                if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f && std::abs(drawnIn) < 1e-3f) continue;
+                // A foot that is down is held where it came down (2026-11-19). Her clips carry a standing foot back under
+                // her at their own pace, the world carries her forward at hers, and between two clips a foot is somewhere
+                // between two places: so a foot on the ground slid, a little in a steady stride (4-9 % of her speed), a
+                // lot through a start, a stop and a turn on the spot. Now, while its ankle is down, the foot stays on the
+                // spot of the world it came down on, and her leg is bent to it; as it lifts it is let go and is back in
+                // the clip's place within a tenth of a second. Held no further than HoldMost from the clip's place: past
+                // that it is dragged along (she is being moved by something else than her legs).
+                float lx = 0, lz = 0;
+                {
+                    constexpr float HoldMost = .14f;
+                    const XMVECTOR A0 = at(FootJoint[k]), H0 = at(LegJoint[k]);
+                    const XMVECTOR placed = A0 + XMVectorSet(sx, 0, sz + drawnIn * XMVectorGetZ(A0 - H0), 0);
+                    const float wx = worldX(placed), wz = worldZ(placed);
+                    if (on && !stairClip && lifted[k] < .3f && FeetOn > .9f)
+                    {
+                        if (!FootHeld[k]) { FootHeld[k] = true; FootAt[k][0] = wx + FootOff[k][0]; FootAt[k][1] = wz + FootOff[k][1]; }
+                        float ox = FootAt[k][0] - wx, oz = FootAt[k][1] - wz;
+                        const float apart = std::hypot(ox, oz);
+                        if (apart > .6f) ox = oz = 0;      // (she was put somewhere else)
+                        else if (apart > HoldMost) { ox *= HoldMost / apart; oz *= HoldMost / apart; }
+                        FootAt[k][0] = wx + ox; FootAt[k][1] = wz + oz;
+                        FootOff[k][0] = ox; FootOff[k][1] = oz;
+                    }
+                    else
+                    {
+                        FootHeld[k] = false;
+                        const float keep = std::exp(-dt * 16);
+                        FootOff[k][0] *= keep; FootOff[k][1] *= keep;
+                    }
+                    lx = (FootOff[k][0] * c - FootOff[k][1] * sn) / scale; lz = (FootOff[k][0] * sn + FootOff[k][1] * c) / scale;
+                }
+                if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f && std::abs(drawnIn) < 1e-3f &&
+                    std::abs(lx) + std::abs(lz) < 1e-3f) continue;
                 const int hip = LegJoint[k], knee = LegJoint[k + 2], foot = FootJoint[k], above = Skeleton.Joints[hip].ParentIndex;
                 if (above < 0 || Skeleton.Joints[knee].ParentIndex != hip || Skeleton.Joints[foot].ParentIndex != knee) continue;
                 const XMVECTOR H = at(hip), K = at(knee), A = at(foot);
                 const float a = XMVectorGetX(XMVector3Length(K - H)), b = XMVectorGetX(XMVector3Length(A - K));
                 if (a < 1e-3f || b < 1e-3f) continue;
-                const XMVECTOR goal = A + XMVectorSet(sx, raise, sz + drawnIn * XMVectorGetZ(A - H), 0);
+                const XMVECTOR goal = A + XMVectorSet(sx + lx, raise, sz + lz + drawnIn * XMVectorGetZ(A - H), 0);
                 const XMVECTOR way = XMVector3Normalize(goal - H);
                 const float d = std::clamp(XMVectorGetX(XMVector3Length(goal - H)), std::abs(a - b) + 1e-3f, (a + b) * .999f);
                 // Which way the knee bends (owner, 2026-11-17: a nearly straight leg's knee pointed anywhere, often sideways;
@@ -1994,9 +2034,9 @@ namespace Doorways
             const float turned = dt > 1e-4f && b.LeanKnown ? std::remainder(p.Yaw - b.LeanYaw, XM_2PI) / dt : 0.f;
             const float gained = dt > 1e-4f && b.LeanKnown ? (b.Speed - b.LeanSpeed) / dt : 0.f;
             b.LeanYaw = p.Yaw; b.LeanSpeed = b.Speed; b.LeanKnown = true;
-            const float ease = (std::min)(1.f, dt * 9);
-            b.TurnRate += (std::clamp(turned, -4.f, 4.f) - b.TurnRate) * ease;
-            b.Gain += (std::clamp(gained, -30.f, 30.f) - b.Gain) * ease;
+            const float soon = (std::min)(1.f, dt * 9);
+            b.TurnRate += (std::clamp(turned, -4.f, 4.f) - b.TurnRate) * soon;
+            b.Gain += (std::clamp(gained, -30.f, 30.f) - b.Gain) * soon;
             const bool afoot = !flying && p.IsGrounded && !b.Dead && !b.Carried() && !b.Cast && b.Rise < 0 && b.Touch < 0;
             const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
             const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
@@ -2098,8 +2138,8 @@ namespace Doorways
             if (flying || rooted) { b.Throttle = flying ? 1.f : 0.f; b.Glide = {0, 0}; }
             else if (wants)
             {
-                const float carried = std::hypot(b.Glide.x, b.Glide.y) / (std::max)(.5f, b.FullSpeed);
-                b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, carried}) + dt / GatherSeconds, 0.f, 1.f);
+                const float gliding = std::hypot(b.Glide.x, b.Glide.y) / (std::max)(.5f, b.FullSpeed);
+                b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, gliding}) + dt / GatherSeconds, 0.f, 1.f);
                 b.Glide = {0, 0}; b.Went = {p.ActualVelocity.x, p.ActualVelocity.z};
                 if (b.Throttle >= 1 && b.Speed > .5f) b.FullSpeed = b.Speed;
             }
@@ -2150,7 +2190,9 @@ namespace Doorways
             bool threat = !b.Attack.empty() || b.Cast != 0 || b.Thrown >= 0;
             for (const auto& w : mWraiths)
                 if (!threat && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
-            b.Guard = threat ? GuardSeconds : (std::max)(0.f, b.Guard - dt);
+            // (walking off with nothing near, she is done: her swords go to her back for the stride anyway, and she
+            // would only draw them again to stand, and put them away once more)
+            b.Guard = threat ? GuardSeconds : b.Speed > 1 ? 0.f : (std::max)(0.f, b.Guard - dt);
         }
         std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
         float time = b.Clock;
@@ -2220,10 +2262,26 @@ namespace Doorways
                 world.AnimatedPlayerVisual.Translation.y += Chest * (1 - std::cos(b.Bank));
             }
             if (composed) b.LookAbout(pose, dt, b.TurnRate, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 ? 0.f : 1.f);
+            {   // Standing at ease for a while she opens her wings, shakes them out and lowers them again (2026-11-19): every
+                // quarter of a minute or so, not by a clock. A blow up on both wings as they open, one down after it.
+                constexpr float StretchSeconds = 1.7f, Shake = .65f;
+                b.AtEase = clip == "Stand" && std::abs(b.TurnRate) < .2f ? b.AtEase + dt : 0.f;
+                if (b.AtEase <= 0) { b.NextStretch = b.Rand(9, 16); b.Stretch = -1; }
+                else if (b.Stretch < 0 && b.AtEase > b.NextStretch)
+                {
+                    b.Stretch = 0; b.NextStretch = b.AtEase + b.Rand(14, 27);
+                    for (auto& w : b.WingSpring) w.FlapGo += 2.4f;
+                }
+                else if (b.Stretch >= 0)
+                {
+                    if (b.Stretch < Shake && b.Stretch + dt >= Shake) for (auto& w : b.WingSpring) w.FlapGo -= 1.7f;
+                    if ((b.Stretch += dt) > StretchSeconds) b.Stretch = -1;
+                }
+            }
             if (composed)
                 b.SwingWings(pose, dt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
                              b.Dead || b.Cast ? 0.f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
-                             clip == "Stand" ? 1.f : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
+                             clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
             if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
             {
                 static int told = 0;
