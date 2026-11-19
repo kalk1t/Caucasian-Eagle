@@ -26,6 +26,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <limits>
 #include <map>
 
@@ -307,6 +308,7 @@ namespace Doorways
         unsigned Seed = 2463534242u;
         std::string LogPath;
         float LastLog = -1;
+        std::ofstream PoseFile; std::vector<int> PoseJoints;   // CAUCASIAN_EAGLE_NYXARA_POSELOG=<file>: her joints in the world, every frame
 
         float Rand(float a = 0, float b = 1)
         {
@@ -346,6 +348,24 @@ namespace Doorways
             std::ofstream f(LogPath, std::ios::app);
             f << Clock << '\t' << event << '\t' << Current << '\t' << Speed << '\t' << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z
               << '\t' << LiftNow << '\t' << FlyLean << '\t' << FeetDrop << '\t' << FeetRaise[0] << '\t' << FeetRaise[1] << '\t' << SoleGap[0] << '\t' << SoleGap[1] << '\n';
+        }
+
+        // Every frame, as she is drawn: what she plays, where she is, and her joints in the world (for the measurements
+        // of testing/MapLab/anim_measure.py: feet that slide, jerks, feet over or in the ground).
+        void PoseLog(const WorldState& world, const DoorwaysSkeletonPose& pose, float dt, bool planted)
+        {
+            if (!PoseFile.is_open() || pose.ModelSpaceMatrices.size() != Skeleton.Joints.size()) return;
+            const auto& p = world.MainPlayer;
+            const XMMATRIX place = BuildDoorwaysCharacterWorldMatrix(p.Position, p.Yaw, world.AnimatedPlayerVisual);
+            PoseFile << Clock << '\t' << dt << '\t' << Current << '\t' << Phase << '\t' << Speed << '\t' << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z
+                     << '\t' << p.Yaw << '\t' << p.IsGrounded << '\t' << p.VerticalVelocity << '\t' << (p.TraversalMode == DoorwaysPlayerTraversalMode::Flight)
+                     << '\t' << planted << '\t' << SoleGap[0] << '\t' << SoleGap[1];
+            for (const int j : PoseJoints)
+            {
+                XMFLOAT3 at; XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat4x4(&pose.ModelSpaceMatrices[j]).r[3], place));
+                PoseFile << '\t' << at.x << '\t' << at.y << '\t' << at.z;
+            }
+            PoseFile << '\n';
         }
 
         void StartAttack(const WorldState& world, const std::string& name, float into = 0)
@@ -874,6 +894,21 @@ namespace Doorways
         {
             b.LogPath = log;
             std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\tfeet_drop\tleft_raise\tright_raise\tleft_gap\tright_gap\n";
+        }
+        if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_POSELOG", log, sizeof(log)) > 0 && log[0])
+        {
+            b.PoseFile.open(log);
+            b.PoseFile << "seconds\tdt\tclip\tphase\tspeed\tx\ty\tz\tyaw\tgrounded\tvy\tflying\tplanted\tleft_gap\tright_gap";
+            for (const char* name : {"Hips", "Spine2", "Head", "LeftHand", "RightHand", "LeftLeg", "RightLeg", "LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase",
+                                     "WingL3", "WingR3", "SwordLeft", "SwordRight", "DressLeftKnee", "DressRightKnee"})
+                for (size_t i = 0; i < b.Skeleton.Joints.size(); ++i)
+                    if (b.Skeleton.Joints[i].Name.ends_with(name))
+                    {
+                        b.PoseJoints.push_back(static_cast<int>(i));
+                        for (const char* axis : {"_x", "_y", "_z"}) b.PoseFile << '\t' << name << axis;
+                        break;
+                    }
+            b.PoseFile << '\n' << std::setprecision(6);
         }
         OutputDebugStringA(("[PASS] Nyxara: her body " + bundle.filename().string() + " with " + std::to_string(b.Clips.size()) + " clips.\n").c_str());
         return true;
@@ -1702,8 +1737,11 @@ namespace Doorways
         float impulse = !b.Dead && dt > 0 ? b.ForwardSpeed(world) : 0.f;
         s.ImpulseX = std::sin(p.Yaw) * impulse;
         s.ImpulseZ = std::cos(p.Yaw) * impulse;
-        const bool keyW = live && IsDoorwaysKeyDown('W'), keyS = live && IsDoorwaysKeyDown('S');
+        // (a scripted run may play as a player does: the session's ScriptedAlongFacing, with ScriptedMove and ScriptedSteer)
+        const bool played = s.Unattended && s.ScriptedAlongFacing;
+        const bool keyW = (live && IsDoorwaysKeyDown('W')) || (played && s.ScriptedMove == 'W'), keyS = (live && IsDoorwaysKeyDown('S')) || (played && s.ScriptedMove == 'S');
         int steer = live && !b.Dead && dt > 0 ? (IsDoorwaysKeyDown('D') ? 1 : 0) - (IsDoorwaysKeyDown('A') ? 1 : 0) : 0;
+        if (played && !b.Dead && dt > 0) steer = s.ScriptedSteer;
         if (GameSession().Unattended && dt > 0)
         {   // testing: CAUCASIAN_EAGLE_NYXARA_STEER="<from>:<to>:<-1 A | 1 D>" holds A or D over those seconds of her clock
             // (she stands meanwhile); at the end how far she and the view turned goes to nyxara_steer.txt in %TEMP%
@@ -1732,7 +1770,7 @@ namespace Doorways
         b.Back = keyS && !keyW && !b.Dead && !flying;
         s.HoldFacing = true;
         s.MoveAlongFacing = true;
-        if (s.Unattended && s.ScriptedMove)
+        if (s.Unattended && s.ScriptedMove && !played)
         {
             const float vx = p.ActualVelocity.x, vz = p.ActualVelocity.z;
             if (!b.Dead && !carried && !b.Cast && !b.Air && dt > 0 && std::hypot(vx, vz) > .15f)
@@ -1824,6 +1862,7 @@ namespace Doorways
                 static int told = 0;
                 if (told++ < 5) OutputDebugStringA(("[FAIL] Nyxara pose: " + error + "\n").c_str());
             }
+            if (composed) b.PoseLog(world, pose, dt, planted);
         }
         if (b.Clock - b.LastLog > .1f) { b.Log(world, "frame"); b.LastLog = b.Clock; }
 
