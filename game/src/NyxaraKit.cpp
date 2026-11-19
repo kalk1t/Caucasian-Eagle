@@ -240,7 +240,7 @@ namespace Doorways
         // The swords are on her back in these clips and in her hands in all others (owner, 2026-11-18). Changing from one
         // to the other her arms go through the bundle's Sword_Reach pose (hands on the handles over her shoulders), and
         // the swords change place as her hands are there.
-        static bool SwordsAway(const std::string& clip) { return clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
+        static bool SwordsAway(const std::string& clip) { return clip == "Move" || clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
         std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         XMFLOAT4X4 SwordOnBack[2]{}; bool HasBack = false;   // each sword on her back, as her chest (Spine2) carries it
@@ -255,8 +255,17 @@ namespace Doorways
         float Climb = 0, ClimbRate = 0, LastY = -1e9f;      // how steeply and how fast she climbs (m/m, m/s); her height a frame ago
 
         // ---- the pose
-        DoorwaysSkeletonPose Previous, BlendFrom, LegsPose;
-        std::string Gait = "Walk", LastClip, Current = "Idle";
+        DoorwaysSkeletonPose Previous, Before, BlendFrom, LegsPose;
+        std::string Gait = "Move", LastClip, Current = "Idle";
+        float GaitRun = 0;                 // her stride ("Move"): the share of Run in it, 0 a walk .. 1 a run
+        float StrideScale = 1;             // < 1: her steps shortened (slower than a walk steps she keeps stepping, shorter)
+        float Throttle = 0, FullSpeed = 3.2f, GlideLose = 0; XMFLOAT2 Glide{0, 0}, Went{0, 0};   // gathering speed; carried on after the key (m/s, x and z); how she went a frame ago
+        std::vector<XMFLOAT4> ArmTo;       // her arms' turns in the clip she changes to, a frame ago (kept the same way round)
+        float LeanYaw = 0, LeanSpeed = 0, TurnRate = 0, Gain = 0, LeanRoll = 0, LeanPitch = 0; bool LeanKnown = false;
+        // A change of clip: what she was doing is carried on and dies away (per joint: how far the old pose was from
+        // the new one, and how fast it was moving), instead of a mix with the old pose held still.
+        std::vector<XMFLOAT3> CarryAt, CarryGo, CarryTurn, CarrySpin;
+        float CarrySeconds = 0, LastDt = 0; bool CarryArms = true;
         float Legs = 0, Phase = 0, BlendTime = 0, BlendSeconds = 0, Speed = 0, Clock = 0;
         bool FlyBody = false;
         XMFLOAT3 Clamp{0, 1.64f, .28f};    // the place between her thighs, in her own space (from the last pose)
@@ -332,8 +341,65 @@ namespace Doorways
             const auto found = Clips.find(name);
             return found == Clips.end() ? 0.f : found->second.DurationSeconds;
         }
+        // Her stride (2026-11-19): Walk and Run are one stride, played by one phase (in both clips her right foot is
+        // under her at 0 and her left at .5) and mixed by her speed. The share of Run is the one at which the mixed
+        // stride, stepped at its own pace, covers the ground as fast as she goes: so at any speed between a walk and a
+        // run she steps as often as a body does (her jog was the run played at 0.74 of its speed: slow motion), and a
+        // change of pace is a change of stride, not of clip.
+        void Stride(float speed, bool back, float dt)
+        {
+            const float dw = Duration("Walk"), dr = Duration("Run"), lw = WalkPace * dw, lr = RunPace * dr;
+            const float share = back ? 0.f : std::clamp((speed * dw - lw) / ((lr - lw) - speed * (dr - dw)), 0.f, 1.f);
+            GaitRun += (share - GaitRun) * (std::min)(1.f, dt * 8);
+            const float length = lw + GaitRun * (lr - lw);      // metres a pair of steps
+            // slower than a slow walk she does not step in slow motion: she keeps stepping (three quarters as often as
+            // the walk does) and her steps are shortened to the ground she covers (PlantFeet draws her feet in)
+            const float pace = speed / length, stepped = (std::max)(pace, .75f / dw);
+            StrideScale += (pace / stepped - StrideScale) * (std::min)(1.f, dt * 20);
+            Phase = std::fmod(Phase + (back ? -1.f : 1.f) * dt * stepped + 1.f, 1.f);
+        }
+        float GaitTime() const { return Gait == "Move" ? Phase : Phase * Duration(Gait); }
+        bool SampleMove(float phase, DoorwaysSkeletonPose& out, std::string* error) const
+        {
+            const auto walk = Clips.find("Walk"), run = Clips.find("Run");
+            if (walk == Clips.end() || run == Clips.end()) return false;
+            phase -= std::floor(phase);
+            if (GaitRun > .999f) return SampleDoorwaysAnimationClipLocalPose(Skeleton, run->second, phase * run->second.DurationSeconds, out, error);
+            if (!SampleDoorwaysAnimationClipLocalPose(Skeleton, walk->second, phase * walk->second.DurationSeconds, out, error)) return false;
+            if (GaitRun < .001f) return true;
+            DoorwaysSkeletonPose fast;
+            if (!SampleDoorwaysAnimationClipLocalPose(Skeleton, run->second, phase * run->second.DurationSeconds, fast, error) || fast.LocalJoints.size() != out.LocalJoints.size()) return false;
+            for (size_t i = 0; i < out.LocalJoints.size(); ++i)
+            {
+                auto& to = out.LocalJoints[i]; const auto& f = fast.LocalJoints[i];
+                XMStoreFloat3(&to.Translation, XMVectorLerp(XMLoadFloat3(&to.Translation), XMLoadFloat3(&f.Translation), GaitRun));
+                XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&to.Rotation), XMLoadFloat4(&f.Rotation), GaitRun)));
+                XMStoreFloat3(&to.Scale, XMVectorLerp(XMLoadFloat3(&to.Scale), XMLoadFloat3(&f.Scale), GaitRun));
+            }
+            return true;
+        }
+        static XMVECTOR SlerpAsGiven(XMVECTOR a, XMVECTOR b, float t)   // from a to b the way the two are given (not the shorter way)
+        {
+            const float d = std::clamp(XMVectorGetX(XMVector4Dot(a, b)), -1.f, 1.f);
+            if (d > .9995f) return XMQuaternionNormalize(XMVectorLerp(a, b, t));
+            const float angle = std::acos(d), s = std::sin(angle);
+            return XMQuaternionNormalize(a * (std::sin((1 - t) * angle) / s) + b * (std::sin(t * angle) / s));
+        }
+        static XMVECTOR TurnVector(XMVECTOR q)     // a turn as its axis times its angle
+        {
+            if (XMVectorGetW(q) < 0) q = XMVectorNegate(q);
+            const float half = std::sqrt(XMVectorGetX(XMVector3LengthSq(q)));
+            if (half < 1e-6f) return XMVectorZero();
+            return XMVectorScale(XMVectorSetW(q, 0), 2 * std::atan2(half, XMVectorGetW(q)) / half);
+        }
+        static XMVECTOR TurnOf(XMVECTOR v)         // and back
+        {
+            const float angle = XMVectorGetX(XMVector3Length(v));
+            return angle < 1e-6f ? XMQuaternionIdentity() : XMQuaternionRotationAxis(v, angle);
+        }
         bool Sample(const std::string& name, float time, DoorwaysSkeletonPose& out, std::string* error) const
         {
+            if (name == "Move") return SampleMove(time, out, error);
             const auto found = Clips.find(name);
             if (found == Clips.end()) { if (error) *error = "Missing NYXARA clip: " + name; return false; }
             const float duration = found->second.DurationSeconds;
@@ -486,6 +552,10 @@ namespace Doorways
                 return std::isfinite(y) ? y - p.Position.y : std::numeric_limits<float>::quiet_NaN();
             };
             const bool stairClip = Current == "Stairs_Up";
+            // her picture leans as a whole about her feet (into a turn, gathering speed): what that lifts or lowers a foot
+            // is taken back here, so her feet stay on the ground
+            const XMMATRIX leaning = XMMatrixRotationRollPitchYaw(world.AnimatedPlayerVisual.Rotation.x, 0, world.AnimatedPlayerVisual.Rotation.z);
+            const auto leanLift = [&](XMVECTOR v) { return (XMVectorGetY(XMVector3TransformNormal(v, leaning)) - XMVectorGetY(v)) * scale; };
             float lifted[2] = {0, 0}, raiseTo[2] = {0, 0}, pitchTo[2] = {0, 0}, slideTo[2][2] = {{0, 0}, {0, 0}};
             float body = 0;
             for (int k = 0; k < 2; ++k)
@@ -512,7 +582,7 @@ namespace Doorways
                     const float top = (std::max)({heel, mid, toe});
                     const bool step = std::abs(toe - heel) > .12f || std::abs(mid - heel) > .12f;
                     const float standing = step ? top : heel;
-                    h[k] = std::clamp(standing * (1 - lifted[k]) + top * lifted[k], -Down, Up) * FeetOn;
+                    h[k] = std::clamp(standing * (1 - lifted[k]) + top * lifted[k] - leanLift(A), -Down, Up) * FeetOn;
                     const float reach = std::hypot(XMVectorGetX(T - A), XMVectorGetZ(T - A)) * scale;
                     if (reach > .03f && !step) pitchTo[k] = std::clamp(std::atan2(toe - heel, reach), -MostPitch, MostPitch) * (1 - lifted[k]) * FeetOn;
                 }
@@ -558,13 +628,14 @@ namespace Doorways
                 // in her own space: up, and the slide turned from the world into her axes
                 const float raise = FeetRaise[k] / scale;
                 const float sx = (FootSlide[k][0] * c - FootSlide[k][1] * sn) / scale, sz = (FootSlide[k][0] * sn + FootSlide[k][1] * c) / scale;
-                if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f) continue;
+                const float drawnIn = (StrideScale - 1) * FeetOn;     // short steps: each foot drawn in under its hip, along her way
+                if (std::abs(raise) < 1e-3f && std::abs(sx) + std::abs(sz) < 1e-3f && std::abs(FootPitch[k]) < 1e-3f && std::abs(drawnIn) < 1e-3f) continue;
                 const int hip = LegJoint[k], knee = LegJoint[k + 2], foot = FootJoint[k], above = Skeleton.Joints[hip].ParentIndex;
                 if (above < 0 || Skeleton.Joints[knee].ParentIndex != hip || Skeleton.Joints[foot].ParentIndex != knee) continue;
                 const XMVECTOR H = at(hip), K = at(knee), A = at(foot);
                 const float a = XMVectorGetX(XMVector3Length(K - H)), b = XMVectorGetX(XMVector3Length(A - K));
                 if (a < 1e-3f || b < 1e-3f) continue;
-                const XMVECTOR goal = A + XMVectorSet(sx, raise, sz, 0);
+                const XMVECTOR goal = A + XMVectorSet(sx, raise, sz + drawnIn * XMVectorGetZ(A - H), 0);
                 const XMVECTOR way = XMVector3Normalize(goal - H);
                 const float d = std::clamp(XMVectorGetX(XMVector3Length(goal - H)), std::abs(a - b) + 1e-3f, (a + b) * .999f);
                 // Which way the knee bends (owner, 2026-11-17: a nearly straight leg's knee pointed anywhere, often sideways;
@@ -726,8 +797,46 @@ namespace Doorways
                 BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? .17f : .2f;
                 if (Drawing) BlendSeconds = name.rfind("Attack", 0) == 0 ? .26f : .36f;   // time for her hands to go to her back and come away
                 LastClip = name;
+                // what is carried on: for every joint, the old pose against the new one, and how the old one was moving
+                // (no faster than would cross that difference three times in the time of the change: no overshoot of note)
+                const size_t n = out.LocalJoints.size();
+                CarrySeconds = Previous.LocalJoints.size() == n ? BlendSeconds * 1.6f : 0.f;
+                CarryArms = !Drawing;
+                ArmTo.assign(out.LocalJoints.size(), XMFLOAT4{0, 0, 0, 0});
+                CarryAt.assign(n, {}); CarryGo.assign(n, {}); CarryTurn.assign(n, {}); CarrySpin.assign(n, {});
+                const bool moving = Before.LocalJoints.size() == n && LastDt > 1e-4f;
+                for (size_t i = 0; i < n && CarrySeconds > 0; ++i)
+                {
+                    const auto& was = Previous.LocalJoints[i]; const auto& now = out.LocalJoints[i];
+                    const XMVECTOR at = XMLoadFloat3(&was.Translation) - XMLoadFloat3(&now.Translation);
+                    const XMVECTOR turned = TurnVector(XMQuaternionMultiply(XMQuaternionInverse(XMLoadFloat4(&now.Rotation)), XMLoadFloat4(&was.Rotation)));
+                    XMVECTOR go = XMVectorZero(), spin = XMVectorZero();
+                    if (moving)
+                    {
+                        const auto& before = Before.LocalJoints[i];
+                        go = (XMLoadFloat3(&was.Translation) - XMLoadFloat3(&before.Translation)) / LastDt;
+                        spin = TurnVector(XMQuaternionMultiply(XMQuaternionInverse(XMLoadFloat4(&before.Rotation)), XMLoadFloat4(&was.Rotation))) / LastDt;
+                        go = XMVector3ClampLength(go, 0, 3 * XMVectorGetX(XMVector3Length(at)) / BlendSeconds);
+                        spin = XMVector3ClampLength(spin, 0, 3 * XMVectorGetX(XMVector3Length(turned)) / BlendSeconds);
+                    }
+                    XMStoreFloat3(&CarryAt[i], at); XMStoreFloat3(&CarryGo[i], go); XMStoreFloat3(&CarryTurn[i], turned); XMStoreFloat3(&CarrySpin[i], spin);
+                }
             }
             BlendTime += (std::max)(0.f, dt);
+            if (CarrySeconds > 0 && BlendTime < CarrySeconds && CarryAt.size() == out.LocalJoints.size())
+            {   // it dies away as a spring without swing does: all but gone when the old mix would have ended
+                const float y = 5.5f / BlendSeconds, e = std::exp(-y * BlendTime);
+                for (size_t i = 0; i < out.LocalJoints.size(); ++i)
+                {
+                    if (static_cast<int>(i) == SwordJoint[0] || static_cast<int>(i) == SwordJoint[1]) continue;   // (below)
+                    if (!CarryArms && i < ArmJoint.size() && ArmJoint[i]) continue;                                // (to the handles, below)
+                    auto& to = out.LocalJoints[i];
+                    const XMVECTOR at = XMLoadFloat3(&CarryAt[i]), turned = XMLoadFloat3(&CarryTurn[i]);
+                    XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + (at + (XMLoadFloat3(&CarryGo[i]) + at * y) * BlendTime) * e);
+                    const XMVECTOR turn = (turned + (XMLoadFloat3(&CarrySpin[i]) + turned * y) * BlendTime) * e;
+                    XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionMultiply(XMLoadFloat4(&to.Rotation), TurnOf(turn))));
+                }
+            }
             if (BlendSeconds > 0 && BlendTime < BlendSeconds && BlendFrom.LocalJoints.size() == out.LocalJoints.size())
             {
                 float w = std::clamp(BlendTime / BlendSeconds, 0.f, 1.f);
@@ -747,14 +856,21 @@ namespace Doorways
                         const auto ease = [](float v) { v = std::clamp(v, 0.f, 1.f); return v * v * (3 - 2 * v); };
                         const float u = std::clamp(BlendTime / BlendSeconds, 0.f, 1.f);
                         const XMVECTOR reach = XMLoadFloat4(&ReachPose.LocalJoints[i].Rotation);
+                        // The clip she changes to goes on moving (and her stride changes its mix as she gathers speed): the
+                        // way round from the handles to it is chosen once, the shorter one, and kept. Chosen anew every
+                        // frame it could change sides when the two were near half a turn apart, and her arm jumped.
+                        XMVECTOR goes = XMLoadFloat4(&to.Rotation);
+                        if (i < ArmTo.size())
+                        {
+                            const XMVECTOR was = XMLoadFloat4(&ArmTo[i]);
+                            if (XMVectorGetX(XMVector4Dot(XMVectorGetX(XMVector4LengthSq(was)) > .5f ? was : reach, goes)) < 0) goes = XMVectorNegate(goes);
+                            XMStoreFloat4(&ArmTo[i], goes);
+                        }
                         const XMVECTOR q = u < .5f ? XMQuaternionSlerp(XMLoadFloat4(&from.Rotation), reach, ease(u * 2))
-                                                   : XMQuaternionSlerp(reach, XMLoadFloat4(&to.Rotation), ease(u * 2 - 1));
+                                                   : SlerpAsGiven(reach, goes, ease(u * 2 - 1));
                         XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(q));
                         continue;
                     }
-                    XMStoreFloat3(&to.Translation, XMVectorLerp(XMLoadFloat3(&from.Translation), XMLoadFloat3(&to.Translation), w));
-                    XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&from.Rotation), XMLoadFloat4(&to.Rotation), w)));
-                    XMStoreFloat3(&to.Scale, XMVectorLerp(XMLoadFloat3(&from.Scale), XMLoadFloat3(&to.Scale), w));
                 }
                 // While her hands go to her back or come away empty, the swords stay on her back: not with her hands.
                 std::string why;
@@ -779,6 +895,7 @@ namespace Doorways
                 Lowest = 1e9f;
                 for (const int i : BodyJoints) Lowest = (std::min)(Lowest, out.ModelSpaceMatrices[i]._42);
             }
+            Before = std::move(Previous); LastDt = dt;
             Previous = out;
             return IsFiniteDoorwaysPose(out, Skeleton.Joints.size());
         }
@@ -1701,7 +1818,21 @@ namespace Doorways
         const float lean = b.Air ? FlyLeanFast : braced ? (std::min)(CastStoopMost, CastStoop * b.CastMissing) : b.Cast == 4 ? CastLean
                          : flying && !landing && !b.Dead ? FlyLeanHover + std::clamp(b.Speed / FlyLeanSpeed, 0.f, 1.f) * (FlyLeanFast - FlyLeanHover) : 0.f;
         b.FlyLean += (lean - b.FlyLean) * (std::min)(1.f, dt * 4);
-        world.AnimatedPlayerVisual.Rotation = {b.FlyLean, 0, 0};
+        {   // On foot she leans into a turn and into gathering speed, and back as she loses it (2026-11-19): she turned
+            // and started as a post does. Her whole picture is tipped about her feet (PlantFeet keeps them on the ground).
+            const float turned = dt > 1e-4f && b.LeanKnown ? std::remainder(p.Yaw - b.LeanYaw, XM_2PI) / dt : 0.f;
+            const float gained = dt > 1e-4f && b.LeanKnown ? (b.Speed - b.LeanSpeed) / dt : 0.f;
+            b.LeanYaw = p.Yaw; b.LeanSpeed = b.Speed; b.LeanKnown = true;
+            const float ease = (std::min)(1.f, dt * 9);
+            b.TurnRate += (std::clamp(turned, -4.f, 4.f) - b.TurnRate) * ease;
+            b.Gain += (std::clamp(gained, -30.f, 30.f) - b.Gain) * ease;
+            const bool afoot = !flying && p.IsGrounded && !b.Dead && !b.Carried() && !b.Cast && b.Rise < 0 && b.Touch < 0;
+            const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
+            const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) : 0.f;
+            b.LeanRoll += (roll - b.LeanRoll) * (std::min)(1.f, dt * 5);
+            b.LeanPitch += (pitch - b.LeanPitch) * (std::min)(1.f, dt * 7);
+        }
+        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch, 0, b.LeanRoll};
         b.Hover += ((flying && p.IsGrounded && !landing && b.Rise < 0 ? 1.f : 0.f) - b.Hover) * (std::min)(1.f, dt * 3);
         const float up = b.Cast == 4 ? 1.f : b.Cast == 5 && b.CastTime < CastThrust && !flying ? CastBrace / CastLift : 0.f;
         b.CastUp += (up - b.CastUp) * (std::min)(1.f, dt * 7);
@@ -1783,6 +1914,37 @@ namespace Doorways
             }
         }
         mSpeedScale = rooted ? 0.f : b.Back ? BackSpeed / CaucasianEagle::FootSpeed : 1.f;
+        {   // She gathers speed and loses it (2026-11-19). The engine's travel is all or nothing: at full speed in the
+            // frame a key goes down, at rest in the frame it is let go, which no pose can follow (her feet slid through
+            // every start and stop). Now she starts at StartShare of her speed and has all of it GatherSeconds later; let
+            // go on the ground, she is carried on by the speed she had and loses it evenly (a jog in 0.2 s and 0.3 m, a
+            // run in 0.25 s and 0.7 m), as a move's impulse carries her: the ground and walls still count.
+            constexpr float GatherSeconds = .3f, StartShare = .3f;
+            const bool wants = p.IsMoving && !rooted && !flying;
+            if (flying || rooted) { b.Throttle = flying ? 1.f : 0.f; b.Glide = {0, 0}; }
+            else if (wants)
+            {
+                const float carried = std::hypot(b.Glide.x, b.Glide.y) / (std::max)(.5f, b.FullSpeed);
+                b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, carried}) + dt / GatherSeconds, 0.f, 1.f);
+                b.Glide = {0, 0}; b.Went = {p.ActualVelocity.x, p.ActualVelocity.z};
+                if (b.Throttle >= 1 && b.Speed > .5f) b.FullSpeed = b.Speed;
+            }
+            else
+            {
+                if (b.Throttle > 0 && p.IsGrounded)
+                {
+                    b.Glide = b.Went; b.Went = {0, 0};   // (the engine has stopped her already this frame)
+                    const float had = std::hypot(b.Glide.x, b.Glide.y);
+                    b.GlideLose = had / (.12f + .025f * had);
+                }
+                b.Throttle = 0;
+                const float had = std::hypot(b.Glide.x, b.Glide.y), left = (std::max)(0.f, had - b.GlideLose * dt);
+                if (had > 1e-3f && left > 0 && p.IsGrounded) { b.Glide.x *= left / had; b.Glide.y *= left / had; }
+                else b.Glide = {0, 0};
+            }
+            s.ImpulseX += b.Glide.x; s.ImpulseZ += b.Glide.y;
+            if (!flying && !rooted) mSpeedScale *= b.Throttle > 0 ? b.Throttle : StartShare;
+        }
         {   // up a stair she climbs at a stair's pace (the jog would play the stair clip four times over): eased in and out
             const float stair = b.Gait == "Stairs_Up" && !flying && !b.Dead ? 1.f : 0.f;
             b.OnStair += (stair - b.OnStair) * (std::min)(1.f, dt * 4);
@@ -1790,7 +1952,7 @@ namespace Doorways
             if (mSpeedScale > 0 && p.MoveSpeed > most) mSpeedScale *= 1 + ((most / p.MoveSpeed) - 1) * b.OnStair;
         }
         p.MoveSpeed *= mSpeedScale;
-        s.SlowWalkSpeed = rooted ? 0.f : WalkPace;
+        s.SlowWalkSpeed = rooted ? 0.f : WalkPace * (flying ? 1.f : b.Throttle > 0 ? b.Throttle : .3f);
         if (rooted && flying)
         {   // in the air a move carries her itself
             if (!b.FlightHeld) { b.FlightSaved = p.FlightSpeed; b.FlightHeld = true; }
@@ -1803,7 +1965,7 @@ namespace Doorways
         }
 
         // ---- the clip and her pose
-        const bool moving = b.Speed > .08f, running = b.Speed > RunFrom;
+        const bool moving = b.Speed > .08f || std::hypot(b.Glide.x, b.Glide.y) > .08f;   // (carried on after the key: still her stride)
         std::string clip = "Idle";
         float time = b.Clock;
         const bool striding = moving && !b.Dead && !flying;
@@ -1816,19 +1978,18 @@ namespace Doorways
         }
         if (striding)
         {
-            const bool runs = running && !b.Back;   // backwards she walks, the stride played the other way round
             // Going up a stair (owner, 2026-11-17): Mixamo's stair climb fitted to the map's stairs, played by her height on
             // the stair (the steps she has climbed), so that each foot lands on a tread. Only on a stair's treads (a hill is
             // walked up), in and out with a margin, so that she does not flicker between clips.
             const bool onStair = mStairTread && mFootGround && std::isfinite(mFootGround(p.Position.x, p.Position.z, p.Position.y));
             const bool climbing = StairClip && !b.Back && onStair && b.Duration("Stairs_Up") > 0 && b.Climb > (b.Gait == "Stairs_Up" ? ClimbLeave : ClimbEnter);
-            b.Gait = climbing ? "Stairs_Up" : runs ? "Run" : "Walk";
+            b.Gait = climbing ? "Stairs_Up" : "Move";   // (backwards she walks, the stride played the other way round)
             if (climbing)
             {
                 const float u = (p.Position.y - .15f) / NyxaraClips::StairsRise - NyxaraClips::StairsShift;
                 b.Phase = u / 2 - std::floor(u / 2);
             }
-            else b.Phase = std::fmod(b.Phase + (b.Back ? -1.f : 1.f) * dt * b.Speed / (runs ? RunPace : WalkPace) / b.Duration(b.Gait) + 1.f, 1.f);
+            else b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), b.Back, dt);   // (the frame the key is let go the engine has her at rest; she is carried on from the next)
         }
         const bool cutting = !b.Attack.empty() && !carried && !b.Dead;
         if (!cutting) b.Legs = 0;
@@ -1836,7 +1997,7 @@ namespace Doorways
         else b.Legs = std::clamp(b.Legs + (striding ? 1.f : -1.f) * dt / .15f, 0.f, 1.f);
         b.FlyBody = (cutting || (b.Cast >= 1 && b.Cast <= 3)) && flying;   // a cut in the air: her legs, hips and wings go on flying
         if (b.FlyBody) b.Legs = b.Sample("Fly", b.FlyTime, b.LegsPose, nullptr) ? 1.f : 0.f;
-        else if (b.Legs > 0 && !b.Sample(b.Gait, b.Phase * b.Duration(b.Gait), b.LegsPose, nullptr)) b.Legs = 0;
+        else if (b.Legs > 0 && !b.Sample(b.Gait, b.GaitTime(), b.LegsPose, nullptr)) b.Legs = 0;
         if (b.Dead) { clip = "Death"; time = b.DeathTime; }
         else if (b.Rise >= 0) { clip = "Fly_Rise"; time = b.Rise; }
         else if (b.Touch >= 0) { clip = "Fly_Land"; time = b.Touch; }
@@ -1847,7 +2008,7 @@ namespace Doorways
         else if (b.Air) { clip = "Fly"; time = b.FlyTime; }
         else if (flying) { clip = "Fly"; time = b.FlyTime; }
         else if (b.Jumping) { clip = "Jump"; time = b.JumpTime; }
-        else if (moving) { clip = b.Gait; time = b.Phase * b.Duration(clip); }
+        else if (moving) { clip = b.Gait; time = b.GaitTime(); }
         b.Current = clip;
         {
             DoorwaysSkeletonPose pose;
