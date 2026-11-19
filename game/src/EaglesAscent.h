@@ -135,7 +135,7 @@ namespace CaucasianEagle
         float mInRock = 0;             // seconds she has been falling inside the mountain
         // The ground's look (record "terrain x0 z0 width depth snowline sea", 2026-11-18): the splat <map>.splat_a.dds
         // and .splat_b.dds covers that rectangle; the engine's terrain shader draws the ML_Terrain* materials with it.
-        bool mHasTerrain = false; float mTerrain[6] = {};
+        bool mHasTerrain = false; float mTerrain[7] = {};
         std::filesystem::path mDataPath;
     };
 }

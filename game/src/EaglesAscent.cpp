@@ -122,7 +122,11 @@ namespace CaucasianEagle
                     if (c.Line.size() >= 2) mCaves.push_back(std::move(c));
                 }
             }
-            else if (word == "terrain") mHasTerrain = static_cast<bool>(in >> mTerrain[0] >> mTerrain[1] >> mTerrain[2] >> mTerrain[3] >> mTerrain[4] >> mTerrain[5]);
+            else if (word == "terrain")
+            {
+                mHasTerrain = static_cast<bool>(in >> mTerrain[0] >> mTerrain[1] >> mTerrain[2] >> mTerrain[3] >> mTerrain[4] >> mTerrain[5]);
+                if (!(in >> mTerrain[6])) mTerrain[6] = 0;     // the height the forest stands to (2026-11-18); absent in older files: no forest
+            }
         }
         mDataPath = path;
         if (Stations.empty()) { error = "map data has no station: " + path.string(); return false; }
@@ -184,7 +188,7 @@ namespace CaucasianEagle
                 char value[8] = {}; size_t got = 0;
                 if (getenv_s(&got, value, sizeof(value), "CAUCASIAN_EAGLE_TERRAIN_DEBUG") == 0 && got > 1) debug = static_cast<float>(std::atof(value));
                 renderer.SetTerrainParams({mTerrain[0], mTerrain[1], 1.f / mTerrain[2], 1.f / mTerrain[3]},
-                                          {mTerrain[4], 150.f, mTerrain[5], 0.f}, {7.f, 41.f, 3.5f, 19.f}, {1.f, 1.f, debug, 0.f});
+                                          {mTerrain[4], 150.f, mTerrain[5], mTerrain[6]}, {7.f, 41.f, 3.5f, 19.f}, {1.f, 1.f, debug, 0.f});
             }
         }
         return true;
