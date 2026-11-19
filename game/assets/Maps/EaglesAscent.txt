@@ -5,6 +5,7 @@ grade 0.560
 length 7632.0
 heights -760.00 -330.00 6.00 254 554 2
 terrain -760.00 -330.00 1518.00 3318.00 3500.0 -0.60 4400.0
+ranges 0.0 2573.6 4300.0
 zone 0.0 MA01_COAST_Tide_Gate_and_coastal_landing
 zone 180.0 MA02_TERRACES_Old_village_terraces
 zone 550.0 MA03_GORGE_Waterfall_gorge

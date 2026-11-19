@@ -44,6 +44,7 @@ namespace CaucasianEagle
         struct Fly { std::string Kind; float From = 0, To = 0; bool Done = false; }; // a stretch only wings cross (metres along the trail)
         struct Moment { std::string Name; DirectX::XMFLOAT3 P{}; };                  // a named place
         static constexpr float TrailStep = 4.f;   // m between the data file's trail samples
+        static constexpr float FarPlane = 14000.f;   // the camera's far plane on this map, m: the summit must be in view from the shore
         // Her jump on the mountain (2026-11-18, the owner: "the jump is so weak"): 9.5 m/s against the engine's 18 m/s2 is
         // 2.5 m up and about a second in the air (the engine's own 6.5 m/s was 1.2 m: it did not clear a parapet). With the
         // session's WalkOffLedges she can run or jump off any edge and fall, or take wing on the way down.
@@ -136,6 +137,9 @@ namespace CaucasianEagle
         // The ground's look (record "terrain x0 z0 width depth snowline sea", 2026-11-18): the splat <map>.splat_a.dds
         // and .splat_b.dds covers that rectangle; the engine's terrain shader draws the ML_Terrain* materials with it.
         bool mHasTerrain = false; float mTerrain[7] = {};
+        // The far ranges (record "ranges x z radius", 2026-11-18): the axis they stand round and their inner radius.
+        // With them the sea runs out past the far plane, and far land and water go over into the sky's colour.
+        float mRanges[3] = {};
         std::filesystem::path mDataPath;
     };
 }

@@ -81,7 +81,7 @@ namespace CaucasianEagle
         session.WalkOffLedges = true;                          // she can go over any edge (and jump from its brink)
         GetNyxaraKit().SetRealJump(EaglesAscent::JumpSpeed);   // Space on foot is a real jump here
         auto& camera = host.World.MainCamera;
-        camera.FarZ = 14000; camera.NearZ = .25f;              // the summit must be in view from the shore
+        camera.FarZ = EaglesAscent::FarPlane; camera.NearZ = .25f;   // the summit must be in view from the shore
         if (!Ui::LoadArt(host.Render, error)) return false;
         if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error)) { error = "Nyxara combat kit: " + error; return false; }
         if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
