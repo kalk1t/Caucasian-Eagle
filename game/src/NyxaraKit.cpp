@@ -59,8 +59,22 @@ namespace Doorways
         constexpr float AttackLead = 0.34f;  // clip seconds before the hit at which a cut is entered
         constexpr float ChainAfter = 0.14f;  // clip seconds after the hit at which the next cut starts
         constexpr float AttackTail = 0.80f;  // clip seconds after the hit at which the last cut is over
-        constexpr const char* LeftChain[] = {"Attack_L1", "Attack_L2", "Attack_L3"};
-        constexpr const char* RightChain[] = {"Attack_R1", "Attack_R2", "Attack_R3", "Attack_R4"};
+        constexpr float WhipMost = 6.5f;     // m/s: her hand goes no faster than this, at its fastest, to where a cut's swing begins
+        constexpr float TurnMost = 26.f;     // radians a second (1500 degrees): nor turns faster
+        constexpr float CutEnd = .04f;       // what is carried into a cut is gone this long before its blow (clip s)
+        constexpr float LeadCost = 12.f;     // entering a cut earlier is worth it if her hand is this much slower (m/s per second earlier)
+        constexpr int CutTrackEarly = 36, CutTrack = CutTrackEarly + 4;   // a cut's hands are known from 0.6 s before its blow (60 a second)
+        constexpr float SettleSeconds = .12f;                           // a sword taken or let go is in its new place after this long
+        // A draw into a cut or a skill: up to the handles, and on to the clip (s). (0.19 and 0.10 until 2026-11-19: out of
+        // standing at ease her hands went up at 16 m/s and came down onto the cut turning at 3000 degrees a second.)
+        constexpr float DrawReachPressed = .22f, DrawOnPressed = .18f;
+        constexpr float DrawOnCut = .22f;    // (into a cut: from the handles into the swing, there just before the blow)
+        // Each hand's cuts in a row, in the order in which they go into one another (2026-11-19). From the end of one cut
+        // to where the next one's swing begins her hand had 0.8 and 1.7 m to go in the left row (slash, thrust, slash: the
+        // thrust ends with her arm stretched out before her, far from every wind-up) and 0.4, 1.0 and 1.0 m in the right;
+        // now 0.5 and 0.5 m, and 0.3, 0.3 and 1.0 m. The last of each row is the heavy blow.
+        constexpr const char* LeftChain[] = {"Attack_L1", "Attack_L3", "Attack_L2"};
+        constexpr const char* RightChain[] = {"Attack_R1", "Attack_R4", "Attack_R2", "Attack_R3"};
         constexpr float HipsShare = .35f;    // of the cut's own turn of her hips that her hips keep while she walks or runs
         constexpr float FrontArc = 30.f;     // degrees to either side of her line: what is before her
         constexpr float CastAirRange = 3, CastAirHeight = .35f, CastAirSink = 9;
@@ -246,6 +260,8 @@ namespace Doorways
         // to the other her arms go through the bundle's Sword_Reach pose (hands on the handles over her shoulders), and
         // the swords change place as her hands are there.
         static bool SwordsAway(const std::string& clip) { return clip == "Stand" || clip == "Move" || clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
+        // (in a fight they stay in her hands as she goes, jumps and falls: Armed)
+        bool Away(const std::string& clip) const { return SwordsAway(clip) && !(Armed && (clip == "Move" || clip == "Jump" || clip == "Fall")); }
         std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         bool InHand = true;                                // where her swords are: in her hands, or on her back
@@ -287,6 +303,22 @@ namespace Doorways
         XMFLOAT3 ArmRest[2][2]{}; bool ArmRestKnown = false;            // standing: which way each upper arm and forearm hangs, in her space
         float ArmsEasy = 0, LeadMost = 0, ArmLag = 0;      // how much of it; her widest stride of late; her arms left behind as she gathers speed (rad)
         float ForeAt[2] = {0, 0}, ForeGo[2] = {0, 0};      // each forearm: swung forward from where it hangs (rad), and how fast
+        float ArmPace = 0;                                 // her speed as her arms take it (m/s, eased)
+        bool Armed = false, WasArmed = false;              // a fight is on: her swords stay in her hands as she goes (the kit says so); as Compose last took it
+        struct CutSwing { float Lead = .12f; XMFLOAT3 Hands[2]{}; XMFLOAT4 Turns[2]{}; bool Cuts[2] = {false, false}; XMFLOAT3 Track[2][CutTrack]{}; };
+        std::map<std::string, CutSwing> Swings;            // each cut: how long before its blow its swing begins (clip s), her hands there, which of them cut
+        float CutBlend = 0;                                // the cut she enters: the time her body takes to where its swing begins (s; 0: no cut, or a draw first)
+        bool CarrySmooth = false;                          // what is carried on dies away evenly (into a cut), not as a spring does
+        // her hands to the handles on her back (ReachArms)
+        int Knuckle[2][2] = {{-1, -1}, {-1, -1}};          // each hand: its first and third fingers' first joints
+        XMFLOAT4X4 SwordInHand[2]{};                       // each sword in its fist (against the hand)
+        XMFLOAT3 HandLine[2]{};                            // which way each hand points, from its wrist to its knuckles (in its own axes)
+        struct BentArm { XMFLOAT4 Upper{0, 0, 0, 1}, Fore{0, 0, 0, 1}; XMFLOAT3 UpperLine{}, ForeLine{}, Hinge{}; } ArmBent[2];   // an arm bent, as the reach pose has it: its bones' turns, their lines, the elbow's axis (her space)
+        bool GripKnown = false;
+        bool SwordWasInHand = true, SettleKnown = false;   // a sword taken or let go settles into its new place:
+        float SwordSettle = 9;                             // seconds since
+        XMFLOAT4X4 SwordBefore[2]{};                       // where each was (her space)
+        XMFLOAT4 SettleTurn[2]{}; XMFLOAT3 SettleSlip[2]{};   // and that against where it now belongs: a turn about the handle's middle, and what is left
         float AnkleRest[2] = {1e9f, 1e9f};                 // the lowest each ankle stands in her clips (m over her feet): the foot is down
         float BallRest[2] = {1e9f, 1e9f};                  // the lowest the ball of each foot (its toe joint) stands in them
         float SoleGap[2] = {0, 0};                          // (the log) each sole over the drawn ground under the middle of its foot (m; NaN: none found)
@@ -317,6 +349,7 @@ namespace Doorways
         std::string Attack;                // the cut or skill being played, empty: none
         float AttackTime = 0, SkillStrike = 0, SkillReach = 1;
         int Step = 0, Queued = 0;          // place in the combo; the button pressed during a cut (1 left, 2 right)
+        int RowAt[2] = {0, 0}, LastHand = 0; bool RowUsed[2] = {false, false};   // each hand's place in its row of cuts; the hand that cut last; whether each has cut in this combo
         bool Jumping = false, Back = false, Dead = false;
         float JumpTime = 0, DeathTime = 0;
         bool JumpReal = false, JumpAir = false, WasGrounded = true;   // a jump that the world moves her in; she has left the ground in it
@@ -365,6 +398,7 @@ namespace Doorways
         std::string LogPath;
         float LastLog = -1;
         std::ofstream PoseFile; std::vector<int> PoseJoints;   // CAUCASIAN_EAGLE_NYXARA_POSELOG=<file>: her joints in the world, every frame
+        XMFLOAT3 ClipHand[2]{}; DoorwaysSkeletonPose ClipOnly;  // (for that log) where the clip alone has her hands
 
         float Rand(float a = 0, float b = 1)
         {
@@ -478,20 +512,394 @@ namespace Doorways
                 XMFLOAT3 at; XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat4x4(&pose.ModelSpaceMatrices[j]).r[3], place));
                 PoseFile << '\t' << at.x << '\t' << at.y << '\t' << at.z;
             }
+            for (int k = 0; k < 4; ++k)
+            {   // her swords' points, and where the clip alone had her hands (before anything was carried over, drawn or eased)
+                XMFLOAT3 at{};
+                if (k < 2 && SwordJoint[k] >= 0)
+                    XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat3(&SwordTip[k]), XMLoadFloat4x4(&pose.ModelSpaceMatrices[SwordJoint[k]]) * place));
+                else if (k >= 2) XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat3(&ClipHand[k - 2]), place));
+                PoseFile << '\t' << at.x << '\t' << at.y << '\t' << at.z;
+            }
             for (int k = 0; k < 2; ++k)
                 PoseFile << '\t' << FootHeld[k] << '\t' << FootAir[k] << '\t' << FootGo[k] << '\t' << FootToGo[k] << '\t' << FootLifted[k] << '\t' << FootOnStair[k]
                          << '\t' << FootFree[k] << '\t' << SwingSeconds << '\t' << LandAhead[k];
             PoseFile << '\n';
         }
 
+        // Where each cut's swing begins (2026-11-19): the hand that cuts is at its fastest about the blow; back from
+        // there to where it had a third of that speed. And the way of both hands through the cut's last 0.6 s (60 times
+        // a second), for choosing how to enter it.
+        void LearnSwings()
+        {
+            if (ArmChain[0][3] < 0 || ArmChain[1][3] < 0) return;
+            constexpr float Tick = 1 / 60.f; constexpr int Early = CutTrackEarly, Count = CutTrack;      // from 0.6 s before the blow
+            DoorwaysSkeletonPose pose;
+            for (const auto& entry : NyxaraClips::Attacks)
+            {
+                const std::string& name = entry.first;
+                if (name.rfind("Attack", 0) != 0 || Duration(name) <= 0) continue;
+                const bool left = name.rfind("Attack_L", 0) == 0, right = name.rfind("Attack_R", 0) == 0;
+                CutSwing sw;
+                sw.Cuts[0] = left || !right; sw.Cuts[1] = right || !left;
+                float speed[Count] = {};
+                bool whole = true;
+                for (int f = 0; f < Count && whole; ++f)
+                {
+                    whole = Sample(name, std::clamp(entry.second.Hit + (f - Early) * Tick, 0.f, Duration(name)), pose, nullptr) &&
+                            EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr);
+                    for (int s = 0; s < 2 && whole; ++s) { const auto& m = pose.ModelSpaceMatrices[ArmChain[s][3]]; sw.Track[s][f] = {m._41, m._42, m._43}; }
+                }
+                if (!whole) continue;
+                for (int f = 1; f < Count - 1; ++f)
+                    for (int s = 0; s < 2; ++s)
+                        if (sw.Cuts[s])
+                            speed[f] = (std::max)(speed[f], XMVectorGetX(XMVector3Length(XMLoadFloat3(&sw.Track[s][f + 1]) - XMLoadFloat3(&sw.Track[s][f - 1]))) / (2 * Tick));
+                int most = Early;
+                for (int f = Early - 12; f <= Early + 2; ++f) if (speed[f] > speed[most]) most = f;
+                int from = most;
+                while (from > 1 && speed[from] > speed[most] / 3) --from;
+                sw.Lead = std::clamp((Early - from) * Tick, .08f, .25f);
+                if (!Sample(name, (std::max)(0.f, entry.second.Hit - sw.Lead), pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) continue;
+                for (int s = 0; s < 2; ++s)
+                {
+                    XMVECTOR sc, q, t;
+                    XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&pose.ModelSpaceMatrices[ArmChain[s][3]]));
+                    XMStoreFloat3(&sw.Hands[s], t); XMStoreFloat4(&sw.Turns[s], XMQuaternionNormalize(q));
+                }
+                Swings[name] = sw;
+            }
+        }
+        // The time her hands need to where that cut's swing begins, from where they are and as they are turned now (s):
+        // no faster than WhipMost and TurnMost at their fastest, going evenly. The hand that cuts; the other counts 0.6.
+        float Needs(const CutSwing& sw) const
+        {
+            float needs = 0;
+            if (Previous.ModelSpaceMatrices.size() != Skeleton.Joints.size() || ArmChain[0][3] < 0 || ArmChain[1][3] < 0) return needs;
+            for (int s = 0; s < 2; ++s)
+            {
+                XMVECTOR sc, q, t;
+                XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&Previous.ModelSpaceMatrices[ArmChain[s][3]]));
+                const float apart = XMVectorGetX(XMVector3Length(t - XMLoadFloat3(&sw.Hands[s])));
+                const float turned = 2 * std::acos((std::min)(1.f, std::abs(XMVectorGetX(XMVector4Dot(XMQuaternionNormalize(q), XMLoadFloat4(&sw.Turns[s]))))));
+                needs = (std::max)(needs, 1.875f * (std::max)(apart / WhipMost, turned / TurnMost) * (sw.Cuts[s] ? 1.f : .6f));
+            }
+            return needs;
+        }
+        // How long before its blow a cut is entered (clip seconds; 2026-11-19). What her body was doing is carried into
+        // the cut and dies away evenly until just before the blow (CutEnd): so her hand does not go all the way back to
+        // where the clip winds up and wait there, it goes round by a shorter way and meets the swing as that comes
+        // forward. The longer before the blow, the more of the clip's wind-up she makes and the further her hand has to
+        // go. Each of a few lengths is tried on the hands' ways as the clip has them (her hand where it is, going as it
+        // goes), and the one taken in which her hand is slowest at its fastest before the swing, a longer one costing a
+        // little (LeadCost): most cuts come 0.26 to 0.34 s after the button, the far ones later.
+        float BestLead(const CutSwing& sw) const
+        {
+            constexpr float Leads[] = {.26f, .30f, .34f, .38f, .42f};
+            constexpr float Tick = 1 / 60.f;
+            if (Previous.ModelSpaceMatrices.size() != Skeleton.Joints.size() || ArmChain[0][3] < 0 || ArmChain[1][3] < 0) return Leads[1];
+            XMVECTOR at[2], go[2];
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto& m = Previous.ModelSpaceMatrices[ArmChain[s][3]];
+                at[s] = XMVectorSet(m._41, m._42, m._43, 0);
+                go[s] = XMVectorZero();
+                if (Before.ModelSpaceMatrices.size() == Skeleton.Joints.size() && LastDt > 1e-4f)
+                {
+                    const auto& b = Before.ModelSpaceMatrices[ArmChain[s][3]];
+                    go[s] = (at[s] - XMVectorSet(b._41, b._42, b._43, 0)) / LastDt;
+                }
+            }
+            float best = Leads[1], least = 1e9f;
+            for (const float lead : Leads)
+            {
+                const float whole = lead - CutEnd, first = CutTrackEarly - lead / Tick;
+                float top = 0;
+                for (int s = 0; s < 2; ++s)
+                {
+                    const auto track = [&](float f)
+                    {
+                        f = std::clamp(f, 0.f, CutTrack - 1.001f);
+                        const int i = static_cast<int>(f);
+                        return XMVectorLerp(XMLoadFloat3(&sw.Track[s][i]), XMLoadFloat3(&sw.Track[s][i + 1]), f - i);
+                    };
+                    const XMVECTOR off = at[s] - track(first);
+                    const XMVECTOR carried = XMVector3ClampLength(go[s] - (track(first + 1) - track(first)) / Tick, 0, 3 * XMVectorGetX(XMVector3Length(off)) / whole);
+                    XMVECTOR was = at[s];
+                    for (int f = 1; f * Tick < lead - .10f; ++f)
+                    {
+                        const float t = f * Tick, g = (std::min)(1.f, t / whole), rest = 1 - g;
+                        const XMVECTOR now = track(first + f) + off * (1 - g * g * g * (10 - 15 * g + 6 * g * g)) + carried * (t * rest * rest * rest);
+                        top = (std::max)(top, XMVectorGetX(XMVector3Length(now - was)) / Tick * (sw.Cuts[s] ? 1.f : .6f));
+                        was = now;
+                    }
+                }
+                const float cost = top + LeadCost * (lead - Leads[0]);
+                if (cost < least) { least = cost; best = lead; }
+            }
+            return best;
+        }
+        // The cut she makes next (2026-11-19). With the same hand again: the next of its row. With the other hand: the
+        // one of that hand's cuts that her hands can come to soonest from where they are, and not the one that hand made
+        // last: so left and right in turn go into one another however they are mixed. (They were taken by their number
+        // in the row, whatever the other hand had just done: up to 1.4 m for her hand to go between two blows.)
+        const char* NextCut(int hand)      // 1: left, 2: right
+        {
+            const char* const* row = hand == 1 ? LeftChain : RightChain;
+            const int count = static_cast<int>(hand == 1 ? std::size(LeftChain) : std::size(RightChain)), h = hand == 1 ? 0 : 1;
+            if (Attack.empty() || Attack == "Attack_Jump" || Skill()) { RowAt[0] = RowAt[1] = 0; RowUsed[0] = RowUsed[1] = false; }
+            else if (hand == LastHand) RowAt[h] = (RowAt[h] + 1) % count;
+            else
+            {
+                int best = -1; float least = 1e9f;
+                for (int i = 0; i < count; ++i)
+                {
+                    const auto swing = Swings.find(row[i]);
+                    if (swing == Swings.end() || (RowUsed[h] && i == RowAt[h])) continue;
+                    const float d = Needs(swing->second);
+                    if (d < least) { least = d; best = i; }
+                }
+                RowAt[h] = best >= 0 ? best : (RowAt[h] + 1) % count;
+            }
+            LastHand = hand; RowUsed[h] = true;
+            return row[RowAt[h]];
+        }
+        // Her wrists in the cuts (2026-11-19; owner: "during attacks also, wrist rotates not right"). The clips' wrists
+        // were made when the clips were built, frame by frame, and held at the most a wrist bends: where that set in and
+        // let go the hand flicked (15 to 20 degrees from one frame to the next, before the swing and after it), and with
+        // it the blade. The keys of the hand that cuts are smoothed here, each with its neighbours over a tenth of a
+        // second. (The blade's roll about its own length through a swing, 120 to 230 degrees, is her forearm's own, as
+        // it was played: holding the hand's roll to the forearm changed it by nothing to speak of.)
+        void SmoothWrists()
+        {
+            for (auto& entry : Clips)
+            {
+                const std::string& name = entry.first;
+                if (name.rfind("Attack", 0) != 0 || Hit(name) <= 0) continue;
+                const bool left = name.rfind("Attack_L", 0) == 0, right = name.rfind("Attack_R", 0) == 0;
+                for (int s = 0; s < 2; ++s)
+                {
+                    if ((s == 0 && right) || (s == 1 && left) || ArmChain[s][3] < 0) continue;
+                    for (auto& track : entry.second.JointTracks)
+                    {
+                        if (static_cast<int>(track.JointIndex) != ArmChain[s][3] || track.RotationKeys.size() < 5) continue;
+                        auto& keys = track.RotationKeys;
+                        const int count = static_cast<int>(keys.size());
+                        std::vector<XMFLOAT4> was(keys.size());
+                        for (int k = 0; k < count; ++k) was[k] = keys[k].Value;
+                        for (int k = 0; k < count; ++k)
+                        {
+                            const XMVECTOR here = XMLoadFloat4(&was[k]);
+                            XMVECTOR sum = XMVectorZero();
+                            for (int d = -3; d <= 3; ++d)
+                            {
+                                XMVECTOR q = XMLoadFloat4(&was[std::clamp(k + d, 0, count - 1)]);
+                                if (XMVectorGetX(XMVector4Dot(q, here)) < 0) q = XMVectorNegate(q);
+                                sum += q * std::exp(-d * d / 3.4f);
+                            }
+                            XMStoreFloat4(&keys[k].Value, XMQuaternionNormalize(sum));
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- her hands to the handles on her back (2026-11-19; owner: "hands are not following the skills and combos
+        // properly"). To take her swords or put them away her arms went, joint by joint, the shortest way to one drawn
+        // pose (the bundle's Sword_Reach) and on. From arms hanging that way is out to the sides: both arms were flung
+        // wide (a T for a frame or two, her hands at 13 to 16 m/s) and then folded behind her head, elbows out; and the
+        // pose's hands are 16 and 24 cm short of where the handles lie, so each sword jumped that far into its fist.
+        // Now each hand is taken to the handle itself, as an arm goes there:
+        // - where: the sword lies on her back as her chest carries it; her hand closes round the handle's middle with its
+        //   knuckles along the blade, turned about the handle to where her forearm comes from (its wrist the least bent);
+        // - the way: from where her hand is, up before her shoulder and back over it (a hand that is already high goes
+        //   straight); slow away and slow in;
+        // - her elbow: found from her hand (two bones of fixed length); it is behind her as her arm hangs, goes out to
+        //   her side as her hand comes up, and is up by her ear with her hand at the handle;
+        // - her upper arm and forearm are turned about their own lengths as an elbow allows (a hinge: as the bundle's
+        //   reach pose has them against the plane her arm bends in), coming from how the pose she leaves had them.
+        // The same way back, to whatever her arms do next.
+        static XMVECTOR ElbowAt(XMVECTOR shoulder, XMVECTOR& hand, float upper, float fore, XMVECTOR pole, XMVECTOR* side)
+        {
+            XMVECTOR to = hand - shoulder;
+            float apart = XMVectorGetX(XMVector3Length(to));
+            if (apart < 1e-5f) { to = XMVectorSet(0, -1, 0, 0); apart = 1; }
+            const XMVECTOR axis = to / apart;
+            const float reach = std::clamp(apart, std::abs(upper - fore) + .01f, upper + fore - .001f);
+            hand = shoulder + axis * reach;
+            const float along = (upper * upper - fore * fore + reach * reach) / (2 * reach), off = std::sqrt((std::max)(0.f, upper * upper - along * along));
+            XMVECTOR out = pole - axis * XMVector3Dot(pole, axis);
+            if (XMVectorGetX(XMVector3LengthSq(out)) < 1e-8f) out = XMVector3Cross(axis, XMVectorSet(1, 0, 0, 0));
+            if (XMVectorGetX(XMVector3LengthSq(out)) < 1e-8f) out = XMVector3Cross(axis, XMVectorSet(0, 0, 1, 0));
+            out = XMVector3Normalize(out);
+            if (side) *side = out;
+            return shoulder + axis * along + out * off;
+        }
+        // the turn that takes one line and a second across it to another such pair
+        static XMVECTOR FrameTurn(XMVECTOR line0, XMVECTOR across0, XMVECTOR line1, XMVECTOR across1)
+        {
+            const auto frame = [](XMVECTOR line, XMVECTOR across)
+            {
+                line = XMVector3Normalize(line);
+                across = across - line * XMVector3Dot(across, line);
+                if (XMVectorGetX(XMVector3LengthSq(across)) < 1e-8f) across = XMVector3Cross(line, XMVectorSet(1, 0, 0, 0));
+                if (XMVectorGetX(XMVector3LengthSq(across)) < 1e-8f) across = XMVector3Cross(line, XMVectorSet(0, 1, 0, 0));
+                across = XMVector3Normalize(across);
+                XMMATRIX m = XMMatrixIdentity();
+                m.r[0] = XMVectorSetW(line, 0); m.r[1] = XMVectorSetW(across, 0); m.r[2] = XMVectorSetW(XMVector3Cross(line, across), 0);
+                return m;
+            };
+            return XMQuaternionNormalize(XMQuaternionRotationMatrix(XMMatrixTranspose(frame(line0, across0)) * frame(line1, across1)));
+        }
+        void LearnGrip()
+        {
+            GripKnown = false;
+            DoorwaysSkeletonPose pose;
+            for (int s = 0; s < 2; ++s)
+                for (int w = 0; w < 4; ++w) if (ArmChain[s][w] < 0) return;
+            if (SwordJoint[0] < 0 || SwordJoint[1] < 0 || Knuckle[0][0] < 0 || Knuckle[0][1] < 0 || Knuckle[1][0] < 0 || Knuckle[1][1] < 0) return;
+            for (int s = 0; s < 2; ++s)
+                if (Skeleton.Joints[SwordJoint[s]].ParentIndex != ArmChain[s][3] || Skeleton.Joints[ArmChain[s][3]].ParentIndex != ArmChain[s][2] ||
+                    Skeleton.Joints[ArmChain[s][2]].ParentIndex != ArmChain[s][1] || Skeleton.Joints[ArmChain[s][1]].ParentIndex < 0) return;
+            // a sword in its fist, and which way a hand points (from its wrist to the middle of its knuckles)
+            if (!Sample("Idle", 0, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
+            const auto place = [&](int j) { const auto& m = pose.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&pose.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            for (int s = 0; s < 2; ++s)
+            {
+                const auto& held = pose.LocalJoints[SwordJoint[s]];
+                XMStoreFloat4x4(&SwordInHand[s], XMMatrixScalingFromVector(XMLoadFloat3(&held.Scale)) * XMMatrixRotationQuaternion(XMLoadFloat4(&held.Rotation)) *
+                                                 XMMatrixTranslationFromVector(XMLoadFloat3(&held.Translation)));
+                const XMVECTOR line = XMVector3Normalize((place(Knuckle[s][0]) + place(Knuckle[s][1])) * .5f - place(ArmChain[s][3]));
+                XMStoreFloat3(&HandLine[s], XMVector3Rotate(line, XMQuaternionInverse(turnOf(ArmChain[s][3]))));
+            }
+            // her arms bent, as the bundle's reach pose has them: how an upper arm and a forearm are turned about themselves
+            if (!Sample("Sword_Reach", 0, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
+            for (int s = 0; s < 2; ++s)
+            {
+                const XMVECTOR upper = XMVector3Normalize(place(ArmChain[s][2]) - place(ArmChain[s][1])), fore = XMVector3Normalize(place(ArmChain[s][3]) - place(ArmChain[s][2]));
+                const XMVECTOR hinge = XMVector3Cross(upper, fore);
+                if (XMVectorGetX(XMVector3LengthSq(hinge)) < .04f) return;      // (not bent: no use)
+                XMStoreFloat4(&ArmBent[s].Upper, turnOf(ArmChain[s][1])); XMStoreFloat4(&ArmBent[s].Fore, turnOf(ArmChain[s][2]));
+                XMStoreFloat3(&ArmBent[s].UpperLine, upper); XMStoreFloat3(&ArmBent[s].ForeLine, fore); XMStoreFloat3(&ArmBent[s].Hinge, XMVector3Normalize(hinge));
+            }
+            GripKnown = true;
+        }
+        // Her arms on the way between the pose they come from, or go to (there: 0), and the handles (there: 1).
+        void ReachArms(DoorwaysSkeletonPose& out, bool leaving, float there)
+        {
+            const size_t n = out.LocalJoints.size();
+            if (!GripKnown || !HasBack || Spine2 < 0 || BlendFrom.LocalJoints.size() != n || ArmTo.size() != n) return;
+            XMFLOAT4 kept[2][3];
+            for (int s = 0; s < 2; ++s)
+                for (int w = 1; w < 4; ++w)
+                {   // her arms as the other pose has them, on her body as it is now
+                    const int j = ArmChain[s][w];
+                    kept[s][w - 1] = out.LocalJoints[j].Rotation;
+                    out.LocalJoints[j].Rotation = leaving ? ArmTo[j] : BlendFrom.LocalJoints[j].Rotation;
+                }
+            if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr))
+            {
+                for (int s = 0; s < 2; ++s) for (int w = 1; w < 4; ++w) out.LocalJoints[ArmChain[s][w]].Rotation = kept[s][w - 1];
+                return;
+            }
+            const auto place = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            const auto ramp = [](float v, float from, float to) { v = std::clamp((v - from) / (to - from), 0.f, 1.f); return v * v * (3 - 2 * v); };
+            const XMMATRIX chest = XMLoadFloat4x4(&out.ModelSpaceMatrices[Spine2]);
+            const XMVECTOR chestTurn = turnOf(Spine2);
+            there = std::clamp(there, 0.f, 1.f);
+            const float e = there * there * there * (10 - 15 * there + 6 * there * there);
+            for (int s = 0; s < 2; ++s)
+            {
+                const float out_ = s == 0 ? 1.f : -1.f;       // her left is +x
+                const int ua = ArmChain[s][1], fa = ArmChain[s][2], ha = ArmChain[s][3];
+                const XMVECTOR shoulder = place(ua), elbowThen = place(fa), handThen = place(ha);
+                const XMVECTOR qAbove = turnOf(Skeleton.Joints[ua].ParentIndex), qUpperThen = turnOf(ua), qForeThen = turnOf(fa), qHandThen = turnOf(ha);
+                const float upper = XMVectorGetX(XMVector3Length(elbowThen - shoulder)), fore = XMVectorGetX(XMVector3Length(handThen - elbowThen));
+                if (upper < .01f || fore < .01f) continue;
+                // the sword on her back, and the hand that holds it as it lies
+                const XMMATRIX lies = XMLoadFloat4x4(&SwordOnBack[s]) * chest;
+                XMVECTOR sc, qHand0, handle0;
+                if (!XMMatrixDecompose(&sc, &qHand0, &handle0, XMMatrixInverse(nullptr, XMLoadFloat4x4(&SwordInHand[s])) * lies)) continue;
+                qHand0 = XMQuaternionNormalize(qHand0);
+                const XMVECTOR middle = XMVector3TransformCoord(XMLoadFloat3(&SwordGrip[s]), lies);
+                const XMVECTOR blade = XMVector3Normalize(XMVector3TransformCoord(XMLoadFloat3(&SwordTip[s]), lies) - middle);
+                const XMVECTOR line0 = XMVector3Rotate(XMLoadFloat3(&HandLine[s]), qHand0);
+                // (turned about the handle to where her forearm comes from: her elbow up by her ear)
+                const XMVECTOR elbowUp = shoulder + XMVector3Rotate(XMVectorSet(out_ * .09f, .22f, .04f, 0), chestTurn);
+                float roll = 0;
+                XMVECTOR handle = handle0, elbowThere = elbowUp;
+                for (int pass = 0; pass < 3; ++pass)
+                {
+                    handle = middle + XMVector3Rotate(handle0 - middle, XMQuaternionRotationAxis(blade, roll));
+                    elbowThere = ElbowAt(shoulder, handle, upper, fore, elbowUp - (shoulder + handle) * .5f, nullptr);
+                    if (pass == 2) break;
+                    const XMVECTOR comes = XMVector3Normalize(handle - elbowThere);
+                    XMVECTOR line = comes - blade * XMVector3Dot(comes, blade);
+                    if (XMVectorGetX(XMVector3LengthSq(line)) < 1e-4f) break;
+                    line = XMVector3Normalize(line);
+                    roll = std::atan2(XMVectorGetX(XMVector3Dot(XMVector3Cross(line0, line), blade)), XMVectorGetX(XMVector3Dot(line0, line)));
+                }
+                const XMVECTOR qGrip = XMQuaternionNormalize(XMQuaternionMultiply(qHand0, XMQuaternionRotationAxis(blade, roll)));
+                // the way of her hand
+                const float low = ramp(XMVectorGetY(shoulder - handThen), .05f, .30f);       // a hand below her shoulder goes round it, before her
+                const XMVECTOR round = shoulder + XMVector3Rotate(XMVectorSet(out_ * .08f, .10f, .42f, 0), chestTurn);
+                const XMVECTOR by = XMVectorLerp((handThen + handle) * .5f, round, low);
+                XMVECTOR hand = handThen * ((1 - e) * (1 - e)) + by * (2 * e * (1 - e)) + handle * (e * e);
+                // her elbow: off the line from her shoulder to her hand, on the side it was, then out, then up
+                XMVECTOR poleThen = elbowThen - (shoulder + handThen) * .5f;
+                poleThen = XMVectorGetX(XMVector3LengthSq(poleThen)) > 1e-4f ? XMVector3Normalize(poleThen) : XMVector3Rotate(XMVector3Normalize(XMVectorSet(0, -.3f, -1, 0)), chestTurn);
+                const XMVECTOR poleThere = XMVector3Normalize(elbowThere - (shoulder + handle) * .5f);
+                const XMVECTOR poleOut = XMVector3Rotate(XMVector3Normalize(XMVectorSet(out_, -.25f, .15f, 0)), chestTurn);
+                XMVECTOR pole = poleThen * ((1 - e) * (1 - e)) + poleOut * (2 * e * (1 - e) * low) + poleThere * (e * e);
+                if (XMVectorGetX(XMVector3LengthSq(pole)) < 1e-4f) pole = poleOut;
+                XMVECTOR side;
+                const XMVECTOR elbow = ElbowAt(shoulder, hand, upper, fore, pole, &side);
+                const XMVECTOR upperLine = XMVector3Normalize(elbow - shoulder), foreLine = XMVector3Normalize(hand - elbow);
+                const XMVECTOR hinge = XMVector3Cross(side, XMVector3Normalize(hand - shoulder));
+                // turned about themselves: as the pose she comes from had them, then as an elbow allows
+                const XMVECTOR upperWas = XMQuaternionMultiply(qUpperThen, ArcTurn(XMVector3Normalize(elbowThen - shoulder), upperLine));
+                const XMVECTOR foreWas = XMQuaternionMultiply(qForeThen, ArcTurn(XMVector3Normalize(handThen - elbowThen), foreLine));
+                const XMVECTOR bentHinge = XMLoadFloat3(&ArmBent[s].Hinge);
+                const XMVECTOR upperBent = XMQuaternionMultiply(XMLoadFloat4(&ArmBent[s].Upper), FrameTurn(XMLoadFloat3(&ArmBent[s].UpperLine), bentHinge, upperLine, hinge));
+                const XMVECTOR foreBent = XMQuaternionMultiply(XMLoadFloat4(&ArmBent[s].Fore), FrameTurn(XMLoadFloat3(&ArmBent[s].ForeLine), bentHinge, foreLine, hinge));
+                const float bent = ramp(e, 0, .6f);
+                const XMVECTOR newUpper = XMQuaternionNormalize(XMQuaternionSlerp(upperWas, upperBent, bent)), newFore = XMQuaternionNormalize(XMQuaternionSlerp(foreWas, foreBent, bent));
+                const XMVECTOR newHand = XMQuaternionNormalize(XMQuaternionSlerp(qHandThen, qGrip, e));
+                XMStoreFloat4(&out.LocalJoints[ua].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newUpper, XMQuaternionInverse(qAbove))));
+                XMStoreFloat4(&out.LocalJoints[fa].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newFore, XMQuaternionInverse(newUpper))));
+                XMStoreFloat4(&out.LocalJoints[ha].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newHand, XMQuaternionInverse(newFore))));
+            }
+        }
+
         void StartAttack(const WorldState& world, const std::string& name, float into = 0)
         {
             Attack = name;
+            // A cut is entered so that her body can come to it (2026-11-19; owner: "odd gaps between attacks",
+            // "animations seems like concated wrong way", "hands are not following the skills and combos properly").
+            // Every cut was entered 0.34 s before its blow and her body brought to it in a tenth of a second, wherever
+            // it was: her hand was thrown to the clip's wind-up at 14 to 27 m/s, faster than any cut (8 to 15), turning
+            // at 1400 to 3700 degrees a second, and then waited there for its swing. Now what she was doing dies away
+            // evenly until just before the blow, and how long before the blow she enters is chosen for her hands
+            // (BestLead). Out of standing at ease the time is the draw's: to the handles, and from them into the swing.
+            float lead = AttackLead;
+            CutBlend = 0;
+            const auto swing = Swings.find(name);
+            if (swing != Swings.end() && name != "Attack_Jump")
+            {
+                if (!InHand) lead = (DrawReachPressed + DrawOnCut) * AttackRate + CutEnd;
+                else
+                {
+                    lead = BestLead(swing->second);
+                    CutBlend = (lead - CutEnd) / AttackRate;
+                }
+            }
             AttackTime = name.rfind("Skill_", 0) == 0 ? 0.f : name == "Attack_Jump" ? (std::min)(.25f + into, (std::max)(.25f, Hit(name) - .15f))
-                                                                                     : (std::max)(0.f, Hit(name) - AttackLead);
+                                                                                     : (std::max)(0.f, Hit(name) - lead);
             Queued = 0;
             Jumping = false;
             Log(world, ("attack " + name).c_str());
+            if (swing != Swings.end()) Log(world, ("cut lead " + std::to_string(lead) + " blend " + std::to_string(CutBlend) + " swing " + std::to_string(swing->second.Lead)).c_str());
         }
 
         // Metres per second forward that the move being played carries her (its own path, taken out of the clip).
@@ -1179,6 +1587,8 @@ namespace Doorways
                     if (n.ends_with(k ? "RightFoot" : "LeftFoot") && FootJoint[k] < 0) FootJoint[k] = static_cast<int>(i);
                     if (n.ends_with(k ? "RightToeBase" : "LeftToeBase") && ToeJoint[k] < 0) ToeJoint[k] = static_cast<int>(i);
                     const char* const arms[4] = {"Shoulder", "Arm", "ForeArm", "Hand"};
+                    if (n.ends_with(k ? "RightHandIndex1" : "LeftHandIndex1") && Knuckle[k][0] < 0) Knuckle[k][0] = static_cast<int>(i);
+                    if (n.ends_with(k ? "RightHandRing1" : "LeftHandRing1") && Knuckle[k][1] < 0) Knuckle[k][1] = static_cast<int>(i);
                     for (int w = 0; w < 4; ++w)
                         if (n.ends_with(std::string(k ? "Right" : "Left") + arms[w]) && ArmChain[k][w] < 0) ArmChain[k][w] = static_cast<int>(i);
                     for (int w = 0; w < 3; ++w)
@@ -1236,26 +1646,29 @@ namespace Doorways
                 }
             }
         }
-        // One clip at one time, eased in from whatever she was doing when the clip changed; during a cut on the move
-        // her legs are the gait's (Legs) and her spine takes up the difference of the hips.
-        // Her arms while she walks and runs, her swords on her back (owner, 2026-11-19: "she leaves her elbow open and
-        // little moved to the middle - i rather if she has iddle hands while moving and follow the movement little bit").
-        // The clips' arms were set frame by frame when they were built: the upper arm swung as a rod on her chest and the
-        // elbow was held at one angle, 22 degrees in the walk and 78 in the run, so that in a run her forearms stuck out
-        // before her like a tray's bearer's. Now her arms are the ones she stands with, and move as arms left alone do:
+        // Her arms as she stands and goes (2026-11-19; owner: "i rather if she has iddle hands while moving and follow the
+        // movement little bit"). The clips' arms were set frame by frame when they were built: the upper arm swung as a
+        // rod on her chest and the elbow was held at one angle, 22 degrees in the walk and 78 in the run, so that in a
+        // run her forearms stuck out before her like a tray's bearer's.
+        // At ease (Stand, and Move with her swords on her back) her arms are the ones she stands with, and move as arms
+        // left alone do:
         // - they hang by their own weight, down in the world and not down her chest: her chest leans into a run and
         //   turns with every step, her arms do not;
         // - each swings a little against the leg of its side, by how far her feet are apart (so it is in step at any
         //   pace, backwards, and turning on the spot), wider and a little behind her as she goes faster;
         // - the forearm is not held: it follows the upper arm late, as a thing hung from it does, so the elbow opens
         //   as the arm goes back and bends as it comes forward, more the faster she goes; an elbow does not bend back;
+        //   the hand is loose after the forearm;
         // - gathering speed her arms are left behind a little, and stopping they swing on, and settle.
-        // Standing they are the clip's own, so nothing changes as she starts and stops. Not while her swords are out or
-        // on their way (her arms are the cut's or the draw's then), nor in a jump or a fall.
+        // In a fight (Armed: Move, Jump and Fall with her swords in her hands) her arms are her guard's (Idle), carried by
+        // her chest, and give with her stride only a little: the swords are held, not swung.
+        // In and out at once: this is part of the pose she changes to, and what she was doing is carried on by Compose
+        // as at any change. Her speed is taken eased: it reads nothing for a frame as a key is let go, and her arms
+        // twitched at every stop (400 to 800 m/s2 at her hands).
         void EaseArms(const std::string& name, float time, float dt, DoorwaysSkeletonPose& out)
         {
-            const bool easy = (name == "Move" || name == "Stand") && Duration("Stand") > 0;
-            ArmsEasy += ((easy ? 1.f : 0.f) - ArmsEasy) * (std::min)(1.f, dt * 8);
+            const bool armed = Armed && (name == "Move" || name == "Jump" || name == "Fall") && Duration("Idle") > 0;
+            const bool easy = armed || ((name == "Move" || name == "Stand") && Duration("Stand") > 0);
             const size_t n = out.LocalJoints.size();
             bool whole = ArmJoint.size() == n && FootJoint[0] >= 0 && FootJoint[1] >= 0 && LegJoint[0] >= 0 && LegJoint[2] >= 0;
             for (int s = 0; s < 2 && whole; ++s)
@@ -1264,7 +1677,11 @@ namespace Doorways
                 whole = whole && Skeleton.Joints[ArmChain[s][2]].ParentIndex == ArmChain[s][1] && Skeleton.Joints[ArmChain[s][3]].ParentIndex == ArmChain[s][2] &&
                         Skeleton.Joints[ArmChain[s][1]].ParentIndex >= 0;
             }
-            if (ArmsEasy < .003f || !whole) { ForeAt[0] = ForeAt[1] = ForeGo[0] = ForeGo[1] = ArmLag = 0; return; }
+            const bool was = ArmsEasy > 0;
+            ArmsEasy = 0;
+            const float pace = name == "Move" ? (std::max)(Speed, std::hypot(Glide.x, Glide.y)) : 0.f;
+            ArmPace = was ? ArmPace + (pace - ArmPace) * (std::min)(1.f, dt * 12) : pace;
+            if (!easy || !whole) return;
             const auto place = [](const DoorwaysSkeletonPose& p, int j) { const auto& m = p.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
             if (!ArmRestKnown)
             {   // which way her arms hang as she stands
@@ -1277,12 +1694,20 @@ namespace Doorways
                 }
                 ArmRestKnown = true;
             }
-            if (!Sample("Stand", name == "Stand" ? time : std::fmod(Clock, Duration("Stand")), EasePose, nullptr) || EasePose.LocalJoints.size() != n) return;
+            const std::string source = armed ? "Idle" : "Stand";
+            if (!Sample(source, name == source ? time : std::fmod(Clock, Duration(source)), EasePose, nullptr) || EasePose.LocalJoints.size() != n) return;
             ArmClip.resize(n);
             for (size_t i = 0; i < n; ++i)
                 if (ArmJoint[i]) { ArmClip[i] = out.LocalJoints[i].Rotation; out.LocalJoints[i].Rotation = EasePose.LocalJoints[i].Rotation; }
-            const auto back = [&] { for (size_t i = 0; i < n; ++i) if (ArmJoint[i]) out.LocalJoints[i].Rotation = ArmClip[i]; };
-            if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr)) { back(); return; }
+            if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr))
+            {
+                for (size_t i = 0; i < n; ++i) if (ArmJoint[i]) out.LocalJoints[i].Rotation = ArmClip[i];
+                return;
+            }
+            if (armed)      // her swords as her fists hold them (the stride's clips have them on her back)
+                for (int k = 0; k < 2; ++k)
+                    if (SwordJoint[k] >= 0) out.LocalJoints[SwordJoint[k]] = EasePose.LocalJoints[SwordJoint[k]];
+            ArmsEasy = 1;
             const auto at = [&](int j) { return place(out, j); };
             const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
             const auto ramp = [](float v, float from, float to) { v = std::clamp((v - from) / (to - from), 0.f, 1.f); return v * v * (3 - 2 * v); };
@@ -1290,20 +1715,24 @@ namespace Doorways
             const float leg = XMVectorGetX(XMVector3Length(at(LegJoint[2]) - at(LegJoint[0]))) + XMVectorGetX(XMVector3Length(at(FootJoint[0]) - at(LegJoint[2])));
             const float lead = XMVectorGetZ(at(FootJoint[0]) - at(FootJoint[1]));
             LeadMost = (std::max)(std::abs(lead), LeadMost * std::exp(-dt * 1.5f));
-            const float moving = ramp(Speed, .15f, .9f);
+            const float moving = ramp(ArmPace, .15f, .9f);
             const float stride = std::clamp(lead / (std::max)(LeadMost, .35f * leg), -1.f, 1.f) * moving;
-            const float swing = XMConvertToRadians(13 + 6 * GaitRun), bent = XMConvertToRadians(3 + 8 * GaitRun) * moving;
+            const float swing = XMConvertToRadians(armed ? 4 + 4 * GaitRun : 13 + 6 * GaitRun), bent = armed ? 0.f : XMConvertToRadians(3 + 8 * GaitRun) * moving;
+            if (!was) ArmLag = 0;
             ArmLag += (std::clamp(-Gain * .012f, -.14f, .14f) - ArmLag) * (std::min)(1.f, dt * 6);
-            const float behind = ArmLag - XMConvertToRadians(2 + 7 * GaitRun) * moving;
+            const float behind = armed ? ArmLag * .5f : ArmLag - XMConvertToRadians(2 + 7 * GaitRun) * moving;
             for (int s = 0; s < 2; ++s)
             {
                 const int ua = ArmChain[s][1], fa = ArmChain[s][2], ha = ArmChain[s][3], above = Skeleton.Joints[ua].ParentIndex;
-                const XMFLOAT3& r1 = ArmRest[s][0]; const XMFLOAT3& r2 = ArmRest[s][1];
+                const XMVECTOR d1 = XMVector3Normalize(at(fa) - at(ua)), d2 = XMVector3Normalize(at(ha) - at(fa));
+                XMFLOAT3 r1 = ArmRest[s][0], r2 = ArmRest[s][1];
+                if (armed) { XMStoreFloat3(&r1, d1); XMStoreFloat3(&r2, d2); }      // (her guard as her chest carries it now)
                 const float tilt1 = std::atan2(r1.z, -r1.y), tilt2 = std::atan2(r2.z, -r2.y), across1 = std::hypot(r1.y, r1.z), across2 = std::hypot(r2.y, r2.z);
                 // the upper arm: forward as the foot of its side is back
                 const float arm = behind + (s == 0 ? -1.f : 1.f) * swing * stride;
                 // the forearm: after it, late (a weight on a spring, a little short of damped: it swings on once)
                 const float to = arm + bent;
+                if (!was) { ForeAt[s] = to; ForeGo[s] = 0; }
                 constexpr float Quick = 14.f, Damp = .6f;
                 for (float left = dt; left > 1e-6f;)
                 {
@@ -1311,28 +1740,27 @@ namespace Doorways
                     ForeGo[s] += (Quick * Quick * (to - ForeAt[s]) - 2 * Damp * Quick * ForeGo[s]) * h;
                     ForeAt[s] += ForeGo[s] * h;
                 }
-                // (an elbow bends one way, and no further than it does)
-                const float least = arm + XMConvertToRadians(3) - (tilt2 - tilt1), most = arm + XMConvertToRadians(75) - (tilt2 - tilt1);
+                // (an elbow bends one way, and no further than it does; a guard is held: it gives a little, no more)
+                const float least = armed ? arm - XMConvertToRadians(12) : arm + XMConvertToRadians(3) - (tilt2 - tilt1);
+                const float most = armed ? arm + XMConvertToRadians(12) : arm + XMConvertToRadians(75) - (tilt2 - tilt1);
                 if (ForeAt[s] < least) { ForeAt[s] = least; ForeGo[s] = (std::max)(ForeGo[s], 0.f); }
                 if (ForeAt[s] > most) { ForeAt[s] = most; ForeGo[s] = (std::min)(ForeGo[s], 0.f); }
                 const XMVECTOR want1 = XMVectorSet(r1.x, -across1 * std::cos(tilt1 + arm), across1 * std::sin(tilt1 + arm), 0);
                 const XMVECTOR want2 = XMVectorSet(r2.x, -across2 * std::cos(tilt2 + ForeAt[s]), across2 * std::sin(tilt2 + ForeAt[s]), 0);
                 const XMVECTOR qAbove = turnOf(above), qArm = turnOf(ua), qFore = turnOf(fa);
-                const XMVECTOR d1 = XMVector3Normalize(at(fa) - at(ua)), d2 = XMVector3Normalize(at(ha) - at(fa));
                 const XMVECTOR turn1 = ArcTurn(d1, XMVector3Normalize(want1)), newArm = XMQuaternionMultiply(qArm, turn1);
                 const XMVECTOR turn2 = ArcTurn(XMVector3Rotate(d2, turn1), XMVector3Normalize(want2)), newFore = XMQuaternionMultiply(XMQuaternionMultiply(qFore, turn1), turn2);
                 XMStoreFloat4(&out.LocalJoints[ua].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newArm, XMQuaternionInverse(qAbove))));
                 XMStoreFloat4(&out.LocalJoints[fa].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newFore, XMQuaternionInverse(newArm))));
-                // the hand: a loose wrist, left behind a little by the forearm as that swings (8 degrees at a run)
-                const float loose = std::clamp(-.035f * ForeGo[s], -.2f, .2f);
+                // the hand: a loose wrist, left behind a little by the forearm as that swings (8 degrees at a run); a fist on a handle is not
+                const float loose = armed ? 0.f : std::clamp(-.035f * ForeGo[s], -.2f, .2f);
                 const XMVECTOR flop = ArcTurn(XMVectorSet(0, -1, 0, 0), XMVectorSet(0, -std::cos(loose), std::sin(loose), 0));
                 const XMVECTOR newHand = XMQuaternionMultiply(XMQuaternionMultiply(XMQuaternionMultiply(turnOf(ha), turn1), turn2), flop);
                 XMStoreFloat4(&out.LocalJoints[ha].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(newHand, XMQuaternionInverse(newFore))));
             }
-            if (const float w = ArmsEasy * ArmsEasy * (3 - 2 * ArmsEasy); w < .999f)
-                for (size_t i = 0; i < n; ++i)      // on the way in and out: between the clip's arms and these
-                    if (ArmJoint[i]) XMStoreFloat4(&out.LocalJoints[i].Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&ArmClip[i]), XMLoadFloat4(&out.LocalJoints[i].Rotation), w)));
         }
+        // One clip at one time, eased in from whatever she was doing when the clip changed; during a cut on the move
+        // her legs are the gait's (Legs) and her spine takes up the difference of the hips.
         bool Compose(const WorldState& world, const std::string& name, float time, float dt, DoorwaysSkeletonPose& out, std::string* error)
         {
             if (!Sample(name, time, out, error)) return false;
@@ -1369,8 +1797,18 @@ namespace Doorways
                 }
                 else XMStoreFloat4(&out.LocalJoints[Spine].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(spine, rest)));
             }
-            if (name != LastClip)
+            EaseArms(name, time, dt, out);      // her arms at ease, or on guard as she goes: part of the pose she changes to
+            if (PoseFile.is_open() && ArmChain[0][3] >= 0 && ArmChain[1][3] >= 0)
+            {   // (for the pose log: her hands as the clip alone has them)
+                ClipOnly = out;
+                if (EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, ClipOnly, nullptr))
+                    for (int s = 0; s < 2; ++s) { const auto& m = ClipOnly.ModelSpaceMatrices[ArmChain[s][3]]; ClipHand[s] = {m._41, m._42, m._43}; }
+            }
+            // (her swords taken or put away as she goes on: a change as any other, but of her arms and swords alone)
+            const bool same = name == LastClip;
+            if (!same || (Armed != WasArmed && (name == "Move" || name == "Jump" || name == "Fall")))
             {
+                WasArmed = Armed;
                 if (!HasReach && Clips.find("Sword_Reach") != Clips.end()) HasReach = Sample("Sword_Reach", 0, ReachPose, nullptr);
                 if (!HasBack && Spine2 >= 0 && SwordJoint[0] >= 0 && SwordJoint[1] >= 0)
                 {
@@ -1387,27 +1825,29 @@ namespace Doorways
                 // Where her swords are is kept (2026-11-19), not read from the clip she comes from: a draw broken off
                 // before her hands were at the handles left them on her back, and the next clip had them in her fists
                 // without her ever taking them. Dying, she does not draw: they stay where they are.
-                if (LastClip.empty()) InHand = !SwordsAway(name);
-                Drawing = HasReach && name != "Death" && InHand == SwordsAway(name) && ReachPose.LocalJoints.size() == out.LocalJoints.size();
-                if (!Drawing && name != "Death") InHand = !SwordsAway(name);
+                if (LastClip.empty()) InHand = !Away(name);
+                Drawing = HasReach && name != "Death" && InHand == Away(name) && ReachPose.LocalJoints.size() == out.LocalJoints.size();
+                if (!Drawing && name != "Death") InHand = !Away(name);
                 BlendFrom = Previous;
                 BlendTime = 0;
-                BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? .17f : .2f;
+                BlendSeconds = name == "Death" || name == "Jump" ? .12f : name.rfind("Attack", 0) == 0 ? (CutBlend > 0 ? CutBlend : .17f) : .2f;
                 if (Drawing)
                 {   // Her arms have their own time: up to the handles, and on to the new clip. A cut out of standing at
                     // ease took her hand from her hip to the handle over her shoulder in an eighth of a second (20 m/s at
                     // its fastest: a whip, not an arm). Now the way up takes the longer part and the cut comes down from
                     // the handle; unhurried when nothing presses, and slowest putting them away to stand at ease.
                     const bool pressed = name.rfind("Attack", 0) == 0 || name.rfind("Skill", 0) == 0 || name.rfind("Cast", 0) == 0;
-                    BlendSeconds = pressed ? .26f : .36f;
-                    DrawReach = pressed ? .19f : name == "Stand" ? .30f : .22f;
-                    DrawSeconds = DrawReach + (pressed ? .12f : name == "Stand" ? .34f : .22f);
+                    const bool cut = name.rfind("Attack", 0) == 0 && name != "Attack_Jump";
+                    BlendSeconds = cut ? DrawReachPressed + DrawOnCut : pressed ? .26f : .36f;   // (into a cut her body goes with her arms: there just before the blow)
+                    DrawReach = pressed ? DrawReachPressed : name == "Stand" ? .32f : .26f;
+                    DrawSeconds = DrawReach + (cut ? DrawOnCut : pressed ? DrawOnPressed : name == "Stand" ? .34f : .26f);
                 }
                 LastClip = name;
                 // what is carried on: for every joint, the old pose against the new one, and how the old one was moving
                 // (no faster than would cross that difference three times in the time of the change: no overshoot of note)
                 const size_t n = out.LocalJoints.size();
-                CarrySeconds = Previous.LocalJoints.size() == n ? BlendSeconds * 1.6f : 0.f;
+                CarrySmooth = name.rfind("Attack", 0) == 0 && name != "Attack_Jump" && (CutBlend > 0 || Drawing);
+                CarrySeconds = Previous.LocalJoints.size() != n || same ? 0.f : CarrySmooth ? BlendSeconds : BlendSeconds * 1.6f;
                 CarryArms = !Drawing;
                 ArmTo.assign(out.LocalJoints.size(), XMFLOAT4{0, 0, 0, 0});
                 CarryAt.assign(n, {}); CarryGo.assign(n, {}); CarryTurn.assign(n, {}); CarrySpin.assign(n, {});
@@ -1433,21 +1873,25 @@ namespace Doorways
             if (CarrySeconds > 0 && BlendTime < CarrySeconds && CarryAt.size() == out.LocalJoints.size())
             {   // it dies away as a spring without swing does: all but gone when the old mix would have ended
                 const float y = 5.5f / BlendSeconds, e = std::exp(-y * BlendTime);
+                // (into a cut it dies away evenly instead, slow away and slow in, and is gone as the swing begins: as a
+                // spring it was fastest in its first frames, and her hand was thrown at the wind-up)
+                const float gone = BlendTime / CarrySeconds, rest = 1 - gone;
+                const float wAt = CarrySmooth ? 1 - gone * gone * gone * (10 - 15 * gone + 6 * gone * gone) : (1 + y * BlendTime) * e;
+                const float wGo = CarrySmooth ? BlendTime * rest * rest * rest : BlendTime * e;
                 for (size_t i = 0; i < out.LocalJoints.size(); ++i)
                 {
                     if (static_cast<int>(i) == SwordJoint[0] || static_cast<int>(i) == SwordJoint[1]) continue;   // (below)
                     if (!CarryArms && i < ArmJoint.size() && ArmJoint[i]) continue;                                // (to the handles, below)
                     auto& to = out.LocalJoints[i];
                     const XMVECTOR at = XMLoadFloat3(&CarryAt[i]), turned = XMLoadFloat3(&CarryTurn[i]);
-                    XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + (at + (XMLoadFloat3(&CarryGo[i]) + at * y) * BlendTime) * e);
-                    const XMVECTOR turn = (turned + (XMLoadFloat3(&CarrySpin[i]) + turned * y) * BlendTime) * e;
+                    XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + at * wAt + XMLoadFloat3(&CarryGo[i]) * wGo);
+                    const XMVECTOR turn = turned * wAt + XMLoadFloat3(&CarrySpin[i]) * wGo;
                     XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionMultiply(XMLoadFloat4(&to.Rotation), TurnOf(turn))));
                 }
             }
-            EaseArms(name, time, dt, out);      // (before a draw: putting her swords away as she walks off, her hands come from the handles to these arms)
             const bool drawing = Drawing && BlendTime < DrawSeconds;      // her arms on their way to the handles and on
             const bool atHandles = BlendTime >= DrawReach;                // (in a draw) her hands have been there
-            if (Drawing && atHandles) InHand = !SwordsAway(name);         // taken, or put away
+            if (Drawing && atHandles) InHand = !Away(name);               // taken, or put away
             if (((BlendSeconds > 0 && BlendTime < BlendSeconds) || drawing) && BlendFrom.LocalJoints.size() == out.LocalJoints.size())
             {
                 float w = BlendSeconds > 0 ? std::clamp(BlendTime / BlendSeconds, 0.f, 1.f) : 1.f;
@@ -1482,6 +1926,8 @@ namespace Doorways
                         continue;
                     }
                 }
+                // (her shoulders and fingers go so; her arms and hands by the way an arm takes)
+                if (drawing) ReachArms(out, atHandles, atHandles ? 1 - (BlendTime - DrawReach) / (std::max)(.01f, DrawSeconds - DrawReach) : BlendTime / (std::max)(.01f, DrawReach));
             }
             // On her back her swords are carried by her chest, whatever her arms do (2026-11-19). The clips key them
             // against her hands so that they lie on her back as the clip moves her arms; but through every change of
@@ -1499,6 +1945,42 @@ namespace Doorways
                     XMStoreFloat3(&out.LocalJoints[j].Translation, t);
                     XMStoreFloat4(&out.LocalJoints[j].Rotation, XMQuaternionNormalize(q));
                 }
+            // A sword taken or let go is not at once where its new holder has it (2026-11-19): it was, and jumped there
+            // (16 to 24 cm, and turned). Her hand closes on the handle where it lies, but turned about it as a forearm
+            // can come to it, a quarter turn from how the sword lies on her back. So, taken, the sword turns about its
+            // handle into her fist as she pulls it; and let go, it turns back onto her back as her hand leaves it.
+            if (InHand != SwordWasInHand)
+            {
+                SwordWasInHand = InHand; SettleKnown = false;
+                SwordSettle = Previous.ModelSpaceMatrices.size() == Skeleton.Joints.size() && SwordJoint[0] >= 0 && SwordJoint[1] >= 0 ? 0.f : SettleSeconds;
+                if (SwordSettle < SettleSeconds)
+                    for (int k = 0; k < 2; ++k) SwordBefore[k] = Previous.ModelSpaceMatrices[SwordJoint[k]];
+            }
+            if (SwordSettle < SettleSeconds && !SwordsOut && EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, &whyNot))
+            {
+                for (int k = 0; k < 2 && !SettleKnown; ++k)
+                {
+                    XMVECTOR sc, turned, slipped;
+                    if (!XMMatrixDecompose(&sc, &turned, &slipped, XMLoadFloat4x4(&SwordBefore[k]) * XMMatrixInverse(nullptr, XMLoadFloat4x4(&out.ModelSpaceMatrices[SwordJoint[k]]))))
+                    { turned = XMQuaternionIdentity(); slipped = XMVectorZero(); }
+                    turned = XMQuaternionNormalize(turned);
+                    if (XMVectorGetW(turned) < 0) turned = XMVectorNegate(turned);
+                    const XMVECTOR middle = XMLoadFloat3(&SwordGrip[k]);
+                    XMStoreFloat4(&SettleTurn[k], turned);
+                    XMStoreFloat3(&SettleSlip[k], slipped - middle + XMVector3Rotate(middle, turned));
+                }
+                SettleKnown = true;
+                const float gone = SwordSettle / SettleSeconds, left = 1 - gone * gone * gone * (10 - 15 * gone + 6 * gone * gone);
+                for (int k = 0; k < 2; ++k)
+                {
+                    auto& sword = out.LocalJoints[SwordJoint[k]];
+                    const XMVECTOR turned = XMQuaternionSlerp(XMQuaternionIdentity(), XMLoadFloat4(&SettleTurn[k]), left), middle = XMLoadFloat3(&SwordGrip[k]);
+                    const XMVECTOR slipped = (middle - XMVector3Rotate(middle, turned) + XMLoadFloat3(&SettleSlip[k]) * left) * XMLoadFloat3(&sword.Scale);
+                    XMStoreFloat3(&sword.Translation, XMLoadFloat3(&sword.Translation) + XMVector3Rotate(slipped, XMLoadFloat4(&sword.Rotation)));
+                    XMStoreFloat4(&sword.Rotation, XMQuaternionNormalize(XMQuaternionMultiply(turned, XMLoadFloat4(&sword.Rotation))));
+                }
+                SwordSettle += (std::max)(0.f, dt);
+            }
             PlaceSwords(world, out);
             if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, error)) return false;
             if (LegJoint[0] >= 0)
@@ -1619,6 +2101,9 @@ namespace Doorways
         b.FindSwords();
         if (b.SwordJoint[0] < 0) { error = "her body has no SwordLeft / SwordRight bones (" + bundle.string() + ")"; return false; }
         if (!b.Sample("Idle", 0, b.Previous, &error)) return false;
+        b.SmoothWrists();
+        b.LearnSwings();
+        b.LearnGrip();
         char log[MAX_PATH] = {};
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_LOG", log, sizeof(log)) > 0 && log[0])
         {
@@ -1631,7 +2116,7 @@ namespace Doorways
             b.PoseFile << "seconds\tdt\tclip\tphase\tspeed\tx\ty\tz\tyaw\tgrounded\tvy\tflying\tplanted\tleft_gap\tright_gap";
             for (const char* name : {"Hips", "Spine2", "Head", "LeftHand", "RightHand", "LeftLeg", "RightLeg", "LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase",
                                      "WingL3", "WingR3", "SwordLeft", "SwordRight", "DressLeftKnee", "DressRightKnee",
-                                     "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHandMiddle1", "RightHandMiddle1"})
+                                     "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHandIndex1", "RightHandIndex1", "LeftHandRing1", "RightHandRing1"})
                 for (size_t i = 0; i < b.Skeleton.Joints.size(); ++i)
                     if (b.Skeleton.Joints[i].Name.ends_with(name))
                     {
@@ -1639,9 +2124,62 @@ namespace Doorways
                         for (const char* axis : {"_x", "_y", "_z"}) b.PoseFile << '\t' << name << axis;
                         break;
                     }
+            for (const char* name : {"SwordLeftTip", "SwordRightTip", "ClipLeftHand", "ClipRightHand"})
+                for (const char* axis : {"_x", "_y", "_z"}) b.PoseFile << '\t' << name << axis;
             for (const char* foot : {"left", "right"})
                 for (const char* what : {"_held", "_air", "_go", "_togo", "_lifted", "_stair", "_free", "_swing", "_land"}) b.PoseFile << '\t' << foot << what;
             b.PoseFile << '\n' << std::setprecision(6);
+        }
+        if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_CLIPDUMP", log, sizeof(log)) > 0 && log[0])
+        {   // every clip as the bundle has it, 60 times a second: her joints in her own space (for looking at the clips themselves)
+            std::ofstream dump(log);
+            std::vector<int> joints;
+            dump << "clip\tseconds";
+            for (const char* name : {"Hips", "Spine2", "Head", "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHand", "RightHand",
+                                     "LeftHandIndex1", "RightHandIndex1", "LeftHandRing1", "RightHandRing1", "SwordLeft", "SwordRight", "LeftFoot", "RightFoot"})
+                for (size_t i = 0; i < b.Skeleton.Joints.size(); ++i)
+                    if (b.Skeleton.Joints[i].Name.ends_with(name))
+                    {
+                        joints.push_back(static_cast<int>(i));
+                        for (const char* axis : {"_x", "_y", "_z"}) dump << '\t' << name << axis;
+                        break;
+                    }
+            for (const char* name : {"SwordLeftTip", "SwordRightTip"})
+                for (const char* axis : {"_x", "_y", "_z"}) dump << '\t' << name << axis;
+            // (and how these are turned, in her own space: for working out her grip)
+            std::vector<int> turned;
+            for (const char* name : {"Spine2", "LeftShoulder", "RightShoulder", "LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHand", "RightHand", "SwordLeft", "SwordRight"})
+                for (size_t i = 0; i < b.Skeleton.Joints.size(); ++i)
+                    if (b.Skeleton.Joints[i].Name.ends_with(name))
+                    {
+                        turned.push_back(static_cast<int>(i));
+                        for (const char* axis : {"_qx", "_qy", "_qz", "_qw"}) dump << '\t' << name << axis;
+                        break;
+                    }
+            dump << '\n' << std::setprecision(6);
+            DoorwaysSkeletonPose pose;
+            for (const auto& entry : b.Clips)
+            {
+                const float last = b.Duration(entry.first);
+                for (int f = 0; f / 60.f <= last + 1e-4f; ++f)
+                {
+                    if (!b.Sample(entry.first, (std::min)(f / 60.f, last), pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(b.Skeleton, pose, nullptr)) break;
+                    dump << entry.first << '\t' << f / 60.f;
+                    for (const int j : joints) { const auto& m = pose.ModelSpaceMatrices[j]; dump << '\t' << m._41 << '\t' << m._42 << '\t' << m._43; }
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        XMFLOAT3 at; XMStoreFloat3(&at, XMVector3TransformCoord(XMLoadFloat3(&b.SwordTip[k]), XMLoadFloat4x4(&pose.ModelSpaceMatrices[b.SwordJoint[k]])));
+                        dump << '\t' << at.x << '\t' << at.y << '\t' << at.z;
+                    }
+                    for (const int j : turned)
+                    {
+                        XMVECTOR sc, q, t; XMFLOAT4 r{0, 0, 0, 1};
+                        if (XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&pose.ModelSpaceMatrices[j]))) XMStoreFloat4(&r, XMQuaternionNormalize(q));
+                        dump << '\t' << r.x << '\t' << r.y << '\t' << r.z << '\t' << r.w;
+                    }
+                    dump << '\n';
+                }
+            }
         }
         OutputDebugStringA(("[PASS] Nyxara: her body " + bundle.filename().string() + " with " + std::to_string(b.Clips.size()) + " clips.\n").c_str());
         return true;
@@ -2215,14 +2753,10 @@ namespace Doorways
             }
         }
         if (b.Skill()) b.Queued = 0;
-        const auto chain = [](int h, int step) -> const char*
-        {
-            return h == 1 ? LeftChain[step % static_cast<int>(std::size(LeftChain))] : RightChain[step % static_cast<int>(std::size(RightChain))];
-        };
         if (b.Queued && free)
         {
             if (b.Jumping) b.StartAttack(world, "Attack_Jump", b.JumpTime);
-            else if (b.Attack.empty()) { b.Step = 0; b.StartAttack(world, chain(b.Queued, 0)); }
+            else if (b.Attack.empty()) { b.Step = 0; b.StartAttack(world, b.NextCut(b.Queued)); }
         }
         else if (!free) b.Queued = 0;
 
@@ -2412,8 +2946,9 @@ namespace Doorways
             }
             if (b.Queued && b.AttackTime >= hit + ChainAfter)
             {
+                const char* next = b.NextCut(b.Queued);
                 b.Step = b.Attack == "Attack_Jump" ? 0 : b.Step + 1;
-                b.StartAttack(world, chain(b.Queued, b.Step));
+                b.StartAttack(world, next);
             }
             else if (b.AttackTime >= (std::min)(b.Duration(b.Attack), hit + AttackTail)) b.Attack.clear();
         }
@@ -2660,7 +3195,9 @@ namespace Doorways
         }
 
         // ---- the clip and her pose
-        const bool moving = b.Speed > .08f || std::hypot(b.Glide.x, b.Glide.y) > .08f;   // (carried on after the key: still her stride)
+        // (her own going, or carried on after the key: still her stride. Not what a move's last push leaves her for a
+        // frame: after every skill she strode for one frame, and her arms and swords set out for her back and returned)
+        const bool moving = (p.IsMoving && b.Speed > .08f) || std::hypot(b.Glide.x, b.Glide.y) > .08f;
         {   // On guard or at ease (2026-11-19). Idle is a fighter's guard, both swords up: she stood so everywhere, and
             // drew both swords every time she stopped walking. Now she stands on guard only while something threatens
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
@@ -2671,9 +3208,12 @@ namespace Doorways
             b.Struck = false;
             for (const auto& w : mWraiths)
                 if (!threat && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
-            // (walking off with nothing near, she is done: her swords go to her back for the stride anyway, and she
-            // would only draw them again to stand, and put them away once more)
-            b.Guard = threat ? GuardSeconds : b.Speed > 1 ? 0.f : (std::max)(0.f, b.Guard - dt);
+            // And while that lasts her swords stay in her hands as she goes, jumps and falls (Armed; owner, 2026-11-19:
+            // "hands are not following the skills and combos properly"). Until this they went to her back with her first
+            // step, and were drawn again for every cut and every skill made on the move: in a fight on the move her
+            // hands were at her shoulders half the time, and every cut began there instead of at its own wind-up.
+            b.Guard = threat ? GuardSeconds : (std::max)(0.f, b.Guard - dt);
+            b.Armed = b.Guard > 0;
         }
         std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
         float time = b.Clock;
