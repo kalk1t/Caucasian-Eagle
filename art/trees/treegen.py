@@ -236,14 +236,14 @@ class Tree:
         for k in range(n):
             an = 6.2832 * (k + r.uniform(-0.25, 0.25)) / n; self.root_az.append(an)
             d = np.array((math.cos(an), 0, math.sin(an)))
-            L = max(self.H * frac * r.uniform(0.6, 1.25), 0.6)
+            L = max(self.H * frac * r.uniform(0.45, 0.85), 0.5)   # (short: on a slope a long root hangs in the air)
             start = np.array((0.0, r0 * 0.55, 0.0)) + d * r0 * 0.75
             pts = [start]; rads = [r0 * r.uniform(0.42, 0.55)]
             m = 12; q = start.copy()
             for i in range(1, m + 1):                                   # out along the ground, half in it, then down into it
                 t = i / m; d = unit(d + np.array((r.uniform(-0.25, 0.25), 0, r.uniform(-0.25, 0.25))))
                 q = q + d * L / m; rr_ = rads[0] * (1 - 0.85 * t ** 0.7)
-                y = rr_ * 0.45 + r0 * 0.55 * (1 - min(t / 0.3, 1.0)) ** 2 - (0.0 if t < 0.75 else (t - 0.75) * 2.5 * rr_ / 0.12)
+                y = rr_ * 0.45 + r0 * 0.55 * (1 - min(t / 0.3, 1.0)) ** 2 - (0.0 if t < 0.45 else (t - 0.45) * 1.6 * (rr_ + 0.08) / 0.12)
                 q = np.array((q[0], y, q[2])); pts.append(q); rads.append(rr_)
             self.roots.append(Branch(pts, rads, -1))
 
@@ -351,6 +351,7 @@ def build(tree, rects, lod, fruit_uv=None):
     sp, rng = tree.sp, np.random.default_rng(12345 + lod)
     bark, leaves = Mesh(), Mesh()
     crown_c = crown_shape(tree)
+    if lod == 3: return far(tree, rects, crown_c, rng)
     maxlevel = {0: 9, 1: 2, 2: 1}[lod]
     if sp.get("shrub"): maxlevel = {0: 9, 1: 2, 2: 1}[lod]
     r0 = tree.branches[0].rad[0] if tree.branches else 0.1
@@ -364,7 +365,9 @@ def build(tree, rects, lod, fruit_uv=None):
         sd = sides_for(float(b.rad[0]), lod)
         if lod == 0 and b.rad[0] < 0.010 and b.level >= 2: continue      # twigs this thin: inside their sprays
         if sp["conifer"] and b.level >= 2 and sp.get("cards") == "bough": continue   # a fir's side shoots: inside its boughs
-        if b.level == 0: tube(bark, b, max(sd, 8), flare=flare, lobes=lobes, rings_every=1 if lod == 0 else 2)
+        if sp["conifer"] and b.level == 1 and lod >= 1 and not sp.get("shrub"):            # its limbs, from afar: only the stoutest, low ones
+            if lod == 2 or b.rad[0] < 0.05: continue
+        if b.level == 0: tube(bark, b, max(sd, 22 if lod == 0 else 10 if lod == 1 else 6), flare=flare, lobes=lobes, rings_every=1 if lod == 0 else 2)
         else: tube(bark, b, sd, rings_every=(1 if b.level == 1 else 3) if lod == 0 else 3)
     if lod < 2:
         for b in tree.roots: tube(bark, b, max(sides_for(float(b.rad[0]), lod) - 2, 5 if lod == 0 else 4))
@@ -436,6 +439,42 @@ def build(tree, rects, lod, fruit_uv=None):
                 p2, d2, _ = b.at(0.6); crossed(leaves, p2, size * 0.75, A, crown_c, rng, n=2)
     return bark, leaves
 
+def far(tree, rects, crown_c, rng):
+    """Level 3 (seen from hundreds of metres): the trunk as a 4-sided post, the crown as a few large crossed cards
+    of its cluster picture (C) where its leaves are: a leaf tree's in one ball, a conifer's stacked and narrowing."""
+    sp = tree.sp; bark, leaves = Mesh(), Mesh(); C = rects["C"]
+    stems = [b for b in tree.branches if b.level == 0] or [b for b in tree.branches if b.level == 1][:3]
+    for b in stems:
+        tube(bark, b, 4, rings_every=max(1, len(b.pts) // 4))
+    if sp.get("cards") is None:
+        for b in [b for b in tree.branches if b.level == 1][:6]: tube(bark, b, 3, rings_every=max(1, len(b.pts) // 2))
+        return bark, leaves
+    c, rx, ry = crown_c
+    A, B = rects["A"], rects["B"]
+    if sp["conifer"] and hasattr(tree, "trunk"):
+        tr = tree.trunk; tiers = 9; cb = sp["crown_base"]
+        lim = [b for b in tree.branches if b.level == 1 and not b.dead]
+        reach = max(np.percentile([b.length for b in lim], 75), 0.5) if lim else rx
+        for k in range(tiers):                                   # tiers of boughs, radiating, shorter toward the top
+            t = cb + (1 - cb) * (k + 0.2) / tiers; p, _, _ = tr.at(t)
+            L = max(rx, reach) * max(1.0 - (t - cb) / (1 - cb) * 0.9, 0.12) * 1.35
+            n = 7 if k < tiers - 2 else 5; a0 = rng.uniform(0, 6.28)
+            for j in range(n):
+                an = a0 + 6.2832 * j / n; d = np.array((math.cos(an), -0.25, math.sin(an))); d = unit(d)
+                side = unit(np.cross(d, UP)); R = A if j % 2 else B
+                W = max(L * asp(R) * 1.6, (1 - cb) * tree.H / tiers * 1.4)
+                card(leaves, p, d, side, L, W, R, crown_c, fold=0.35)
+                card(leaves, p - UP * W * 0.15, d, unit(np.cross(side, d)), L, W * 1.1, B if R is A else A, crown_c, fold=0.1)   # and upright: its silhouette from the side
+        top = tr.pts[-1]; tl = reach * 0.35
+        for an in (0.0, math.pi / 2): card(leaves, top - UP * tl * 1.2, UP, np.array((math.cos(an), 0, math.sin(an))), tl * 1.3, tl * 1.3 * asp(A), A, crown_c, fold=0.05)
+    else:
+        crossed(leaves, c, (rx + ry) * 0.8, C, crown_c, rng, n=3)
+        for k in range(8):                                       # clusters over the crown's shell
+            an = 6.2832 * (k + rng.uniform(-0.2, 0.2)) / 8; el = rng.uniform(-0.3, 0.8)
+            d = np.array((math.cos(an) * math.cos(el), math.sin(el), math.sin(an) * math.cos(el)))
+            crossed(leaves, c + d * np.array((rx, ry, rx)) * 0.62, (rx + ry) * 0.55, C, crown_c, rng, n=2)
+    return bark, leaves
+
 def inner(leaves, tree, crown_c, rect, rng, lod, conifer=False):
     """Clusters inside the crown, so that no sky shows through its middle (a real crown is thick)."""
     c, rx, ry = crown_c; n = {0: 14, 1: 10, 2: 6}[lod] if not conifer else {0: 10, 1: 8, 2: 6}[lod]
@@ -468,6 +507,13 @@ def write_dmesh(path, arrays):
     """DMSH v1 (engine/Source/DoorwaysAsset/DoorwaysMesh.h): binary header, mesh header, 72-byte vertices, u32 indices,
     one submesh. UV: the engine's v runs down the picture (glTF's way): v is turned here (1 - v)."""
     P, N, T, UV, I = arrays
+    # every triangle wound so that its face turns the way its normals do (Direct3D's front faces: on screen clockwise,
+    # cross(p1 - p0, p2 - p0) toward the eye). The tubes were wound the other way: the game culled every trunk's near
+    # wall and showed the inside of its far one, lit from behind (blue trunks, 2026-11-20).
+    F = I.reshape(-1, 3).copy()
+    g = np.cross(P[F[:, 1]] - P[F[:, 0]], P[F[:, 2]] - P[F[:, 0]])
+    wrong = np.einsum("ij,ij->i", g, N[F].sum(axis=1)) < 0
+    F[wrong] = F[wrong][:, [0, 2, 1]]; I = F.ravel()
     V = len(P); n = len(I)
     vert = np.zeros(V, dtype=[("p", "<f4", 3), ("n", "<f4", 3), ("t", "<f4", 4), ("uv", "<f4", 2), ("j", "<u2", 4), ("w", "<f4", 4)])
     vert["p"] = P; vert["n"] = unit_rows(N); vert["t"] = T; uv = UV.copy(); uv[:, 1] = 1.0 - uv[:, 1]; vert["uv"] = uv

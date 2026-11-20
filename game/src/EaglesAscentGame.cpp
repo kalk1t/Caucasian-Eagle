@@ -99,6 +99,7 @@ namespace CaucasianEagle
         if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
         if (!mWayside.Load(host.Render, error)) { error = "The Eagle's Ascent's clay jars: " + error; return false; }
         if (!mGrass.Initialize(host.Render, mMap, ResolveDoorwaysRuntimePath(AscentDataFile), error)) { error = "The Eagle's Ascent: " + error; return false; }
+        if (!mTrees.Initialize(host.Render, ResolveDoorwaysRuntimePath(AscentDataFile), error)) { error = "The Eagle's Ascent: " + error; return false; }
         mMap.HealOnVisit = false;   // (0.5: nothing heals her but potions)
         GetNyxaraKit().SetOnFoot(true);
         // her blows break the clay jars beside the road (Wayside)
@@ -401,7 +402,7 @@ namespace CaucasianEagle
         if (mNatPhase == 0)
         {   // eight spots up the way where grass grows beside it; trunks within 25 m of the way, one every 250 m or so
             std::ofstream(table, std::ios::trunc) << "what\tvalues\n";
-            row("map\ttrees=" + std::to_string(mMap.TreeCount()) + "\tgrass=" + (mGrass.On() ? "on" : "off"));
+            row("map\ttrees=" + std::to_string(mMap.TreeCount()) + "\tgrass=" + (mGrass.On() ? "on" : "off") + "\tmodels=" + (mTrees.On() ? "on" : "off"));
             const auto& T = mMap.Trail;
             std::vector<XMFLOAT3> green;
             for (size_t i = 0; i < T.size(); i += 12)
@@ -454,6 +455,7 @@ namespace CaucasianEagle
                 mTourShot = L"grass_" + std::to_wstring(mNatPick) + L"_along";
                 std::ostringstream line; line << std::fixed << std::setprecision(1) << "grass\t" << mNatPick << "\ty=" << at.y << "\ttufts=" << mGrass.TuftsDrawn
                                               << "\tsquares=" << mGrass.CellsDrawn << "\tframe_ms=" << (mNatFrames ? mNatMs / static_cast<float>(mNatFrames) : 0.f);
+                line << "\t" << mTrees.Report();
                 if (mGrass.TuftsDrawn < 2000) { ++mNatBad; line << "\tTHIN"; }
                 row(line.str());
             }
@@ -1231,10 +1233,16 @@ namespace CaucasianEagle
         mWasDead = !alive;
     }
 
+    void EaglesAscentGame::DrawShadowCasters(Renderer& renderer, const WorldState& world, const XMMATRIX& lightViewProjection)
+    {
+        mTrees.DrawShadows(renderer, world.MainCamera.Position, lightViewProjection);
+    }
+
     void EaglesAscentGame::Draw(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
     {
         mRenderer = &renderer;
         mMap.DrawModels(renderer, world, viewProjection, 0);
+        mTrees.Draw(renderer, world.MainCamera.Position, viewProjection);
         mGrass.Draw(renderer, world.MainCamera.Position, viewProjection);
         DrawNests(renderer, world, viewProjection);
         if (mCreaturesOn) mCreatures.DrawMountain(renderer, world, viewProjection);

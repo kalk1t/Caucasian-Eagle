@@ -6,6 +6,7 @@
 #include "Journey.h"
 #include "Wayside.h"
 #include "AscentGrass.h"
+#include "AscentTrees.h"
 #include "MountainView.h"
 
 #include <array>
@@ -41,6 +42,7 @@ namespace CaucasianEagle
         float ScaleFrameTime(float realDeltaTime, bool inputAllowed) override;
         void Update(Doorways::DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed) override;
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection) override;
+        void DrawShadowCasters(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& lightViewProjection) override;
         void AdjustEnvironment(EnvironmentSettings& environment) override;
         bool DrawHud(const DoorwaysHudRenderContext& context, HudTextRenderer& text) override;
         void DrawStartScreen(const DoorwaysHudRenderContext& context, HudTextRenderer& text, bool focused) override;
@@ -100,6 +102,7 @@ namespace CaucasianEagle
         std::vector<std::string> mSavedJars, mSavedPlaces;
         Wayside mWayside; bool mWaysideOn = false;
         AscentGrass mGrass;   // the grass fields (2026-11-20)
+        AscentTrees mTrees;   // the trees near the path as 3D models (0.5.2)
         bool mGrowthOpen = false; float mGrowthFade = 0, mGrowthFlash = 0; int mGrowthRow = 0, mGrowthFlashRow = -1, mFormShown = 0;
         float mSavedMark = 0;                      // the "SAVED" mark's seconds left
         std::filesystem::path mSavePath; bool mSaveTest = false;

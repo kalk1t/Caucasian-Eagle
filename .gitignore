@@ -62,3 +62,7 @@ game/assets/Compiled/StaticMeshes/MapA_EaglesAscent/MapA_EaglesAscent.dmesh
 tools/release/signing.local.json
 *.pfx
 *.p12
+
+# The tree library (art/trees/build_trees.py writes it; 0.5.2)
+game/assets/Trees/Models/
+game/assets/Trees/Textures/

@@ -34,6 +34,9 @@ Copy-Item -LiteralPath $data -Destination (Join-Path $to "Maps\$As.txt") -Force
 Copy-Item -LiteralPath ([IO.Path]::ChangeExtension($data, '.heights')) -Destination (Join-Path $to "Maps\$As.heights") -Force
 $trees = [IO.Path]::ChangeExtension($data, '.trees')   # the forest's trunks: she is held off them (2026-11-20)
 if (Test-Path -LiteralPath $trees) { Copy-Item -LiteralPath $trees -Destination (Join-Path $to "Maps\$As.trees") -Force }
+$plants = [IO.Path]::ChangeExtension($data, '.plants')   # the trees the game draws as 3D models (0.5.2; art/trees/build_trees.py makes the models)
+if (Test-Path -LiteralPath $plants) { Copy-Item -LiteralPath $plants -Destination (Join-Path $to "Maps\$As.plants") -Force }
+elseif (Test-Path -LiteralPath (Join-Path $to "Maps\$As.plants")) { Remove-Item -LiteralPath (Join-Path $to "Maps\$As.plants") -Force }
 foreach ($splat in 'splat_a', 'splat_b') {   # the ground's splat for the terrain shader (testing/MapLab/terrain_splat.py)
     $file = [IO.Path]::ChangeExtension($data, ".$splat.dds")
     if (Test-Path -LiteralPath $file) { Copy-Item -LiteralPath $file -Destination (Join-Path $to "Maps\$As.$splat.dds") -Force }
