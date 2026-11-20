@@ -16,9 +16,9 @@ namespace CaucasianEagle::Growth
         const wchar_t* const Forms[4] = {L"Fledgling", L"Moonwing", L"Stormwing", L"Heir of the Eagle"};
         const wchar_t* const Items[3][4] = {
             {L"Fledgling wings", L"Moonlit wings", L"Storm wings", L"Wings of the Eagle"},
-            {L"Inferno and Serpentcoil", L"Tempered axes", L"Moonforged axes", L"Eagle-forged axes"},
+            {L"Inferno and Serpentcoil", L"Tempered swords", L"Moonforged swords", L"Eagle-forged swords"},
             {L"Traveller's mail", L"Svan mail", L"Moon plate", L"Harness of Amirani"}};
-        const wchar_t* const Titles[RowCount] = {L"WINGS", L"AXES", L"ARMOUR", L"POWER", L"DEFENCE"};
+        const wchar_t* const Titles[RowCount] = {L"WINGS", L"SWORDS", L"ARMOUR", L"POWER", L"DEFENCE"};
 
         std::wstring Percent(float share)   // 0.2 -> "20 %"
         {
@@ -31,11 +31,14 @@ namespace CaucasianEagle::Growth
             return buffer;
         }
         // What the next step of a row gives, in words.
-        std::wstring Promise(int row)
+        std::wstring Promise(int row, const State& s, bool ascent)
         {
             switch (row)
             {
-            case Wings: return L"skills " + Percent(WingTierCooldown) + L" sooner, boost +" + Percent(WingTierBoost);
+            case Wings:
+                if (ascent) return L"she flies " + std::to_wstring(static_cast<int>(FlightSeconds(s.Level[Wings] + 1))) + L" seconds, not " +
+                                   std::to_wstring(static_cast<int>(FlightSeconds(s.Level[Wings])));
+                return L"skills " + Percent(WingTierCooldown) + L" sooner, boost +" + Percent(WingTierBoost);
             case Swords: return L"blows deal " + Percent(SwordTierDamage) + L" more";
             case Armour: return L"blows taken hurt " + Percent(ArmourTierTaken) + L" less";
             case Power: return L"blows deal " + Percent(PowerStep) + L" more";
@@ -69,6 +72,7 @@ namespace CaucasianEagle::Growth
     }
     float Cooldown(const State& s) { return 1 - WingTierCooldown * static_cast<float>(s.Level[Wings]); }
     float Boost(const State& s) { return 1 + WingTierBoost * static_cast<float>(s.Level[Wings]); }
+    float FlightSeconds(int wingTier) { return AscentFlightSeconds[std::clamp(wingTier, 0, MaxItemTier)]; }
 
     // Two panels, left and right, so that Nyxara stays in view between them.
     void Draw(Ui& ui, const View& v)
@@ -142,7 +146,7 @@ namespace CaucasianEagle::Growth
                 const std::wstring price = std::to_wstring(cost) + L":  ";
                 ui.Text(price, tx + icon2 + 4 * S, ty, Tiny * S, (can ? GoldLight : Faint).Fade(a));
                 const float px = tx + icon2 + 4 * S + ui.Width(price, Tiny * S);
-                ui.Paragraph(Promise(row), px, ty, Tiny * S, right - px, 1 * S, (can ? Ink : Faint).Fade(a));
+                ui.Paragraph(Promise(row, s, v.Ascent), px, ty, Tiny * S, right - px, 1 * S, (can ? Ink : Faint).Fade(a));
             }
             return y + h + CardGap * S;
         };
@@ -160,7 +164,8 @@ namespace CaucasianEagle::Growth
             float cy = y + 74 * S;
             const float cx = x + 8 * S, cw = w - 16 * S;
             cy = card(Wings, cx, cy, cw, ItemCard * S, HudArt::IconWings, ItemName(Wings, s.Level[Wings]),
-                      s.Level[Wings] ? L"Skills " + Times(Cooldown(s)) + L" time, boost " + Times(Boost(s)) : std::wstring(L"As she set out."));
+                      v.Ascent ? L"She flies " + std::to_wstring(static_cast<int>(FlightSeconds(s.Level[Wings]))) + L" seconds on them."
+                      : s.Level[Wings] ? L"Skills " + Times(Cooldown(s)) + L" time, boost " + Times(Boost(s)) : std::wstring(L"As she set out."));
             cy = card(Swords, cx, cy, cw, ItemCard * S, HudArt::IconSwords, ItemName(Swords, s.Level[Swords]),
                       s.Level[Swords] ? L"Damage " + Times(1 + SwordTierDamage * static_cast<float>(s.Level[Swords])) : std::wstring(L"As she set out."));
             card(Armour, cx, cy, cw, ItemCard * S, HudArt::IconArmour, ItemName(Armour, s.Level[Armour]),
@@ -174,7 +179,7 @@ namespace CaucasianEagle::Growth
             ui.Spaced(L"CRYSTALS", x + Pad * S, y + 11 * S, Tiny * S, 3 * S, Gold.Fade(a));
             ui.Icon(HudArt::IconCrystal, x + Pad * S + 13 * S, y + 40 * S, 26 * S, Violet.Fade(a));
             ui.Text(std::to_wstring(s.Crystals), x + Pad * S + 32 * S, y + 26 * S, Name * S, Ink.Fade(a));
-            ui.RightAligned(L"Every creature she fells leaves some.", x + w - Pad * S, y + 34 * S, Tiny * S, Dim.Fade(a));
+            ui.RightAligned(v.Ascent ? L"From creatures, clay jars, hidden places." : L"Every creature she fells leaves some.", x + w - Pad * S, y + 34 * S, Tiny * S, Dim.Fade(a));
             float cy = y + 62 * S;
             const float cx = x + 8 * S, cw = w - 16 * S;
             cy = card(Power, cx, cy, cw, TrainCard * S, HudArt::IconSlash, L"Level " + std::to_wstring(s.Level[Power]) + L" of " + std::to_wstring(MaxTrainingLevel),
@@ -195,9 +200,18 @@ namespace CaucasianEagle::Growth
             };
             carried(HudArt::IconPotion, Red, std::to_wstring(s.Potions) + L" of " + std::to_wstring(MaxPotions) + L" potions",
                     std::wstring(Ui::KeyLabel(L"Z", 'Z')) + L" drinks one: +" + std::to_wstring(v.PotionHeal) + L" health");
-            carried(HudArt::IconFeather, Silver, std::to_wstring(v.Feathers) + L" eagle feathers", L"each sharpens her axes");
-            carried(HudArt::IconCoin, GoldLight, std::to_wstring(v.Gold) + L" gold", L"");
-            carried(HudArt::IconEye, Moon, std::to_wstring(v.Memories) + L" of 12 memories", L"F1 to read");
+            if (v.Ascent)
+            {
+                carried(HudArt::IconPotion, Faint, L"Clay jars hold potions", L"break them with your swords");
+                carried(HudArt::IconBook, GoldLight, std::to_wstring(v.Places) + L" hidden places found", L"+" + std::to_wstring(PlaceCrystals) + L" crystals each");
+                carried(HudArt::IconWings, Moon, L"Eagle Nests", L"H saves there");
+            }
+            else
+            {
+                carried(HudArt::IconFeather, Silver, std::to_wstring(v.Feathers) + L" eagle feathers", L"each sharpens her swords");
+                carried(HudArt::IconCoin, GoldLight, std::to_wstring(v.Gold) + L" gold", L"");
+                carried(HudArt::IconEye, Moon, std::to_wstring(v.Memories) + L" of 12 memories", L"F1 to read");
+            }
 
             cy += 4 * S;
             ui.Spaced(L"ALL TOGETHER", x + Pad * S, cy, Tiny * S, 3 * S, Gold.Fade(a));
@@ -225,7 +239,7 @@ namespace CaucasianEagle::Growth
             };
             key(L"W", L""); x -= 20 * S;
             key(L"S", L"CHOOSE");
-            { const float from = x; key(L"D", L"WHAT SHE CARRIES"); Pointer::Add(Pointer::PageKey, 0, from, y, x - from - 22 * S, h); }
+            if (!v.Ascent) { const float from = x; key(L"D", L"WHAT SHE CARRIES"); Pointer::Add(Pointer::PageKey, 0, from, y, x - from - 22 * S, h); }
             key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"SPEND CRYSTALS");
             key(Ui::KeyLabel(L"I", 'I'), L"CLOSE");
         }

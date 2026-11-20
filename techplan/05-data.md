@@ -90,7 +90,11 @@ These meshes have no `.dmat`: the game loads the colour map next to each mesh an
 
 All four pictures and `Terrain.bin` are written by `art/world/build_nature.py`. `Terrain.bin` repeats the terrain formula of `build_world.py`, so it must be rebuilt whenever the world is.
 
-### 8.1b `Places.txt`
+#### The Eagle's Ascent's map files (`game/assets/Maps/`)
+
+`tools/map-to-game.ps1` copies them from the Map Lab's last build: `EaglesAscent.txt` (the map's records), `.heights` (the land's grids), `.splat_a.dds` and `.splat_b.dds` (the ground's look; `AscentGrass` reads them too), `.trees` (0.5: every tree's trunk, `x y z radius height`, 261,650 lines, 8.9 MB; `build_mountain.py` writes it from the forest's plants, `TREES_ONLY=1` for the trunks alone) and `EaglesAscent.creatures.txt` (written by `art/map/ascent_creatures.py`).
+
+## 8.1b `Places.txt`
 
 `game/assets/Compiled/World/Places.txt`, written by `art/places/build_places.py`; the models it names are in `game/assets/Compiled/Places` (50 `.dmesh` files with a colour map each, about 149 MB). Engine coordinates, metres.
 
@@ -121,6 +125,8 @@ The scripts that turn those files into game assets are in git ([art/README.md](.
 Copied from the engine submodule by `tools/stage.ps1`: `assets/shaders`, `assets/ui`, `assets/textures`, `assets/models` and `assets/Compiled` (about 550 MB). Most of `assets/Compiled/Textures` (399 MB) belongs to the engine's own demo scenes and is probably not needed by the game [inferred; which files the engine requires at start-up has not been mapped. See D1 in [10-tech-debt-risks.md](10-tech-debt-risks.md)].
 
 ## 8.4 Saved state
+
+**`eagles-ascent.sav`** (the Eagle's Ascent, 0.5), written only when she saves with H in a nest: `#` comment lines, then `nest <station>`, `crystals <n>`, `potions <n>`, `level <row> <n>` for the five rows (wings, swords, armour, power, defence), and one line per id: `beaten <creature>`, `jar <jar>`, `place <place>` (ids: `Wayside`, the placing model). Unknown words are skipped; a save from before 0.5 (nest and beaten only) loads with no growth. Unattended runs never touch a player's save (the tours write `tour.sav`, the jars' test `ways.sav`, beside their evidence).
 
 Under `%LOCALAPPDATA%\CaucasianEagle\` the engine stores its files and the game stores one:
 

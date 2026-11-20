@@ -4,7 +4,7 @@
 ; %LOCALAPPDATA%\CaucasianEagle and are left in place on uninstall.
 
 #ifndef AppVersion
-  #define AppVersion "0.4.0"
+  #define AppVersion "0.5.0"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\CaucasianEagle-" + AppVersion + "-win64"
@@ -39,14 +39,16 @@ VersionInfoVersion={#AppVersion}.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
+; 0.5: CaucasianEagle.exe starts the Eagle's Ascent (the owner, 2026-11-20); the road of 0.4 keeps a shortcut (--road)
 Name: "{group}\Caucasian Eagle"; Filename: "{app}\CaucasianEagle.exe"; WorkingDir: "{app}"
+Name: "{group}\Caucasian Eagle - The Road (0.4)"; Filename: "{app}\CaucasianEagle.exe"; Parameters: "--road"; WorkingDir: "{app}"
 Name: "{autodesktop}\Caucasian Eagle"; Filename: "{app}\CaucasianEagle.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\CaucasianEagle.exe"; Description: "{cm:LaunchProgram,Caucasian Eagle}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CaucasianEagle.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Caucasian Eagle}"; Flags: nowait postinstall skipifsilent

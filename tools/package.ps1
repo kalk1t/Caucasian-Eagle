@@ -50,6 +50,11 @@ foreach ($folder in 'shaders', 'ui', 'textures', 'models', 'Compiled') {
 }
 Sync (Join-Path $repo 'game\assets') (Join-Path $out 'assets')
 Copy-Item $Exe (Join-Path $out 'CaucasianEagle.exe')
+# 0.5: CaucasianEagle.exe starts the Eagle's Ascent; the road of 0.4, for whoever unpacks the zip
+Set-Content -LiteralPath (Join-Path $out 'Play-TheRoad.cmd') -Encoding Ascii -Value @(
+    '@echo off',
+    'rem The road to Amirani (the game of 0.4). CaucasianEagle.exe alone starts the Eagle''s Ascent.',
+    'start "" /D "%~dp0" "%~dp0CaucasianEagle.exe" --road')
 
 # Visual C++ runtime, beside the executable (the build links it dynamically).
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'

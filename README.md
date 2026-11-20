@@ -6,7 +6,7 @@ A single-player action game for Windows, built on the Doorways engine.
 
 Amirani fought against God and is chained in a cave on the Caucasus Range, where an eagle feeds on his liver. Once every seven years the cave opens. On that day **Nyxara**, the eagle's daughter, sees him, and promises to spend seven years becoming strong enough to fight her father and break the chain. The game is her road to the mountain. Full story: [`story/STORY.md`](story/STORY.md).
 
-**Version 0.4.0** gives Nyxara her wings and her weapons: free flight wherever the camera looks, two axes and a longbow she carries apart from her body, the finishing blow, traps and named places along the road, creatures that reach her in the air, a save that keeps her place, and a new start screen. It is built on version 0.3.0, the living road: the whole journey through twelve regions and seven cities of the Caucasus, against ten creatures of its folklore and three bosses, to the fight with the Eagle and the breaking of the chain, with the game's own start screen, menu, settings, maps, story journal, sound and mouse pointer. It has been tested by an unattended test pilot and only partly played by hand. It is the first version with an installer: download `CaucasianEagle-0.4.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows will warn that the file is not signed: choose "More info", then "Run anyway"), and start Caucasian Eagle from the Start menu. A zip that runs without installing is on the same page. What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
+**Version 0.5.0** is **the Eagle's Ascent**: the climb from the sea to Amiran's court at 4,200 m, on foot and on her wings, past the creatures of the mountain and four bosses (the Gveleshapi, the Giant, the Devi Lord and the Eagle). Nyxara fights with two swords (a combo on each mouse button), closes her wings round her with **E**, and finishes every creature, the bosses too, with one of four finishing kills. She grows with crystals (**I**: wings, swords, armour, power, defence); her wings carry her 10 seconds at first, then 15, 20 and 30. Crystals come from the creatures, from clay jars beside every road (Georgia's old pottery, a group every 30 to 50 m: break them to see what is inside) and from 73 hidden places. Potions, found in the jars and drunk with **Z**, are her only healing. Grass fields cover the mountain's meadows, and every one of its 261,650 trees stops her. **H** in any Eagle Nest saves; when she falls she wakes at the nest she saved at, and everything since that save is undone. The road to Amirani of 0.4.0 (twelve regions, seven cities, ten creatures of Caucasian folklore, the Eagle and the chain) is still in the game. It has been tested by unattended runs and only partly played by hand. Download `CaucasianEagle-0.5.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows will warn that the file is not signed: choose "More info", then "Run anyway"), and start **Caucasian Eagle** from the Start menu: since 0.5 `CaucasianEagle.exe` starts the Eagle's Ascent (the road of 0.4 is **Caucasian Eagle - The Road (0.4)**, or `CaucasianEagle.exe --road`). What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
 
 ## System requirements
 
@@ -31,7 +31,7 @@ How to play is in three places, and they say the same:
 - **The [player manual](docs/manual.md):** everything, at length.
 - **Below:** the keys.
 
-In short: follow the old road from its first gate to the mountain. On the way are nine traps (the line under the compass says what each one asks) and 26 named places to find. In most clearings ringed with standing stones you are ambushed and walls hold you in until each wave is beaten. Creatures leave crystals; spend them in Nyxara's window (**I**) on her wings, axes and armour. Seven cities on the road heal you once each and give a lasting gift. Three guardians and, at the end, the Eagle bar the way. The game saves by itself.
+In short: follow the old road from its first gate to the mountain. On the way are nine traps (the line under the compass says what each one asks) and 26 named places to find. In most clearings ringed with standing stones you are ambushed and walls hold you in until each wave is beaten. Creatures leave crystals; spend them in Nyxara's window (**I**) on her wings, swords and armour. Seven cities on the road heal you once each and give a lasting gift. Three guardians and, at the end, the Eagle bar the way. The game saves by itself.
 
 ## Build and run
 
@@ -45,7 +45,24 @@ powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Run
 
 The first build compiles the whole engine and takes several minutes. The runnable game ends up in `build\stage\CaucasianEagle\`.
 
-**The Eagle's Ascent**, the mountain climb on its own (Map A): `Play-EaglesAscent.cmd`, or `CaucasianEagle.exe --eagles-ascent`. See the manual.
+**The Eagle's Ascent**, the mountain climb (Map A, the 0.5 game): what `CaucasianEagle.exe` starts since 0.5 (`Play-EaglesAscent.cmd` in the repository; `--eagles-ascent` still asks for it). The road of 0.4 above: `CaucasianEagle.exe --road` (`Play-TheRoad.cmd`). See the manual.
+
+### On the Eagle's Ascent
+
+| Input | Action |
+|---|---|
+| W A S D | Run; A and D turn her |
+| Space | Jump; held 1.5 s, take wing (10 s of flight, up to 30 s with grown wings) |
+| R (flying) | Land |
+| Left click / right click | Her combo: each button goes on through its own string of moves |
+| F / V / C | The slide / the thrown swords / the feather storm |
+| E (hold) | Her wings close round her and guard her |
+| Z | Drink a potion (the only healing) |
+| I | Grow: wings (flight time), swords, armour, power, defence |
+| H | Save, standing in an Eagle Nest |
+| M | The whole mountain from outside |
+| Backspace | Back to the last Eagle Nest she stood in |
+| Esc | Pause |
 
 ## Controls
 
@@ -62,7 +79,7 @@ The first build compiles the whole engine and takes several minutes. The runnabl
 | V | The thrown swords: she flies after them, pulls them out and kicks the creature over |
 | C | Spinning swords |
 | A / D, S | Turn her way (and the view); step back |
-| E (hold) | Sword barrier |
+| E (hold) | Her wings close round her and guard her (the cocoon) |
 | Z | Drink a potion |
 | I | Nyxara's window: grow, and (D) what she carries |
 | F1 / M | Story journal / world map |

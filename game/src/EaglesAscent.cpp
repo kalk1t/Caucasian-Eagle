@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <sstream>
 
@@ -144,7 +145,152 @@ namespace CaucasianEagle
         }
         if (Summit <= 0) for (const auto& s : Stations) Summit = std::max(Summit, s.P.y);
         ModelCount = static_cast<int>(mProps.size());
+        CaveEnds();
+        { auto trees = path; trees.replace_extension(".trees"); LoadTrees(trees); }   // (absent: no trees hold her)
         return true;
+    }
+
+    void EaglesAscent::CaveEnds()
+    {
+        // An end is open where it meets another cave (a junction: within that one's width), or where the land a few
+        // metres out beyond it is lower than its roof (a mouth: the open air). Else it ends in the rock. In doubt open:
+        // an end taken for rock would shut her in.
+        for (size_t c = 0; c < mCaves.size(); ++c)
+        {
+            auto& cave = mCaves[c]; const auto& L = cave.Line;
+            if (L.size() < 2) continue;
+            for (int e = 0; e < 2; ++e)
+            {
+                const CavePoint& end = e == 0 ? L.front() : L.back();
+                const CavePoint& inner = e == 0 ? L[1] : L[L.size() - 2];
+                bool open = false;
+                for (size_t o = 0; o < mCaves.size() && !open; ++o)
+                {
+                    if (o == c) continue;
+                    for (const auto& q : mCaves[o].Line)
+                        if (std::abs(q.Y - end.Y) < 4 && std::hypot(q.X - end.X, q.Z - end.Z) < q.Half + end.Half + 1.5f) { open = true; break; }
+                }
+                float ox = end.X - inner.X, oz = end.Z - inner.Z; const float ol = std::max(std::hypot(ox, oz), .01f); ox /= ol; oz /= ol;
+                for (const float out : {2.f, 4.f, 7.f, 10.f})
+                    if (!open && Land(end.X + ox * out, end.Z + oz * out) < end.Y + end.Tall * .9f) open = true;
+                cave.Open[e] = open;
+            }
+        }
+    }
+
+    void EaglesAscent::LoadTrees(const std::filesystem::path& path)
+    {
+        mTrunks.clear(); mTrunkCells.clear();
+        {   // CAUCASIAN_EAGLE_TREES=0: the trunks are read, but none holds her (the nature test's baseline)
+            char value[8] = {}; size_t got = 0;
+            TreesHold = !(getenv_s(&got, value, sizeof(value), "CAUCASIAN_EAGLE_TREES") == 0 && got > 1 && value[0] == '0');
+        }
+        std::ifstream file(path, std::ios::binary);
+        if (!file) return;
+        const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        const char* at = text.c_str();
+        while (*at)
+        {
+            if (*at == '#') { while (*at && *at != '\n') ++at; if (*at) ++at; continue; }
+            char* end = nullptr; Trunk t;
+            t.X = std::strtof(at, &end); if (end == at) { ++at; continue; } at = end;
+            t.Y = std::strtof(at, &end); at = end; t.Z = std::strtof(at, &end); at = end;
+            t.R = std::strtof(at, &end); at = end; t.H = std::strtof(at, &end); at = end;
+            while (*at && *at != '\n') ++at;
+            if (*at) ++at;
+            if (t.R <= 0) continue;
+            const unsigned index = static_cast<unsigned>(mTrunks.size());
+            mTrunks.push_back(t);
+            mTrunkCells[TrunkKey(static_cast<int>(std::floor(t.X / TrunkCell)), static_cast<int>(std::floor(t.Z / TrunkCell)))].push_back(index);
+        }
+    }
+
+    bool EaglesAscent::NearestTrunk(float x, float y, float z, float reach, Trunk& out) const
+    {
+        const int ex = static_cast<int>(std::floor(x / TrunkCell)), ez = static_cast<int>(std::floor(z / TrunkCell));
+        float best = reach;
+        bool found = false;
+        for (int cz = ez - 1; cz <= ez + 1; ++cz)
+            for (int cx = ex - 1; cx <= ex + 1; ++cx)
+            {
+                const auto cell = mTrunkCells.find(TrunkKey(cx, cz));
+                if (cell == mTrunkCells.end()) continue;
+                for (const unsigned i : cell->second)
+                {
+                    const Trunk& t = mTrunks[i];
+                    if (y < t.Y - 1.5f || y > t.Y + std::max(2.5f, t.H * .75f)) continue;
+                    const float d = std::hypot(x - t.X, z - t.Z) - t.R;
+                    if (d < best) { best = d; out = t; found = true; }
+                }
+            }
+        return found;
+    }
+
+    void EaglesAscent::HoldOffTrees(Player& p, bool flying) const
+    {
+        if (mTrunks.empty() || !TreesHold) return;
+        const float body = flying ? .6f : .42f;   // her half width; on wings their spread
+        const int ex = static_cast<int>(std::floor(p.Position.x / TrunkCell)), ez = static_cast<int>(std::floor(p.Position.z / TrunkCell));
+        for (int pass = 0; pass < 2; ++pass)      // (between two trunks: once more)
+            for (int cz = ez - 1; cz <= ez + 1; ++cz)
+                for (int cx = ex - 1; cx <= ex + 1; ++cx)
+                {
+                    const auto cell = mTrunkCells.find(TrunkKey(cx, cz));
+                    if (cell == mTrunkCells.end()) continue;
+                    for (const unsigned i : cell->second)
+                    {
+                        const Trunk& t = mTrunks[i];
+                        if (p.Position.y < t.Y - 1.5f || p.Position.y > t.Y + std::max(2.5f, t.H * .75f)) continue;
+                        const float keep = t.R + body, dx = p.Position.x - t.X, dz = p.Position.z - t.Z, d2 = dx * dx + dz * dz;
+                        if (d2 >= keep * keep) continue;
+                        const float d = std::sqrt(d2);
+                        if (d < 1e-3f) { p.Position.x = t.X + keep; continue; }
+                        p.Position.x = t.X + dx / d * keep; p.Position.z = t.Z + dz / d * keep;
+                    }
+                }
+    }
+
+    void EaglesAscent::HoldInCave(Player& p) const
+    {
+        constexpr float Body = .75f;   // her body's half width and the wall's rough rock (up to 0.35 m into the tube)
+        bool inside = false, atWall = false;
+        float pushX = 0, pushZ = 0, worst = 0, roof = 1e30f;
+        for (const auto& c : mCaves)
+        {
+            if (p.Position.x < c.MinX - 4 || p.Position.x > c.MaxX + 4 || p.Position.z < c.MinZ - 4 || p.Position.z > c.MaxZ + 4 ||
+                p.Position.y < c.MinY - 3 || p.Position.y > c.MaxY + 8) continue;
+            const size_t n = c.Line.size();
+            float best = 1e30f, bx = 0, bz = 0, bHalf = 0, bRoof = 0; bool open = false;
+            for (size_t i = 0; i + 1 < n; ++i)
+            {
+                const auto& a = c.Line[i]; const auto& b = c.Line[i + 1];
+                const float ex = b.X - a.X, ez = b.Z - a.Z, l2 = ex * ex + ez * ez;
+                if (l2 < 1e-6f) continue;
+                const float raw = ((p.Position.x - a.X) * ex + (p.Position.z - a.Z) * ez) / l2, t = std::clamp(raw, 0.f, 1.f);
+                const float floor = a.Y + (b.Y - a.Y) * t, tall = a.Tall + (b.Tall - a.Tall) * t, half = a.Half + (b.Half - a.Half) * t;
+                if (p.Position.y < floor - 1.5f || p.Position.y > floor + tall + .5f) continue;
+                const float cx = a.X + ex * t, cz = a.Z + ez * t, d = std::hypot(p.Position.x - cx, p.Position.z - cz);
+                if (d < best)
+                {
+                    best = d; bx = cx; bz = cz; bHalf = half; bRoof = floor + tall;
+                    open = (i == 0 && raw < 0 && c.Open[0]) || (i + 2 == n && raw > 1 && c.Open[1]);   // out through a mouth or into another cave
+                }
+            }
+            if (best > 1e29f) continue;
+            if (open) { if (best <= bHalf + .6f) inside = true; continue; }   // (past an open end: her own way out)
+            const float room = std::max(bHalf - Body, .3f);
+            if (best <= room) { inside = true; roof = std::min(roof, bRoof); continue; }
+            if (best <= bHalf + .9f && best - room > worst)
+            {   // at a wall, or just through it: back to the wall's inside
+                atWall = true; worst = best - room;
+                const float k = room / std::max(best, 1e-3f);
+                pushX = bx + (p.Position.x - bx) * k; pushZ = bz + (p.Position.z - bz) * k;
+                roof = std::min(roof, bRoof);
+            }
+        }
+        if (!inside && atWall) { p.Position.x = pushX; p.Position.z = pushZ; }
+        if ((inside || atWall) && roof < 1e29f && p.VerticalVelocity > 0 && p.Position.y + 1.9f > roof - .2f)
+            p.VerticalVelocity = 0;   // her head at the roof (a jump in a low cave): she rises no more, and falls back
     }
 
     // nest <station> <x> <y> <z> <yaw> <along>
@@ -409,6 +555,8 @@ namespace CaucasianEagle
     void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt, const DoorwaysRuntimeScene* scene)
     {
         Sliding = false;
+        if (!flying) HoldInCave(p);
+        HoldOffTrees(p, flying);
         CaveSpot cave;
         if (InCave(p.Position, &cave))
         {   // In a cave (2026-11-18): the land's rules do not hold under the mountain. The tube is her collision on foot;
@@ -545,7 +693,7 @@ namespace CaucasianEagle
         p.TraversalMode = DoorwaysPlayerTraversalMode::Ground;
         GameSession().FreeFlightEnd = true; GameSession().ImpulseX = GameSession().ImpulseZ = 0;
         host.World.MainCamera.Yaw = s.Yaw; host.World.MainCamera.Pitch = -.12f;
-        host.Combat.RestorePlayerHealth(host.World, 10000);
+        if (HealOnVisit) host.Combat.RestorePlayerHealth(host.World, 10000);
         mHasFlown = false; mInRock = 0;
         if (s.Checkpoint) Checkpoint = station;
     }
@@ -608,6 +756,19 @@ namespace CaucasianEagle
                 XMMatrixRotationY(prop.Yaw) * XMMatrixTranslation(prop.P.x, prop.P.y, prop.P.z), vp, m);
             ++ModelsDrawn;
         }
+    }
+
+    std::vector<XMFLOAT3> EaglesAscent::BuiltCircles() const
+    {
+        std::vector<XMFLOAT3> out;
+        for (const auto& prop : mProps)
+        {
+            const auto& model = mPropModels[static_cast<size_t>(prop.Model)];
+            const float scale = prop.Height > 0 ? prop.Height / std::max(model.Max.y - model.Min.y, 1e-4f) : 1.f;
+            const float r = .5f * std::hypot(model.Max.x - model.Min.x, model.Max.z - model.Min.z) * scale;
+            if (r > .3f) out.push_back({prop.P.x, prop.P.z, r + .4f});
+        }
+        return out;
     }
 
     const XMFLOAT3& EaglesAscent::Rest(int station) const

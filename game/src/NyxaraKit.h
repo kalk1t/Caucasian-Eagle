@@ -21,15 +21,16 @@
 //   A / D          turn her way (and the view with it); S steps back
 //   Space          jump (in flight: climb)
 //
-// Her finishing kills (2026-11-20): a blow that would kill a creature of the road dooms it instead; dazed, it waits
-// for her, and as soon as she is free on foot near it she finishes it with one of three finishers, at random and never
-// the same one twice running (each worked out for its size as it begins: StartFinish):
-//   Talon Cross     she dashes in, two cuts cross on its chest, and she flashes past round its side; she stands with
-//                   her back to it, and the cross opens and it falls on its face
-//   Eagle's Plunge  she springs on her wings, drives both swords into it under its neck and rides it down onto its
-//                   back, then springs off it
-//   Gale Slide      she slides past it, her blade through its legs, it drops to its knees, and her blade comes down
-//                   behind her through its neck (a giant's shoulder)
+// Her finishing kills (2026-11-20): a blow that would kill a creature (every one, its bosses too) dooms it instead;
+// dazed, it waits for her (one that hovers comes down onto the ground), and as soon as she is free on foot near it she
+// finishes it with one of the four the owner chose of ten, at random and never the same one twice running (each worked
+// out for its size as it begins: StartFinish, so that her blades land on it from a 1.15 m Chinka to a 9 m Gveleshapi):
+//   Reaper's Wheel    one whole turn with both blades out through it, and her right blade brought down from high
+//   Mountain Breaker  a cut across it, a hop, and both blades down into the ground before it: it shakes round her
+//   Tempest Flurry    four cuts: high from her left, back across, low at its legs (it sinks), and across its neck
+//   Headsman          a cut at its legs drops it to its knees; her right blade raised high and brought down on its neck
+// The other six (Talon Cross, Eagle's Plunge, Gale Slide, Heartpierce, Moonlit Flash, Rising Talon) are made too: the
+// Character Lab's cue finisher <1-10> and CAUCASIAN_EAGLE_NYXARA_FINISHER play any of them.
 // Doomed and not finished in time, it falls on its own.
 //
 // Session-owned: it drives the animated character, owns its shade wraith targets and its effects, and reaches
@@ -57,6 +58,9 @@ struct WorldState;
 
 namespace Doorways
 {
+    struct DoorwaysSkeleton;
+    struct DoorwaysSkeletonPose;
+
     class NyxaraKit
     {
     public:
@@ -67,7 +71,9 @@ namespace Doorways
         bool LoadBody(Renderer& renderer, WorldRenderer& worldRenderer, WorldState& world, const std::filesystem::path& bundle, std::string& error);
         bool Initialize(Renderer& renderer, WorldRenderer& worldRenderer, WorldState& world, std::string& error);
         bool Ready() const { return mReady; }
-        float ScaleFrameTime(float realDeltaTime, bool inputAllowed);
+        // The frame's time: slowed by a blow's moment or a finishing kill's, then by the caller's own scale (timeScale: the
+        // game's or the lab's); a style's move asks here for what is left of its way, with this frame's own time
+        float ScaleFrameTime(float realDeltaTime, bool inputAllowed, float timeScale = 1.f);
         void Update(WorldState& world, WorldRenderer& worldRenderer, CombatSystem& combat,
             float deltaTime, float realDeltaTime, bool inputAllowed);
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
@@ -146,6 +152,12 @@ namespace Doorways
         // foot. On the ground it comes back in FlightRefillSeconds. Unattended runs (the tests) are not limited.
         // (FlightHoldSeconds 3 until 2026-11-19; the owner: "reduce flying uptime from 3 seconds to 1.5s")
         static constexpr float FlightHoldSeconds = 1.5f, FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
+        // The Eagle's Ascent (0.5, owner 2026-11-20): her wings' growth sets how long she flies: 10 s, then 15, 20, 30.
+        void SetFlightSeconds(float seconds) { mFlightSeconds = seconds > 0 ? seconds : FlightEnergySeconds; }
+        float FlightSeconds() const { return mFlightSeconds; }
+        // Every blow she strikes (her cuts, her styles' blows; not a finisher): from where, her facing, how far it
+        // reaches and its whole arc in degrees (the Eagle's Ascent breaks clay jars with them: Wayside).
+        void SetBlowListener(std::function<void(const DirectX::XMFLOAT3&, float, float, float)> listener) { mBlowListener = std::move(listener); }
         float FlightEnergy() const { return mFlightEnergy; }                    // 0..1
         float FlightCharge() const { return mFlightHold / FlightHoldSeconds; }  // 0..1: how far the take-off hold has come
         bool Falling() const { return mFalling; }
@@ -183,6 +195,13 @@ namespace Doorways
         void Doom(int index);
         bool CanDoom(int index) const;   // would a killing blow of hers doom it now (near her and on her level, she on foot)?
         int Finishing() const;
+        // (owner, 2026-11-20: ten finishers to choose three from, 0 to 9 in the Character Lab and the game) 1 to 10: the
+        // finisher she plays first (where it has room); 0: one at random, as before
+        static constexpr int FinishCount = 10;
+        static const wchar_t* FinishName(int which);
+        void SetFinisher(int which);
+        int Finisher() const { return mFinisher; }
+        bool FinishMade(int which) const;            // its clip was made at load
         void SetInputBlocked(bool blocked) { mInputBlocked = blocked; } // the story journal is open: no attacks or skills
         void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
         // The Character Lab's clip viewer: one of her clips, as the kit keeps them (after its fixes at load), shown in
@@ -196,6 +215,48 @@ namespace Doorways
         int AttacksBegun() const;   // how many blows she has begun (a cut, a skill): the creatures before her see one coming
         ID3D11ShaderResourceView* GlowTexture() const { return mGlowTex.Get(); }
         const DoorwaysGpuMesh& QuadMesh() const { return mQuadMesh; }
+
+        // Her attack styles (owner, 2026-11-20: "i want to test another attacks for right and left mouse clicks ... get me
+        // at least 5 different variants for each click ... let me choose them with numbers between 0-9"; then "try at least
+        // each attack to be 3x faster then current one"). Ten styles of one move for each button: a click is that move, the
+        // same every time. -1, as the game has it: her own cuts, clicks in a row going through them.
+        static constexpr int StyleCount = 10;
+        struct StyleInfo
+        {
+            const wchar_t* Name = L""; const wchar_t* Like = L"";           // the style, and the games it is taken from
+            const wchar_t* Move[2] = {L"", L""}; const wchar_t* What[2] = {L"", L""};   // each button's move, and what it is
+            float Seconds[2]{}, Blow[2]{}, Free[2]{};                        // all of it; its first blow; the next press taken (s)
+            float Reach[2]{};                                                // how far a creature's edge may be for it to carry her all the way in (m)
+            int Blows[2]{};
+        };
+        static StyleInfo Style(int style);
+        void SetAttackStyle(int style);              // (and no combo)
+        int AttackStyle() const { return mStyle; }
+        bool StyleMade(int style) const;             // its two moves were made at load
+
+        // Her combo (owner, 2026-11-20: of five made, "i like 1's LMB combo and 4's RMB , now set those"). Each button's
+        // string of the styles' moves, begun by style 2's move for that button (LMB FLASH STEP, RMB DRAW CUT); the same
+        // button clicked again goes on down it, on the move too. -1: none.
+        static constexpr int ComboCount = 1;
+        struct ComboInfo
+        {
+            const wchar_t* Name = L""; const wchar_t* What = L"";
+            std::vector<const wchar_t*> String[2];   // each button's moves, in order
+        };
+        static ComboInfo Combo(int combo);
+        void SetAttackCombo(int combo);              // (and no style)
+        int AttackCombo() const { return mCombo; }
+        bool ComboMade(int combo) const;             // all its moves were made at load
+
+        // Her guards for E (owner, 2026-11-20: "generate 10 different defending animations for E skill and let me test them
+        // with 0-9 numbers then i choose which one stays for E"): her pose while E is held. -1: as before (her guard stance).
+        static constexpr int GuardCount = 1;   // (of the ten wing shields tried, the owner kept COCOON)
+        struct GuardInfo { const wchar_t* Name = L""; const wchar_t* What = L""; };
+        static GuardInfo Guard(int guard);
+        void SetGuardStyle(int guard);
+        int GuardStyle() const { return mGuardStyle; }
+        bool GuardMade(int guard) const;             // its clip was made at load
+        const DoorwaysSkeleton* BodySkeleton() const;
 
     private:
         struct Body;                        // her pose and her moves (NyxaraKit.cpp)
@@ -275,10 +336,14 @@ namespace Doorways
         bool mOnFoot = false;
         float mHeightOverGround = -1;
         float mFlightEnergy = 1, mFlightHold = 0; bool mFalling = false;
+        float mFlightSeconds = FlightEnergySeconds;
+        std::function<void(const DirectX::XMFLOAT3&, float, float, float)> mBlowListener;
         FootGround mFootGround;
         StairTread mStairTread;
         float mSpeedScale = 1;
-        float mBarrier = 0;                 // 0..1 barrier swords risen
+        float mBarrier = 0;                 // 0..1 her shield up (E: her wings closed round her)
+        int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
+        float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
         bool mGuarding = false;
         std::array<float, 3> mSkillCooldown{};
@@ -294,9 +359,15 @@ namespace Doorways
         float mTrailTimer = 0;
         bool mBoosting = false;                  // Shift wing boost in flight
         float mHitStop = 0, mShake = 0;          // impact feel
+        int mStyle = -1;                         // her attack style (SetAttackStyle): -1 her own cuts
+        int mCombo = -1;                         // her combo (SetAttackCombo): -1 none
+        int mGuardStyle = 0;                     // her guard for E (SetGuardStyle): -1 her guard stance
+        double mGrid = 0;                        // the engine's 60 Hz grid of her movement: its time left over (ScaleFrameTime)
+        struct TrailPoint { DirectX::XMFLOAT3 Base, Tip; float Age = 0, Speed = 0; };
+        std::vector<TrailPoint> mTrail[2];       // each blade's way a moment back in a style's move (Draw: its trail of light)
 
         // Procedural effect meshes and alpha masks.
-        DoorwaysGpuMesh mRingMesh, mQuadMesh, mFeatherMesh, mSphereMesh, mConeMesh, mBladeMesh;
+        DoorwaysGpuMesh mRingMesh, mQuadMesh, mFeatherMesh, mSphereMesh, mConeMesh, mBladeMesh, mTriMesh;
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mGlowTex, mRingTex, mFeatherTex, mWingFeatherTex;
     };
 

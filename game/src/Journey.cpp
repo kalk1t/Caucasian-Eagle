@@ -1673,8 +1673,9 @@ namespace CaucasianEagle
             w.Width = ShoulderWidth(model.Min, model.Max, model.Rig, def.Height, def.Radius);
         }
         else { w.Neck = {0, def.Height * .85f, 0}; w.Knee = def.Height * .28f; w.Depth = def.Radius * 1.5f; w.Width = def.Radius; }
-        // her finishing kills: the creatures of the road (not bosses, chests, the chained press or its links)
-        w.Finishable = !def.Boss && kind < ChestKind;
+        // her finishing kills: every creature, its bosses too (owner, 2026-11-20: "make sure all 12 monsters are able to be
+        // killed with finishings"; not chests, the chained press or its links)
+        w.Finishable = kind < ChestKind;
         enemies[slot] = w;
         if (kind != ChestKind && kind != ChainKind && kind != LinkKind && !mMountain)   // (on the mountain they were there all along)
         {
@@ -2030,6 +2031,7 @@ namespace CaucasianEagle
     }
 
     float Journey::KindHeight(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Height : 0.f; }
+    int Journey::KindCrystals(int kind) { return kind >= 0 && kind < KindCount ? (Kinds[kind].Boss ? BossCrystals : std::max(1, Kinds[kind].Cost)) : 0; }
     const wchar_t* Journey::KindTitle(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Name : L""; }
 
     bool Journey::InitializeMountain(Renderer& renderer, std::string& error)
@@ -3530,7 +3532,7 @@ namespace CaucasianEagle
         else if (c.Tier == 1)
         {
             ++mFeathers;
-            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your axes bite deeper.", 4.5f);
+            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your swords bite deeper.", 4.5f);
         }
         else if (mLore <= stage && mLore < 12)
         {
@@ -3546,10 +3548,10 @@ namespace CaucasianEagle
             Notify(HudArt::IconTear, Palette::Moon, L"MOON SHARD", coins + L"+" + std::to_wstring(MoonShardCrystals) + L" crystals.", 4.5f); break;
         case 1:
             ++mFeathers;
-            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your axes bite deeper.", 4.5f); break;
+            Notify(HudArt::IconFeather, Palette::Silver, L"EAGLE FEATHER", coins + L"Your swords bite deeper.", 4.5f); break;
         default:
             mEmber = EmberSeconds; kit.ResetCooldowns();
-            Notify(HudArt::IconEmber, Palette::Soul, L"SOUL EMBER", coins + L"Your skills return and your axes burn.", 4.5f); break;
+            Notify(HudArt::IconEmber, Palette::Soul, L"SOUL EMBER", coins + L"Your skills return and your swords burn.", 4.5f); break;
         }
         if (c.Tier >= 1 && (c.Tier == 2 || Random() < RuneChance))
         {   // a rune for her blades: the kind she has fewest of
@@ -3560,7 +3562,7 @@ namespace CaucasianEagle
                 ++mCollection.Runes[rune];
                 if (mCollection.Set < 0) mCollection.Set = rune;
                 Notify(HudArt::IconEmber, Palette::GoldLight, Ui::Upper(Collection::RuneName(rune)),
-                       std::to_wstring(mCollection.Runes[rune]) + L" of " + std::to_wstring(MaxRunes) + L". Press I, then D, to set a rune in your axes.", 6);
+                       std::to_wstring(mCollection.Runes[rune]) + L" of " + std::to_wstring(MaxRunes) + L". Press I, then D, to set a rune in your swords.", 6);
             }
         }
         Save();
@@ -4219,7 +4221,7 @@ namespace CaucasianEagle
             kit.Effect(Add(world.MainPlayer.Position, {0, 1.3f, 0}), light, 120, 9.f, .34f);
             kit.RingEffect(Add(world.MainPlayer.Position, {0, .05f, 0}), 7.f, light, 1.6f);
             kit.Shake(.3f); Sound::Play("nyxara/evolve", 1, 0); Sound::Play("nyxara/say_evolve", 1, 0);
-            Announce(L"NYXARA EVOLVES", Ui::Upper(Growth::FormName(form)), L"Wings, axes and armour answer her as one. Her wounds close.", 6);
+            Announce(L"NYXARA EVOLVES", Ui::Upper(Growth::FormName(form)), L"Wings, swords and armour answer her as one. Her wounds close.", 6);
             Log("[JOURNEY] form %d reached at %.0f s played.\n", form, mPlaySeconds);
         }
         else if (form < mFormShown) mFormShown = form;
@@ -4374,9 +4376,12 @@ namespace CaucasianEagle
     // ================================================================ draw
     // The creatures as they are now, the road's or the mountain's: their bodies on their joints, and their health
     // over their heads (a boss's is on the screen).
-    void Journey::DrawMonsters(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
+    // No health bar over a creature or a link of the Kaji chain since 2026-11-20 (the owner: "in game, just hide all
+    // monster's health bar"; they were boxes turned to the camera over its head, as the Character Lab's stations still
+    // have them, DrawCreatureStations). A boss's health is still at the top of the screen (DrawHud; the Eagle's Ascent's
+    // MountainBoss).
+    void Journey::DrawMonsters(Renderer& renderer, const WorldState&, const XMMATRIX& viewProjection)
     {
-        const XMFLOAT3 eye = world.MainCamera.Position;
         const auto& enemies = GetNyxaraKit().Enemies();
         ID3D11ShaderResourceView* white = renderer.mWhiteTextureView.Get();
         for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
@@ -4397,15 +4402,6 @@ namespace CaucasianEagle
                 {
                     renderer.DrawBox(XMMatrixScaling(.55f, 3.4f * fade, .55f) * XMMatrixTranslation(s * 1.05f, 0, 0) * turn * where, viewProjection, iron);
                     renderer.DrawBox(XMMatrixScaling(2.65f * fade, .55f, .55f) * XMMatrixTranslation(0, s * 1.45f, 0) * turn * where, viewProjection, iron);
-                }
-                if (!m.Dying && (open || e.Health < e.MaxHealth))
-                {
-                    const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth), top = e.Pos.y + 2.6f;
-                    const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - e.Pos.x, eye.z - e.Pos.z));
-                    renderer.DrawBox(XMMatrixScaling(2.6f, .12f, .03f) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
-                    if (ratio > 0)
-                        renderer.DrawBox(XMMatrixScaling(2.5f * ratio, .08f, .04f) * XMMatrixTranslation(-1.25f * (1 - ratio), 0, 0) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z),
-                                         viewProjection, Surface(white, {1.f, .55f, .2f, 1}, .9f));
                 }
                 continue;
             }
@@ -4430,7 +4426,9 @@ namespace CaucasianEagle
             if (rigged) { pitch *= .25f; roll *= .4f; }   // the joints do the leaning; the whole body only follows a little
             if (m.Hover < 0) pitch += .25f;
             pitch += look.Pitch; roll += look.Roll; lift += look.Lift;
-            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) * look.Hover + look.Rise;
+            // (doomed, dazed, it comes down onto the ground for her finishing kill, and lies there dead)
+            const float landed = m.Dying || !e.Alive ? 0.f : 1 - std::clamp(e.Daze, 0.f, 1.f);
+            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) * look.Hover * landed + look.Rise;
             // (dying it sinks away; on its knees, doomed, it is let down onto them: NyxaraKit::Wraith::KneelDrop)
             const float sink = m.Dying ? (1 - fade) * def.Height * .3f : 0.f;
             const XMFLOAT3 at{feet.x + std::sin(e.Yaw) * forward, feet.y + lift + hover - sink - NyxaraKit::Wraith::KneelDrop(e.Knee, e.Kneel), feet.z + std::cos(e.Yaw) * forward};
@@ -4457,16 +4455,6 @@ namespace CaucasianEagle
                 renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh, place, viewProjection, palette, skin);
             }
             else renderer.DrawDoorwaysGpuMesh(model.Mesh, place, viewProjection, skin);
-            if (!m.Dying && !def.Boss && e.Doom <= 0 && !(m.Calm > 0 && e.Health >= e.MaxHealth))
-            {   // health bar (not over a creature of the mountain that waits, unhurt)
-                const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth);
-                const float top = feet.y + def.Height + hover + .35f, width = std::min(2.4f, .9f + def.Radius);
-                const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - feet.x, eye.z - feet.z));
-                renderer.DrawBox(XMMatrixScaling(width, .09f, .03f) * face * XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
-                if (ratio > 0)
-                    renderer.DrawBox(XMMatrixScaling(width * .96f * ratio, .06f, .04f) * XMMatrixTranslation(-width * .48f * (1 - ratio), 0, 0) * face *
-                                     XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {def.Color.x, def.Color.y, def.Color.z, 1}, .9f));
-            }
         }
     }
 
@@ -5148,7 +5136,7 @@ namespace CaucasianEagle
         constexpr float Width = 400, Row = 46, Gap = 5, Pad = 16, Head = 96, Foot = 44, Tiny = 1.55f, Small = 2.0f, Name = 2.6f;
         struct Entry { const wchar_t* Label; const wchar_t* Note; };
         const Entry entries[PauseRows] = {
-            {L"Continue the journey", L""}, {L"Nyxara", L"wings, axes, armour"}, {L"The story", L"legend and memories"}, {L"The map", L""},
+            {L"Continue the journey", L""}, {L"Nyxara", L"wings, swords, armour"}, {L"The story", L"legend and memories"}, {L"The map", L""},
             {L"Settings", L"picture, sound, mouse"}, {L"Guide", L"how to play, what it needs"}, {L"To the start screen", L"the road is saved"},
             {L"Leave the game", L"the road is saved"}};
         const float w = Width * S, h = (Head + PauseRows * (Row + Gap) + Foot) * S;

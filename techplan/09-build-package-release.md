@@ -63,7 +63,9 @@ powershell -ExecutionPolicy Bypass -File tools\package.ps1
 
 `<version>` is read from `GameVersion` in `game/src/GameConstants.h`.
 
-Sizes at v0.3.0: folder 916 MB (about 490 MB of it engine assets the game may not need, debt D1), zip 781 MB, Setup file 735 MB.
+Sizes at v0.3.0: folder 916 MB (about 490 MB of it engine assets the game may not need, debt D1), zip 781 MB, Setup file 735 MB. At v0.5.0 (with Map A): folder 3,086 MB, Setup file 1,814 MB, close to GitHub's 2 GiB limit for one release file (risk R10).
+
+Since 0.5 `CaucasianEagle.exe` starts the Eagle's Ascent. The package folder has `Play-TheRoad.cmd` (`--road`) beside the executable; the installer's **Caucasian Eagle** shortcut (and the desktop one, ticked by default) starts the Ascent, **Caucasian Eagle - The Road (0.4)** the road.
 
 ### Icon and version information
 

@@ -70,6 +70,7 @@ namespace CaucasianEagle
         const char* Air(Doorways::DoorwaysGameHost& host, float dt, bool flying, bool rescue);
         // Puts her standing at a station, healed, on foot; a checkpoint station becomes the one to return to.
         void Visit(Doorways::DoorwaysGameHost& host, int station);
+        bool HealOnVisit = true;       // Visit heals her (the Eagle's Ascent 0.5: no; only potions heal)
 
         void DrawModels(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection, int light);
         // Hides the game models of that name (a 'prop' line's) within radius m of p, or shows them again; returns how many.
@@ -88,7 +89,8 @@ namespace CaucasianEagle
         struct CaveSpot { float Floor = 0, Roof = 0, Across = 0, Half = 0, RightX = 0, RightZ = 0; };
         bool InCave(const DirectX::XMFLOAT3& p, CaveSpot* spot = nullptr) const;
         struct CavePoint { float X = 0, Y = 0, Z = 0, Half = 0, Tall = 0; };
-        struct Cave { std::string Kind; std::vector<CavePoint> Line; float MinX = 0, MaxX = 0, MinZ = 0, MaxZ = 0, MinY = 0, MaxY = 0; };
+        // Open: each end (first, last) opens to the air or into another cave; else it ends in the rock (a chamber's back)
+        struct Cave { std::string Kind; std::vector<CavePoint> Line; float MinX = 0, MaxX = 0, MinZ = 0, MaxZ = 0, MinY = 0, MaxY = 0; bool Open[2] = {true, true}; };
         const std::vector<Cave>& Caves() const { return mCaves; }
         // The rings round the mountain (records "ring <n> x y z ...", 2026-11-18): trails joining the main one at its bends.
         const std::vector<std::vector<DirectX::XMFLOAT3>>& Rings() const { return mRings; }
@@ -136,6 +138,16 @@ namespace CaucasianEagle
         int Checkpoint = 0;            // the last checkpoint station she stood at
         float Along = 0, OffTrail = 0, Slope = 0;
         float Rescued = 0;             // seconds left of the "returned to checkpoint" notice
+        // The forest's trunks (<map>.trees, written by the Map Lab's build_mountain.py: every tree of the map, ~260 000).
+        struct Trunk { float X = 0, Y = 0, Z = 0, R = 0, H = 0; };
+        size_t TreeCount() const { return mTrunks.size(); }
+        bool TreesHold = true;         // false: CAUCASIAN_EAGLE_TREES=0 (a test's baseline)
+        // The ground's look record ("terrain x0 z0 width depth snowline sea ..."): false without one.
+        bool TerrainInfo(float out[7]) const { if (!mHasTerrain) return false; for (int i = 0; i < 7; ++i) out[i] = mTerrain[i]; return true; }
+        // Where the game models stand: x, z and the radius they cover (AscentGrass keeps out of it).
+        std::vector<DirectX::XMFLOAT3> BuiltCircles() const;
+        // The trunk nearest (x, z) whose foot is within 'band' m of y, if one is within 'reach' m: true and where.
+        bool NearestTrunk(float x, float y, float z, float reach, Trunk& out) const;
         const wchar_t* AirNow = L"";   // what the air is doing to her this step
         int ModelsDrawn = 0, ModelCount = 0;
 
@@ -159,6 +171,19 @@ namespace CaucasianEagle
         std::vector<Cave> mCaves;
         std::vector<std::vector<DirectX::XMFLOAT3>> mRings;
         std::unordered_map<long long, std::vector<int>> mTreadCells;
+        // On foot in a cave (2026-11-20, the owner: "nyxara falls out of walls from caves"): the tube's collision is
+        // walkable only (the engine stops no one at it), so she is held inside its walls and under its roof here.
+        void HoldInCave(Player& p) const;
+        // 2026-11-20, the owner: "add collisions to trees". She is held off every trunk, on foot and on wings, from its
+        // foot to three quarters of its height (the crowns stay soft: leaves). A box each in the scene would be some
+        // 260 000 blockers the engine tries at every step; here only the trunks of her own 8 m squares are looked at.
+        void HoldOffTrees(Player& p, bool flying) const;
+        void LoadTrees(const std::filesystem::path& path);
+        std::vector<Trunk> mTrunks;
+        std::unordered_map<long long, std::vector<unsigned>> mTrunkCells;
+        static constexpr float TrunkCell = 8.f;
+        static long long TrunkKey(int cx, int cz) { return (static_cast<long long>(cx) << 32) ^ static_cast<unsigned>(cz); }
+        void CaveEnds();                 // which ends of each cave are open (Load)
         DirectX::XMFLOAT3 mFlown{}; bool mHasFlown = false; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
         float mInRock = 0;             // seconds she has been falling inside the mountain
         // The ground's look (record "terrain x0 z0 width depth snowline sea", 2026-11-18): the splat <map>.splat_a.dds

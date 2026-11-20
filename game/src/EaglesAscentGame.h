@@ -2,7 +2,10 @@
 
 #include "DoorwaysGame.h"
 #include "EaglesAscent.h"
+#include "Growth.h"
 #include "Journey.h"
+#include "Wayside.h"
+#include "AscentGrass.h"
 #include "MountainView.h"
 
 #include <array>
@@ -17,8 +20,13 @@
 // Since 2026-11-20 (the owner's map plan) it has the road's creatures, in small groups along the way and in caves beside
 // it, never more than three alive at once, and four bosses: the Gveleshapi, the Giant, the Devi Lord and the Eagle in
 // Amiran's court (Journey::UpdateMountain; where they are: art/map/ascent_creatures.py). Nine Eagle Nests are the only
-// places she is saved: the last nest she rested at and every creature she has beaten (a beaten one stays beaten). She
-// wakes at the last nest when she falls.
+// places she is saved.
+// 0.5 (the owner, 2026-11-20): she grows as on the road (I: wings, swords, armour, power, defence, for crystals), her
+// wings are her flight (10 s, then 15, 20, 30); crystals come from the creatures, from clay jars beside every road and
+// from hidden places (Wayside); nothing heals her but potions (Z), found in the jars. H at any Eagle Nest saves her, as
+// often as she likes: the nest, her growth, the creatures she has beaten, the jars she has broken, the places found.
+// When she falls she wakes at the nest she saved at, whole, and all since that save is undone: the creatures she beat
+// since stand on the way again, the jars she broke since are whole.
 namespace CaucasianEagle
 {
     // The switch or the environment variable asks for the Eagle's Ascent (main.cpp registers the module).
@@ -46,6 +54,10 @@ namespace CaucasianEagle
         void LoadSave();                           // the last nest and the beaten (AscentSaveFileName)
         void WriteSave() const;
         void NewClimb(Doorways::DoorwaysGameHost& host);   // from the shore, the nests and the beaten forgotten
+        void SaveHere(int station);                // H at a nest: all she is and has done, saved (WriteSave)
+        void RollBack();                           // back to the save: her growth, the creatures, the jars, the places
+        int NestAt(const DirectX::XMFLOAT3& p) const;   // the station of the nest she stands in; -1
+        void Collect(const Wayside::Gain& gain);   // what a jar or a place gave her
         void DrawNests(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         std::wstring BackTitle() const;            // "BACK AT THE EAGLE NEST" (or the shore, or a checkpoint: no nests)
         // The creatures' tour (CAUCASIAN_EAGLE_DEMO=3, unattended): she is put on the way before every group and boss in
@@ -54,7 +66,21 @@ namespace CaucasianEagle
         // nothing she beat may wake again. Writes tour.tsv beside the evidence file (and pictures into
         // CAUCASIAN_EAGLE_TOUR_SHOTS); ends CREATURES_PASS or CREATURES_FAIL.
         void Tour(Doorways::DoorwaysGameHost& host, float dt);
-        void Put(Doorways::DoorwaysGameHost& host, const DirectX::XMFLOAT3& at, float yaw);   // stands her there (no checkpoint, no heal)
+        void Put(Doorways::DoorwaysGameHost& host, const DirectX::XMFLOAT3& at, float yaw);
+        // The jars' test (CAUCASIAN_EAGLE_DEMO=4, unattended, 0.5): the jars and places laid; she is stood before groups
+        // of jars up the mountain and cuts (her own blows: the kit's test pilot keys), and they must break; then saved at a
+        // nest, more broken and crystals gained, and rolled back (as when she falls): all must be as saved; then the save
+        // read back. Writes ways.tsv beside the evidence file (pictures into CAUCASIAN_EAGLE_TOUR_SHOTS); WAYS_PASS or WAYS_FAIL.
+        void Ways(Doorways::DoorwaysGameHost& host, float dt);
+        bool mWays = false; int mWaysPhase = 0, mWaysPick = 0, mWaysBad = 0; float mWaysClock = 0;
+        // The nature test (CAUCASIAN_EAGLE_DEMO=5, 2026-11-20): the grass fields seen at spots up the mountain (pictures,
+        // tufts drawn, frame time), then she runs at trunks beside the way and must not go into or through any.
+        // nature.tsv beside the evidence; NATURE_PASS or NATURE_FAIL.
+        void Nature(Doorways::DoorwaysGameHost& host, float dt);
+        bool mNature = false; int mNatPhase = 0, mNatPick = 0, mNatBad = 0, mNatFrames = 0, mNatThrough = 0, mNatReached = 0;
+        float mNatClock = 0, mNatMs = 0, mNatClosest = 0;
+        std::vector<DirectX::XMFLOAT3> mNatSpots; std::vector<EaglesAscent::Trunk> mNatTrunks; DirectX::XMFLOAT3 mNatFrom{};
+        std::vector<size_t> mWaysPicks; Doorways::NyxaraKit::Keys mWaysKeys;   // stands her there (no checkpoint, no heal)
         // How a nest would sit at (x, z), about nearY: its worst step of ground under it (m), or -1 where there is no
         // ground, it is not level, the ground drops away right beside it, or something stands there (a pillar, rock)
         static float NestFooting(const DoorwaysRuntimeScene& scene, float x, float z, float nearY, float& groundY);
@@ -67,7 +93,13 @@ namespace CaucasianEagle
         std::vector<Journey::MountainCreature> mCreatureList;
         int mSavedNest = 0;                        // the station of the last Eagle Nest she rested at (0: the shore)
         std::vector<std::string> mSavedBeaten;
-        size_t mBeatenWritten = 0;                 // the beaten in the save: every creature she beats is saved at once
+        size_t mBeatenWritten = 0;                 // the beaten counted (for their crystals)
+        Growth::State mGrowth, mSavedGrowth;       // (0.5) her growth now, and as saved
+        std::vector<std::string> mSavedJars, mSavedPlaces;
+        Wayside mWayside; bool mWaysideOn = false;
+        AscentGrass mGrass;   // the grass fields (2026-11-20)
+        bool mGrowthOpen = false; float mGrowthFade = 0, mGrowthFlash = 0; int mGrowthRow = 0, mGrowthFlashRow = -1, mFormShown = 0;
+        float mSavedMark = 0;                      // the "SAVED" mark's seconds left
         std::filesystem::path mSavePath; bool mSaveTest = false;
         bool mTrace = false;                       // CAUCASIAN_EAGLE_MAP_LOG set: the creatures' and nests' events go to the evidence file too
         // the creatures' tour (Tour)
@@ -79,7 +111,7 @@ namespace CaucasianEagle
         // of the road where it stands; the one she finishes, which finisher, how many of each, none with room, nowhere
         // to stand, she off her ground
         bool mTourFinish = false, mTourFinShot = false; int mTourVictim = -1, mTourVictimKind = 0, mTourKind = 0;
-        int mTourFinPlayed[4] = {0, 0, 0, 0}, mTourFinNoRoom = 0, mTourFinNoPlace = 0, mTourFinFell = 0, mTourFinOut = 0;
+        int mTourFinPlayed[11]{}, mTourFinNoRoom = 0, mTourFinNoPlace = 0, mTourFinFell = 0, mTourFinOut = 0;
         float mTourFinClock = 0, mTourFinStart = 0, mTourFinAir = 0, mTourVictimY = 0; std::string mTourVictimId;
         Renderer* mRenderer = nullptr;
         std::array<bool, 256> mKeys{};

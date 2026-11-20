@@ -189,12 +189,62 @@ namespace Doorways
         // worked out from its height: StartFinish); it goes over backwards and she rides it down, then springs off it.
         // Gale Slide: Skill_Slide past its right, her blade through its legs (it drops to its knees); up, round, and
         // Attack_R3's blade down behind her through its neck (the moment is its height's; the table's are a fallback).
+        // (2026-11-20, the owner: "create 10 finishing animations that i will choose 3 from. you can also keep those 3 we
+        // have now and addition 7 . then let me test them same way with 0-9 numbers"; and "all those 10 animation should be
+        // chosen base a criteria that should be possible to make to all of our 12characters": the seven more ask nothing of
+        // a creature but its height, width, neck and knees, which every one has: FinishMore.)
+        constexpr int Finishers = 10;
         struct FinishSpec { const wchar_t* Name; const char* Clip; float Seconds; float Blow[2]; float Death, Falls; };
-        constexpr FinishSpec Finishes[4] = {
+        constexpr FinishSpec Finishes[Finishers + 1] = {
             {L"", "", 0, {-1, -1}, 0, 0},
             {L"TALON CROSS", "Finish_Cross", 2.3f, {.44f, .57f}, 1.40f, .48f},
             {L"EAGLE'S PLUNGE", "Finish_Plunge", 2.75f, {1.10f, -1}, 1.10f, .65f},
             {L"GALE SLIDE", "Finish_Slide", 2.6f, {.39f, -1}, 1.55f, .55f},
+            {L"HEARTPIERCE", "Finish_Pierce", 2.2f, {-1, -1}, 1.45f, .6f},
+            {L"REAPER'S WHEEL", "Finish_Wheel", 2.3f, {-1, -1}, 1.30f, .55f},
+            {L"MOUNTAIN BREAKER", "Finish_Breaker", 2.3f, {-1, -1}, 1.05f, .5f},
+            {L"MOONLIT FLASH", "Finish_Flash", 2.4f, {-1, -1}, 1.55f, .5f},
+            {L"TEMPEST FLURRY", "Finish_Flurry", 2.4f, {-1, -1}, 1.52f, .55f},
+            {L"HEADSMAN", "Finish_Headsman", 2.5f, {-1, -1}, 1.42f, .5f},
+            {L"RISING TALON", "Finish_Rising", 2.3f, {-1, -1}, .50f, .7f},
+        };
+        // The seven more (4 to 10), each the same way: she goes in to where her blade's point, as the blow Place lands,
+        // is on the front of it at Aim times its neck's height (on its knees, as low as they bring it), lifted up to it
+        // where it is tall (no higher than 2.6 m); so the blow lands on a small one and on a giant alike.
+        //   Hit, Hand: its blows (s into it; -1 none), the blade of each (0 left, 1 right, 2 both); Place: the blow her place
+        //   is for; Aim < 0: as the blade comes (no lift). InFrom..InTo: in to that place. Past: on past it, round its side,
+        //   to Past m beyond it (0 none), over PastFrom..PastTo. Leap: a leap of her own (m), up from LeapFrom to LeapTop,
+        //   down by LeapDown. LiftDown: her lift to its height let down by then. Kneels: the blow after which it goes down
+        //   on its knees (KneelTo of the way; -1 none). Falls: 0 away from her, 1 back the way she came (she went past it),
+        //   2 to her right. Show, its kill: 0 a cut, 1 the thrust held in it, 2 both blades into the ground (it shakes),
+        //   3 her cuts opening after she has gone past it, 4 a rising cut that takes her up on her wings.
+        //   Heartpierce: her left blade driven through its chest, held there as it sags to its knees, drawn out.
+        //   Reaper's Wheel: one whole turn with both blades out (cutting it), and the right brought down from high.
+        //   Mountain Breaker: a cut across, a hop, and both blades down into the ground before it.
+        //   Moonlit Flash: crouched, a blink past its side with one cut; she stands with her back to it, and it opens.
+        //   Tempest Flurry: four cuts: high from her left, back across, low at its legs (it sinks), and across its neck.
+        //   Headsman: a cut at its legs drops it to its knees; her right blade raised high and down on its neck.
+        //   Rising Talon: a rising cut that carries her up on her wings, and she comes down as it falls back.
+        struct FinishMore
+        {
+            float Hit[4]; int Hand[4]; int Place; float Aim;
+            float InFrom, InTo, Past, PastFrom, PastTo;
+            float Leap, LeapFrom, LeapTop, LeapDown, LiftDown;
+            int Kneels; float KneelTo; int Falls, Show;
+        };
+        // The owner chose four of the ten (2026-11-20: "i like finishing on number 4,5,7,8 ... let them be finishing randomly
+        // for each kill"; the lab's keys 4, 5, 7 and 8): she plays one of these at random, never the same twice running. The
+        // others are kept, made at load, for the Character Lab's cue and CAUCASIAN_EAGLE_NYXARA_FINISHER.
+        constexpr int Kept[] = {5, 6, 8, 9};   // Reaper's Wheel, Mountain Breaker, Tempest Flurry, Headsman
+        constexpr FinishMore More[Finishers + 1] = {
+            {}, {}, {}, {},
+            {{.70f, -1, -1, -1}, {0, 0, 0, 0}, 0, .8f, 0, .62f, 0, 0, 0, 0, 0, 0, 0, 1.7f, 0, .45f, 0, 1},
+            {{.60f, 1.30f, -1, -1}, {1, 1, 0, 0}, 1, .75f, 0, .5f, 0, 0, 0, 0, 0, 0, 0, 1.6f, -1, 0, 2, 0},
+            {{.50f, 1.05f, -1, -1}, {1, 2, 0, 0}, 1, -1, 0, .45f, 0, 0, 0, .5f, .70f, .88f, 1.05f, 1.3f, -1, 0, 0, 2},
+            {{.55f, -1, -1, -1}, {1, 0, 0, 0}, 0, .7f, .15f, .50f, 1.5f, .50f, .75f, 0, 0, 0, 0, .9f, -1, 0, 1, 3},
+            {{.42f, .84f, 1.12f, 1.52f}, {0, 0, 0, 0}, 3, .7f, 0, .38f, 0, 0, 0, 0, 0, 0, 0, 1.8f, 2, .4f, 0, 0},
+            {{.42f, 1.42f, -1, -1}, {0, 1, 0, 0}, 1, 1.f, 0, .38f, 0, 0, 0, 0, 0, 0, 0, 1.75f, 0, 1.f, 2, 0},
+            {{.50f, -1, -1, -1}, {1, 0, 0, 0}, 0, .55f, 0, .42f, 0, 0, 0, 1.3f, .40f, 1.0f, 1.6f, 1.5f, -1, 0, 0, 4},
         };
         // Eagle's Plunge: when she springs off it ('contact': when her blades went in), and how long her spring takes
         constexpr float PlungeHop = .45f;
@@ -215,6 +265,7 @@ namespace Doorways
         constexpr int HeavyBlow = 80;                         // from this much damage a blow freezes the moment
 
         XMFLOAT3 Add(XMFLOAT3 a, XMFLOAT3 b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+        XMFLOAT3 Lerp(XMFLOAT3 a, XMFLOAT3 b, float t) { return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t}; }
         XMFLOAT3 Sub(XMFLOAT3 a, XMFLOAT3 b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
         XMFLOAT3 Mul(XMFLOAT3 a, float s) { return {a.x * s, a.y * s, a.z * s}; }
         float Len(XMFLOAT3 a) { return std::sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
@@ -298,6 +349,12 @@ namespace Doorways
                 b.Vertex({.5f, y0 + 1, 0}, {0, 0, 1}, 1, 0), b.Vertex({-.5f, y0 + 1, 0}, {0, 0, 1}, 0, 0));
             return b.Upload(r, out, e);
         }
+        bool BuildTri(Renderer& r, DoorwaysGpuMesh& out, std::string& e)
+        {   // one triangle, (0,0,0) (1,0,0) (0,1,0), normal +Z: any other is it stretched and turned (Basis)
+            MeshBuilder b;
+            b.Tri(b.Vertex({0, 0, 0}, {0, 0, 1}, 0, 0), b.Vertex({1, 0, 0}, {0, 0, 1}, 1, 0), b.Vertex({0, 1, 0}, {0, 0, 1}, 0, 1));
+            return b.Upload(r, out, e);
+        }
         bool BuildSphere(Renderer& r, DoorwaysGpuMesh& out, std::string& e)
         {
             MeshBuilder b; const int rings = 12, segs = 20;
@@ -357,6 +414,305 @@ namespace Doorways
         XMMATRIX Basis(XMFLOAT3 x, XMFLOAT3 y, XMFLOAT3 z, XMFLOAT3 p)
         {
             return XMMATRIX(x.x, x.y, x.z, 0, y.x, y.y, y.z, 0, z.x, z.y, z.z, 0, p.x, p.y, p.z, 1);
+        }
+
+        // ------------------------------------------------------------------ her attack styles (owner, 2026-11-20)
+        // "for now this attacks are so slow and hard to control, also curent right/left clicks attacks contain several
+        // different atacks which concates a combo itself, but we could do better, i want you to examine soullike games and
+        // get me at least 5 different variants for each click", and then "try at least each attack to be 3x faster then
+        // current one". Ten styles of one move for each button: a click is that move, the same every time, never the next of
+        // a row. As in the games they are taken from, a move turns her onto the creature it is aimed at as it begins (the
+        // soft lock: StyleTrackRate until TrackTo), carries her in to it and stops short of it (Lunge, Gap), gives up its end
+        // to whatever is pressed next (Free) and keeps a click made during it for a moment (StyleBuffer). Each is made at
+        // load from pieces of her clips (MakeSpliced). Her cuts: the blow 0.27 to 0.47 s after the click, the next cut 0.14 s
+        // after it, the cut over 0.82 s after it. Here every first blow by 0.116 s, the next press taken by 0.163 s, the move
+        // over by 0.388 s (a move of n blows against n of her cuts in a row). The Character Lab gives them keys 0 to 9.
+        struct StyleKnot { float Out, In; };                      // t s into the move: s into the clip
+        struct StyleTrack { const char* Clip; std::vector<StyleKnot> Knots; };
+        struct StyleHit
+        {
+            float At, Reach, Arc;      // s into the move; m; degrees either side of her facing (Shape 1: Reach long, Arc m either side)
+            int Damage; float Push, Launch;
+            int Shape;                 // 0 before her, 1 a line along the ground before her
+            float Stop, Shake, Ring;   // the moment held (s) and the view shaken when it strikes; a ring on the ground (m across)
+            int Hand;                  // the blade that strikes (0 left, 1 right, 2 both)
+        };
+        struct StyleMove
+        {
+            const wchar_t* Name; const wchar_t* What; const char* Clip;
+            float Seconds, Free, BlendIn, TrackTo;     // all of it; free for what comes next from; into it from what was; turned onto its creature until
+            float Lunge, LungeFrom, LungeTo, Gap;      // at most so far in (m), over that time, stopping so far short of the creature's edge
+            float Back, BackFrom, BackTo;              // a step or hop back (m), over that time
+            float Hop, HopFrom, HopTo;                 // her feet off the ground (m at the highest), over that time
+            float Spin, SpinFrom, SpinTo;              // turned round (radians, to her right), over that time
+            std::vector<StyleHit> Hits;
+            std::vector<StyleTrack> Tracks;
+            float LastHit() const { return Hits.empty() ? 0.f : Hits.back().At; }
+        };
+        struct StyleSpec { const wchar_t* Name; const wchar_t* Like; StyleMove Move[2]; };
+        // The owner, 2026-11-20: "make those 10 attacks in character lab 1.5x slower". Every time of every move (its length,
+        // when it is free, its blend, its turn, lunge, step back, hop and spin, its blows, and where it is in her clips) is
+        // the table's times StyleSlow; the clips' own times, the distances and a blow's held moment are as they were.
+        constexpr float StyleSlow = 1.5f;
+        std::vector<StyleSpec> Slowed(std::vector<StyleSpec> all)
+        {
+            for (auto& st : all)
+                for (auto& m : st.Move)
+                {
+                    for (float* f : {&m.Seconds, &m.Free, &m.BlendIn, &m.TrackTo, &m.LungeFrom, &m.LungeTo, &m.BackFrom, &m.BackTo,
+                                     &m.HopFrom, &m.HopTo, &m.SpinFrom, &m.SpinTo}) *f *= StyleSlow;
+                    for (auto& h : m.Hits) h.At *= StyleSlow;
+                    for (auto& tr : m.Tracks) for (auto& k : tr.Knots) k.Out *= StyleSlow;
+                }
+            return all;
+        }
+        const std::vector<StyleSpec>& Styles()
+        {   // (written out by a scratch tool, styles.py, from its table: it checks every blow against her clips, the blade fast
+            // and before her as it lands, and every move against her cuts, three times as fast)
+            static const std::vector<StyleSpec> all = Slowed({
+            {L"FALCON", L"twin daggers: Bloodborne's Blade of Mercy, Elden Ring's daggers", {
+                {.Name = L"TALON FLICK", .What = L"the right blade whipped down across her", .Clip = "Attack_S0_L",
+                 .Seconds = 0.3f, .Free = 0.12f, .BlendIn = 0.035f, .TrackTo = 0.05f,
+                 .Lunge = 0.5f, .LungeFrom = 0, .LungeTo = 0.06f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.075f, 1.8f, 45.f, 30, 1.f, 0, 0, 0, 0, 0, 1}},
+                 .Tracks = {{"Attack_R1", {{0, 0.5f}, {0.035f, 0.56f}, {0.07f, 0.645f}, {0.09f, 0.672f}, {0.12f, 0.72f}, {0.16f, 0.8f}, {0.24f, 0.95f}}}, {"Idle", {{0.12f, 0}, {0.3f, 0.18f}}}}},
+                {.Name = L"TWIN FANG", .What = L"both blades in an X: the right down across her, the left back through it", .Clip = "Attack_S0_R",
+                 .Seconds = 0.36f, .Free = 0.22f, .BlendIn = 0.035f, .TrackTo = 0.1f,
+                 .Lunge = 1.f, .LungeFrom = 0, .LungeTo = 0.12f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.075f, 2.f, 45.f, 35, 1.f, 0, 0, 0, 0, 0, 1}, {0.15f, 2.f, 60.f, 45, 2.f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_R1", {{0, 0.5f}, {0.035f, 0.56f}, {0.07f, 0.645f}, {0.09f, 0.672f}, {0.13f, 0.73f}}}, {"Attack_L1", {{0.09f, 0.79f}, {0.13f, 0.845f}, {0.15f, 0.875f}, {0.175f, 0.905f}, {0.22f, 0.97f}, {0.3f, 1.08f}}}, {"Idle", {{0.2f, 0}, {0.36f, 0.16f}}}}}}},
+            {L"MOONBLADE", L"a straight sword: Dark Souls' and Elden Ring's straight swords", {
+                {.Name = L"CRESCENT", .What = L"a wide level sweep of the left blade, from her left round to her right", .Clip = "Attack_S1_L",
+                 .Seconds = 0.34f, .Free = 0.14f, .BlendIn = 0.04f, .TrackTo = 0.06f,
+                 .Lunge = 0.6f, .LungeFrom = 0, .LungeTo = 0.08f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.09f, 2.f, 75.f, 45, 1.5f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L1", {{0, 0.74f}, {0.04f, 0.8f}, {0.075f, 0.85f}, {0.09f, 0.875f}, {0.11f, 0.905f}, {0.15f, 0.96f}, {0.22f, 1.03f}, {0.32f, 1.15f}}}, {"Idle", {{0.14f, 0}, {0.34f, 0.2f}}}}},
+                {.Name = L"MOONFALL", .What = L"the right blade down from high, and on down into the ground", .Clip = "Attack_S1_R",
+                 .Seconds = 0.5f, .Free = 0.28f, .BlendIn = 0.035f, .TrackTo = 0.16f,
+                 .Lunge = 1.4f, .LungeFrom = 0, .LungeTo = 0.17f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.075f, 2.2f, 50.f, 30, 1.f, 0, 0, 0, 0, 0, 1}, {0.2f, 2.3f, 45.f, 85, 3.f, 0, 0, 0.06f, 0.2f, 0, 1}},
+                 .Tracks = {{"Attack_R1", {{0, 0.5f}, {0.035f, 0.56f}, {0.07f, 0.645f}, {0.09f, 0.672f}, {0.12f, 0.72f}, {0.16f, 0.78f}}}, {"Attack_R_Step", {{0.1f, 0.74f}, {0.15f, 0.82f}, {0.18f, 0.87f}, {0.2f, 0.895f}, {0.23f, 0.94f}, {0.3f, 1.05f}, {0.4f, 1.25f}}}, {"Idle", {{0.3f, 0}, {0.5f, 0.2f}}}}}}},
+            {L"IAIDO", L"a katana: Sekiro; Elden Ring's katanas and Unsheathe", {
+                {.Name = L"FLASH STEP", .What = L"a blink in, turning, and the cut as she arrives", .Clip = "Attack_S2_R",
+                 .Seconds = 0.36f, .Free = 0.14f, .BlendIn = 0.04f, .TrackTo = 0.05f,
+                 .Lunge = 2.8f, .LungeFrom = 0, .LungeTo = 0.09f, .Gap = 0.8f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.1f, 2.2f, 55.f, 80, 2.5f, 0, 0, 0.05f, 0.15f, 0, 1}},
+                 .Tracks = {{"Attack_R_Run", {{0, 0.47f}, {0.04f, 0.53f}, {0.08f, 0.6f}, {0.1f, 0.65f}, {0.12f, 0.69f}, {0.16f, 0.75f}, {0.24f, 0.85f}}}, {"Idle", {{0.18f, 0}, {0.36f, 0.18f}}}}},
+                {.Name = L"DRAW CUT", .What = L"from high over her left shoulder, down and level across at the waist", .Clip = "Attack_S2_L",
+                 .Seconds = 0.32f, .Free = 0.13f, .BlendIn = 0.035f, .TrackTo = 0.05f,
+                 .Lunge = 0.7f, .LungeFrom = 0, .LungeTo = 0.07f, .Gap = 1.f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.09f, 2.1f, 50.f, 45, 1.5f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L_Step", {{0, 0.96f}, {0.025f, 1.f}, {0.045f, 1.04f}, {0.06f, 1.075f}, {0.075f, 1.15f}, {0.09f, 1.185f}, {0.11f, 1.22f}, {0.15f, 1.27f}, {0.22f, 1.33f}, {0.3f, 1.4f}}}, {"Idle", {{0.13f, 0}, {0.32f, 0.19f}}}}}}},
+            {L"STING", L"a rapier: Lies of P's rapiers; Elden Ring's thrusting swords and estocs", {
+                {.Name = L"NEEDLE", .What = L"two jabs of the left blade, far before her", .Clip = "Attack_S3_L",
+                 .Seconds = 0.34f, .Free = 0.22f, .BlendIn = 0.04f, .TrackTo = 0.14f,
+                 .Lunge = 0.4f, .LungeFrom = 0, .LungeTo = 0.07f, .Gap = 1.3f, .Back = -0.3f, .BackFrom = 0.1f, .BackTo = 0.15f,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.07f, 2.6f, 20.f, 25, 0.5f, 0, 0, 0, 0, 0, 0}, {0.155f, 2.6f, 20.f, 25, 0.5f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L2", {{0, 0.96f}, {0.04f, 1.03f}, {0.07f, 1.09f}, {0.085f, 1.095f}, {0.11f, 1.02f}, {0.135f, 1.04f}, {0.155f, 1.09f}, {0.17f, 1.095f}, {0.21f, 1.1f}, {0.3f, 1.105f}}}, {"Idle", {{0.18f, 0}, {0.34f, 0.16f}}}}},
+                {.Name = L"FLECHE", .What = L"she runs in low and drives the blade through it", .Clip = "Attack_S3_R",
+                 .Seconds = 0.38f, .Free = 0.14f, .BlendIn = 0.04f, .TrackTo = 0.06f,
+                 .Lunge = 3.f, .LungeFrom = 0, .LungeTo = 0.1f, .Gap = 1.2f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.1f, 2.8f, 20.f, 85, 3.f, 0, 0, 0.06f, 0.15f, 0, 0}},
+                 .Tracks = {{"Attack_L2", {{0, 0.85f}, {0.04f, 0.95f}, {0.08f, 1.04f}, {0.1f, 1.08f}, {0.115f, 1.095f}, {0.15f, 1.1f}, {0.3f, 1.105f}}}, {"Idle", {{0.16f, 0}, {0.38f, 0.22f}}}}}}},
+            {L"WHIRL", L"a twinblade: Elden Ring's twinblades, the Godskin Peeler", {
+                {.Name = L"PINWHEEL", .What = L"one turn with both blades out, cutting all round her", .Clip = "Attack_S4_L",
+                 .Seconds = 0.36f, .Free = 0.14f, .BlendIn = 0.03f, .TrackTo = 0.04f,
+                 .Lunge = 0.6f, .LungeFrom = 0, .LungeTo = 0.08f, .Gap = 0.7f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.105f, 2.1f, 180.f, 40, 1.5f, 0, 0, 0, 0, 0, 1}},
+                 .Tracks = {{"Attack_R4", {{0, 0.3f}, {0.035f, 0.42f}, {0.065f, 0.6f}, {0.09f, 0.78f}, {0.105f, 0.88f}, {0.12f, 0.95f}, {0.16f, 1.05f}, {0.23f, 1.2f}, {0.32f, 1.32f}}}, {"Idle", {{0.16f, 0}, {0.36f, 0.2f}}}}},
+                {.Name = L"CYCLONE", .What = L"turn after turn, three times round", .Clip = "Attack_S4_R",
+                 .Seconds = 0.62f, .Free = 0.46f, .BlendIn = 0.04f, .TrackTo = 0.04f,
+                 .Lunge = 1.f, .LungeFrom = 0.03f, .LungeTo = 0.42f, .Gap = 0.7f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = XM_2PI, .SpinFrom = 0.03f, .SpinTo = 0.45f,
+                 .Hits = {{0.1f, 2.2f, 180.f, 35, 1.5f, 0, 0, 0, 0, 0, 1}, {0.25f, 2.2f, 180.f, 35, 1.5f, 0, 0, 0, 0, 0, 1}, {0.4f, 2.2f, 180.f, 35, 1.5f, 0, 0, 0, 0, 0, 1}},
+                 .Tracks = {{"Attack_R4", {{0, 0.3f}, {0.45f, 1.2f}, {0.55f, 1.42f}}}, {"Idle", {{0.45f, 0}, {0.62f, 0.17f}}}}}}},
+            {L"KESTREL", L"aerial: Devil May Cry's launcher; Elden Ring's jumping attacks", {
+                {.Name = L"UPDRAFT", .What = L"a rising cut that throws it up, her feet leaving the ground", .Clip = "Attack_S5_L",
+                 .Seconds = 0.32f, .Free = 0.14f, .BlendIn = 0.04f, .TrackTo = 0.05f,
+                 .Lunge = 0.5f, .LungeFrom = 0, .LungeTo = 0.07f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0.35f, .HopFrom = 0.07f, .HopTo = 0.3f, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.09f, 2.f, 60.f, 40, 0.5f, 6.f, 0, 0, 0, 0, 1}},
+                 .Tracks = {{"Attack_R2", {{0, 0.7f}, {0.04f, 0.76f}, {0.075f, 0.83f}, {0.09f, 0.865f}, {0.11f, 0.9f}, {0.14f, 0.93f}, {0.24f, 0.96f}}}, {"Idle", {{0.12f, 0}, {0.32f, 0.2f}}}}},
+                {.Name = L"EAGLE DIVE", .What = L"a rising cut that takes her up, and both blades down into it as she comes down", .Clip = "Attack_S5_R",
+                 .Seconds = 0.52f, .Free = 0.3f, .BlendIn = 0.04f, .TrackTo = 0.2f,
+                 .Lunge = 1.8f, .LungeFrom = 0.1f, .LungeTo = 0.23f, .Gap = 0.7f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0.25f, .HopFrom = 0.03f, .HopTo = 0.2f, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.09f, 2.f, 60.f, 40, 0.5f, 4.f, 0, 0, 0, 0, 1}, {0.235f, 2.5f, 180.f, 95, 3.f, 0, 0, 0.07f, 0.25f, 2.6f, 2}},
+                 .Tracks = {{"Attack_R2", {{0, 0.7f}, {0.04f, 0.76f}, {0.075f, 0.83f}, {0.09f, 0.865f}, {0.11f, 0.89f}, {0.14f, 0.92f}, {0.18f, 0.95f}}}, {"Attack_Jump", {{0.1f, 1.f}, {0.16f, 1.1f}, {0.2f, 1.18f}, {0.235f, 1.255f}, {0.26f, 1.32f}, {0.32f, 1.45f}, {0.44f, 1.66f}}}, {"Idle", {{0.3f, 0}, {0.52f, 0.22f}}}}}}},
+            {L"TEMPEST", L"dual curved swords: Elden Ring's dual curved swords; Sekiro's flurries", {
+                {.Name = L"TWIN SLASH", .What = L"a cut down from high on her left, and straight back across her", .Clip = "Attack_S6_L",
+                 .Seconds = 0.4f, .Free = 0.26f, .BlendIn = 0.035f, .TrackTo = 0.14f,
+                 .Lunge = 0.6f, .LungeFrom = 0, .LungeTo = 0.07f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.08f, 2.f, 60.f, 30, 1.f, 0, 0, 0, 0, 0, 0}, {0.195f, 2.f, 70.f, 35, 1.5f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L3", {{0, 0.7f}, {0.035f, 0.75f}, {0.065f, 0.8f}, {0.08f, 0.83f}, {0.1f, 0.88f}, {0.12f, 0.93f}, {0.16f, 1.4f}, {0.18f, 1.46f}, {0.195f, 1.51f}, {0.21f, 1.55f}, {0.24f, 1.6f}, {0.34f, 1.645f}}}, {"Idle", {{0.22f, 0}, {0.4f, 0.18f}}}}},
+                {.Name = L"GALE RUSH", .What = L"running in with two cuts, one low and one across", .Clip = "Attack_S6_R",
+                 .Seconds = 0.42f, .Free = 0.28f, .BlendIn = 0.035f, .TrackTo = 0.16f,
+                 .Lunge = 2.4f, .LungeFrom = 0, .LungeTo = 0.19f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.085f, 2.1f, 60.f, 45, 1.5f, 0, 0, 0, 0, 0, 0}, {0.21f, 2.1f, 70.f, 55, 2.f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L_Run", {{0, 0.62f}, {0.035f, 0.67f}, {0.07f, 0.735f}, {0.085f, 0.76f}, {0.1f, 0.8f}, {0.12f, 0.85f}, {0.165f, 1.4f}, {0.19f, 1.48f}, {0.21f, 1.54f}, {0.225f, 1.57f}, {0.26f, 1.62f}, {0.36f, 1.655f}}}, {"Idle", {{0.24f, 0}, {0.42f, 0.18f}}}}}}},
+            {L"COLOSSUS", L"weight: Elden Ring's greatswords and colossal swords", {
+                {.Name = L"HEAVY CLEAVE", .What = L"the right blade brought down from high with all her weight", .Clip = "Attack_S7_L",
+                 .Seconds = 0.38f, .Free = 0.14f, .BlendIn = 0.045f, .TrackTo = 0.06f,
+                 .Lunge = 0.8f, .LungeFrom = 0, .LungeTo = 0.09f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.1f, 2.2f, 55.f, 70, 3.5f, 0, 0, 0.06f, 0.15f, 0, 1}},
+                 .Tracks = {{"Attack_R1", {{0, 0.46f}, {0.045f, 0.55f}, {0.08f, 0.62f}, {0.1f, 0.66f}, {0.12f, 0.69f}, {0.16f, 0.75f}, {0.24f, 0.85f}, {0.34f, 0.98f}}}, {"Idle", {{0.16f, 0}, {0.38f, 0.22f}}}}},
+                {.Name = L"MOUNTAIN BREAKER", .What = L"a cut across, then a hop and both blades into the ground: it shakes round her", .Clip = "Attack_S7_R",
+                 .Seconds = 0.54f, .Free = 0.3f, .BlendIn = 0.04f, .TrackTo = 0.14f,
+                 .Lunge = 1.2f, .LungeFrom = 0.1f, .LungeTo = 0.23f, .Gap = 0.7f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.08f, 2.2f, 55.f, 50, 2.f, 0, 0, 0, 0, 0, 1}, {0.235f, 3.f, 180.f, 120, 4.f, 3.f, 0, 0.09f, 0.35f, 3.2f, 2}},
+                 .Tracks = {{"Attack_R1", {{0, 0.46f}, {0.04f, 0.55f}, {0.075f, 0.645f}, {0.09f, 0.672f}, {0.12f, 0.72f}, {0.16f, 0.78f}}}, {"Attack_Jump", {{0.1f, 1.f}, {0.16f, 1.08f}, {0.2f, 1.16f}, {0.235f, 1.255f}, {0.26f, 1.31f}, {0.32f, 1.42f}, {0.46f, 1.66f}}}, {"Idle", {{0.34f, 0}, {0.54f, 0.2f}}}}}}},
+            {L"VIPER", L"low and long: Elden Ring's Ashes of War that send a wave along the ground", {
+                {.Name = L"LOW FANG", .What = L"a cut down to its legs", .Clip = "Attack_S8_L",
+                 .Seconds = 0.32f, .Free = 0.13f, .BlendIn = 0.035f, .TrackTo = 0.05f,
+                 .Lunge = 0.5f, .LungeFrom = 0, .LungeTo = 0.07f, .Gap = 0.9f, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.085f, 2.f, 55.f, 40, 1.f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L_Run", {{0, 0.6f}, {0.035f, 0.66f}, {0.07f, 0.73f}, {0.085f, 0.76f}, {0.1f, 0.79f}, {0.13f, 0.83f}, {0.18f, 0.86f}, {0.26f, 0.92f}}}, {"Idle", {{0.13f, 0}, {0.32f, 0.19f}}}}},
+                {.Name = L"GROUND WAVE", .What = L"the blade struck into the ground sends a wave along it, 7 m before her", .Clip = "Attack_S8_R",
+                 .Seconds = 0.38f, .Free = 0.14f, .BlendIn = 0.04f, .TrackTo = 0.05f,
+                 .Lunge = 0, .LungeFrom = 0, .LungeTo = 0, .Gap = 0, .Back = 0, .BackFrom = 0, .BackTo = 0,
+                 .Hop = 0, .HopFrom = 0, .HopTo = 0, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.095f, 7.f, 1.1f, 70, 2.f, 0, 1, 0, 0.15f, 0, 1}},
+                 .Tracks = {{"Attack_R_Step", {{0, 0.74f}, {0.04f, 0.8f}, {0.08f, 0.87f}, {0.095f, 0.895f}, {0.11f, 0.92f}, {0.15f, 0.98f}, {0.22f, 1.06f}, {0.32f, 1.2f}}}, {"Idle", {{0.16f, 0}, {0.38f, 0.22f}}}}}}},
+            {L"RAPTOR", L"hit and run: Bloodborne's quickstep; Sekiro's step-ins", {
+                {.Name = L"HIT AND FADE", .What = L"a cut down from her left, and a hop back out of reach", .Clip = "Attack_S9_L",
+                 .Seconds = 0.34f, .Free = 0.16f, .BlendIn = 0.035f, .TrackTo = 0.05f,
+                 .Lunge = 0, .LungeFrom = 0, .LungeTo = 0, .Gap = 0, .Back = 1.2f, .BackFrom = 0.08f, .BackTo = 0.17f,
+                 .Hop = 0.2f, .HopFrom = 0.08f, .HopTo = 0.17f, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.08f, 2.f, 60.f, 40, 1.5f, 0, 0, 0, 0, 0, 0}},
+                 .Tracks = {{"Attack_L3", {{0, 0.7f}, {0.035f, 0.75f}, {0.065f, 0.8f}, {0.08f, 0.83f}, {0.1f, 0.88f}, {0.12f, 0.92f}, {0.16f, 0.97f}, {0.24f, 1.05f}}}, {"Idle", {{0.12f, 0}, {0.34f, 0.22f}}}}},
+                {.Name = L"SWALLOW DART", .What = L"a dash in under its guard with a rising cut, and a hop back out", .Clip = "Attack_S9_R",
+                 .Seconds = 0.38f, .Free = 0.16f, .BlendIn = 0.04f, .TrackTo = 0.06f,
+                 .Lunge = 2.6f, .LungeFrom = 0, .LungeTo = 0.09f, .Gap = 0.9f, .Back = 1.2f, .BackFrom = 0.11f, .BackTo = 0.2f,
+                 .Hop = 0.15f, .HopFrom = 0.11f, .HopTo = 0.2f, .Spin = 0, .SpinFrom = 0, .SpinTo = 0,
+                 .Hits = {{0.1f, 2.1f, 60.f, 75, 2.5f, 0, 0, 0.05f, 0.12f, 0, 1}},
+                 .Tracks = {{"Attack_R2", {{0, 0.7f}, {0.04f, 0.76f}, {0.075f, 0.83f}, {0.1f, 0.87f}, {0.12f, 0.9f}, {0.15f, 0.93f}, {0.24f, 0.96f}}}, {"Idle", {{0.14f, 0}, {0.38f, 0.24f}}}}}}}
+            });
+            return all;
+        }
+        constexpr float StyleTrackRate = 2000.f;   // degrees a second she turns onto a move's creature while the move lets her
+        constexpr float StyleSeek = 6.f;           // m from her (its edge) a creature may be to be aimed at
+        constexpr float StyleCone = 75.f;          // degrees either side of her facing it may be (and within StyleNear m of her, StyleConeNear)
+        constexpr float StyleConeNear = 150.f, StyleNear = 2.5f;
+        constexpr float StyleBuffer = .3f;         // s a click made during a move is kept for when the move is free
+        constexpr float StyleDrawReach = .06f, StyleDrawOn = .05f;   // out of standing at ease: her hands to the handles, and on into the move (s)
+        constexpr float StyleFinishAfter = .05f;   // s after a move's last blow a doomed creature may be finished
+        constexpr float StyleTrailSeconds = .12f;  // how long a blade's trail of light lasts
+        constexpr float StyleWaveSeconds = .3f;    // GROUND WAVE's sparks run out along its line in this time
+
+        // Her combos (owner, 2026-11-20): "number 2's LMB and RMB ... set 2's RMB on LMB and 2's LMB on RMB! and then with
+        // 7's RMB and 9's RMB and 2's RMB and 4's LMB and 8's LMB create 5 different combinations - then let me use them in
+        // characterlab with 1,2,3,4,5 numbers"; and "we dont need 2's skills additionally in combos because itself clicks
+        // has those attacks and those are which they both should be starting". So a click begins with style 2's move for
+        // its button (LMB FLASH STEP, RMB DRAW CUT), and the same button clicked again during the move or within
+        // ComboWindow s after it goes on down that button's string: PINWHEEL, MOUNTAIN BREAKER, LOW FANG and SWALLOW DART
+        // in each combo's own order. The other button begins its own string; after a string's last move a click begins it
+        // again. A move given up for a jump, a skill or the barrier ends the string; one given up for her way (W, A, S, D)
+        // does not (the owner: "while moving pressing W/S/A/D combo is not available ... fix it"), so that she goes on
+        // down it on the move. Of the five first made, the owner kept the first's LMB string and the fourth's RMB string:
+        // "i like 1's LMB combo and 4's RMB , now set those".
+        struct MoveRef { int Style, Button; };
+        constexpr MoveRef FlashStep{2, 0}, DrawCut{2, 1}, Pinwheel{4, 0}, MountainBreaker{7, 1}, LowFang{8, 0}, SwallowDart{9, 1};
+        constexpr float ComboWindow = .4f;
+        struct ComboSpec { const wchar_t* Name; const wchar_t* What; std::vector<MoveRef> String[2]; };
+        const std::vector<ComboSpec>& Combos()
+        {
+            static const std::vector<ComboSpec> all{
+                {L"HER COMBO", L"in and round, the ground broken; in and out, and round", {
+                    {FlashStep, Pinwheel, MountainBreaker},
+                    {DrawCut, SwallowDart, Pinwheel}}},
+            };
+            return all;
+        }
+        const StyleMove& RefMove(MoveRef r) { return Styles()[static_cast<size_t>(r.Style)].Move[r.Button]; }
+
+        // Her wing shield for E (owner, 2026-11-20: of ten made to try, "0 is good - keep it only": COCOON. "lets make different skill for her E - lets make E close her wings around
+        // her and wings protect her, remove the effect now E has and it's effect should be blue bright lights around her
+        // wings which helps her when her wings are closed around her with E skill - make 10 different version of that idea
+        // and then i will test them in characterlab"). While E is held her wings close round her (SwingWings: each of a
+        // wing's three bones turned Back radians forward (-) or back and Flap radians down (-) or up, on top of what they
+        // do, closing at Close a second), and blue lights play about them (Draw). A blow from within Cover of her facing
+        // (the cosine of the angle off it: -1.1 all round) is stopped, and knocks her back Jolt radians. Some hold her body
+        // in a moment of one of her clips (At s into Clip, swaying Sway s of it either way over Breath s, raised into in
+        // Raise s; made at load as the clip Guard_<n>); the others keep her guard stance.
+        // The lights (Kind): 0 running along her wings; 1 going round her; 2 at her wing tips; 3 rising from her wings as
+        // flames; 4 waves from her shoulders to the tips. Lights of them, Size m across, Spread m about where they are,
+        // Speed (Kind's own: along, round, up), Pulse a second, Twinkle (0 steady .. 1 flickering), Motes sparks a second.
+        struct GuardSpec
+        {
+            const wchar_t* Name; const wchar_t* What;
+            const char* Clip; float At, Sway, Breath, Raise, Jolt;
+            float Back[3], Flap[3], Close, Cover;
+            int Kind, Lights; float Size, Spread, Speed, Pulse, Twinkle, Motes;
+            XMFLOAT4 Color;
+        };
+        const std::vector<GuardSpec>& Guards()
+        {
+            constexpr XMFLOAT4 Sky{.2f, .55f, 1.f, 1}, Azure{.1f, .38f, 1.f, 1}, Ice{.4f, .78f, 1.f, 1}, Deep{.08f, .22f, 1.f, 1};
+            static const std::vector<GuardSpec> all{
+                {L"COCOON", L"both wings wrapped right round her, their tips crossing before her; lights run along them",
+                 nullptr, 0, 0, 0, 0, .06f, {-1.25f, -.85f, -.6f}, {-.25f, -.1f, 0}, 9, -1.1f, 0, 18, .32f, .12f, .25f, 1.2f, .2f, 6, Sky},
+            };
+            return all;
+        }
+        std::string GuardClip(int g) { return "Guard_" + std::to_string(g); }
+        // Where in her clip a move is, t s into it: a monotone cubic through its knots (Fritsch and Carlson; the ends as
+        // SciPy's PchipInterpolator has them), so that the clip goes on between knots without overshoot, and back where they go back
+        float StyleWarp(const std::vector<StyleKnot>& k, float t)
+        {
+            const size_t n = k.size();
+            if (n == 0) return 0;
+            if (n == 1 || t <= k.front().Out) return k.front().In;
+            if (t >= k.back().Out) return k.back().In;
+            const auto h = [&](size_t j) { return (std::max)(k[j + 1].Out - k[j].Out, 1e-5f); };
+            const auto d = [&](size_t j) { return (k[j + 1].In - k[j].In) / h(j); };
+            const auto edge = [](float h0, float h1, float m0, float m1)
+            {
+                const float e = ((2 * h0 + h1) * m0 - h0 * m1) / (h0 + h1);
+                if (e * m0 <= 0) return 0.f;
+                if (m0 * m1 < 0 && std::abs(e) > 3 * std::abs(m0)) return 3 * m0;
+                return e;
+            };
+            const auto slope = [&](size_t j) -> float
+            {
+                if (n == 2) return d(0);
+                if (j == 0) return edge(h(0), h(1), d(0), d(1));
+                if (j == n - 1) return edge(h(n - 2), h(n - 3), d(n - 2), d(n - 3));
+                const float d0 = d(j - 1), d1 = d(j);
+                if (d0 * d1 <= 0) return 0.f;
+                const float w1 = 2 * h(j) + h(j - 1), w2 = h(j) + 2 * h(j - 1);
+                return (w1 + w2) / (w1 / d0 + w2 / d1);
+            };
+            size_t i = 0;
+            while (i + 2 < n && t > k[i + 1].Out) ++i;
+            const float hi = h(i), u = (t - k[i].Out) / hi, u2 = u * u, u3 = u2 * u;
+            return (2 * u3 - 3 * u2 + 1) * k[i].In + (u3 - 2 * u2 + u) * hi * slope(i) + (3 * u2 - 2 * u3) * k[i + 1].In + (u3 - u2) * hi * slope(i + 1);
+        }
+        // how much of a move's travel between a and c is done t s into it (slow away, slow in); a hop's height then (of its highest)
+        float Travel(float t, float a, float c)
+        {
+            if (c <= a) return t >= c ? 1.f : 0.f;
+            const float u = std::clamp((t - a) / (c - a), 0.f, 1.f);
+            return u * u * (3 - 2 * u);
+        }
+        float HopShare(float t, float a, float c)
+        {
+            if (c <= a) return 0;
+            const float u = (t - a) / (c - a);
+            return u <= 0 || u >= 1 ? 0.f : 4 * u * (1 - u);
         }
     }
 
@@ -472,6 +828,25 @@ namespace Doorways
         std::string Attack;                // the cut or skill being played, empty: none
         int Begun = 0;                     // cuts and skills begun (NyxaraKit::AttacksBegun)
         float AttackTime = 0, SkillStrike = 0, SkillReach = 1;
+        // a style's move (StartMove): which, by which button (0 left, 1 right), the creature it was aimed at, its next blow,
+        // how far it carries her in, how far it has turned her; where it means her to be now and how fast it carries her
+        // there (the world's x and z; m/s: the travel)
+        const StyleMove* MoveOf = nullptr;
+        int MoveButton = 0, MoveTarget = -1, MoveHitNext = 0;
+        float GuardRaise = .12f;                           // into her guard (Compose), its Raise
+        float WingClose = 0, WingCloseGo = 0, WingCloseTo = 0, WingCloseRate = 9;   // her wings closed round her (0 .. 1), how fast, toward, its rate
+        float CloseBack[3]{}, CloseFlap[3]{};              // and closed so: each bone forward (-) and down (-) (radians)
+        XMFLOAT3 WingLine[2][4]{}; bool WingLineKnown = false;   // each wing in the world: its three bones and its feathers' tip (Draw's lights)
+        int ComboButton = -1, ComboStep = 0; float ComboEndedAt = -9;   // a combo's string: its button (-1 none), the move of it begun last, when a move of it was over
+        float MovePlan = 0, MoveSpun = 0;
+        XMFLOAT2 MoveAt{}, MoveVel{};
+        XMFLOAT2 MoveOwe{};                               // what is left of its way, asked of the next frame (ScaleFrameTime)
+        int Slices = 0;                                    // slices of 1/60 s the engine was to move her by at this frame's start (ScaleFrameTime)
+        XMFLOAT2 WasAt{};                                  // her place when the kit's last Update was over (the world's x and z)
+        float QueuedAt = -1;                               // when the click in Queued was made (her clock)
+        bool Restarted = false;                            // the clip she plays begun again from its start: Compose blends into it anew
+        float WaveTime = -1, WaveReach = 0; int WaveSparks = 0;   // GROUND WAVE's sparks: how long they have run (-1 none), how far they go, how many
+        XMFLOAT3 WaveFrom{}, WaveWay{};                    // and from where, which way
         int Step = 0, Queued = 0;          // place in the combo; the button pressed during a cut (1 left, 2 right)
         int RowAt[2] = {0, 0}, LastHand = 0; bool RowUsed[2] = {false, false};   // each hand's place in its row of cuts; the hand that cut last; whether each has cut in this combo
         bool Jumping = false, Back = false, Dead = false;
@@ -544,9 +919,11 @@ namespace Doorways
         float FinishKneelTo = 0, FinishTall = 1;              // (the slide) how far it goes down on its knees; her height (her picture's scale)
         float FinishDepth = 1;                                // its depth, front to back (Wraith::Depth)
         XMFLOAT3 FinishStrike{};                              // (the slide) her blade's point as it kills: on its neck, or short of it in its back
+        bool FinishHit[4]{};                                  // (4 to 10) which of its blows have landed
+        XMFLOAT3 FinishMark[4]{}, FinishMarkWay[4]{}; int FinishMarks = 0;   // (4 to 10) where they cut it, and which way
         float WingAimFlap = 0, WingAimBack = 0;               // her wings held up (+) and swept back (+) by a move (radians, on what else they do)
         // the made clips: every 1/60 s her feet's middle and the points of her swords, left and right (her own space)
-        std::vector<XMFLOAT3> FinishFeetAt[4], FinishTipAt[4][2];
+        std::vector<XMFLOAT3> FinishFeetAt[Finishers + 1], FinishTipAt[Finishers + 1][2];
 
         // ---- her whole picture turned (V's way and backflip, the twisted dash; TurnBody): BodyPitch forward about her
         // right and BodyRoll about her line (her picture's Rotation), BodyTwist about her own length (her hips turned
@@ -594,7 +971,9 @@ namespace Doorways
             return found == NyxaraClips::Attacks.end() ? 0.f : found->second.Hit;
         }
         bool Skill() const { return Attack.rfind("Skill_", 0) == 0; }
-        bool Carried() const { return Attack == "Attack_Jump" || Skill(); }
+        bool InMove() const { return MoveOf && Attack == MoveOf->Clip; }               // a style's move is played
+        bool MoveFree() const { return InMove() && AttackTime >= MoveOf->Free; }       // and may be given up for what comes next
+        bool Carried() const { return Attack == "Attack_Jump" || Skill() || InMove(); }
         bool Moving() const { return !Attack.empty() || Cast != 0 || Air != 0 || Rise >= 0 || Touch >= 0 || Finish != 0; }
         static bool Loops(const std::string& name)
         {
@@ -1592,7 +1971,7 @@ namespace Doorways
             const size_t n = Skeleton.Joints.size();
             if (SwordJoint[0] < 0 || SwordJoint[1] < 0 || FootJoint[0] < 0 || FootJoint[1] < 0) return;
             struct Piece { float Until; const char* A; float A0, A1; const char* B = nullptr; float B0 = 0, B1 = 0; };
-            const std::vector<Piece> made[4] = {
+            const std::vector<Piece> made[Finishers + 1] = {
                 {},
                 {{.43f, "Attack_R1", .20f, .65f},
                  {.60f, "Attack_R1", .65f, .80f, "Attack_L1", .78f, .8833f},
@@ -1613,10 +1992,67 @@ namespace Doorways
                  {1.50f, "Attack_R3", .85f, 1.30f},
                  {2.10f, "Attack_R3", 1.30f, 1.90f},
                  {2.60f, "Attack_R3", 1.90f, 2.20f, "Idle", 0, .5f}},
+                // Heartpierce: Attack_L2's thrust, slowly in, held, drawn back out
+                {{.30f, "Idle", 0, .2f, "Attack_L2", .80f, .85f},
+                 {.55f, "Attack_L2", .85f, .95f},
+                 {.70f, "Attack_L2", .95f, 1.09f},
+                 {1.30f, "Attack_L2", 1.09f, 1.105f},
+                 {1.65f, "Attack_L2", 1.105f, .95f},
+                 {2.20f, "Attack_L2", .95f, .90f, "Idle", 0, .4f}},
+                // Reaper's Wheel: Attack_R4's turn; into Attack_R1's cut from high
+                {{.25f, "Idle", 0, .15f, "Attack_R4", .30f, .42f},
+                 {.60f, "Attack_R4", .42f, .88f},
+                 {.85f, "Attack_R4", .88f, 1.20f},
+                 {1.10f, "Attack_R4", 1.20f, 1.32f, "Attack_R1", .46f, .55f},
+                 {1.30f, "Attack_R1", .55f, .672f},
+                 {1.75f, "Attack_R1", .672f, .85f},
+                 {2.30f, "Attack_R1", .85f, .98f, "Idle", 0, .4f}},
+                // Mountain Breaker: Attack_R1's cut, into Attack_Jump's blades down into the ground
+                {{.30f, "Idle", 0, .15f, "Attack_R1", .46f, .55f},
+                 {.50f, "Attack_R1", .55f, .672f},
+                 {.70f, "Attack_R1", .672f, .72f, "Attack_Jump", 1.f, 1.08f},
+                 {1.05f, "Attack_Jump", 1.08f, 1.255f},
+                 {1.60f, "Attack_Jump", 1.255f, 1.45f},
+                 {2.30f, "Attack_Jump", 1.45f, 1.66f, "Idle", 0, .4f}},
+                // Moonlit Flash: Attack_R_Run's cut as she runs, its end held
+                {{.35f, "Idle", 0, .2f, "Attack_R_Run", .40f, .47f},
+                 {.55f, "Attack_R_Run", .47f, .65f},
+                 {.80f, "Attack_R_Run", .65f, .75f},
+                 {1.60f, "Attack_R_Run", .75f, .85f},
+                 {2.40f, "Attack_R_Run", .85f, .85f, "Idle", 0, .5f}},
+                // Tempest Flurry: Attack_L3's two cuts and Attack_L_Run's two
+                {{.25f, "Idle", 0, .15f, "Attack_L3", .70f, .75f},
+                 {.42f, "Attack_L3", .75f, .83f},
+                 {.62f, "Attack_L3", .83f, .93f},
+                 {.70f, "Attack_L3", .93f, 1.40f},
+                 {.84f, "Attack_L3", 1.40f, 1.51f},
+                 {.98f, "Attack_L3", 1.51f, 1.55f, "Attack_L_Run", .62f, .67f},
+                 {1.12f, "Attack_L_Run", .67f, .76f},
+                 {1.26f, "Attack_L_Run", .76f, .85f},
+                 {1.36f, "Attack_L_Run", .85f, 1.40f},
+                 {1.52f, "Attack_L_Run", 1.40f, 1.54f},
+                 {1.90f, "Attack_L_Run", 1.54f, 1.62f},
+                 {2.40f, "Attack_L_Run", 1.62f, 1.655f, "Idle", 0, .4f}},
+                // Headsman: Attack_L_Run's low cut; Attack_R1's blade raised, slowly, and Attack_R_Step's down
+                {{.25f, "Idle", 0, .15f, "Attack_L_Run", .60f, .66f},
+                 {.42f, "Attack_L_Run", .66f, .76f},
+                 {.70f, "Attack_L_Run", .76f, .86f, "Attack_R1", .46f, .50f},
+                 {1.05f, "Attack_R1", .50f, .64f},
+                 {1.30f, "Attack_R1", .64f, .72f, "Attack_R_Step", .80f, .87f},
+                 {1.42f, "Attack_R_Step", .87f, .895f},
+                 {1.90f, "Attack_R_Step", .895f, 1.05f},
+                 {2.50f, "Attack_R_Step", 1.05f, 1.25f, "Idle", 0, .4f}},
+                // Rising Talon: Attack_R2's rising cut, held as she rises; Attack_Jump's landing
+                {{.30f, "Idle", 0, .2f, "Attack_R2", .65f, .72f},
+                 {.50f, "Attack_R2", .72f, .865f},
+                 {.95f, "Attack_R2", .865f, .96f},
+                 {1.40f, "Attack_R2", .96f, .96f, "Attack_Jump", 1.40f, 1.45f},
+                 {1.75f, "Attack_Jump", 1.45f, 1.66f},
+                 {2.30f, "Attack_Jump", 1.66f, 1.90f, "Idle", 0, .4f}},
             };
             const auto at = [](const DoorwaysSkeletonPose& q, int j) { const auto& m = q.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
-            for (int which = 1; which <= 3; ++which)
-            {
+            const auto make = [&](int which)
+            {   // (one that cannot be made is left out; the others are made)
                 const auto& pieces = made[which];
                 const float seconds = pieces.back().Until;
                 if (std::abs(seconds - Finishes[which].Seconds) > 1e-3f) return;   // (the table and the clip must agree)
@@ -1676,7 +2112,160 @@ namespace Doorways
                     }
                 }
                 Clips.insert_or_assign(std::string(Finishes[which].Clip), std::move(clip));
+            };
+            for (int which = 1; which <= Finishers; ++which) make(which);
+        }
+        // A style's move begun: out of whatever she was doing (Compose blends into it over BlendIn), at the creature it is
+        // aimed at (target; away: how far its edge is, m), or with none half its lunge straight on. Out of standing at ease her
+        // swords are drawn first, quickly (Compose: StyleDrawReach, StyleDrawOn): the move waits for her hands at the handles.
+        void StartMove(const WorldState& world, const StyleMove& m, int button, int target, float away)
+        {
+            Restarted = Attack == m.Clip;
+            ComboEndedAt = -9;
+            Attack = m.Clip; ++Begun;
+            MoveOf = &m; MoveButton = button; MoveTarget = target; MoveHitNext = 0; MoveSpun = 0;
+            MoveAt = {world.MainPlayer.Position.x, world.MainPlayer.Position.z}; MoveVel = MoveOwe = {0, 0};
+            const float back = m.BackTo <= m.LungeFrom ? m.Back : 0.f;   // (a step back before the lunge: so much farther to go in)
+            MovePlan = away >= 0 ? std::clamp(away + back - m.Gap, 0.f, m.Lunge) : m.Lunge * .5f;
+            CutBlend = m.BlendIn;
+            AttackTime = InHand ? 0.f : -StyleDrawReach;
+            Queued = 0; QueuedAt = -1; Jumping = false;
+            Log(world, ("move " + std::string(m.Clip) + (target >= 0 ? " at " + std::to_string(target) : std::string(" at none"))).c_str());
+        }
+        void EndMove(const WorldState& world, const char* why)
+        {
+            const float off = std::hypot(MoveAt.x - world.MainPlayer.Position.x, MoveAt.y - world.MainPlayer.Position.z);
+            ComboEndedAt = Clock + (MoveOf ? (std::max)(0.f, MoveOf->Seconds - AttackTime) : 0.f);   // (given up early: as if it had played out)
+            Attack.clear(); MoveOf = nullptr; MoveVel = MoveOwe = {0, 0}; MoveTarget = -1;
+            Log(world, (std::string(why) + " (" + std::to_string(off) + " m off its way)").c_str());
+        }
+        // A clip made of pieces of hers (a style's move): each track one of her clips played through its knots (StyleWarp),
+        // each next one blended in where the two overlap (slow away, slow in), keyed 60 times a second
+        bool MakeSpliced(const char* name, float seconds, const std::vector<StyleTrack>& tracks)
+        {
+            constexpr float KeyRate = 60.f;
+            const size_t n = Skeleton.Joints.size();
+            if (tracks.empty() || seconds <= 0 || Clips.find("Idle") == Clips.end()) return false;
+            for (const auto& tr : tracks)
+                if (tr.Knots.size() < 2 || Clips.find(tr.Clip) == Clips.end()) return false;
+            DoorwaysAnimationClip clip;
+            clip.Name = name; clip.DurationSeconds = seconds; clip.PlaybackSpeed = 1;
+            clip.PlaybackMode = Clips.find("Idle")->second.PlaybackMode;
+            clip.JointTracks.resize(n);
+            for (size_t j = 0; j < n; ++j) clip.JointTracks[j].JointIndex = static_cast<std::uint32_t>(j);
+            DoorwaysSkeletonPose pose, other;
+            for (int f = 0, frames = static_cast<int>(std::ceil(seconds * KeyRate)); f <= frames; ++f)
+            {
+                const float t = (std::min)(seconds, static_cast<float>(f) / KeyRate);
+                bool have = false;
+                float before = 0;   // (where the track before ends)
+                for (const auto& tr : tracks)
+                {
+                    const float a = tr.Knots.front().Out, e = tr.Knots.back().Out;
+                    if (t >= a - 1e-4f && t <= e + 1e-4f)
+                    {
+                        if (!Sample(tr.Clip, StyleWarp(tr.Knots, t), have ? other : pose, nullptr)) return false;
+                        if (have)
+                        {
+                            if (other.LocalJoints.size() != n) return false;
+                            const float u = std::clamp((t - a) / (std::max)(before - a, 1e-3f), 0.f, 1.f), w = u * u * (3 - 2 * u);
+                            for (size_t j = 0; j < n; ++j)
+                            {
+                                auto& o = pose.LocalJoints[j];
+                                const auto& c = other.LocalJoints[j];
+                                XMStoreFloat4(&o.Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&o.Rotation), XMLoadFloat4(&c.Rotation), w)));
+                                XMStoreFloat3(&o.Translation, XMVectorLerp(XMLoadFloat3(&o.Translation), XMLoadFloat3(&c.Translation), w));
+                                XMStoreFloat3(&o.Scale, XMVectorLerp(XMLoadFloat3(&o.Scale), XMLoadFloat3(&c.Scale), w));
+                            }
+                        }
+                        have = true;
+                    }
+                    before = e;
+                }
+                if (!have)
+                {   // (between two tracks: the nearer one's end)
+                    const StyleTrack* best = &tracks.front(); float gap = 1e9f;
+                    for (const auto& tr : tracks)
+                        for (const float edge : {tr.Knots.front().Out, tr.Knots.back().Out})
+                            if (std::abs(t - edge) < gap) { gap = std::abs(t - edge); best = &tr; }
+                    if (!Sample(best->Clip, StyleWarp(best->Knots, t), pose, nullptr)) return false;
+                }
+                if (pose.LocalJoints.size() != n) return false;
+                for (size_t j = 0; j < n; ++j)
+                {   // (each key on the same side as the last: no key between them is turned the long way round)
+                    auto& tr = clip.JointTracks[j];
+                    const auto& l = pose.LocalJoints[j];
+                    XMFLOAT4 q = l.Rotation;
+                    if (!tr.RotationKeys.empty())
+                    {
+                        const XMFLOAT4& was = tr.RotationKeys.back().Value;
+                        if (q.x * was.x + q.y * was.y + q.z * was.z + q.w * was.w < 0) q = {-q.x, -q.y, -q.z, -q.w};
+                    }
+                    tr.TranslationKeys.push_back({t, l.Translation});
+                    tr.RotationKeys.push_back({t, q});
+                    tr.ScaleKeys.push_back({t, l.Scale});
+                }
             }
+            Clips.insert_or_assign(std::string(name), std::move(clip));
+            return true;
+        }
+        // The styles' moves, made at load from her clips as they are then (after all their fixes). One that cannot be made is
+        // left out (NyxaraKit::StyleMade says so): the game, which has no style, is never stopped by it.
+        void MakeStyles()
+        {
+            for (const auto& st : Styles())
+                for (const auto& m : st.Move)
+                    if (!MakeSpliced(m.Clip, m.Seconds, m.Tracks))
+                        OutputDebugStringA((std::string("[WARN] Nyxara: the move ") + m.Clip + " could not be made\n").c_str());
+            // her guards: each a loop of Breath s, out from its moment and back (slow away, slow in at each end), so that it
+            // goes round without a seam
+            for (int g = 0; g < static_cast<int>(Guards().size()); ++g)
+            {
+                const GuardSpec& gs = Guards()[static_cast<size_t>(g)];
+                if (!gs.Clip) continue;   // (her guard stance)
+                const float b = gs.Breath;
+                const std::vector<StyleTrack> held{{gs.Clip, {{0, gs.At - gs.Sway}, {b * .5f, gs.At + gs.Sway}, {b, gs.At - gs.Sway}}}};
+                if (!MakeSpliced(GuardClip(g).c_str(), b, held))
+                    OutputDebugStringA(("[WARN] Nyxara: the guard " + GuardClip(g) + " could not be made\n").c_str());
+                else GuardTurn[g] = SquareGuard(GuardClip(g), gs.Clip, gs.At);
+            }
+        }
+        // A guard turned about her up so that her shoulders face as they do on guard (Idle): some of its moments are taken
+        // from a spin, and held as they were she stood with her back or her side to what she guards against. Its hips are
+        // turned (and where they are, about her feet's middle); all the rest of her goes with them. The turn (radians).
+        float GuardTurn[16]{};
+        float SquareGuard(const std::string& name, const char* source, float at)
+        {
+            const auto it = Clips.find(name);
+            if (it == Clips.end() || Hips < 0 || ArmChain[0][1] < 0 || ArmChain[1][1] < 0) return 0;
+            DoorwaysSkeletonPose idle, held;
+            if (!Sample("Idle", 0, idle, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, idle, nullptr) ||
+                !Sample(source, at, held, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, held, nullptr)) return 0;
+            const auto yawOf = [&](const DoorwaysSkeletonPose& q)
+            {   // which way the line from one shoulder to the other lies, about her up
+                const auto& a = q.ModelSpaceMatrices[ArmChain[0][1]];
+                const auto& c = q.ModelSpaceMatrices[ArmChain[1][1]];
+                return std::atan2(c._41 - a._41, c._43 - a._43);
+            };
+            const float turn = std::remainder(yawOf(idle) - yawOf(held), XM_2PI);
+            const int parent = Skeleton.Joints[Hips].ParentIndex;
+            XMMATRIX up = parent >= 0 ? XMLoadFloat4x4(&held.ModelSpaceMatrices[parent]) : XMMatrixIdentity();
+            XMVECTOR scale, qUp, place;
+            if (!XMMatrixDecompose(&scale, &qUp, &place, up)) return 0;
+            const XMMATRIX down = XMMatrixInverse(nullptr, up);
+            const XMVECTOR r = XMQuaternionRotationAxis(XMVectorSet(0, 1, 0, 0), turn);
+            auto& track = it->second.JointTracks[static_cast<size_t>(Hips)];
+            for (auto& k : track.RotationKeys)
+            {
+                const XMVECTOR q = XMQuaternionMultiply(XMQuaternionMultiply(XMQuaternionMultiply(XMLoadFloat4(&k.Value), qUp), r), XMQuaternionInverse(qUp));
+                XMStoreFloat4(&k.Value, XMQuaternionNormalize(q));
+            }
+            for (auto& k : track.TranslationKeys)
+            {
+                const XMVECTOR m = XMVector3TransformCoord(XMLoadFloat3(&k.Value), up);
+                XMStoreFloat3(&k.Value, XMVector3TransformCoord(XMVector3Rotate(m, r), down));
+            }
+            return turn;
         }
         // Eagle's Plunge, riding it down: her place (the world's x and z) and how high her picture is lifted, t s into it,
         // as it goes over backwards about its feet from her blow (FinishBlowAt[0]; the kit's Fallen, as fast) and her
@@ -2206,6 +2795,7 @@ namespace Doorways
         // Metres per second forward that the move being played carries her (its own path, taken out of the clip).
         float ForwardSpeed(const WorldState& world) const
         {
+            if (InMove()) return 0;   // (a style's move carries her itself: MoveVel, the travel in Update)
             if (Air) return DashSpeed;
             if (Cast == 4) return world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? 0.f : CastRootGo;
             if (Cast == 5) return 0.f;
@@ -2253,6 +2843,12 @@ namespace Doorways
                 WingFoldGo += (quick * quick * (fold - WingFold) - 2 * quick * WingFoldGo) * h;
                 WingFold = std::clamp(WingFold + WingFoldGo * h, 0.f, 1.f);
             }
+            for (float left = dt; left > 1e-6f;)
+            {   // closed round her (her wing shield, E): quickly, without a start; opened as quickly
+                const float h = (std::min)(left, 1 / 120.f), r = WingCloseRate; left -= h;
+                WingCloseGo += (r * r * (WingCloseTo - WingClose) - 2 * r * WingCloseGo) * h;
+                WingClose = std::clamp(WingClose + WingCloseGo * h, 0.f, 1.1f);
+            }
             for (const auto& wing : WingJoint) for (const int j : wing) if (j < 0) return;
             if (dt <= 1e-5f || out.ModelSpaceMatrices.size() != out.LocalJoints.size()) return;
             WingShare += (share - WingShare) * (std::min)(1.f, dt * 6);
@@ -2297,8 +2893,11 @@ namespace Doorways
                 const float late = (std::min)(1.f, dt * 9);
                 w.Flap2 += (w.Flap - w.Flap2) * late; w.Flap3 += (w.Flap2 - w.Flap3) * late;
                 w.Back2 += (w.Back - w.Back2) * late; w.Back3 += (w.Back2 - w.Back3) * late;
-                const float flaps[3] = {w.Flap + WingFold * FoldFlap[0], w.Flap2 * .5f + WingFold * FoldFlap[1], w.Flap3 * .4f + WingFold * FoldFlap[2]};
-                const float backs[3] = {w.Back + WingFold * FoldBack[0], w.Back2 * .45f + WingFold * FoldBack[1], w.Back3 * .35f + WingFold * FoldBack[2]};
+                const float open = 1 - (std::min)(1.f, WingClose);   // (closed, her wings are not lowered at ease)
+                const float flaps[3] = {w.Flap + open * WingFold * FoldFlap[0] + WingClose * CloseFlap[0], w.Flap2 * .5f + open * WingFold * FoldFlap[1] + WingClose * CloseFlap[1],
+                                        w.Flap3 * .4f + open * WingFold * FoldFlap[2] + WingClose * CloseFlap[2]};
+                const float backs[3] = {w.Back + open * WingFold * FoldBack[0] + WingClose * CloseBack[0], w.Back2 * .45f + open * WingFold * FoldBack[1] + WingClose * CloseBack[1],
+                                        w.Back3 * .35f + open * WingFold * FoldBack[2] + WingClose * CloseBack[2]};
                 if (std::abs(flaps[0]) + std::abs(flaps[1]) + std::abs(flaps[2]) + std::abs(backs[0]) + std::abs(backs[1]) + std::abs(backs[2]) < 1e-4f) continue;
                 XMVECTOR all = XMQuaternionIdentity(), parent = turnOf(above);
                 for (int i = 0; i < 3; ++i)
@@ -3108,7 +3707,8 @@ namespace Doorways
                     for (int s = 0; s < 2; ++s) { const auto& m = ClipOnly.ModelSpaceMatrices[ArmChain[s][3]]; ClipHand[s] = {m._41, m._42, m._43}; }
             }
             // (her swords taken or put away as she goes on: a change as any other, but of her arms and swords alone)
-            const bool same = name == LastClip;
+            const bool same = name == LastClip && !Restarted;   // (a style's move begun again is a change as any other)
+            Restarted = false;
             if (!same || (Armed != WasArmed && (name == "Move" || name == "Jump" || name == "Fall")))
             {
                 WasArmed = Armed;
@@ -3155,6 +3755,7 @@ namespace Doorways
                 // (into a finisher quickly, as into a cut: its first move is a dash or a spring)
                 const bool finishIn = !Drawing && name.rfind("Finish", 0) == 0;
                 if (finishIn) BlendSeconds = .16f;
+                if (!Drawing && name.rfind("Guard_", 0) == 0) BlendSeconds = GuardRaise;   // (into a guard: its Raise)
                 if (Drawing)
                 {   // Her arms have their own time: up to the handles, and on to the new clip. A cut out of standing at
                     // ease took her hand from her hip to the handle over her shoulder in an eighth of a second (20 m/s at
@@ -3167,6 +3768,10 @@ namespace Doorways
                     BlendSeconds = cut ? DrawReachPressed + DrawOnCut : pressed ? .26f : .36f;   // (into a cut her body goes with her arms: there just before the blow)
                     DrawReach = pressed ? DrawReachPressed : putting ? (atEase ? .42f : .32f) : .26f;
                     DrawSeconds = DrawReach + (cut ? DrawOnCut : pressed ? DrawOnPressed : putting ? (atEase ? .34f : .28f) : .30f);
+                    if (InMove() && name == MoveOf->Clip)
+                    {   // (a style's move: drawn as fast as it goes; owner, 2026-11-20: "at least each attack to be 3x faster")
+                        DrawReach = StyleDrawReach; DrawSeconds = BlendSeconds = StyleDrawReach + StyleDrawOn;
+                    }
                     Reaching[0] = Reaching[1] = ArmState{};
                 }
                 LastClip = name;
@@ -3472,6 +4077,7 @@ namespace Doorways
         if (b.Duration("Cast_Drill") <= 0 || b.Duration("Cast_Flip") <= 0 || b.Duration("Dash_Twist") <= 0)
         { error = "her thrown swords' way and backflip could not be made from her clips (" + bundle.string() + ")"; return false; }
         b.MakeFinishes();
+        b.MakeStyles();   // (after every fix of her clips: the styles' moves are made of them as they are then)
         for (int which = 1; which <= 3; ++which)
             if (b.Duration(Finishes[which].Clip) <= 0) { error = std::string("her finishing kill ") + Finishes[which].Clip + " could not be made from her clips (" + bundle.string() + ")"; return false; }
         char log[MAX_PATH] = {};
@@ -3563,7 +4169,7 @@ namespace Doorways
         mReady = false;
         mTrainingMode = false; mTrainingTargetHits = mTrainingPlayerHits = 0;
         if (mBody->Skeleton.Joints.empty()) { error = "her body is not loaded (NyxaraKit::LoadBody)"; return false; }
-        if (!BuildRing(renderer, mRingMesh, error) || !BuildQuad(renderer, mQuadMesh, error, -.5f) || !BuildQuad(renderer, mFeatherMesh, error, 0) ||
+        if (!BuildRing(renderer, mRingMesh, error) || !BuildQuad(renderer, mQuadMesh, error, -.5f) || !BuildTri(renderer, mTriMesh, error) || !BuildQuad(renderer, mFeatherMesh, error, 0) ||
             !BuildSphere(renderer, mSphereMesh, error) || !BuildCone(renderer, mConeMesh, error) || !BuildBlade(renderer, mBladeMesh, error))
             return false;
         const auto root = ResolveDoorwaysRuntimePath("assets/Compiled/Effects/Nyxara");
@@ -3621,10 +4227,14 @@ namespace Doorways
         if (mBarrier <= .5f) return false;
         const XMFLOAT3 facing = Forward(world.MainPlayer.Yaw);
         XMFLOAT3 rel = Sub(from, world.MainPlayer.Position); rel.y = 0; rel = Norm(rel);
-        if (rel.x * facing.x + rel.z * facing.z < -.3f) return false;
+        const bool styled = mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size());
+        if (rel.x * facing.x + rel.z * facing.z < (styled ? Guards()[static_cast<size_t>(mGuardStyle)].Cover : -.3f)) return false;
         mBlockFlash = .25f;
+        if (mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size()))
+            mBody->FlinchGo -= Guards()[static_cast<size_t>(mGuardStyle)].Jolt * 30.f;   // (her guard knocked back: her picture tips back and comes up)
         const XMFLOAT3 at = Add(world.MainPlayer.Position, Add(Mul(facing, 1.2f), {0, 1.2f, 0}));
-        Burst(at, MoonWhite, 14, 4.f, .2f); Burst(at, SoulGreen, 8, 3.f, .18f);
+        const XMFLOAT4 shine = styled ? Guards()[static_cast<size_t>(mGuardStyle)].Color : XMFLOAT4{.45f, .75f, 1.f, 1};
+        Burst(at, shine, 16, 4.f, .22f); Burst(at, MoonWhite, 6, 3.f, .16f);
         mNotice = L"BLOCKED"; mNoticeTimer = .5f;
         return true;
     }
@@ -3643,6 +4253,72 @@ namespace Doorways
 
     bool NyxaraKit::Busy() const { return mBody->Moving() || mGuarding; }
     int NyxaraKit::AttacksBegun() const { return mBody->Begun; }
+
+    NyxaraKit::StyleInfo NyxaraKit::Style(int style)
+    {
+        StyleInfo info;
+        if (style < 0 || style >= static_cast<int>(Styles().size())) return info;
+        const StyleSpec& spec = Styles()[static_cast<size_t>(style)];
+        info.Name = spec.Name; info.Like = spec.Like;
+        for (int k = 0; k < 2; ++k)
+        {
+            const StyleMove& m = spec.Move[k];
+            info.Move[k] = m.Name; info.What[k] = m.What; info.Seconds[k] = m.Seconds; info.Free[k] = m.Free;
+            info.Blow[k] = m.Hits.empty() ? 0.f : m.Hits.front().At; info.Blows[k] = static_cast<int>(m.Hits.size());
+            info.Reach[k] = m.Lunge + m.Gap;
+        }
+        return info;
+    }
+    void NyxaraKit::SetAttackStyle(int style) { mCombo = -1; mStyle = style >= 0 && style < StyleCount && style < static_cast<int>(Styles().size()) ? style : -1; }
+    bool NyxaraKit::StyleMade(int style) const
+    {
+        if (!mBody || style < 0 || style >= static_cast<int>(Styles().size())) return false;
+        for (const auto& m : Styles()[static_cast<size_t>(style)].Move)
+            if (mBody->Clips.find(m.Clip) == mBody->Clips.end()) return false;
+        return true;
+    }
+    const DoorwaysSkeleton* NyxaraKit::BodySkeleton() const { return mBody ? &mBody->Skeleton : nullptr; }
+
+
+    NyxaraKit::ComboInfo NyxaraKit::Combo(int combo)
+    {
+        ComboInfo info;
+        if (combo < 0 || combo >= static_cast<int>(Combos().size())) return info;
+        const ComboSpec& spec = Combos()[static_cast<size_t>(combo)];
+        info.Name = spec.Name; info.What = spec.What;
+        for (int k = 0; k < 2; ++k)
+            for (const MoveRef r : spec.String[k])
+            {
+                info.String[k].push_back(RefMove(r).Name);
+            }
+        return info;
+    }
+    NyxaraKit::GuardInfo NyxaraKit::Guard(int guard)
+    {
+        GuardInfo info;
+        if (guard < 0 || guard >= static_cast<int>(Guards().size())) return info;
+        info.Name = Guards()[static_cast<size_t>(guard)].Name; info.What = Guards()[static_cast<size_t>(guard)].What;
+        return info;
+    }
+    void NyxaraKit::SetGuardStyle(int guard) { mGuardStyle = guard >= 0 && guard < GuardCount && guard < static_cast<int>(Guards().size()) ? guard : -1; }
+    bool NyxaraKit::GuardMade(int guard) const
+    {   // (one that keeps her guard stance has no clip of its own)
+        return mBody && guard >= 0 && guard < static_cast<int>(Guards().size()) && (!Guards()[static_cast<size_t>(guard)].Clip || mBody->Duration(GuardClip(guard)) > 0);
+    }
+    void NyxaraKit::SetAttackCombo(int combo)
+    {
+        mStyle = -1;
+        mCombo = combo >= 0 && combo < ComboCount && combo < static_cast<int>(Combos().size()) ? combo : -1;
+        if (mBody) mBody->ComboButton = -1;
+    }
+    bool NyxaraKit::ComboMade(int combo) const
+    {
+        if (!mBody || combo < 0 || combo >= static_cast<int>(Combos().size())) return false;
+        for (const auto& string : Combos()[static_cast<size_t>(combo)].String)
+            for (const MoveRef r : string)
+                if (mBody->Clips.find(RefMove(r).Clip) == mBody->Clips.end()) return false;
+        return true;
+    }
 
     std::vector<std::string> NyxaraKit::ClipNames() const
     {
@@ -3692,18 +4368,38 @@ namespace Doorways
         return k;
     }
 
-    float NyxaraKit::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
+    float NyxaraKit::ScaleFrameTime(float realDeltaTime, bool inputAllowed, float timeScale)
     {
         (void)inputAllowed;
-        if (!mReady) return realDeltaTime;
-        if (mHitStop > 0) { mHitStop -= realDeltaTime; return realDeltaTime * .06f; }   // the moment a heavy blow lands
-        if (mSlow > 0)
+        if (!mReady) return realDeltaTime * timeScale;
+        float scaled = realDeltaTime;
+        if (mHitStop > 0) { mHitStop -= realDeltaTime; scaled = realDeltaTime * .06f; }   // the moment a heavy blow lands
+        else if (mSlow > 0)
         {   // a finishing kill's moment: slow, and back to speed evenly over its time
             mSlow -= realDeltaTime;
             const float back = 1 - std::clamp(mSlow / (std::max)(mSlowFull, 1e-3f), 0.f, 1.f);
-            return realDeltaTime * (mSlowRate + (1 - mSlowRate) * back * back * (3 - 2 * back));
+            scaled = realDeltaTime * (mSlowRate + (1 - mSlowRate) * back * back * (3 - 2 * back));
         }
-        return realDeltaTime;
+        scaled *= timeScale;
+        // The engine moves her on a 60 Hz grid: this frame's time is added to what was left over, and she is moved in
+        // slices of 1/60 s while there is a whole one (PlayerController::UpdateWithInput, its SliceSeconds; at most 1.25 s
+        // kept, 75 slices a frame). The same here, from the same frame times, so that the slices about to be taken are known.
+        constexpr double Slice = static_cast<double>(1.f / 60.f);
+        mGrid += (std::min)(static_cast<double>(scaled), (std::max)(0., 1.25 - mGrid));
+        int slices = 0;
+        while (mGrid + 1e-10 >= Slice && slices < 75) { mGrid -= Slice; ++slices; }
+        if (mGrid < 1e-10) mGrid = 0;
+        mBody->Slices = slices;
+        const auto& b = *mBody;
+        if (b.InMove() && (b.MoveOwe.x != 0 || b.MoveOwe.y != 0))
+        {   // a style's move: what is left of its way, over the slices she is about to be moved by (Update: the move's way;
+            // none counted, it is asked of one, in case the engine takes one the grid here did not see coming)
+            auto& s = GameSession();
+            const float over = static_cast<float>((std::max)(1, slices)) * (1.f / 60.f);
+            s.ImpulseX = b.MoveOwe.x / over;
+            s.ImpulseZ = b.MoveOwe.y / over;
+        }
+        return scaled;
     }
 
     void NyxaraKit::Burst(const XMFLOAT3& at, XMFLOAT4 color, int count, float speed, float size)
@@ -3796,6 +4492,9 @@ namespace Doorways
     }
 
     int NyxaraKit::Finishing() const { return mBody ? mBody->Finish : 0; }
+    const wchar_t* NyxaraKit::FinishName(int which) { return which >= 1 && which <= Finishers ? Finishes[which].Name : L""; }
+    void NyxaraKit::SetFinisher(int which) { mFinisher = which >= 1 && which <= Finishers ? which : 0; }
+    bool NyxaraKit::FinishMade(int which) const { return mBody && which >= 1 && which <= Finishers && mBody->Duration(Finishes[which].Clip) > 0; }
 
     void NyxaraKit::LetFall(const Fallen& fall)
     {
@@ -3891,7 +4590,7 @@ namespace Doorways
         static const int forced = []
         {
             char v[8]{}; size_t n = 0;
-            return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FINISHER") == 0 && n > 1 ? std::clamp(std::atoi(v), 0, 3) : 0;
+            return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FINISHER") == 0 && n > 1 ? std::clamp(std::atoi(v), 0, Finishers) : 0;
         }();
         static const int forcedSide = []
         {
@@ -3903,20 +4602,33 @@ namespace Doorways
             if (kind != 1) return "";
             return to > 0 ? (backOf ? " right behind" : " right beside") : (backOf ? " left behind" : " left beside");
         };
-        int first = forced;
-        if (!first && (b.FinishLast < 1 || b.FinishLast > 3)) first = 1 + (std::min)(2, static_cast<int>(Random() * 3.f));
-        else if (!first) first = (b.FinishLast + (Random() < .5f ? 1 : 2) - 1) % 3 + 1;   // (one of the other two)
-        int order[3] = {first, first % 3 + 1, (first + 1) % 3 + 1};
-        if (order[1] == b.FinishLast || (order[2] != b.FinishLast && Random() < .5f)) std::swap(order[1], order[2]);   // (the last she played, last)
+        // first the one chosen (SetFinisher; the test's), or with none one of those kept at random; then the others kept
+        // at random, the one she played last, last
+        const int chosen = forced ? forced : mFinisher;
+        std::vector<int> order;
+        for (const int k : Kept) order.push_back(k);
+        for (size_t i = order.size(); i > 1; --i) std::swap(order[i - 1], order[(std::min)(i - 1, static_cast<size_t>(Random() * static_cast<float>(i)))]);
+        const auto move = [&](int k, bool front)
+        {
+            std::erase(order, k);
+            if (front) order.insert(order.begin(), k); else order.push_back(k);
+        };
+        if (b.FinishLast >= 1 && b.FinishLast <= Finishers) move(b.FinishLast, false);
+        if (chosen >= 1 && chosen <= Finishers) move(chosen, true);
         const float side = forcedSide ? static_cast<float>(forcedSide) : Random() < .5f ? 1.f : -1.f;
         struct Way { int Which; float Side; bool Behind; };
-        Way ways[6]{}; int count = 0;
+        std::vector<Way> ways;
         for (const int kind : order)
         {
-            if (kind != 1) { ways[count++] = {kind, 1, true}; continue; }
-            ways[count++] = {1, side, true}; ways[count++] = {1, -side, true};
-            ways[count++] = {1, side, false}; ways[count++] = {1, -side, false};
+            if (kind == 1)
+            {
+                ways.push_back({1, side, true}); ways.push_back({1, -side, true});
+                ways.push_back({1, side, false}); ways.push_back({1, -side, false});
+            }
+            else if (More[kind].Past > 0) { ways.push_back({kind, side, true}); ways.push_back({kind, -side, true}); }
+            else ways.push_back({kind, 1, true});
         }
+        const int count = static_cast<int>(ways.size());
         std::string misfits;
         const auto began = std::chrono::steady_clock::now();
         bool found = false;
@@ -3967,8 +4679,8 @@ namespace Doorways
         auto& b = *mBody;
         if (b.Finish) return true;   // (she finishes one already: not hers to look at now)
         bool fits = false;
-        for (int which = 1; which <= 3 && !fits; ++which)
-            for (int k = 0; k < (which == 1 ? 4 : 1) && !fits; ++k)
+        for (const int which : Kept)
+            for (int k = 0; k < (which == 1 ? 4 : More[which].Past > 0 ? 2 : 1) && !fits; ++k)
             {
                 if (!SetUpFinish(world, index, which, k % 2 ? -1.f : 1.f, k < 2)) continue;
                 float at = 0; std::string said;
@@ -4018,6 +4730,8 @@ namespace Doorways
         const float R = w.Radius, H = w.Height, N = (std::max)(.3f, neck.y), K = std::clamp(w.Knee, .1f, .5f * H);
         b.Finish = which; b.FinishTarget = index; b.FinishTime = 0; b.FinishSide = side; b.FinishBehind = behind;
         b.FinishBlown[0] = b.FinishBlown[1] = false; b.FinishKilled = b.FinishLanded = b.FinishRipped = false;
+        for (bool& hit : b.FinishHit) hit = false;
+        b.FinishMarks = 0;
         b.FinishBlowAt[0] = spec.Blow[0]; b.FinishBlowAt[1] = spec.Blow[1]; b.FinishDeathAt = spec.Death;
         b.FinishFrom = S; b.FinishFeet = F; b.FinishWay = u; b.FinishRight = r; b.FinishNeck = neck;
         b.FinishHeight = H; b.FinishRadius = R; b.FinishKnee = K; b.FinishTall = tall; b.FinishDepth = w.Depth > 0 ? w.Depth : 1.5f * R;
@@ -4053,7 +4767,7 @@ namespace Doorways
             b.FinishLiftMost = (std::max)(0.f, high - tip.y);
             b.FinishLand = Sub(F, Mul(u, .5f * R + .9f)); b.FinishLand.y = S.y;   // (before its feet: clear of it lying)
         }
-        else
+        else if (which == 3)
         {   // Gale Slide: past it on its right, low, her blade through its legs; it goes down on its knees; she rises
             // and her blade comes down behind her through its neck. She strikes from beside it and behind it (the way
             // she slid), outside its body: an ellipse about its middle, its back half its depth behind it (+u: it faces
@@ -4114,6 +4828,35 @@ namespace Doorways
             }
             b.FinishBlowAt[0] = .39f; b.FinishBlowAt[1] = -1;
             for (int k = 0; k <= 94; ++k) if (SlideShare(static_cast<float>(k) / 120.f) >= .5f) { b.FinishBlowAt[0] = static_cast<float>(k) / 120.f; break; }
+        }
+        else
+        {   // the seven more (FinishMore): her blade's point, as the blow Place lands, on its front (a little into it) at
+            // its height; she no nearer it than its edge and a little; lifted to it where it is tall
+            const FinishMore& m = More[which];
+            const int hand = m.Hand[m.Place];
+            const float when = m.Hit[m.Place];
+            XMFLOAT3 tip = hand == 2 ? Mul(Add(Body::FlipAt(b.FinishTipAt[which][0], when), Body::FlipAt(b.FinishTipAt[which][1], when)), .5f)
+                                     : Body::FlipAt(b.FinishTipAt[which][hand], when);
+            tip = Mul(tip, tall);
+            b.FinishKneelTo = m.Kneels >= 0 ? m.KneelTo : 0.f;
+            const float high = m.Aim * N - (m.Kneels >= 0 && m.Kneels < m.Place ? Wraith::KneelDrop(K, m.KneelTo) : 0.f);
+            const XMFLOAT3 P = Sub(F, Mul(u, .35f * R));
+            float along = (P.x - F.x) * u.x + (P.z - F.z) * u.z - tip.z, aside = -tip.x;
+            if (const float clear = R + .35f; std::hypot(along, aside) < clear)
+                along = -std::sqrt((std::max)(0.f, clear * clear - aside * aside));
+            b.FinishA = Add(Add(F, Mul(u, along)), Mul(r, aside)); b.FinishA.y = S.y;
+            // (on her wings up to a giant's chest: 2.6 m, more at a boss, 0.45 of its height, no more than 4.5 m)
+            b.FinishLiftMost = m.Aim > 0 ? std::clamp(high - tip.y, 0.f, std::clamp(.45f * H, 2.6f, 4.5f)) : 0.f;
+            b.FinishStrike = Add(Add(b.FinishA, Mul(r, tip.x)), Mul(u, tip.z));
+            b.FinishStrike.y = F.y + (m.Aim > 0 ? (std::max)(tip.y, high) : tip.y);
+            if (m.Past > 0)
+            {   // round its side ('side') and on beyond it
+                const XMFLOAT3 rs = Mul(r, side);
+                b.FinishB = Add(F, Mul(rs, 2 * R + 1.f));
+                b.FinishC = Add(Add(F, Mul(u, R + m.Past)), Mul(rs, .3f * R + .35f));
+                b.FinishB.y = b.FinishC.y = S.y;
+            }
+            b.FinishBlowAt[0] = when; b.FinishBlowAt[1] = -1;
         }
         return true;
     }
@@ -4188,6 +4931,17 @@ namespace Doorways
                 lift = (high + ground) * (1 - s) + (.3f + .1f * LenXZ(Sub(b.FinishLand, off))) * std::sin(XM_PI * x);
             }
         }
+        else if (which >= 4)
+        {   // the seven more (FinishMore): in to her place, and on past it; lifted to its height, and her own leap
+            const FinishMore& m = More[which];
+            const XMFLOAT3 &A = b.FinishA, &C = b.FinishB, &E = b.FinishC;
+            yaw = turnTo(b.FinishYawFrom, yawU, Smooth(0, .2f, at));
+            if (m.Past <= 0 || at <= m.PastFrom) place = lerp(S, A, Smooth(m.InFrom, m.InTo, at));
+            else place = Curve(A, C, E, Smooth(m.PastFrom, m.PastTo, at));
+            const float hit = m.Hit[m.Place];
+            lift = (std::max)(0.f, b.FinishLiftMost + ground) * (Smooth(hit - .3f, hit - .03f, at) - Smooth(m.LiftDown - .35f, m.LiftDown, at));
+            if (m.Leap > 0) lift += m.Leap * (Smooth(m.LeapFrom, m.LeapTop, at) - Smooth(m.LeapTop, m.LeapDown, at));
+        }
         else
         {   // the slide past it, at the slide's own pace; up and round to the blow
             const XMFLOAT3 &A = b.FinishA, &C = b.FinishB;
@@ -4230,8 +4984,10 @@ namespace Doorways
                 b.Log(world, ("finish: none has room, her blow kills it: " + why).c_str());
                 StrikeDown(i);
             }
-            if (!free || p.TraversalMode == DoorwaysPlayerTraversalMode::Flight || !p.IsGrounded || b.Jumping || mFalling || b.Carried() || !mPreview.empty()) return;
-            if (!b.Attack.empty() && b.AttackTime < Body::Hit(b.Attack) + ChainAfter) return;
+            // (a style's move gives way to a finisher once its last blow is in: StyleFinishAfter)
+            const bool moveDone = b.InMove() && b.AttackTime >= b.MoveOf->LastHit() + StyleFinishAfter;
+            if (!free || p.TraversalMode == DoorwaysPlayerTraversalMode::Flight || !p.IsGrounded || b.Jumping || mFalling || (b.Carried() && !moveDone) || !mPreview.empty()) return;
+            if (!b.Attack.empty() && !b.InMove() && b.AttackTime < Body::Hit(b.Attack) + ChainAfter) return;
             if (b.FinishRetry > 0) return;   // (none had room a moment ago: StartFinish)
             int chosen = -1; float nearest = FinishReach;
             for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
@@ -4291,6 +5047,16 @@ namespace Doorways
             float flap = 0, back = 0;
             if (which == 1) back = .5f * (Smooth(.6f, .7f, t) - Smooth(.95f, 1.15f, t));
             else if (which == 2) back = .3f * (Smooth(.75f, .9f, t) - Smooth(contact, contact + .15f, t));
+            else if (which >= 4)
+            {   // (swept back as she goes past it; opened as she leaps)
+                const FinishMore& m = More[which];
+                if (m.Past > 0) back = .55f * (Smooth(m.PastFrom - .05f, m.PastFrom + .05f, t) - Smooth(m.PastTo, m.PastTo + .3f, t));
+                if (m.Leap > 0)
+                {
+                    const float rising = Smooth(m.LeapFrom - .1f, m.LeapFrom + .05f, t) - Smooth(m.LeapTop, m.LeapDown, t);
+                    flap -= .3f * rising; back -= .2f * rising;
+                }
+            }
             else
             {
                 const float kill = b.FinishDeathAt, slid = Smooth(.02f, .12f, t) - Smooth(.7f, .9f, t);
@@ -4385,6 +5151,107 @@ namespace Doorways
                 CaucasianEagle::Sound::Play("nyxara/land", .8f);
             }
         }
+        else if (which >= 4)
+        {   // the seven more (FinishMore): each blow where her blade's point is then (brought onto it), the way it goes
+            const FinishMore& m = More[which];
+            const float tall = b.FinishTall;
+            const auto tipAt = [&](int hand, float when)
+            {
+                XMFLOAT3 place{}; float y = 0, l = 0;
+                FinishPlan(when, ground, place, y, l);
+                const XMFLOAT3 tip = Mul(Body::FlipAt(b.FinishTipAt[which][hand], when), tall);
+                const float c = std::cos(y), sn = std::sin(y);
+                return XMFLOAT3{place.x + tip.x * c + tip.z * sn, p.Position.y + tip.y + (std::max)(0.f, l), place.z - tip.x * sn + tip.z * c};
+            };
+            const auto onto = [&](XMFLOAT3 at)
+            {   // (on it: no further from its middle than most of its width, between its feet and its top)
+                XMFLOAT3 off{at.x - F.x, 0, at.z - F.z};
+                const float d = LenXZ(off), most = (std::max)(.2f, .85f * R);
+                if (d > most) { at.x = F.x + off.x * most / d; at.z = F.z + off.z * most / d; }
+                at.y = std::clamp(at.y, F.y + .15f, F.y + .95f * H);
+                return at;
+            };
+            const float length = std::clamp(.35f * H, .7f, 1.6f);
+            for (int k = 0; k < 4; ++k)
+            {
+                if (m.Hit[k] < 0 || b.FinishHit[k] || t < m.Hit[k]) continue;
+                b.FinishHit[k] = true;
+                const bool last = std::abs(m.Hit[k] - spec.Death) < 1e-3f;
+                for (int hand = 0; hand < 2; ++hand)
+                {
+                    if (m.Hand[k] != 2 && m.Hand[k] != hand) continue;
+                    const XMFLOAT3 at = onto(tipAt(hand, m.Hit[k]));
+                    XMFLOAT3 way = Sub(tipAt(hand, m.Hit[k] + 1 / 60.f), tipAt(hand, m.Hit[k] - 1 / 60.f));
+                    way = Len(way) > 1e-4f ? Norm(way) : Norm(Sub(r, up));
+                    slash(at, way, length, m.Show == 3 ? .35f : .9f);
+                    b.Spray(at, Add(Mul(way, .6f), Mul(u, .4f)), last ? 30 : 12, last ? 4.5f : 3.5f, F.y);
+                    if (b.FinishMarks < 4) { b.FinishMark[b.FinishMarks] = at; b.FinishMarkWay[b.FinishMarks] = way; ++b.FinishMarks; }
+                }
+                w.Flash = .16f;
+                mHitStop = (std::max)(mHitStop, last ? .1f : .05f);
+                mShake = (std::max)(mShake, last ? .25f : .1f);
+                CaucasianEagle::Sound::Play(last ? "nyxara/swing_heavy" : "nyxara/swing", .55f, .15f);
+                CaucasianEagle::Sound::Play("nyxara/cut", 1.f, .06f);
+                CaucasianEagle::Sound::Play(k == m.Kneels ? "creatures/hurt" : "combat/hit", .8f, .1f);
+                b.Log(world, ("finish cut " + std::to_string(k + 1)).c_str());
+            }
+            if (m.Kneels >= 0) b.FinishKneel = b.FinishKneelTo * Smooth(m.Hit[m.Kneels], m.Hit[m.Kneels] + .3f, t);
+            if (m.Leap > 0 && !b.FinishBlown[1] && t >= m.LeapFrom)
+            {   // her wings beat her up
+                b.FinishBlown[1] = true;
+                for (auto& wing : b.WingSpring) wing.FlapGo += 3.2f;
+                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.6f, {.62f, .56f, .48f, 1}, .35f);
+                CaucasianEagle::Sound::Play("nyxara/wing", .75f);
+                CaucasianEagle::Sound::Play("nyxara/effort", .8f, .08f);
+            }
+            if (m.Leap > 0 && !b.FinishLanded && t >= m.LeapDown)
+            {
+                b.FinishLanded = true;
+                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.4f, MoonWhite, .3f);
+                CaucasianEagle::Sound::Play("nyxara/land", .8f);
+            }
+            if (m.Past > 0 && !b.FinishBlown[0] && t >= m.PastFrom - .05f)
+            {   // she goes past it in a blink
+                b.FinishBlown[0] = true;
+                for (auto& wing : b.WingSpring) wing.FlapGo += 1.5f;
+                CaucasianEagle::Sound::Play("nyxara/dash", .8f, .1f);
+            }
+            if (!b.FinishKilled && passed(b.FinishDeathAt))
+            {   // its kill, as this one has it
+                if (m.Show == 1)
+                {   // (her blade's point comes out of its back as she draws it)
+                    b.Spray(Add(b.FinishStrike, Mul(u, .8f * R)), Add(u, {0, .3f, 0}), 40, 5.f, F.y);
+                    CaucasianEagle::Sound::Play("combat/blow", .9f, .08f);
+                }
+                else if (m.Show == 2)
+                {   // (the ground shakes round her blades)
+                    const XMFLOAT3 at{b.FinishStrike.x, F.y + .05f, b.FinishStrike.z};
+                    RingEffect(at, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), {.62f, .56f, .48f, 1}, .5f);
+                    RingEffect(at, std::clamp(R + 1.f, 1.2f, 3.5f), MoonWhite, .35f);
+                    Burst(at, {.55f, .5f, .45f, 1}, 26, 4.f, .3f);
+                    mShake = (std::max)(mShake, .45f);
+                    CaucasianEagle::Sound::Play("combat/blow", 1.f, .06f);
+                }
+                else if (m.Show == 3)
+                {   // (her cuts open as she stands past it)
+                    for (int k = 0; k < b.FinishMarks; ++k)
+                    {
+                        slash(b.FinishMark[k], b.FinishMarkWay[k], length * 1.3f, .6f);
+                        b.Spray(b.FinishMark[k], Add(Mul(b.FinishMarkWay[k], .5f), {0, .4f, 0}), 40, 4.5f, F.y);
+                    }
+                    w.Flash = .2f;
+                    mShake = (std::max)(mShake, .3f);
+                    CaucasianEagle::Sound::Play("nyxara/cut", 1.f, .05f);
+                    CaucasianEagle::Sound::Play("combat/hit", 1.f, .06f);
+                }
+                else
+                {
+                    b.Spray(b.FinishStrike, Add(Mul(u, m.Show == 4 ? .3f : .6f), {0, m.Show == 4 ? .9f : .4f, 0}), 34, 4.5f, F.y);
+                    CaucasianEagle::Sound::Play("combat/blow", .8f, .08f);
+                }
+                slow(.45f, .35f);
+            }
+        }
         else
         {
             if (!b.FinishBlown[0] && passed(b.FinishBlowAt[0]))
@@ -4431,6 +5298,13 @@ namespace Doorways
             f.Index = b.FinishTarget; f.Feet = F; f.Neck = b.FinishNeck; f.Knee = K; f.Daze = 1;
             if (which == 1) { f.Way = Mul(u, -1); f.Wait = .12f; f.Takes = spec.Falls; f.Kneel = .3f; }
             else if (which == 2) { f.Way = u; f.Wait = 0; f.Takes = spec.Falls; f.Time = (t - contact) - dt; }   // (in step with her ride)
+            else if (which >= 4)
+            {
+                const int falls = More[which].Falls;
+                f.Way = falls == 0 ? u : falls == 1 ? Mul(u, -1) : r;
+                f.Wait = .08f; f.Takes = spec.Falls;
+                f.KneelFrom = f.Kneel = b.FinishKneel > .05f ? b.FinishKneel : .3f;
+            }
             else
             {
                 XMFLOAT3 away = Sub(F, b.FinishA); away.y = 0;
@@ -4457,6 +5331,24 @@ namespace Doorways
         auto& p = world.MainPlayer;
         auto& s = GameSession();
         b.Clock += dt;
+        if (b.InMove())
+        {   // the engine's 60 Hz grid kept in step with the kit's (ScaleFrameTime): how many slices it really moved her by at
+            // this frame's start, seen from how far she went at the speed asked (her own move: nothing else moves her), when
+            // that is plain; a difference moves the kit's grid by as many slices
+            constexpr double Slice = static_cast<double>(1.f / 60.f);
+            const float speed = std::hypot(s.ImpulseX, s.ImpulseZ), asked = speed / 60.f;
+            if (asked > .01f)
+            {
+                const float along = ((p.Position.x - b.WasAt.x) * s.ImpulseX + (p.Position.z - b.WasAt.y) * s.ImpulseZ) / speed;
+                const float seen = along / asked;
+                const int taken = static_cast<int>(std::lround(seen));
+                if (taken >= 0 && taken <= 75 && std::abs(seen - static_cast<float>(taken)) < .15f && taken != b.Slices)
+                {
+                    mGrid = std::clamp(mGrid + (b.Slices - taken) * Slice, 0., Slice - 1e-9);
+                    b.Log(world, ("grid kept in step: " + std::to_string(taken) + " slices, not " + std::to_string(b.Slices)).c_str());
+                }
+            }
+        }
         const bool unattended = s.Unattended;
         const bool live = inputAllowed && !mInputBlocked && !unattended;   // the desktop's own keys (steering, stepping back)
         const Keys k = ReadKeys(inputAllowed);
@@ -4478,7 +5370,7 @@ namespace Doorways
             else if (flying)
             {
                 mFlightHold = 0;
-                mFlightEnergy = (std::max)(0.f, mFlightEnergy - dt / (tried > 0 ? tried : FlightEnergySeconds));
+                mFlightEnergy = (std::max)(0.f, mFlightEnergy - dt / (tried > 0 ? tried : mFlightSeconds));
                 if (mFlightEnergy <= 0 && !b.Dead)
                 {   // out of it: she is on foot in the air, and gravity brings her down
                     p.TraversalMode = DoorwaysPlayerTraversalMode::Ground; p.JumpFlight.Active = false;
@@ -4527,7 +5419,7 @@ namespace Doorways
         const auto sideOf = [&] { return b.Attack.find("_L") != std::string::npos ? 1.f : b.Attack.find("_R") != std::string::npos ? -1.f : b.Rand() < .5f ? 1.f : -1.f; };
         // A blow from where she is: every enemy within reach (plus its radius) and within arc degrees of her line,
         // whose height she is not over (in the air), is struck.
-        const auto strike = [&](float reach, float arc, int damage, float push)
+        const auto strike = [&](float reach, float arc, int damage, float push, float launch = 0)
         {
             int struck = 0;
             const float limit = std::cos(XMConvertToRadians(arc));
@@ -4541,10 +5433,11 @@ namespace Doorways
                 if (over > f.Height + .5f || over < -2.5f) continue;   // over its head, or it is high over hers
                 if (d > f.Radius + .3f && (dx * std::sin(p.Yaw) + dz * std::cos(p.Yaw)) / d < limit) continue;
                 b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, damage);
-                DamageWraith(i, damage, p.Position, push, 0);
+                DamageWraith(i, damage, p.Position, push, launch);
                 ++struck;
             }
             if (struck) b.Log(world, ("hit " + std::to_string(struck)).c_str());
+            if (mBlowListener) mBlowListener(p.Position, p.Yaw, reach, 2 * arc);
             return struck;
         };
         const auto strikeOne = [&](int i, int damage)   // one enemy, wherever it is (the swords in it, the throw)
@@ -4607,7 +5500,7 @@ namespace Doorways
         const bool canGuard = alive && !b.Moving() && !b.Jumping && !busy;
         if (k.E && canGuard && (mGuarding || mGuardCooldown <= 0) && mGuardHeld < GuardMostSeconds)
         {
-            if (!mGuarding) { CaucasianEagle::Sound::Play("nyxara/guard", .7f); mNotice = L"SWORD BARRIER"; mNoticeTimer = .8f; }
+            if (!mGuarding) { CaucasianEagle::Sound::Play("nyxara/guard", .7f); mNotice = L"WING SHIELD"; mNoticeTimer = .8f; }
             mGuarding = true; mGuardHeld += dt;
         }
         else
@@ -4616,6 +5509,10 @@ namespace Doorways
             mGuarding = false;
             if (!k.E) mGuardHeld = 0;
         }
+
+        // ---- a style's move once it is free: given up for a jump, a skill or the barrier pressed now (and for her own way:
+        // the travel, below)
+        if (b.MoveFree() && (space || keyF || keyV || keyC || k.E)) { b.EndMove(world, "move given up"); b.ComboButton = -1; }
 
         // ---- Space: the jump clip once (a picture of a jump, as in the lab: the engine's jump is off on foot)
         if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && !mGuarding && alive)
@@ -4719,7 +5616,7 @@ namespace Doorways
         }
         // ---- the mouse: the left sword and the right one; clicks in a row go through the cuts
         const bool free = alive && !busy && !b.Cast && !mGuarding && !b.Finish;
-        if (free && (clickL || clickR)) b.Queued = clickL ? 1 : 2;
+        if (free && (clickL || clickR)) { b.Queued = clickL ? 1 : 2; b.QueuedAt = b.Clock; }
         // ---- C, F, V
         const auto cooling = [&](int slot)
         {
@@ -4808,10 +5705,52 @@ namespace Doorways
             }
         }
         if (b.Skill()) b.Queued = 0;
+        // (with an attack style, on foot: each click its button's move, aimed at the creature most before her and nearest)
+        // (with a combo: its button's string, going on from the move before it if that was of this string and now or a
+        // moment ago, ComboWindow, played; else from its first)
+        // (on foot and in flight alike: the owner, 2026-11-20, "nyxara should be fight same way while flying as she does now,
+        // while flying she no uses old technique")
+        const bool comboed = mCombo >= 0 && ComboMade(mCombo);
+        const bool styled = comboed || (mStyle >= 0 && StyleMade(mStyle));
+        const auto startMove = [&](int button)
+        {
+            const StyleMove* chosen = &Styles()[static_cast<size_t>((std::max)(0, mStyle))].Move[button];
+            if (comboed)
+            {
+                const auto& string = Combos()[static_cast<size_t>(mCombo)].String[button];
+                const bool goesOn = b.ComboButton == button && b.ComboStep + 1 < static_cast<int>(string.size()) &&
+                                    (b.InMove() || b.Clock - b.ComboEndedAt <= ComboWindow);
+                b.ComboStep = goesOn ? b.ComboStep + 1 : 0; b.ComboButton = button;
+                chosen = &RefMove(string[static_cast<size_t>(b.ComboStep)]);
+            }
+            const StyleMove& m = *chosen;
+            int target = -1; float best = 1e9f, away = -1;
+            for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
+            {
+                if (!mWraiths[i].Alive || mWraiths[i].Doom > 0) continue;   // (a doomed one is hers to finish)
+                const Foe f = foe(i);
+                const float dx = f.Feet.x - p.Position.x, dz = f.Feet.z - p.Position.z, edge = (std::max)(0.f, std::hypot(dx, dz) - f.Radius);
+                if (edge > StyleSeek || std::abs(f.Feet.y - p.Position.y) > 2.5f) continue;
+                const float off = std::abs(std::remainder(std::atan2(dx, dz) - p.Yaw, XM_2PI));
+                if (off > XMConvertToRadians(edge < StyleNear ? StyleConeNear : StyleCone)) continue;
+                const float score = edge + 1.5f * off;
+                if (score < best) { best = score; target = i; away = edge; }
+            }
+            b.StartMove(world, m, button, target, away);
+        };
         if (b.Queued && free)
         {
             if (b.Jumping) b.StartAttack(world, "Attack_Jump", b.JumpTime);
-            else if (b.Attack.empty()) { b.Step = 0; b.StartAttack(world, b.NextCut(b.Queued)); }
+            else if (b.InMove())
+            {   // clicked during a move: kept a moment (StyleBuffer) and begun as soon as the move is free
+                if (!styled || b.Clock - b.QueuedAt > StyleBuffer) b.Queued = 0;
+                else if (b.MoveFree()) startMove(b.Queued - 1);
+            }
+            else if (b.Attack.empty())
+            {
+                if (styled) startMove(b.Queued - 1);
+                else { b.Step = 0; b.StartAttack(world, b.NextCut(b.Queued)); }
+            }
         }
         else if (!free) b.Queued = 0;
 
@@ -4967,6 +5906,83 @@ namespace Doorways
                 }
             }
         }
+        else if (b.InMove())
+        {   // ---- a style's move: turned onto its creature as it begins, carried in to it (or back), its blows as they come
+            const StyleMove& m = *b.MoveOf;
+            const float was = b.AttackTime;
+            b.AttackTime += dt;
+            const float t = b.AttackTime;
+            if (b.MoveTarget >= static_cast<int>(mWraiths.size()) || (b.MoveTarget >= 0 && !mWraiths[b.MoveTarget].Alive)) b.MoveTarget = -1;
+            if (b.MoveTarget >= 0 && was < m.TrackTo)
+            {   // (her aim, her facing less the move's own spin, turned onto the creature)
+                const Foe f = foe(b.MoveTarget);
+                const float want = std::atan2(f.Feet.x - p.Position.x, f.Feet.z - p.Position.z), most = XMConvertToRadians(StyleTrackRate) * dt;
+                p.Yaw = std::remainder(p.Yaw + std::clamp(std::remainder(want - (p.Yaw - b.MoveSpun), XM_2PI), -most, most), XM_2PI);
+            }
+            if (m.Spin != 0)
+            {
+                const float spun = m.Spin * Travel(t, m.SpinFrom, m.SpinTo);
+                p.Yaw = std::remainder(p.Yaw + spun - b.MoveSpun, XM_2PI);
+                b.MoveSpun = spun;
+            }
+            {   // carried in (or back) along her aim: each frame what is left between where the move means her to be and where
+                // she is. The engine moves her at the start of the next frame, in slices of 1/60 s: ScaleFrameTime asks for
+                // it then, over the slices it is about to take, so that a lunge of two or three frames ends where it should
+                // whatever the frames' times. What waits for a slice is kept; what she cannot reach (a wall, a body in the
+                // way) is let go past 1.5 m.
+                const float aim = p.Yaw - b.MoveSpun;
+                const float step = b.MovePlan * (Travel(t, m.LungeFrom, m.LungeTo) - Travel(was, m.LungeFrom, m.LungeTo)) -
+                                   m.Back * (Travel(t, m.BackFrom, m.BackTo) - Travel(was, m.BackFrom, m.BackTo));
+                b.MoveAt.x += std::sin(aim) * step;
+                b.MoveAt.y += std::cos(aim) * step;
+                float owex = b.MoveAt.x - p.Position.x, owez = b.MoveAt.y - p.Position.z;
+                const float owed = std::hypot(owex, owez), most = std::abs(step) + 1.5f;   // (and never more than a frame's worth and 1.5 m)
+                if (owed > most)
+                {
+                    owex *= most / owed; owez *= most / owed;
+                    b.MoveAt = {p.Position.x + owex, p.Position.z + owez};
+                }
+                const bool going = t <= (std::max)(m.LungeTo, m.BackTo) + .1f;
+                b.MoveVel = going ? XMFLOAT2{owex * 60, owez * 60} : XMFLOAT2{0, 0};   // (asked of one slice, if nothing asks again)
+                b.MoveOwe = going ? XMFLOAT2{owex, owez} : XMFLOAT2{0, 0};
+            }
+            for (; b.MoveHitNext < static_cast<int>(m.Hits.size()) && t >= m.Hits[static_cast<size_t>(b.MoveHitNext)].At; ++b.MoveHitNext)
+            {
+                const StyleHit& h = m.Hits[static_cast<size_t>(b.MoveHitNext)];
+                int struck = 0;
+                if (h.Shape == 1)
+                {   // a line along the ground before her: every creature within Arc m of it (its width counted), Reach m long
+                    const XMFLOAT3 way = Forward(p.Yaw);
+                    for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
+                    {
+                        if (!mWraiths[i].Alive) continue;
+                        const Foe f = foe(i);
+                        const float dx = f.Feet.x - p.Position.x, dz = f.Feet.z - p.Position.z;
+                        const float along = dx * way.x + dz * way.z, across = std::abs(dx * way.z - dz * way.x);
+                        if (along < -f.Radius || along > h.Reach + f.Radius || across > h.Arc + f.Radius || std::abs(f.Feet.y - p.Position.y) > 2.5f) continue;
+                        b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, h.Damage);
+                        DamageWraith(i, h.Damage, p.Position, h.Push, h.Launch);
+                        ++struck;
+                    }
+                    b.WaveFrom = p.Position; b.WaveWay = way; b.WaveReach = h.Reach; b.WaveTime = 0; b.WaveSparks = 0;
+                    if (mBlowListener)
+                        for (float at = 0; at <= h.Reach; at += 1.5f)   // (the line: as blows along it)
+                            mBlowListener({p.Position.x + way.x * at, p.Position.y, p.Position.z + way.z * at}, p.Yaw, (std::max)(1.5f, h.Arc), 359.f);
+                }
+                else struck = strike(h.Reach, h.Arc, h.Damage, h.Push, h.Launch);
+                CaucasianEagle::Sound::Play(h.Damage >= 70 ? "nyxara/swing_heavy" : "nyxara/swing", .5f, .15f);
+                if (struck && h.Stop > 0) mHitStop = (std::max)(mHitStop, h.Stop);
+                if ((struck || h.Ring > 0) && h.Shake > 0) mShake = (std::max)(mShake, h.Shake);
+                if (h.Ring > 0)
+                {   // the ground struck: a ring out over it, and sparks
+                    const XMFLOAT3 at = Add(p.Position, Mul(Forward(p.Yaw), .9f));
+                    RingEffect({at.x, at.y + .05f, at.z}, h.Ring, MoonWhite, .45f);
+                    Burst({at.x, at.y + .15f, at.z}, MoonWhite, 18, 4.f, .22f);
+                }
+                if (struck) b.Log(world, ("move blow " + std::to_string(struck)).c_str());
+            }
+            if (t >= m.Seconds) b.EndMove(world, "move over");
+        }
         else if (b.Skill())
         {
             const float was = b.AttackTime;
@@ -5046,7 +6062,19 @@ namespace Doorways
 
         // ---- the creatures she holds: pushed over by V, thrown by F
         // her picture's lift: up in the feather storm (and as the cast has it, below)
-        float lift = b.Finish ? b.FinishLiftNow : b.Attack == "Skill_Storm" ? Body::StormLift(b.AttackTime) : 0.f;
+        if (b.WaveTime >= 0)
+        {   // GROUND WAVE: its sparks run out along its line, one every half metre
+            b.WaveTime += dt;
+            const float reached = b.WaveReach * (std::min)(1.f, b.WaveTime / StyleWaveSeconds);
+            for (; b.WaveSparks * .5f <= reached; ++b.WaveSparks)
+            {
+                const float d = b.WaveSparks * .5f;
+                Burst(Add(b.WaveFrom, {b.WaveWay.x * d, .12f, b.WaveWay.z * d}), MoonWhite, 4, 2.5f, .18f);
+            }
+            if (b.WaveTime >= StyleWaveSeconds) b.WaveTime = -1;
+        }
+        float lift = b.Finish ? b.FinishLiftNow : b.Attack == "Skill_Storm" ? Body::StormLift(b.AttackTime)
+                   : b.InMove() ? b.MoveOf->Hop * HopShare(b.AttackTime, b.MoveOf->HopFrom, b.MoveOf->HopTo) : 0.f;
         if (b.Pushed >= 0)
         {
             b.PushTime += dt;
@@ -5133,11 +6161,19 @@ namespace Doorways
         // ---- travel (owner, 2026-11-18): A and D turn her round, on foot and in flight, and never the view (the mouse alone
         // turns it); W goes the way she faces and S steps back (the engine's MoveAlongFacing). A scripted run still steers
         // by the view, and she turns to where she goes.
+        if (b.MoveFree())
+        {   // a style's move once it is free: given up for her own way (W, S, A, D; a scripted run's move or turn)
+            const bool scripted = s.Unattended && s.ScriptedAlongFacing && (s.ScriptedMove != 0 || s.ScriptedSteer != 0);
+            if (scripted || (live && (IsDoorwaysKeyDown('W') || IsDoorwaysKeyDown('S') || IsDoorwaysKeyDown('A') || IsDoorwaysKeyDown('D'))))
+                b.EndMove(world, "move given up for her way");
+        }
         const bool carried = b.Carried();
         float impulse = !b.Dead && dt > 0 ? b.ForwardSpeed(world) : 0.f;
         s.ImpulseX = std::sin(p.Yaw) * impulse;
         s.ImpulseZ = std::cos(p.Yaw) * impulse;
         if (b.Finish) { s.ImpulseX = b.FinishGo.x; s.ImpulseZ = b.FinishGo.y; }   // (a finisher's plan: UpdateFinish)
+        else if (b.InMove()) { s.ImpulseX = b.MoveVel.x; s.ImpulseZ = b.MoveVel.y; }   // (a style's move: its way, above)
+        b.WasAt = {p.Position.x, p.Position.z};
         // (a scripted run may play as a player does: the session's ScriptedAlongFacing, with ScriptedMove and ScriptedSteer)
         const bool played = s.Unattended && s.ScriptedAlongFacing;
         const bool keyW = (live && IsDoorwaysKeyDown('W')) || (played && s.ScriptedMove == 'W'), keyS = (live && IsDoorwaysKeyDown('S')) || (played && s.ScriptedMove == 'S');
@@ -5245,7 +6281,7 @@ namespace Doorways
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
             // stands at ease (Stand), her swords on her back, and walks off without having to put them away.
             constexpr float GuardSeconds = 5.f, GuardNear = 14.f;
-            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0;
+            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0 || mGuarding;
             if (b.Struck) for (auto& w : b.WingSpring) w.FlapGo += 3.f;
             b.Struck = false;
             for (const auto& w : mWraiths)
@@ -5259,6 +6295,11 @@ namespace Doorways
         }
         std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
         float time = b.Clock;
+        if (mGuarding && mGuardStyle >= 0 && b.Duration(GuardClip(mGuardStyle)) > 0)
+        {   // on guard (E): her guard's pose, swaying on it from when she raised it
+            const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
+            clip = GuardClip(mGuardStyle); time = std::fmod(mGuardHeld, gs.Breath); b.GuardRaise = gs.Raise;
+        }
         const bool striding = moving && !b.Dead && !flying;
         {   // how steeply she climbs (rise over ground covered, from her own height), for the stair clip
             const float rise = dt > 1e-4f && b.LastY > -1e8f ? (p.Position.y - b.LastY) / dt : 0.f;
@@ -5362,10 +6403,45 @@ namespace Doorways
                     if ((b.Stretch += dt) > StretchSeconds) b.Stretch = -1;
                 }
             }
+            {   // her wing shield (E): her wings closing round her, as her shield has them
+                const bool shield = mGuarding && mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size());
+                if (shield)
+                {
+                    const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
+                    for (int i = 0; i < 3; ++i) { b.CloseBack[i] = gs.Back[i]; b.CloseFlap[i] = gs.Flap[i]; }
+                    b.WingCloseRate = gs.Close;
+                }
+                b.WingCloseTo = shield ? 1.f : 0.f;
+            }
             if (composed)
                 b.SwingWings(pose, dt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
                              b.Dead || b.Cast || b.Air ? 0.f : b.Finish ? .6f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
                              clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
+            b.WingLineKnown = false;
+            if (composed && b.WingClose > .02f && pose.ModelSpaceMatrices.size() == pose.LocalJoints.size() && b.WingJoint[0][2] >= 0 && b.WingJoint[1][2] >= 0)
+            {   // where her wings are in the world, for the shield's lights (Draw); and its sparks
+                const XMMATRIX place = BuildDoorwaysCharacterWorldMatrix(p.Position, p.Yaw, world.AnimatedPlayerVisual);
+                const auto joint = [&](int j) { const auto& m = pose.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 1); };
+                for (int side = 0; side < 2; ++side)
+                {
+                    const XMVECTOR a = joint(b.WingJoint[side][0]), c = joint(b.WingJoint[side][1]), e = joint(b.WingJoint[side][2]);
+                    const XMVECTOR line[4] = {a, c, e, XMVectorSetW(e + (e - c) * 1.1f, 1)};   // (the long feathers reach past its last bone)
+                    for (int i = 0; i < 4; ++i) XMStoreFloat3(&b.WingLine[side][i], XMVector3TransformCoord(line[i], place));
+                }
+                b.WingLineKnown = true;
+                if (mGuarding && mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size()))
+                {
+                    const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
+                    mShieldMotes += dt * gs.Motes * (std::min)(1.f, b.WingClose);
+                    while (mShieldMotes >= 1)
+                    {
+                        mShieldMotes -= 1;
+                        const int side = Random() < .5f ? 0 : 1, i = static_cast<int>(Random() * 2.99f);
+                        const XMFLOAT3 at = Lerp(b.WingLine[side][i], b.WingLine[side][i + 1], Random());
+                        Burst(at, gs.Color, 1, gs.Kind == 3 ? 1.2f : .6f, gs.Size * .45f);
+                    }
+                }
+            }
             if (composed && b.Attack == "Skill_Storm" && b.AttackTime >= StormThrowFrom && b.AttackTime < StormThrowTo && b.Hips >= 0)
             {   // the storm: feather daggers thrown from her wings as they go round, each wing in turn; each straight out
                 // (turned a little on round, the way she turns) and down to the ground, near ones steep and far ones flat
@@ -5396,6 +6472,31 @@ namespace Doorways
                     f.Color = shade < .55f ? FeatherDark : shade < .88f ? FeatherSilver : MoonWhite;
                     f.Glow = shade >= .88f;
                     mFx.push_back(f);
+                }
+            }
+            {   // a style's move: each blade's way a moment back, for its trail of light (Draw)
+                for (auto& trail : mTrail)
+                {
+                    for (auto& q : trail) q.Age += dt;
+                    while (!trail.empty() && trail.front().Age > StyleTrailSeconds) trail.erase(trail.begin());
+                }
+                if (composed && b.InMove() && b.AttackTime >= 0 && b.SwordJoint[0] >= 0 && b.SwordJoint[1] >= 0)
+                {
+                    DoorwaysSkeletonPose posed = pose;
+                    if (EvaluateDoorwaysSkeletonPoseMatrices(b.Skeleton, posed, nullptr))
+                    {
+                        const XMMATRIX place = BuildDoorwaysCharacterWorldMatrix(p.Position, p.Yaw, world.AnimatedPlayerVisual);
+                        for (int k2 = 0; k2 < 2; ++k2)
+                        {
+                            const XMMATRIX sword = XMLoadFloat4x4(&posed.ModelSpaceMatrices[static_cast<size_t>(b.SwordJoint[k2])]) * place;
+                            const XMVECTOR grip = XMVector3TransformCoord(XMLoadFloat3(&b.SwordGrip[k2]), sword);
+                            const XMVECTOR tip = XMVector3TransformCoord(XMLoadFloat3(&b.SwordTip[k2]), sword);
+                            TrailPoint q{};
+                            XMStoreFloat3(&q.Base, XMVectorLerp(grip, tip, .35f)); XMStoreFloat3(&q.Tip, tip);
+                            q.Speed = mTrail[k2].empty() || dt <= 0 ? 0.f : Len(Sub(q.Tip, mTrail[k2].back().Tip)) / dt;
+                            mTrail[k2].push_back(q);
+                        }
+                    }
                 }
             }
             if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
@@ -5641,10 +6742,11 @@ namespace Doorways
         for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
-        h.Action = b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH" : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
+        h.Action = b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH" : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
         h.Guarding = mGuarding; h.Boosting = mBoosting; h.Swapped = false;
         h.Bow = false; h.Aim = 0; h.Shooting = false; h.OnTarget = false; h.HitMark = 0; h.HitKill = false; h.TargetVisible = false;
-        h.Slashing = b.Attack.rfind("Attack_L", 0) == 0 || b.Attack == "Attack_Jump"; h.Heavy = b.Attack.rfind("Attack_R", 0) == 0; h.Swapping = false;
+        h.Slashing = b.Attack.rfind("Attack_L", 0) == 0 || b.Attack == "Attack_Jump" || (b.InMove() && b.MoveButton == 0);
+        h.Heavy = b.Attack.rfind("Attack_R", 0) == 0 || (b.InMove() && b.MoveButton == 1); h.Swapping = false;
         h.Notice = mNotice.c_str(); h.NoticeTimer = mNoticeTimer;
     }
 
@@ -5779,27 +6881,83 @@ namespace Doorways
             streak(mFeatherMesh, o.Pos, Mul(o.Vel, -1), .9f, .35f, Alpha(o.Color, .45f), mGlowTex.Get(), 1);
         }
 
-        // the barrier: two spectral swords rise crossed in front of her, with a moonlit dome
-        if (mBarrier > 0)
+        // her wing shield (E): blue lights about her closed wings (owner, 2026-11-20; the barrier's crossed swords, dome
+        // and ring are gone), as her shield has them
+        if (mBody->WingLineKnown && mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size()))
         {
-            const auto& p = world.MainPlayer;
-            const XMFLOAT3 f = Forward(p.Yaw);
-            const float rise = Smooth(0, 1, mBarrier), height = 2.7f;
-            const float pulse = .75f + .25f * std::sin(world.SceneTime * 9.f) + mBlockFlash * 2.f;
-            for (const float side : {-1.f, 1.f})
+            const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
+            const auto& line = mBody->WingLine;
+            const float shown = (std::min)(1.f, mBody->WingClose), t = static_cast<float>(world.SceneTime);
+            const auto along = [&](int k, float u)
+            {   // u of the way along a wing, root (0) to its feathers' tip (1)
+                float len[3], all = 0;
+                for (int i = 0; i < 3; ++i) { len[i] = Len(Sub(line[k][i + 1], line[k][i])); all += len[i]; }
+                float d = std::clamp(u, 0.f, 1.f) * all;
+                for (int i = 0; i < 3; ++i)
+                {
+                    if (d <= len[i] || i == 2) return Lerp(line[k][i], line[k][i + 1], len[i] > 1e-4f ? std::clamp(d / len[i], 0.f, 1.f) : 0.f);
+                    d -= len[i];
+                }
+                return line[k][3];
+            };
+            const auto hash = [](int i) { const float x = std::sin(static_cast<float>(i) * 12.9898f) * 43758.547f; return x - std::floor(x); };
+            const XMFLOAT3 middle = Mul(Add(Add(line[0][0], line[1][0]), Add(line[0][3], line[1][3])), .25f);
+            for (int i = 0; i < gs.Lights; ++i)
             {
-                const XMFLOAT4 color = side > 0 ? MoonWhite : SoulGreen;
-                const XMMATRIX m = XMMatrixScaling(height, height, height) * XMMatrixRotationZ(-side * .30f) *
-                    XMMatrixTranslation(side * .38f, height * .23f - height * 1.25f * (1 - rise), 0) * XMMatrixRotationY(p.Yaw) *
-                    XMMatrixTranslation(p.Position.x + f.x * 1.15f, p.Position.y, p.Position.z + f.z * 1.15f);
-                translucent(mBladeMesh, m, material(Alpha(color, .55f * rise * (std::min)(1.f, pulse)), nullptr, 1, true));
-                const XMFLOAT3 tip = {p.Position.x + f.x * 1.15f + std::cos(p.Yaw) * side * .38f, p.Position.y + height * rise, p.Position.z + f.z * 1.15f - std::sin(p.Yaw) * side * .38f};
-                billboard(tip, .9f * rise, Alpha(color, .6f * rise), mGlowTex.Get());
+                const int k = i % 2, n = (std::max)(1, gs.Lights / 2), m = i / 2;
+                const float r = hash(i), r2 = hash(i + 101);
+                float glow = 1, size = gs.Size;
+                XMFLOAT3 at{};
+                switch (gs.Kind)
+                {
+                case 1:
+                {   // round her, at the height of her wings
+                    const float a = t * gs.Speed + XM_2PI * static_cast<float>(i) / static_cast<float>(gs.Lights);
+                    const float reach = .75f + .25f * r + gs.Spread * std::sin(t * 1.3f + i);
+                    at = Add(middle, {std::sin(a) * reach, (r2 - .5f) * 1.1f + .15f * std::sin(t * 2 + i), std::cos(a) * reach});
+                    break;
+                }
+                case 2:
+                {   // at her wing tips, and one along each wing's edge
+                    const float u = m == 0 ? 1.f : m == 1 ? .66f : .35f + .3f * r;
+                    at = along(k, u);
+                    at.y += gs.Spread * std::sin(t * 2.2f + i);
+                    size *= m == 0 ? 1.f : .6f;
+                    break;
+                }
+                case 3:
+                {   // flames rising from her wings
+                    const float u = (static_cast<float>(m) + .5f) / static_cast<float>(n), rise = std::fmod(t * gs.Speed * (.7f + .6f * r) + r2, 1.f);
+                    at = along(k, u);
+                    at.y += rise * gs.Spread; at.x += .06f * std::sin(t * 7 + i); at.z += .06f * std::cos(t * 6 + i);
+                    glow = 1 - rise; size *= .6f + .6f * (1 - rise);
+                    break;
+                }
+                case 4:
+                {   // waves from her shoulders to her wing tips
+                    const float u = (static_cast<float>(m) + .5f) / static_cast<float>(n);
+                    at = along(k, u);
+                    glow = .25f + .75f * std::pow(.5f + .5f * std::sin(XM_2PI * (gs.Pulse * t - u * 1.4f)), 3.f);
+                    break;
+                }
+                default:
+                {   // running along her wings, each about its own little circle
+                    const float u = std::fmod((static_cast<float>(m) + .5f) / static_cast<float>(n) + t * gs.Speed + 1000.f, 1.f);
+                    at = along(k, u);
+                    const float a = t * 3 + i * 2.4f;
+                    at = Add(at, {gs.Spread * std::cos(a), gs.Spread * std::sin(a * 1.3f), gs.Spread * std::sin(a)});
+                    break;
+                }
+                }
+                if (gs.Kind != 4 && gs.Pulse > 0) glow *= .7f + .3f * std::sin(XM_2PI * gs.Pulse * t + (gs.Kind == 0 ? 0.f : i * .7f));
+                if (gs.Twinkle > 0) glow *= 1 - gs.Twinkle * (.5f + .5f * std::sin(t * (9 + 7 * r) + 30 * r2));
+                glow *= shown;
+                if (glow < .02f) continue;
+                // (a wide soft blue halo, the light itself, and its bright heart)
+                billboard(at, size * 2.4f * (.7f + .3f * glow), Alpha(gs.Color, .28f * glow), mGlowTex.Get());
+                billboard(at, size * (.7f + .3f * glow), Alpha(gs.Color, glow), mGlowTex.Get());
+                billboard(at, size * .3f, XMFLOAT4{.75f, .9f, 1.f, .9f * glow}, mGlowTex.Get());
             }
-            translucent(mSphereMesh, XMMatrixScaling(1.9f, 1.9f * rise, 1.9f) * XMMatrixTranslation(p.Position.x, p.Position.y, p.Position.z),
-                material(Alpha(MoonWhite, (.07f + .2f * mBlockFlash) * rise), mGlowTex.Get(), 1, true));
-            translucent(mRingMesh, XMMatrixScaling(2.f, 1, 2.f) * XMMatrixTranslation(p.Position.x, p.Position.y + .04f, p.Position.z),
-                material(Alpha(SoulGreen, .55f * rise), mRingTex.Get(), 1, true));
         }
 
         for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
@@ -5848,6 +7006,42 @@ namespace Doorways
             }
         }
 
+        for (int k = 0; k < 2; ++k)
+        {   // a style's move: each blade's trail, a ribbon of light along its way a moment back (the left green, the right
+            // white; brightest where it is new and where the blade went fast; on a curve through its places, Catmull-Rom)
+            const auto& tr = mTrail[k];
+            if (tr.size() < 2) continue;
+            const XMFLOAT4 color = k == 0 ? SoulGreen : MoonWhite;
+            const auto curve = [](const XMFLOAT3& a, const XMFLOAT3& b2, const XMFLOAT3& c, const XMFLOAT3& d, float u)
+            {
+                const auto one = [u](float p0, float p1, float p2, float p3)
+                { return .5f * (2 * p1 + (p2 - p0) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u + (3 * p1 - p0 - 3 * p2 + p3) * u * u * u); };
+                return XMFLOAT3{one(a.x, b2.x, c.x, d.x), one(a.y, b2.y, c.y, d.y), one(a.z, b2.z, c.z, d.z)};
+            };
+            const auto tri = [&](const XMFLOAT3& a, const XMFLOAT3& b2, const XMFLOAT3& c, const Material& mat)
+            {
+                const XMFLOAT3 x = Sub(b2, a), y = Sub(c, a), n = Cross(x, y);
+                if (Len(n) < 1e-5f) return;
+                translucent(mTriMesh, Basis(x, y, Norm(n), a), mat);
+            };
+            constexpr int Steps = 4;
+            for (size_t i = 0; i + 1 < tr.size(); ++i)
+            {
+                const auto& p0 = tr[i == 0 ? 0 : i - 1]; const auto& p1 = tr[i]; const auto& p2 = tr[i + 1]; const auto& p3 = tr[(std::min)(i + 2, tr.size() - 1)];
+                const float fast = std::clamp((p2.Speed - 6.f) / 12.f, 0.f, 1.f), shade = .55f * fast * (1 - p2.Age / StyleTrailSeconds);
+                if (shade < .02f) continue;
+                const Material mat = material(Alpha(color, shade), nullptr, 1.6f, true);
+                XMFLOAT3 baseWas = p1.Base, tipWas = p1.Tip;
+                for (int step = 1; step <= Steps; ++step)
+                {
+                    const float u = static_cast<float>(step) / Steps;
+                    const XMFLOAT3 base = curve(p0.Base, p1.Base, p2.Base, p3.Base, u), tip = curve(p0.Tip, p1.Tip, p2.Tip, p3.Tip, u);
+                    tri(baseWas, tipWas, tip, mat);
+                    tri(baseWas, tip, base, mat);
+                    baseWas = base; tipWas = tip;
+                }
+            }
+        }
         std::stable_sort(list.begin(), list.end(), [](const DrawItem& a, const DrawItem& c) { return a.Depth > c.Depth; });
         for (const auto& d : list)
         {

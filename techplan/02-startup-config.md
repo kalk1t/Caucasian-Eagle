@@ -46,7 +46,8 @@ There is no game configuration file yet. Moving tuning values out of code into d
 | Input | Effect | Owner |
 |---|---|---|
 | (none) | Normal launch: main menu, then play | Game |
-| `CAUCASIAN_EAGLE_DEMO=1` (environment) | Scripted showcase: starts play without the menu and drives the kit from a fixed 30-second timeline; does not need window focus. Used for automated captures. | Game [confirmed: `NyxaraKit::ReadKeys`] |
+| `--road` (command line) or `CAUCASIAN_EAGLE_ROAD=1` | Since 0.5: the road of 0.4 (`Game`); without it `CaucasianEagle.exe` starts the Eagle's Ascent (`EaglesAscentGame`; `CAUCASIAN_EAGLE_ASCENT=0` and `CAUCASIAN_EAGLE_PILOT=1` also give the road). The switch is taken out before the engine reads its command line |
+| `CAUCASIAN_EAGLE_DEMO=1` (environment) | (On the road, with `--road`; on the Ascent its own smoke run.) Scripted showcase: starts play without the menu and drives the kit from a fixed 30-second timeline; does not need window focus. Used for automated captures. | Game [confirmed: `NyxaraKit::ReadKeys`] |
 | Engine validation modes (`--ui-preview`, `--interface-validation`, and others) | Engine self-tests. The game is not prepared in these modes. Access to some modes depends on the engine's access build. | Engine [confirmed: `DoorwaysApplication.cpp`] |
 
 ## 5.4 Files written at run time

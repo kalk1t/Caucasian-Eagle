@@ -175,7 +175,7 @@ namespace CaucasianEagle
 
     float Game::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
     {
-        return GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed) * GetJourney().TimeScale();
+        return GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed, GetJourney().TimeScale());
     }
 
     void Game::Update(DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed)

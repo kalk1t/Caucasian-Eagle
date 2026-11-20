@@ -1,4 +1,4 @@
-# Caucasian Eagle: player manual (v0.3)
+# Caucasian Eagle: player manual (v0.5)
 
 [← Project index](../README.md)
 
@@ -19,7 +19,7 @@ The game has run on one computer only: Windows 11, Ryzen 9 9950X3D, 64 GB of mem
 
 ## Installing
 
-Download `CaucasianEagle-0.4.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases) and run it. The file is not signed, so Windows shows "Windows protected your PC": choose **More info**, then **Run anyway**. The game installs for your Windows user only (no administrator question), by default into `%LOCALAPPDATA%\Programs\Caucasian Eagle`, and adds **Caucasian Eagle** to the Start menu (a desktop shortcut if you tick it). To remove it, use **Installed apps** in Windows settings; your settings and your saved journey in `%LOCALAPPDATA%\CaucasianEagle` are kept. Instead of installing you can unpack `CaucasianEagle-0.3.0-win64.zip` anywhere and start `CaucasianEagle.exe` in it.
+Download `CaucasianEagle-0.5.0-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases) and run it. The file is not signed, so Windows shows "Windows protected your PC": choose **More info**, then **Run anyway**. The game installs for your Windows user only (no administrator question), by default into `%LOCALAPPDATA%\Programs\Caucasian Eagle`, and adds **Caucasian Eagle** (the Eagle's Ascent, the game of 0.5) and **Caucasian Eagle - The Road (0.4)** to the Start menu, and a desktop shortcut to the Ascent if you tick it. To remove it, use **Installed apps** in Windows settings; your settings and your saved journey in `%LOCALAPPDATA%\CaucasianEagle` are kept. Instead of installing you can unpack `CaucasianEagle-0.5.0-win64.zip` anywhere and start `CaucasianEagle.exe` (the Eagle's Ascent) or `Play-TheRoad.cmd` (the road of 0.4) in it.
 
 ## Starting
 
@@ -56,14 +56,14 @@ Creatures get stronger the farther you go: by the last chapter they have about t
 | What | Steps | Crystals | Each step gives |
 |---|---|---|---|
 | Wings | 3 evolutions | 40, 140, 320 | Skills return 12 % sooner, wing boost 8 % faster |
-| Axes | 3 evolutions | 40, 140, 320 | Blows deal 20 % more |
+| Swords | 3 evolutions | 40, 140, 320 | Blows deal 20 % more |
 | Armour | 3 evolutions | 40, 140, 320 | Blows taken hurt 12 % less |
 | Power | 8 levels | 10, 20 ... 80 | Blows deal 7 % more |
 | Defence | 8 levels | 10, 20 ... 80 | Blows taken hurt 5 % less |
 
-**Nyxara evolves three times.** When her wings, axes and armour have all reached the same evolution, she herself changes: Fledgling, then Moonwing, Stormwing, Heir of the Eagle. Each form deals 10 % more, takes 8 % less, stands a little taller, and heals her fully when she reaches it.
+**Nyxara evolves three times.** When her wings, swords and armour have all reached the same evolution, she herself changes: Fledgling, then Moonwing, Stormwing, Heir of the Eagle. Each form deals 10 % more, takes 8 % less, stands a little taller, and heals her fully when she reaches it.
 
-Evolved wings, axes and armour glow in the colour of their tier: blue, then green, then gold. Their shapes do not change.
+Evolved wings, swords and armour glow in the colour of their tier: blue, then green, then gold. Their shapes do not change.
 
 **Potions.** Every old gold chest holds a healing potion (feather chests two, a king's hoard three). She carries up to five; one more than she can carry stays behind. Press **Z** to drink one: 35 health. The potions you carry are shown at the bottom right.
 
@@ -182,17 +182,22 @@ The road is the main street of seven Georgian cities. Walking through a city gat
 
 ## The Eagle's Ascent
 
-A mountain to climb on its own, apart from the road: from the sea to Amiran's court at 4,200 m, on foot and on her wings, past the creatures of the mountain. Start it with **Play-EaglesAscent.cmd** (or `CaucasianEagle.exe --eagles-ascent`). The start screen is the game's own.
+The game of version 0.5: a mountain to climb, apart from the road, from the sea to Amiran's court at 4,200 m, on foot and on her wings, past the creatures of the mountain. Since 0.5 it is what **Caucasian Eagle** in the Start menu, and `CaucasianEagle.exe` itself, start. The road to Amirani of 0.4 is still in the game: **Caucasian Eagle - The Road (0.4)**, `Play-TheRoad.cmd`, or `CaucasianEagle.exe --road`. The start screen is the game's own.
 
-- **The way up** is a path of streets, stairs and terraces about 7.6 km long. Where it needs wings the place is marked when you come near: *the road goes on above* (a cliff: take wing, then Space to climb), *the road is broken* (a gap: take wing and fly across), *a cleft in the rock* (fly through it). Rising air carries her up where it is marked; a crosswind pushes her on one ridge.
-- **Its forests** change as she climbs: pines with wild oranges and pomegranates by the sea; orchards on the village terraces (red and yellow apples, oranges, pomegranates, cherries, vines, tomatoes and cucumbers); beech, oak, maple and hornbeam in the gorge and the great forest, a few already gold, firs among them; Nordmann firs and oriental spruces above; birches bent by the snow among junipers and flowering rhododendrons (mauve, and cream higher up); and last the firs under snow. Small trees cling to the rock faces.
-- **Space** held 1.5 seconds on foot takes her up (a tap jumps); her wings carry her 30 seconds, then she falls, and on the ground they fill again in 20. In flight **R** lands her wherever she is (she sinks until she stands). There is no ceiling here: fly as high as you like. Rock stops her in flight.
-- **The creatures**: a small group of one to three about every 100 m along the way, and more in the caves beside it: Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig and Devi, stronger the higher she climbs. Each group has its place: some stand there, some walk 20 m to and fro. A group comes at her when one of it sees her (about 20 m off, at its own height or on the stairs below or above it) or when she strikes one. It follows her only so far from its place (45 m); when she is out of its reach for a few seconds (she went on, or flew away over it) it goes home and its wounds close. Never more than three creatures are awake at once: the groups ahead wake as she comes near. A creature she has beaten stays beaten.
-- **The bosses**: the Gveleshapi rises out of the water about 1,150 m along the way, the Giant (a Uaig of a boss's size) waits at about 2,150 m, the Devi Lord at about 3,500 m, and the Eagle, her father, in Amiran's court at the top. While she fights one its name and health are at the top of the screen. She may fly away from a boss: it goes home and mends. Each fights its own way. The Gveleshapi bites, sweeps a spray of seven orbs across, and rears up to crash down on the circle where you stand. The Giant slams, sweeps, stamps, and leaps up to come down on the circle where you stand. The Devi Lord slams, sweeps, stamps and charges. The Eagle strikes with his wings, throws a gust of feathers, swoops low through where you stand, and dives on a marked circle. Before its great blow (a ring of orbs, stones, fire or feathers bursting out round it) each boss gathers itself for a moment: rearing, stamping, roaring, its wings spread.
-- **Eagle Nests**: nine, beside the way: at the Tide Gate top, the village square, the gorge shelf, the forest clearing, the Eagle shrine, the cloud-line rest, the stone refuge, the temple balcony and the snow-line gate. They are the only saves. Step into one and she rests: she is healed and the climb is saved (that nest, and every creature she has beaten; a creature she beats is saved at once). A nest she has not rested in is marked in gold. The bar at the right shows how high she is and where the nests are.
-- **Falling**: when the creatures beat her, she wakes in the last nest she rested in (at the shore before the first), and the creatures she has beaten are still beaten. Falling into the sea, or onto land away from the path (where there is no ground to stand on), brings her back there too. **Backspace** brings her back there at any time.
-- **Saving**: the climb is saved in `eagles-ascent.sav`, beside the road's save. Starting the Ascent again goes on from the last nest.
-- **Esc** pauses: Esc goes on climbing, Backspace returns to the last nest, Enter goes to the start screen, **N** starts a new climb from the shore (it forgets the nests and the beaten), Q leaves the game.
+- **The way up** is a path of streets, stairs and terraces about 7.6 km long, with rings round the mountain and 89 caves beside it. Where it needs wings the place is marked when you come near: *the road goes on above* (a cliff: take wing, then Space to climb), *the road is broken* (a gap: take wing and fly across), *a cleft in the rock* (fly through it). Rising air carries her up where it is marked; a crosswind pushes her on one ridge.
+- **Grass fields** cover the meadows, the terraces and the slopes beside the way, green below and straw-coloured high up; they thin out on the forest floor and stop at the path, rock and snow. **Every tree stops her**, on foot and on her wings: she cannot walk or fly through a trunk (the crowns' leaves let her through).
+- **Its forests** change as she climbs: pines with wild oranges and pomegranates by the sea; orchards on the village terraces; beech, oak, maple and hornbeam in the gorge and the great forest; Nordmann firs and oriental spruces above; birches bent by the snow among junipers and rhododendrons; and last the firs under snow.
+- **Her wings.** **Space** held 1.5 seconds on foot takes her up (a tap jumps). Her wings carry her **10 seconds** at first; grown in her window (**I**) they carry her 15, then 20, then 30 seconds. Then she falls; on the ground they fill again in 20. In flight **R** lands her wherever she is. There is no ceiling: fly as high as you like. Rock stops her in flight, and in the caves the walls and the roof hold her on foot and in flight.
+- **Fighting.** Her two swords, the same as in the Character Lab: **left click** and **right click** each go on through a string of moves (left: Flash Step, Pinwheel, Mountain Breaker; right: Draw Cut, Swallow Dart, Pinwheel), **F**, **V** and **C** her skills, and **E** held closes her wings round her (see *Her swords*). A blow that would kill a creature, any creature, the bosses too, brings it down dazed, and she finishes it with one of four finishing kills (see *Her finishing kills*).
+- **Growing (I).** Her window opens and the climb waits. **W** / **S** choose, **Enter** or **Space** spend crystals, **I** or **Esc** close. Wings (flight: 10, 15, 20, 30 seconds), swords (each evolution: blows deal 20 % more), armour (blows taken hurt 12 % less), power (8 levels, 7 % more each) and defence (8 levels, 5 % less each), at the same prices as on the road (items 40, 140, 320; training 10, 20 ... 80). When wings, swords and armour all reach an evolution she herself evolves (Moonwing, Stormwing, Heir of the Eagle): more damage, less taken, a little taller, and lights of her tier on her wings, blades and armour. There is no gold on the mountain.
+- **Crystals** come from three things. **The creatures**: each one she beats leaves its crystals (a Chinka one, a Devi ten, a boss 60). **Clay jars**: beside every road, in the caves and on the rings round the mountain, every 30 to 50 m, a group of three to five jars stands: the qvevri (the great egg-shaped wine vessel of Georgia, kept since the eighth millennium BC), the doki jug, the kotso pot and the small kvibri. Her blades break them; what is in one shows only then: a crystal or two in about three of ten, a healing potion in about one of twelve, the rest empty. **Hidden places**: 73 stone cairns with a gold light on them, in the heart of each long cave and a little off the way at the mountain's named places (*A HIDDEN PLACE* is written over one near you); she finds one by standing at it: 8 crystals. The count of her crystals is at the top left, under the height.
+- **Health.** Nothing heals her but potions: no nest, no rest, no beaten creature. **Z** drinks one (35 health). She carries five; a potion found with five already carried is worth a crystal instead. Her potions are shown beside the crystals. Her health bar shows no number, only the bar.
+- **The creatures**: a small group of one to three about every 100 m along the way, and more in the caves: Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig and Devi, stronger the higher she climbs. A group comes at her when one of it sees her or when she strikes one; it follows her only 45 m from its place, then goes home and its wounds close. Never more than three creatures are awake at once.
+- **The bosses**: the Gveleshapi rises out of the water about 1,150 m along the way, the Giant waits at about 2,150 m, the Devi Lord at about 3,500 m, and the Eagle, her father, in Amiran's court at the top. While she fights one its name and health are at the top of the screen. Each fights its own way, and gathers itself for a moment before its great blow.
+- **Eagle Nests and saving (H)**: nine nests beside the way (the Tide Gate top, the village square, the gorge shelf, the forest clearing, the Eagle shrine, the cloud-line rest, the stone refuge, the temple balcony, the snow-line gate). Standing in one, **H** saves, as often as you like, at any nest: *SAVED* shows, and the save holds that nest, her growth, crystals and potions, every creature she has beaten, every jar she has broken and every place she has found. A nest is marked *H here saves*; the one you saved at, *saved here*. A nest neither heals nor saves by itself.
+- **Falling**: when the creatures beat her she wakes in the nest she last saved at (on the shore before any save), whole, and **everything since that save is undone**: the creatures she beat since stand on the way again, the jars she broke since are whole, the crystals and potions she gained since are gone. Falling into the sea, or out of the world, brings her back to the last nest she stood in, as she is. **Backspace** does the same at any time.
+- **The save** is `eagles-ascent.sav`, beside the road's save. Starting the Ascent again goes on from it.
+- **Esc** pauses: Esc goes on climbing, Backspace returns to the last nest, Enter goes to the start screen, **N** starts a new climb from the shore (it forgets the save), Q leaves the game.
 - **M** shows the whole mountain from outside, to turn and look over: the nests in gold, the bosses in red, and the groups not yet beaten as dots.
 
 ## Moving
@@ -249,7 +254,7 @@ Nyxara fights with two swords, one in each hand, and her wings. (Before this ver
 | C | **The feather storm**: she leaps up, turns round three times in the air and throws her wing feathers all about her like daggers: straight out, as far as 27 m, where they stick in the ground. Each time she is half-way round, every creature within 27 m is struck by them (40 each time, 120 in all). From the ground only. 9 s to come back |
 | F | **The slide**: low along the ground, cutting what is before her (35 a cut). Flying: **the twisted dash**, V's twist, feet first: 9 m in 0.6 s, striking every creature she goes through (60) and throwing it aside. 4 s to come back |
 | V | **The thrown swords**: both swords fly into the middle of the nearest creature before her (within 7 m; flying, 21 m) (90). She twists after them feet first, her wings folded, and sticks both feet on its side; crouched there she takes the handles in both hands and backflips off it, kicking it with both feet (40) and ripping them out (60), and lands on her feet facing it, still (flying, she comes out of the backflip in the air). A creature that can be moved falls over backwards and gets up again. 7 s to come back. With no creature before her V does nothing |
-| E (hold) | **Sword barrier**: two spectral blades rise in front of her and block blows and orbs from the front, for up to 5 seconds |
+| E (hold) | **The cocoon**: both wings wrap right round her, their tips crossing before her, and blue lights run along them; blows and orbs from the front are blocked while it is held |
 | A / D | Turn her way, and the view with it; alone they also carry her round in a curve |
 | S | Step back, slowly, still facing ahead |
 
@@ -259,19 +264,20 @@ What a blow leaves: a bright streak along the cut, sparks, and blood thrown the 
 
 ### Her finishing kills
 
-A blow of hers that would kill a creature of the road, while she is on foot and near it (5.5 m), brings it down instead: it stands dazed, its head hanging, a violet ring pulsing under it. As soon as her move ends she finishes it with one of three finishing kills, chosen at random and never the same one twice running:
+A blow of hers that would kill a creature, while she is on foot and near it, brings it down instead: it stands dazed, its head hanging, a violet ring pulsing under it (one that flies comes down to the ground). As soon as her move ends she finishes it with one of four finishing kills, chosen at random and never the same one twice running. All four work on every creature, from the 1.15 m Chinka to the 9 m Gveleshapi and the bosses:
 
 | Finishing kill | What she does |
 |---|---|
-| **Talon Cross** | She dashes in, two cuts cross on its chest, and she flashes past round its side to stand behind it with her back to it. A moment later the cross opens and it falls on its face |
-| **Eagle's Plunge** | She crouches and springs, her wings beating, drives both swords into it under its neck and rides it down onto its back; then she pulls them out and springs back off it |
-| **Gale Slide** | She slides past it low, her sword through its legs, and it goes down on its knees; she rises, turns her back to it, and her sword comes down behind her through its neck (a giant's: into its shoulder) |
+| **Reaper's Wheel** | One whole turn with both blades out through it, and her right blade brought down from high |
+| **Mountain Breaker** | A cut across it, a hop, and both blades driven into the ground before it: the ground shakes round her |
+| **Tempest Flurry** | Four cuts: high from her left, back across, low at its legs (it sinks), and across its neck |
+| **Headsman** | A cut at its legs drops it to its knees; her right blade raised high and brought down on its neck |
 
-A finishing kill takes two to three seconds and nothing can hurt her while it plays; its blows freeze the moment and slow it a little. Each kill is fitted to the creature's size: her blades go where its neck and chest are, and at a tall one she leaps into the blow. One creature is doomed at a time; a doomed creature she does not come to within 3 seconds falls by itself. A finishing kill is played only where its way has room: at the edge of a drop or against a wall she takes another way round, or another kill, and where none of the three has room her blow kills the creature at once. Bosses, and anything killed from afar or while she flies, die at once as before.
+A finishing kill takes two to three seconds and nothing can hurt her while it plays. Each is fitted to the creature's size: at a tall one she rises on her wings into the blow. One creature is doomed at a time; a doomed creature she does not come to within 3 seconds falls by itself. Where none of the four has room (at the edge of a drop, against a wall) her blow kills it at once, as does a blow from afar or in flight.
 
 ## The screen
 
-- **Bottom left:** your health (green, red when low; the pale part is what you just lost), your soul bar (blue), and which axe is in which hand. The edge of the screen turns red when you are hit or low on health.
+- **Bottom left:** your health, a bar without a number (green, red when low; the pale part is what you just lost), your soul bar (blue), and which axe is in which hand. The edge of the screen turns red when you are hit or low on health.
 - **Bottom centre:** eight slots for your actions with their keys, in three groups: attacks, eagle skills, and swap, guard and boost. A darkened slot with a number is cooling down; it flashes when it is ready again.
 - **Above the slots:** the COMBO prompt, with a bar showing how long it stays open.
 - **Over each creature:** its health. A boss has a large bar at the top of the screen.

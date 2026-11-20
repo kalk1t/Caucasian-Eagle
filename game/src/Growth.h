@@ -40,6 +40,7 @@ namespace CaucasianEagle
         float DamageTaken(const State& state);      // of every blow she takes
         float Cooldown(const State& state);         // of the time her skills take to return
         float Boost(const State& state);            // of her wing-boost speed
+        float FlightSeconds(int wingTier);          // the Eagle's Ascent (0.5): how long she flies on wings of that tier
 
         struct View
         {
@@ -52,6 +53,8 @@ namespace CaucasianEagle
             int PotionHeal = 0;      // what one potion gives now
             float OtherDamage = 1;   // feathers, embers and city gifts, on top of Damage()
             float OtherTaken = 1;    // city gifts and the game's base scale, on top of DamageTaken()
+            bool Ascent = false;     // the Eagle's Ascent (0.5): wings are flight time; jars, places and nests, no gold
+            int Places = 0;          // (the Ascent) hidden places found
         };
         void Draw(Ui& ui, const View& view);
     }

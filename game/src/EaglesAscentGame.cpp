@@ -51,11 +51,13 @@ namespace CaucasianEagle
     }
 
     bool EaglesAscentRequested()
-    {
+    {   // 0.5: the Ascent unless the road is asked for (GameConstants.h: RoadSwitch)
         if (Env(AscentEnvironmentVariable) == "1") return true;
+        if (Env(AscentEnvironmentVariable) == "0" || Env(RoadEnvironmentVariable) == "1" || Env(PilotEnvironmentVariable) == "1") return false;
         std::wstring line = GetCommandLineW();
         std::transform(line.begin(), line.end(), line.begin(), [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-        return line.find(AscentSwitch) != std::wstring::npos;
+        if (line.find(AscentSwitch) != std::wstring::npos) return true;
+        return line.find(RoadSwitch) == std::wstring::npos;
     }
 
     void EaglesAscentGame::Configure(DoorwaysGameSession& session)
@@ -94,7 +96,15 @@ namespace CaucasianEagle
         if (!Ui::LoadArt(host.Render, error)) return false;
         if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error)) { error = "Nyxara combat kit: " + error; return false; }
         if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
+        if (!mWayside.Load(host.Render, error)) { error = "The Eagle's Ascent's clay jars: " + error; return false; }
+        if (!mGrass.Initialize(host.Render, mMap, ResolveDoorwaysRuntimePath(AscentDataFile), error)) { error = "The Eagle's Ascent: " + error; return false; }
+        mMap.HealOnVisit = false;   // (0.5: nothing heals her but potions)
         GetNyxaraKit().SetOnFoot(true);
+        // her blows break the clay jars beside the road (Wayside)
+        GetNyxaraKit().SetBlowListener([this](const XMFLOAT3& from, float yaw, float reach, float arc)
+        {
+            if (mWaysideOn && mWayside.Laid()) Collect(mWayside.Strike(from, yaw, reach, arc));
+        });
         // her feet on the stair treads as drawn (she walks the ramp under them); this game lives as long as the program
         GetNyxaraKit().SetFootGround([this](float x, float z, float nearY) { return mMap.TreadTop(x, z, nearY); });
         GetNyxaraKit().SetStairTread([this](float x, float z, float top, float& cx, float& cz, float& ax, float& az) { return mMap.TreadCenter(x, z, top, cx, cz, ax, az); });
@@ -105,17 +115,29 @@ namespace CaucasianEagle
         mClimb = Env(DemoEnvironmentVariable) == "2";   // the whole climb, unattended
         mTour = Env(DemoEnvironmentVariable) == "3";    // the creatures' tour, unattended (Tour)
         mTourFinish = mTour && Env("CAUCASIAN_EAGLE_TOUR_FINISH") == "1";   // (and her finishing kill of each creature)
+        mWays = Env(DemoEnvironmentVariable) == "4";    // the jars' test, unattended (Ways)
+        mNature = Env(DemoEnvironmentVariable) == "5";  // the grass and the trees, unattended (Nature)
         mLog = Env(AscentLogEnvironmentVariable);
         mTrace = !mLog.empty();
         if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
         LoadSave();
         if (mTour)
         {   // the tour begins a new climb, its save beside its evidence (never a player's)
-            mSavedNest = 0; mSavedBeaten.clear();
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
             if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "tour.sav"; mSaveTest = true; }
             std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         }
+        if (mWays)
+        {   // (its own save beside its evidence)
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+            if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "ways.sav"; mSaveTest = true; }
+            std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
+            mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
+            GetNyxaraKit().SetAutoKeys(&mWaysKeys);
+        }
+        mGrowth = mSavedGrowth; mFormShown = Growth::Form(mGrowth);
+        mWaysideOn = !mSmoke && !mClimb && !mTour;   // (the map's and the creatures' tests: no jars)
         mCreaturesOn = !mMap.Placements.empty() && Env(AscentCreaturesEnvironmentVariable) != "0" && !mSmoke && !mClimb;
         if (mCreaturesOn)
         {
@@ -153,7 +175,11 @@ namespace CaucasianEagle
         Sound::Initialize();
         Sound::StartMusic("music/menu");
 
-        if (mSmoke || mClimb || mTour)
+        // her combo, as in the Character Lab (owner, 2026-11-20: "update EaglesAscent's game with newest nyxara"); the
+        // unattended tests keep her own cuts, as they were measured with
+        if (!mSmoke && !mClimb && !mTour && !mWays && !mNature) GetNyxaraKit().SetAttackCombo(0);
+        if (mNature) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
+        if (mSmoke || mClimb || mTour || mWays || mNature)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -187,7 +213,7 @@ namespace CaucasianEagle
 
     float EaglesAscentGame::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
     {
-        return mPaused || mView.Open ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
+        return mPaused || mView.Open || mGrowthOpen ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
     }
 
     // Unattended (CAUCASIAN_EAGLE_DEMO=1): she is put on every station and must stand on its ground at its height; at
@@ -362,6 +388,223 @@ namespace CaucasianEagle
         host.World.MainCamera.Yaw = yaw; host.World.MainCamera.Pitch = -.12f;
     }
 
+    void EaglesAscentGame::Nature(DoorwaysGameHost& host, float dt)
+    {
+        auto& world = host.World; auto& session = GameSession(); auto& p = world.MainPlayer;
+        session.ScriptedMove = 0; session.ScriptedFast = false;
+        if (mClock < 3) return;
+        mNatClock += dt;
+        host.Combat.RestorePlayerHealth(world, 10000);
+        const auto table = std::filesystem::path(mLog).parent_path() / "nature.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        if (mNatPhase == 0)
+        {   // eight spots up the way where grass grows beside it; trunks within 25 m of the way, one every 250 m or so
+            std::ofstream(table, std::ios::trunc) << "what\tvalues\n";
+            row("map\ttrees=" + std::to_string(mMap.TreeCount()) + "\tgrass=" + (mGrass.On() ? "on" : "off"));
+            const auto& T = mMap.Trail;
+            std::vector<XMFLOAT3> green;
+            for (size_t i = 0; i < T.size(); i += 12)
+            {
+                float y = 0; int n = 0;
+                for (const float side : {-6.f, 6.f})
+                {
+                    const XMFLOAT3& a = T[i]; const XMFLOAT3& b = T[std::min(i + 1, T.size() - 1)];
+                    const float ax = b.x - a.x, az = b.z - a.z, l = std::max(.01f, std::hypot(ax, az));
+                    n += mGrass.Grows(a.x - az / l * side, a.z + ax / l * side, y) > .3f ? 1 : 0;
+                }
+                if (n >= 1) green.push_back(T[i]);
+            }
+            for (int k = 0; k < 8 && !green.empty(); ++k) mNatSpots.push_back(green[(green.size() - 1) * static_cast<size_t>(k) / 7]);
+            float lastAt = -1e9f;
+            for (size_t i = 0; i < T.size() && mNatTrunks.size() < 24; i += 4)
+            {
+                const float at = static_cast<float>(i) * EaglesAscent::TrailStep;
+                if (at - lastAt < 250) continue;
+                EaglesAscent::Trunk t;
+                if (!mMap.NearestTrunk(T[i].x, T[i].y, T[i].z, 25.f, t) || t.R < .15f) continue;
+                if (std::abs(mMap.Land(t.X, t.Z) - t.Y) > 1.2f) continue;          // (on the land, not a rock face)
+                float dx = T[i].x - t.X, dz = T[i].z - t.Z; const float l = std::max(.01f, std::hypot(dx, dz)); dx /= l; dz /= l;
+                const float sx = t.X + dx * (t.R + 3.5f), sz = t.Z + dz * (t.R + 3.5f), sy = mMap.Land(sx, sz);
+                const float slope = std::abs(sy - t.Y) / (t.R + 3.5f);
+                if (slope > .45f) continue;
+                EaglesAscent::Trunk other;   // (no second trunk on the way in)
+                if (mMap.NearestTrunk(t.X + dx * (t.R + 1.8f), sy, t.Z + dz * (t.R + 1.8f), .9f, other) && (other.X != t.X || other.Z != t.Z)) continue;
+                mNatTrunks.push_back(t); lastAt = at;
+            }
+            row("picked\tspots=" + std::to_string(mNatSpots.size()) + "\ttrunks=" + std::to_string(mNatTrunks.size()));
+            if (mNatSpots.empty()) { ++mNatBad; row("NO_GREEN_SPOT"); }
+            mNatPhase = 1; mNatPick = 0; mNatClock = 0; mNatMs = 0; mNatFrames = 0;
+            return;
+        }
+        if (mNatPhase == 1)
+        {   // grass: stood on the way, looking along it; then to the side
+            if (mNatPick >= static_cast<int>(mNatSpots.size())) { mNatPhase = 2; mNatPick = 0; mNatClock = 0; return; }
+            const auto& T = mMap.Trail;
+            const XMFLOAT3 at = mNatSpots[static_cast<size_t>(mNatPick)];
+            size_t i = 0; float best = 1e30f;
+            for (size_t k = 0; k < T.size(); ++k) { const float d = (T[k].x - at.x) * (T[k].x - at.x) + (T[k].z - at.z) * (T[k].z - at.z); if (d < best) { best = d; i = k; } }
+            const XMFLOAT3& b = T[std::min(i + 2, T.size() - 1)];
+            const float yaw = std::atan2(b.x - at.x, b.z - at.z);
+            if (mNatClock < dt * 1.5f) Put(host, at, yaw);
+            world.MainCamera.Yaw = mNatClock < 4.5f ? yaw : yaw + 1.3f; world.MainCamera.Pitch = -.18f;
+            if (mNatClock > 2.5f && mNatClock < 4.f) { mNatMs += dt * 1000.f; ++mNatFrames; }
+            if (mNatClock > 4.f && mNatClock - dt <= 4.f)
+            {
+                mTourShot = L"grass_" + std::to_wstring(mNatPick) + L"_along";
+                std::ostringstream line; line << std::fixed << std::setprecision(1) << "grass\t" << mNatPick << "\ty=" << at.y << "\ttufts=" << mGrass.TuftsDrawn
+                                              << "\tsquares=" << mGrass.CellsDrawn << "\tframe_ms=" << (mNatFrames ? mNatMs / static_cast<float>(mNatFrames) : 0.f);
+                if (mGrass.TuftsDrawn < 2000) { ++mNatBad; line << "\tTHIN"; }
+                row(line.str());
+            }
+            if (mNatClock > 6.f && mNatClock - dt <= 6.f) mTourShot = L"grass_" + std::to_wstring(mNatPick) + L"_side";
+            if (mNatClock > 6.3f) { ++mNatPick; mNatClock = 0; mNatMs = 0; mNatFrames = 0; }
+            return;
+        }
+        if (mNatPhase == 2)
+        {   // trees: 3.5 m from a trunk's bark, running at it for 2.4 s
+            if (mNatPick >= static_cast<int>(mNatTrunks.size()))
+            {
+                row("trees\ttries=" + std::to_string(mNatTrunks.size()) + "\treached=" + std::to_string(mNatReached) + "\tthrough=" + std::to_string(mNatThrough));
+                if (mNatTrunks.empty()) { ++mNatBad; row("NO_TRUNKS"); }
+                if (mMap.TreesHold && mNatThrough > 0) ++mNatBad;
+                row(std::string("trees_hold\t") + (mMap.TreesHold ? "yes" : "no (CAUCASIAN_EAGLE_TREES=0: the baseline)"));
+                row(mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL\tbad=" + std::to_string(mNatBad));
+                Evidence(world, mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL");
+                mNature = false; PostQuitMessage(mNatBad == 0 ? 0 : 2);
+                return;
+            }
+            const auto& t = mNatTrunks[static_cast<size_t>(mNatPick)];
+            if (mNatClock < dt * 1.5f)
+            {
+                const XMFLOAT3 trail = mMap.Trail[0];
+                (void)trail;
+                float best = 1e30f; XMFLOAT3 near2{};
+                for (const auto& q : mMap.Trail) { const float d = (q.x - t.X) * (q.x - t.X) + (q.z - t.Z) * (q.z - t.Z); if (d < best) { best = d; near2 = q; } }
+                float dx = near2.x - t.X, dz = near2.z - t.Z; const float l = std::max(.01f, std::hypot(dx, dz)); dx /= l; dz /= l;
+                mNatFrom = {t.X + dx * (t.R + 3.5f), 0, t.Z + dz * (t.R + 3.5f)}; mNatFrom.y = mMap.Land(mNatFrom.x, mNatFrom.z);
+                Put(host, mNatFrom, std::atan2(-dx, -dz));
+                mNatClosest = 1e30f;
+            }
+            const float yaw = std::atan2(t.X - mNatFrom.x, t.Z - mNatFrom.z);
+            world.MainCamera.Yaw = yaw; p.Yaw = yaw;
+            if (mNatClock > .3f) { session.ScriptedMove = 'W'; session.ScriptedFast = true; }
+            mNatClosest = std::min(mNatClosest, std::hypot(p.Position.x - t.X, p.Position.z - t.Z));
+            if (mNatClock > 1.2f && mNatClock - dt <= 1.2f && mNatPick < 3) mTourShot = L"trunk_" + std::to_wstring(mNatPick);
+            if (mNatClock > 2.7f)
+            {
+                const float fx = t.X - mNatFrom.x, fz = t.Z - mNatFrom.z, fl = std::max(.01f, std::hypot(fx, fz));
+                const float past = ((p.Position.x - t.X) * fx + (p.Position.z - t.Z) * fz) / fl;   // > 0: beyond the trunk's middle
+                // into the bark (her middle nearer the trunk's than its radius and a little of her own width): she went in or
+                // through. Held at the bark and then slid round it is what a body against a round trunk does.
+                const bool through = mNatClosest < t.R + .15f;
+                const bool reached = mNatClosest < t.R + 1.0f;
+                mNatThrough += through ? 1 : 0; mNatReached += reached ? 1 : 0;
+                std::ostringstream line; line << std::fixed << std::setprecision(2) << "trunk\t" << mNatPick << "\tr=" << t.R << "\th=" << t.H << "\tclosest=" << mNatClosest
+                                              << "\tpast=" << past << "\t" << (through ? "THROUGH" : reached ? (past > t.R ? "held_slid_round" : "held") : "not_reached") << "\tat=" << t.X << "," << t.Y << "," << t.Z;
+                row(line.str());
+                ++mNatPick; mNatClock = 0;
+            }
+        }
+    }
+
+    void EaglesAscentGame::Ways(DoorwaysGameHost& host, float dt)
+    {
+        auto& world = host.World;
+        mWaysKeys = {};
+        if (mClock < 3 || !mWayside.Laid()) return;
+        mWaysClock += dt;
+        host.Combat.RestorePlayerHealth(world, 10000);
+        const auto table = std::filesystem::path(mLog).parent_path() / "ways.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        const auto& jars = mWayside.Jars();
+        const auto group = [&](size_t j) { const std::string& id = jars[j].Id; return id.substr(0, id.rfind('.')); };
+        const auto brokenIn = [&](size_t j)
+        {
+            int n = 0; const std::string g = group(j);
+            for (size_t i = j; i < jars.size() && group(i) == g; ++i) n += jars[i].Broken ? 1 : 0;
+            return n;
+        };
+        if (mWaysPhase == 0)
+        {
+            int roads[3] = {}, potions = 0, crystals = 0, groups = 0;
+            for (size_t i = 0; i < jars.size(); ++i)
+            {
+                roads[jars[i].Id[0] == 't' ? 0 : jars[i].Id[0] == 'c' ? 1 : 2]++;
+                potions += jars[i].Potion ? 1 : 0; crystals += jars[i].Crystals;
+                if (i == 0 || group(i) != group(i - 1)) ++groups;
+            }
+            std::ofstream(table, std::ios::trunc) << "what\tvalues\n";
+            row("laid\tjars=" + std::to_string(jars.size()) + "\tgroups=" + std::to_string(groups) + "\tway=" + std::to_string(roads[0]) + "\tcaves=" +
+                std::to_string(roads[1]) + "\trings=" + std::to_string(roads[2]) + "\tcrystals_in_them=" + std::to_string(crystals) + "\tpotions_in_them=" +
+                std::to_string(potions) + "\tplaces=" + std::to_string(mWayside.Places().size()));
+            if (jars.size() < 100) { ++mWaysBad; row("FEW_JARS"); }
+            // eight groups of the way, from the shore to the top, and two in caves
+            std::vector<size_t> starts, caves;
+            for (size_t i = 0; i < jars.size(); ++i)
+                if (i == 0 || group(i) != group(i - 1)) (jars[i].Id[0] == 'c' ? caves : starts).push_back(i);
+            for (int k = 0; k < 8 && !starts.empty(); ++k) mWaysPicks.push_back(starts[(starts.size() - 1) * static_cast<size_t>(k) / 7]);
+            for (int k = 0; k < 2 && !caves.empty(); ++k) mWaysPicks.push_back(caves[(caves.size() - 1) * static_cast<size_t>(k)]);
+            mWaysPhase = 1; mWaysPick = 0; mWaysClock = 0;
+            return;
+        }
+        if (mWaysPhase == 1)
+        {
+            if (mWaysPick >= static_cast<int>(mWaysPicks.size())) { mWaysPhase = 2; mWaysClock = 0; return; }
+            const size_t j = mWaysPicks[static_cast<size_t>(mWaysPick)];
+            const XMFLOAT3 jar = jars[j].P;
+            if (mWaysClock < dt * 1.5f)
+            {   // she stands 1.5 m from the group's middle jar, on the road's side of it, facing it
+                XMFLOAT3 road = jar; float best = 1e30f;
+                const auto nearest = [&](const XMFLOAT3& q) { const float d = (q.x - jar.x) * (q.x - jar.x) + (q.z - jar.z) * (q.z - jar.z); if (d < best && std::abs(q.y - jar.y) < 4) { best = d; road = q; } };
+                if (jars[j].Id[0] == 'c') { for (const auto& cave : mMap.Caves()) for (const auto& q : cave.Line) nearest({q.X, q.Y, q.Z}); }
+                else for (const auto& q : mMap.Trail) nearest(q);
+                float ax = road.x - jar.x, az = road.z - jar.z; const float l = std::max(.01f, std::sqrt(ax * ax + az * az)); ax /= l; az /= l;
+                const XMFLOAT3 at{jar.x + ax * 1.5f, jar.y, jar.z + az * 1.5f};
+                Put(host, at, std::atan2(-ax, -az));
+                world.MainCamera.Yaw = std::atan2(-ax, -az);
+            }
+            if (mWaysClock > 1.4f && mWaysClock - dt <= 1.4f) mTourShot = L"jars_" + std::to_wstring(mWaysPick) + L"_whole";
+            for (const float at : {1.6f, 2.3f, 3.0f}) if (mWaysClock > at && mWaysClock < at + .1f) mWaysKeys.Lmb = true;
+            if (mWaysClock > 4.2f && mWaysClock - dt <= 4.2f) mTourShot = L"jars_" + std::to_wstring(mWaysPick) + L"_broken";
+            if (mWaysClock > 4.4f)
+            {
+                const int broken = brokenIn(j);
+                const auto& her = world.MainPlayer.Position;
+                std::ostringstream line; line << std::fixed << std::setprecision(2) << "cut\t" << group(j) << "\tbroken=" << broken << "\tcrystals=" << mGrowth.Crystals
+                                              << "\tpotions=" << mGrowth.Potions << "\ther_dy=" << her.y - jar.y << "\tjar=" << jar.x << "," << jar.y << "," << jar.z;
+                if (broken == 0) { ++mWaysBad; line << "\tNONE_BROKEN"; }
+                row(line.str());
+                ++mWaysPick; mWaysClock = 0;
+            }
+            return;
+        }
+        if (mWaysPhase == 2)
+        {   // saved at the first nest; then more jars broken and a place found; then she falls (RollBack): all as saved
+            const int nest = mMap.Nests.empty() ? 0 : mMap.Nests.front().Station;
+            SaveHere(nest);
+            const Growth::State saved = mGrowth;
+            const size_t brokenSaved = mWayside.BrokenIds().size();
+            int more = 0;
+            for (const auto& jar : jars)
+                if (!jar.Broken && more < 12) { Collect(mWayside.Strike(jar.P, 0, .2f, 359.f)); ++more; }
+            if (!mWayside.Places().empty()) Collect(mWayside.Visit(mWayside.Places().front().P));
+            const int gained = mGrowth.Crystals - saved.Crystals; const size_t brokenThen = mWayside.BrokenIds().size(), foundThen = mWayside.FoundIds().size();
+            RollBack();
+            const bool back = mGrowth.Crystals == saved.Crystals && mGrowth.Potions == saved.Potions && mWayside.BrokenIds().size() == brokenSaved && mWayside.FoundIds().empty();
+            row("rollback\tsaved_crystals=" + std::to_string(saved.Crystals) + "\tgained_after=" + std::to_string(gained) + "\tbroken_saved=" + std::to_string(brokenSaved) +
+                "\tbroken_then=" + std::to_string(brokenThen) + "\tfound_then=" + std::to_string(foundThen) + "\tcrystals_now=" + std::to_string(mGrowth.Crystals) +
+                "\tbroken_now=" + std::to_string(mWayside.BrokenIds().size()) + (back && gained > 0 && brokenThen > brokenSaved ? "" : "\tROLLBACK_FAIL"));
+            if (!(back && gained > 0 && brokenThen > brokenSaved)) ++mWaysBad;
+            LoadSave();
+            const bool read = mSavedNest == nest && mSavedGrowth.Crystals == saved.Crystals && mSavedJars.size() == brokenSaved;
+            row("reload\tnest=" + std::to_string(mSavedNest) + "\tcrystals=" + std::to_string(mSavedGrowth.Crystals) + "\tjars=" + std::to_string(mSavedJars.size()) + (read ? "" : "\tRELOAD_FAIL"));
+            if (!read) ++mWaysBad;
+            row(mWaysBad == 0 ? "WAYS_PASS" : "WAYS_FAIL\tbad=" + std::to_string(mWaysBad));
+            Evidence(world, mWaysBad == 0 ? "WAYS_PASS" : "WAYS_FAIL");
+            mWays = false; PostQuitMessage(mWaysBad == 0 ? 0 : 2);
+        }
+    }
+
     void EaglesAscentGame::Tour(DoorwaysGameHost& host, float dt)
     {
         auto& world = host.World; const auto& her = world.MainPlayer.Position;
@@ -512,7 +755,7 @@ namespace CaucasianEagle
                 ++mTourAt; mTourPhase = 0; mTourClock = 0;
             }
             else if (mTourPhase == 10)
-            {   // the finishers' tour: the next creature of it she may finish; she is put 3 m before it where she can
+            {   // the finishers' tour: the next creature of it she may finish; she is put 2.5 m before its edge where she can
                 // stand (from the side she is on first), facing it
                 auto& kit = GetNyxaraKit();
                 auto& enemies = kit.Enemies();
@@ -534,7 +777,8 @@ namespace CaucasianEagle
                 bool put = false;
                 for (const float turn : {0.f, .7f, -.7f, 1.4f, -1.4f, 2.1f, -2.1f, 3.1416f})
                 {
-                    for (const float d : {3.f, 2.4f, 3.6f})
+                    const float edge = enemies[static_cast<size_t>(next->Slot)].Radius;   // (from its edge: a boss is wide)
+                    for (const float d : {edge + 2.5f, edge + 1.9f, edge + 3.1f})
                     {
                         const XMFLOAT3 at{feet.x + d * std::sin(from + turn), feet.y, feet.z + d * std::cos(from + turn)};
                         float y = 0;
@@ -586,7 +830,7 @@ namespace CaucasianEagle
                 if (now && !mTourKind) { mTourKind = now; mTourFinStart = mTourFinClock; }
                 const float into = mTourFinClock - mTourFinStart;
                 if (mTourKind && !world.MainPlayer.IsGrounded) mTourFinAir += dt;
-                constexpr float ShotAt[4] = {0, 1.f, 1.2f, 1.6f};   // (the cross past it; the plunge's blades in; the slide's blow)
+                constexpr float ShotAt[11] = {0, 1.f, 1.2f, 1.6f, .75f, 1.35f, 1.1f, 1.6f, 1.55f, 1.45f, .55f};   // (the cross past it; the plunge's blades in; the slide's blow; the others' kills)
                 if (mTourKind && !mTourFinShot && into >= ShotAt[mTourKind] && !mTourShots.empty())
                 {
                     wchar_t name[128]; swprintf_s(name, L"%03d_%S_f%d_%S", mTourAt, pl.Id.c_str(), mTourKind, mTourVictimId.c_str());
@@ -617,8 +861,9 @@ namespace CaucasianEagle
         }
         if (mTourFinish)
         {   // the finishers' tour ends with the stops (the nests and the save are the creatures' tour's)
-            row("finishers\tcross=" + std::to_string(mTourFinPlayed[1]) + "\tplunge=" + std::to_string(mTourFinPlayed[2]) + "\tslide=" +
-                std::to_string(mTourFinPlayed[3]) + "\tno_room=" + std::to_string(mTourFinNoRoom) + "\tno_place=" + std::to_string(mTourFinNoPlace) +
+            row("finishers\twheel=" + std::to_string(mTourFinPlayed[5]) + "\tbreaker=" + std::to_string(mTourFinPlayed[6]) + "\tflurry=" +
+                std::to_string(mTourFinPlayed[8]) + "\theadsman=" + std::to_string(mTourFinPlayed[9]) + "\tothers=" +
+                std::to_string(mTourFinPlayed[1] + mTourFinPlayed[2] + mTourFinPlayed[3] + mTourFinPlayed[4] + mTourFinPlayed[7] + mTourFinPlayed[10]) + "\tno_room=" + std::to_string(mTourFinNoRoom) + "\tno_place=" + std::to_string(mTourFinNoPlace) +
                 "\tfell=" + std::to_string(mTourFinFell) + "\tout=" + std::to_string(mTourFinOut));
             finish();
             return;
@@ -661,6 +906,7 @@ namespace CaucasianEagle
                     if (!found) line << "\tNONE";
                     row(line.str());
                 }
+                if (mMap.Checkpoint == n.Station) SaveHere(n.Station);   // (as she would with H)
                 int saved = -1;
                 { std::ifstream in(mSavePath); std::string word; while (in >> word) if (word == "nest") in >> saved; }
                 const bool ok = mMap.Checkpoint == n.Station && saved == n.Station;
@@ -722,6 +968,43 @@ namespace CaucasianEagle
                 return;
             }
         }
+        // the jars and places along the roads (once the map's ground is up), as the save has them
+        if (mWaysideOn && !mWayside.Laid() && world.RuntimeScene)
+        {
+            mWayside.Lay(*world.RuntimeScene, mMap);
+            mWayside.Restore(mSavedJars, mSavedPlaces);
+            char line[160]; std::snprintf(line, sizeof line, "[EAGLES ASCENT] %zu clay jars and %zu hidden places laid.\n", mWayside.Jars().size(), mWayside.Places().size());
+            OutputDebugStringA(line);
+            if (mTrace) Evidence(world, ("wayside_jars_" + std::to_string(mWayside.Jars().size()) + "_places_" + std::to_string(mWayside.Places().size())).c_str());
+        }
+        // I: her growth (as on the road): W / S choose, Enter or Space spends crystals; I or Esc closes. The climb waits.
+        mGrowthFade = std::clamp(mGrowthFade + (mGrowthOpen ? 1.f : -1.f) * realDt / .18f, 0.f, 1.f);
+        mGrowthFlash = std::max(0.f, mGrowthFlash - realDt * 2.5f);
+        mSavedMark = std::max(0.f, mSavedMark - realDt);
+        if (!mPaused && !mSmoke && !mClimb && !mTour && alive && Press('I', inputAllowed))
+        {
+            mGrowthOpen = !mGrowthOpen; Sound::PlayUi(mGrowthOpen ? "ui/open" : "ui/close", .6f);
+        }
+        if (mGrowthOpen)
+        {
+            if (session.EscapePressed || !alive) { session.EscapePressed = false; mGrowthOpen = false; Sound::PlayUi("ui/close", .6f); }
+            const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
+            mGrowthRow = (mGrowthRow + move + Growth::RowCount) % Growth::RowCount;
+            if (move != 0) Sound::PlayUi("ui/move", .5f);
+            if (Press(VK_RETURN, inputAllowed) || Press(VK_SPACE, inputAllowed))
+            {
+                const int cost = Growth::Cost(mGrowth, mGrowthRow);
+                if (cost > 0 && mGrowth.Crystals >= cost)
+                {
+                    mGrowth.Crystals -= cost; ++mGrowth.Level[mGrowthRow];
+                    mGrowthFlash = 1; mGrowthFlashRow = mGrowthRow; Sound::PlayUi("ui/buy", .9f);
+                }
+                else Sound::PlayUi("ui/deny", .7f);
+            }
+            kit.SetInputBlocked(true);
+            kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
+            return;
+        }
         if (session.EscapePressed) { session.EscapePressed = false; mPaused = !mPaused; }
         if (mPaused)
         {
@@ -742,7 +1025,9 @@ namespace CaucasianEagle
             session.FreeFlightEnd = true; session.FreeFlightLandSpeed = LandSpeed;
             Sound::Play("nyxara/wing", .8f);
         }
-        if (flying && !mFlying) Notify(L"IN FLIGHT", L"W flies where you look. Space climbs, Ctrl+Space sinks, R lands. Her wings last 30 seconds.", 4);
+        if (flying && !mFlying)
+            Notify(L"IN FLIGHT", L"W flies where you look. Space climbs, Ctrl+Space sinks, R lands. Her wings last " +
+                   std::to_wstring(static_cast<int>(kit.FlightSeconds())) + L" seconds (I: grow them).", 4);
         if (!flying)
         {
             if (mFlying) { Sound::Play("nyxara/land", .6f); session.FreeFlightLandSpeed = 0; }
@@ -757,9 +1042,46 @@ namespace CaucasianEagle
         kit.SetOnFoot(!flying);
         kit.SetHeightOverGround(std::max(0.f, p.Position.y - mMap.Land(p.Position.x, p.Position.z)));
         kit.SetInputBlocked(mSmoke || mClimb || mTour);
+        {   // her growth (0.5): her blades, the blows she takes, how long she flies; her form, taller
+            kit.SetDamageScale(Growth::Damage(mGrowth));
+            kit.SetFlightSeconds(Growth::FlightSeconds(mGrowth.Level[Growth::Wings]));
+            mCreatures.SetMountainGrowth(mGrowth);
+            const int form = Growth::Form(mGrowth);
+            const float tall = 1 + FormScale * static_cast<float>(form);
+            world.AnimatedPlayerVisual.Scale = {tall, tall, tall};
+            if (form > mFormShown && alive)
+            {   // all three of her things reached a new tier: she herself changes
+                const XMFLOAT4 light = form == 1 ? XMFLOAT4{.55f, .82f, 1.f, 1} : form == 2 ? XMFLOAT4{.35f, 1.f, .62f, 1} : XMFLOAT4{1.f, .86f, .45f, 1};
+                kit.Effect({p.Position.x, p.Position.y + 1.3f, p.Position.z}, light, 120, 9.f, .34f);
+                kit.RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 7.f, light, 1.6f);
+                Notify(L"NYXARA EVOLVES", std::wstring(Growth::FormName(form)) + L". Wings, swords and armour answer her as one.", 6);
+                Sound::Play("world/gift", .9f, 0);
+            }
+            mFormShown = form;
+        }
+        // Z: a potion, the only healing there is (0.5)
+        if (Press(PotionKey, allowed))
+        {
+            if (mGrowth.Potions <= 0) kit.Notice(L"No potions. Clay jars beside the road hold them.", 2.2f);
+            else if (host.Combat.RestorePlayerHealth(world, PotionHeal) > 0)
+            {
+                --mGrowth.Potions; Sound::Play("nyxara/potion", .9f, 0);
+                kit.Effect({p.Position.x, p.Position.y + 1.2f, p.Position.z}, {1.f, .35f, .4f, 1}, 26, 3.5f, .24f);
+            }
+            else kit.Notice(L"She is not wounded.", 1.8f);
+        }
+        // H: saved, at any Eagle Nest, as often as she likes
+        if (Press('H', allowed) && !mMap.Nests.empty())
+        {
+            const int station = NestAt(p.Position);
+            if (station > 0) SaveHere(station);
+            else Notify(L"NOT SAVED", L"She can save only standing in an Eagle Nest.", 3);
+        }
         if (mSmoke) Smoke(host, realDt);
         if (mClimb) Climb(host, dt);
         if (mTour) Tour(host, dt);
+        if (mWays) Ways(host, realDt);
+        if (mNature) Nature(host, realDt);
         kit.Update(world, host.WorldRender, host.Combat, dt, realDt, allowed);
         if (mCreaturesOn)
         {   // the creatures after her (as in the Character Lab): they wake, wait, fight, go home and sleep
@@ -771,11 +1093,14 @@ namespace CaucasianEagle
             }
             if (mTrace)
                 for (const auto& line : mCreatures.TakeMountainTrace()) Evidence(world, ("creature_" + line).c_str());
-            if (mCreatures.MountainBeaten().size() != mBeatenWritten)
-            {   // a creature she beat stays beaten: in the save at once (where she wakes is still the last nest)
-                mBeatenWritten = mCreatures.MountainBeaten().size();
-                WriteSave();
-                if (mTrace) Evidence(world, ("beaten_" + mCreatures.MountainBeaten().back()).c_str());
+            mBeatenWritten = std::min(mBeatenWritten, mCreatures.MountainBeaten().size());
+            while (mCreatures.MountainBeaten().size() > mBeatenWritten)
+            {   // a creature she beat leaves its crystals (0.5: it stays beaten only once she saves at a nest)
+                const std::string id = mCreatures.MountainBeaten()[mBeatenWritten++];
+                for (const auto& c : mCreatureList)
+                    if (c.Id == id) { mGrowth.Crystals += Journey::KindCrystals(c.Kind); break; }
+                Sound::Play("world/crystal", .6f, .1f);
+                if (mTrace) Evidence(world, ("beaten_" + id).c_str());
             }
         }
 
@@ -788,43 +1113,52 @@ namespace CaucasianEagle
             if (mClimb) { Evidence(host.World, net); Evidence(host.World, "CLIMB_FAIL"); mClimb = false; PostQuitMessage(2); }
         }
         else if (mMap.Checkpoint != before && (mMap.Checkpoint > mReached || !mMap.Nests.empty()))
-        {   // an Eagle Nest: she rests in it, her wounds close, and she is saved here (the shore saves nothing)
+        {   // an Eagle Nest: H saves her here (0.5: it no longer heals, nor saves by itself)
             mReached = std::max(mReached, mMap.Checkpoint);
             const bool nest = !mMap.Nests.empty() && mMap.Checkpoint > 0;
             const std::wstring where = Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name);
             if (nest)
             {
-                host.Combat.RestorePlayerHealth(world, 10000);
-                WriteSave();
-                Notify(L"EAGLE NEST", where + L". She rests here: healed, and saved.", 4.5f);
-                Sound::Play("world/bell", .7f, 0);
+                Notify(L"EAGLE NEST", where + L". Press H to save here.", 4.5f);
                 if (mTrace) Evidence(world, "nest_rested");
             }
             else Notify(L"CHECKPOINT", where, 4);
             Sound::PlayUi("ui/open", .6f);
         }
 
-        // she fell (to the creatures, or the engine's own harm): she lies a moment and wakes at the last Eagle Nest she
-        // rested at (the creatures she has beaten stay beaten: Journey::MountainBeaten)
+        if (mWaysideOn && mWayside.Laid())
+        {
+            mWayside.Update(dt);
+            if (alive) Collect(mWayside.Visit(p.Position));
+        }
+
+        // she fell (to the creatures, or the engine's own harm): she lies a moment and wakes at the Eagle Nest she last
+        // saved at, whole; all since that save is undone (RollBack)
         if (!alive)
         {
             if (!mWasDead)
             {
                 mDeadFor = 0; mRespawnAsk = 0; Sound::Play("nyxara/death", 1, 0);
-                Notify(L"NYXARA HAS FALLEN", mMap.Nests.empty() ? L"She wakes at the last checkpoint." : L"She wakes at the last Eagle Nest she rested in.", DeathSeconds + 1.5f);
+                Notify(L"NYXARA HAS FALLEN", mMap.Nests.empty() ? L"She wakes at the last checkpoint." : L"She wakes at the Eagle Nest she last saved at. All since then is undone.", DeathSeconds + 1.5f);
             }
             mDeadFor += realDt;
             if (mDeadFor >= DeathSeconds && (mRespawnAsk -= realDt) <= 0)
             {
                 mRespawnAsk = .5f;
-                const auto& s = mMap.Stations[static_cast<size_t>(mMap.Checkpoint)];
-                const XMFLOAT3& rest = mMap.Rest(mMap.Checkpoint);   // she wakes in the nest
+                const int wake = mMap.Nests.empty() ? mMap.Checkpoint : mSavedNest;
+                const auto& s = mMap.Stations[static_cast<size_t>(wake)];
+                const XMFLOAT3& rest = mMap.Rest(wake);   // she wakes in the nest
                 session.SpawnPosition = {rest.x, rest.y + .05f, rest.z}; session.SpawnYaw = s.Yaw;
                 const auto& life = host.Combat.PlayerLife();
                 host.Combat.RequestRespawn({life.Life, life.Death.Event, life.Death.Destination});
             }
         }
-        else if (mWasDead) mMap.Visit(host, mMap.Checkpoint);
+        else if (mWasDead)
+        {
+            if (!mMap.Nests.empty()) RollBack();
+            mMap.Visit(host, mMap.Checkpoint);
+            host.Combat.RestorePlayerHealth(world, 10000);   // (she wakes whole)
+        }
         mWasDead = !alive;
     }
 
@@ -832,8 +1166,32 @@ namespace CaucasianEagle
     {
         mRenderer = &renderer;
         mMap.DrawModels(renderer, world, viewProjection, 0);
+        mGrass.Draw(renderer, world.MainCamera.Position, viewProjection);
         DrawNests(renderer, world, viewProjection);
         if (mCreaturesOn) mCreatures.DrawMountain(renderer, world, viewProjection);
+        {   // her growth's lights: on her wings, at her blades and at her feet, in the colour of each tier (as on the road)
+            const XMFLOAT4 tierLight[4] = {{0, 0, 0, 0}, {.50f, .78f, 1.f, 1}, {.30f, 1.f, .60f, 1}, {1.f, .84f, .42f, 1}};
+            const auto& her = world.MainPlayer;
+            const float tall = 1 + FormScale * static_cast<float>(Growth::Form(mGrowth));
+            const XMFLOAT3 forward{std::sin(her.Yaw), 0, std::cos(her.Yaw)}, side{std::cos(her.Yaw), 0, -std::sin(her.Yaw)};
+            const auto light = [&](int tier, XMFLOAT3 local, float size, float alpha)
+            {
+                XMFLOAT4 color = tierLight[tier]; color.w = alpha * (.8f + .2f * std::sin(mClock * 2.6f + local.x * 3));
+                mWayside.Glow({her.Position.x + side.x * local.x + forward.x * local.z, her.Position.y + local.y * tall, her.Position.z + side.z * local.x + forward.z * local.z},
+                              size * (1 + .12f * static_cast<float>(tier)), color);
+            };
+            if (const int tier = mGrowth.Level[Growth::Wings])
+                for (const float x : {-1.f, 1.f})
+                {
+                    light(tier, {x * .75f, 1.75f, -.45f}, .55f, .10f + .05f * static_cast<float>(tier));
+                    light(tier, {x * 1.45f, 2.15f, -.55f}, .40f, .08f + .04f * static_cast<float>(tier));
+                }
+            if (const int tier = mGrowth.Level[Growth::Swords])
+                for (const float x : {-1.f, 1.f}) light(tier, {x * .42f, .95f, .30f}, .26f, .10f + .05f * static_cast<float>(tier));
+            if (const int tier = mGrowth.Level[Growth::Armour]) light(tier, {0, 1.2f, 0}, .60f, .04f + .025f * static_cast<float>(tier));
+            if (const int tier = Growth::Form(mGrowth)) light(tier, {0, .12f, 0}, .85f, .08f + .04f * static_cast<float>(tier));
+        }
+        mWayside.Draw(renderer, world, viewProjection, GetNyxaraKit().GlowTexture());
         GetNyxaraKit().Draw(renderer, world, viewProjection);
     }
 
@@ -929,8 +1287,40 @@ namespace CaucasianEagle
             else if (f.Kind == "slot") mark(f.From, 4, L"A CLEFT IN THE ROCK  (hold Space: fly through)", Palette::Moon);
             else if (f.Kind == "updraft") mark(f.From, 4, L"RISING AIR  (hold Space, then let it carry you)", Palette::Soul);
         }
-        for (const auto& n : mMap.Nests)   // the Eagle Nests, the only places she is saved
-            mark(n.P, 3.2f, n.Station == mMap.Checkpoint ? L"EAGLE NEST  (rested)" : L"EAGLE NEST  (rest here: saved)", Palette::Gold);
+        for (const auto& n : mMap.Nests)   // the Eagle Nests, the only places she is saved (H)
+            mark(n.P, 3.2f, n.Station == mSavedNest ? L"EAGLE NEST  (saved here)" : L"EAGLE NEST  (H here saves)", Palette::Gold);
+        if (mWaysideOn)
+            for (const auto& pl : mWayside.Places())
+                if (!pl.Found) mark(pl.P, 2.6f, L"A HIDDEN PLACE", Palette::GoldLight);
+
+        {   // what she carries (0.5): crystals, potions (Z), and her window (I), under where she is
+            const float py = 76 * s, kh = 20 * s, icon = 19 * s;
+            ui.Rect(14 * s, py, 330 * s, 34 * s, {.015f, .025f, .04f, .7f});
+            ui.Icon(HudArt::IconCrystal, 34 * s, py + 17 * s, icon, Palette::Violet);
+            ui.Text(std::to_wstring(mGrowth.Crystals), 48 * s, py + 9 * s, body, Palette::Ink);
+            const wchar_t* z = Ui::KeyLabel(L"Z", PotionKey);
+            const float zw = ui.KeyWidth(z, kh), zx = 112 * s + zw * .5f;
+            ui.Key(z, zx, py + 7 * s, kh, mGrowth.Potions > 0 ? Palette::White : Palette::Faint);
+            for (int i = 0; i < MaxPotions; ++i)
+                ui.Icon(HudArt::IconPotion, zx + zw * .5f + 6 * s + (static_cast<float>(i) + .5f) * 17 * s, py + 17 * s, 17 * s, i < mGrowth.Potions ? Palette::Red : Palette::Faint.Fade(.6f));
+            const float ix = 290 * s;
+            ui.Key(Ui::KeyLabel(L"I", 'I'), ix, py + 7 * s, kh, Palette::White);
+            ui.Text(L"GROW", ix + 14 * s, py + 10 * s, tiny, Palette::Dim);
+        }
+        if (NestAt(p.Position) > 0 && !mGrowthOpen)
+        {   // in a nest: H saves
+            const float y = ui.H * .70f, kh = 26 * s;
+            const std::wstring words = NestAt(p.Position) == mSavedNest ? L"SAVE AGAIN AT THIS EAGLE NEST" : L"SAVE AT THIS EAGLE NEST";
+            const float tw = ui.Width(words, body), kw = ui.KeyWidth(L"H", kh), w = kw + 10 * s + tw;
+            ui.Rect(ui.W * .5f - w * .5f - 12 * s, y - 6 * s, w + 24 * s, kh + 12 * s, {.015f, .025f, .04f, .75f});
+            ui.Key(L"H", ui.W * .5f - w * .5f + kw * .5f, y, kh, Palette::GoldLight);
+            ui.Text(words, ui.W * .5f - w * .5f + kw + 10 * s, y + (kh - ui.Height(body)) * .5f, body, Palette::Ink);
+        }
+        if (mSavedMark > 0)
+        {   // saved: a gold word under the notice
+            const float a = std::clamp(mSavedMark, 0.f, 1.f);
+            ui.Centered(L"SAVED", ui.W * .5f, ui.H * .62f, big, Palette::GoldLight.Fade(a));
+        }
 
         {   // the boss she fights: its name and its health, at the top in the middle
             std::wstring name; float health = 0;
@@ -950,6 +1340,14 @@ namespace CaucasianEagle
             ui.Centered(mNoticeTitle, ui.W * .5f, ui.H * .16f, big, Palette::Gold.Fade(a));
             ui.Centered(mNoticeLine, ui.W * .5f, ui.H * .16f + 30 * s, body, Palette::Ink.Fade(a));
         }
+        if (mGrowthFade > 0)
+        {   // her window (I), as on the road
+            Growth::View v;
+            v.Now = mGrowth; v.Selected = mGrowthRow; v.Fade = mGrowthFade; v.Flash = mGrowthFlash; v.FlashRow = mGrowthFlashRow;
+            v.PotionHeal = PotionHeal; v.Ascent = true;
+            for (const auto& pl : mWayside.Places()) v.Places += pl.Found ? 1 : 0;
+            Growth::Draw(ui, v);
+        }
         if (mPaused)
         {
             const bool nests = !mMap.Nests.empty();
@@ -958,9 +1356,9 @@ namespace CaucasianEagle
             ui.Rect(px, py, w, h, {.015f, .025f, .04f, .92f});
             ui.Centered(L"PAUSED", ui.W * .5f, py + 18 * s, big, Palette::Gold);
             ui.Centered(L"Esc   back to the climb", ui.W * .5f, py + 62 * s, body, Palette::Ink);
-            ui.Centered(nests ? L"Backspace   the last Eagle Nest" : L"Backspace   the last checkpoint", ui.W * .5f, py + 86 * s, body, Palette::Ink);
+            ui.Centered(nests ? L"Backspace   the last Eagle Nest she stood in" : L"Backspace   the last checkpoint", ui.W * .5f, py + 86 * s, body, Palette::Ink);
             ui.Centered(L"Enter   the start screen", ui.W * .5f, py + 110 * s, body, Palette::Ink);
-            if (nests) ui.Centered(L"N   a new climb from the shore (forgets the nests and the beaten)", ui.W * .5f, py + 134 * s, body, Palette::Ink);
+            if (nests) ui.Centered(L"N   a new climb from the shore (forgets the save)", ui.W * .5f, py + 134 * s, body, Palette::Ink);
             ui.Centered(L"Q   leave the game", ui.W * .5f, py + (nests ? 158 : 134) * s, body, Palette::Dim);
         }
         return true;
@@ -1034,7 +1432,7 @@ namespace CaucasianEagle
             mSaveTest = !named.empty();
             mSavePath = mSaveTest ? std::filesystem::path(named) : ResolveDoorwaysSettingsPaths().Player.parent_path() / AscentSaveFileName;
         }
-        mSavedNest = 0; mSavedBeaten.clear();
+        mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
         if (mMap.Nests.empty()) return;
         std::ifstream in(mSavePath);
         std::string word;
@@ -1042,8 +1440,14 @@ namespace CaucasianEagle
         {
             if (word == "nest") in >> mSavedNest;
             else if (word == "beaten") { std::string id; if (in >> id) mSavedBeaten.push_back(id); }
+            else if (word == "crystals") in >> mSavedGrowth.Crystals;
+            else if (word == "potions") in >> mSavedGrowth.Potions;
+            else if (word == "level") { int row = -1, level = 0; if (in >> row >> level && row >= 0 && row < Growth::RowCount) mSavedGrowth.Level[row] = std::clamp(level, 0, Growth::Max(row)); }
+            else if (word == "jar") { std::string id; if (in >> id) mSavedJars.push_back(id); }
+            else if (word == "place") { std::string id; if (in >> id) mSavedPlaces.push_back(id); }
             else std::getline(in, word);
         }
+        mSavedGrowth.Crystals = std::max(0, mSavedGrowth.Crystals); mSavedGrowth.Potions = std::clamp(mSavedGrowth.Potions, 0, MaxPotions);
         if (mSavedNest < 0 || mSavedNest >= static_cast<int>(mMap.Stations.size()) || !mMap.Stations[static_cast<size_t>(mSavedNest)].Checkpoint) mSavedNest = 0;
     }
 
@@ -1053,24 +1457,90 @@ namespace CaucasianEagle
         std::error_code ignored;
         std::filesystem::create_directories(mSavePath.parent_path(), ignored);
         std::ofstream out(mSavePath, std::ios::trunc);
-        out << "# The Eagle's Ascent: the last Eagle Nest she rested in, and the creatures she has beaten\n";
-        out << "nest " << mMap.Checkpoint << "\n";
-        if (mCreaturesOn)
-            for (const auto& id : mCreatures.MountainBeaten()) out << "beaten " << id << "\n";
-        else
-            for (const auto& id : mSavedBeaten) out << "beaten " << id << "\n";
+        out << "# The Eagle's Ascent (0.5): the Eagle Nest she saved at (H), her growth, the creatures she has beaten, the clay\n";
+        out << "# jars she has broken and the hidden places she has found, as they were when she saved\n";
+        out << "nest " << mSavedNest << "\n";
+        out << "crystals " << mSavedGrowth.Crystals << "\npotions " << mSavedGrowth.Potions << "\n";
+        for (int row = 0; row < Growth::RowCount; ++row) out << "level " << row << " " << mSavedGrowth.Level[row] << "\n";
+        for (const auto& id : mSavedBeaten) out << "beaten " << id << "\n";
+        for (const auto& id : mSavedJars) out << "jar " << id << "\n";
+        for (const auto& id : mSavedPlaces) out << "place " << id << "\n";
+    }
+
+    void EaglesAscentGame::SaveHere(int station)
+    {
+        mSavedNest = station; mMap.Checkpoint = station;
+        mSavedGrowth = mGrowth;
+        if (mCreaturesOn) mSavedBeaten = mCreatures.MountainBeaten();
+        if (mWayside.Laid()) { mSavedJars = mWayside.BrokenIds(); mSavedPlaces = mWayside.FoundIds(); }
+        WriteSave();
+        mSavedMark = 2.5f;
+        Notify(L"SAVED", Words(mMap.Stations[static_cast<size_t>(station)].Name) + L". If she falls, she wakes here, as she is now.", 4);
+        Sound::Play("world/bell", .7f, 0);
+    }
+
+    void EaglesAscentGame::RollBack()
+    {
+        mGrowth = mSavedGrowth;
+        mFormShown = Growth::Form(mGrowth);
+        if (mWayside.Laid()) mWayside.Restore(mSavedJars, mSavedPlaces);
+        if (mCreaturesOn) { mCreatures.SetMountainCreatures(mCreatureList, mSavedBeaten); mBeatenWritten = mCreatures.MountainBeaten().size(); }
+        mMap.Checkpoint = mSavedNest;
+    }
+
+    int EaglesAscentGame::NestAt(const XMFLOAT3& p) const
+    {
+        for (const auto& n : mMap.Nests)
+            if (std::hypot(p.x - n.P.x, p.z - n.P.z) < EaglesAscent::NestReach + 1.2f && std::abs(p.y - n.P.y) < 3) return n.Station;
+        return -1;
+    }
+
+    void EaglesAscentGame::Collect(const Wayside::Gain& gain)
+    {
+        auto& kit = GetNyxaraKit();
+        if (gain.Jars > 0)
+        {
+            Sound::Play("combat/blow_2", .7f, .15f);
+            Sound::Play("world/chest", .45f, .2f);
+            kit.Effect(gain.At, {.75f, .45f, .28f, 1}, 22 * gain.Jars, 3.f, .2f);   // the clay's dust
+        }
+        int potions = gain.Potions, crystals = gain.Crystals;
+        while (potions > 0 && mGrowth.Potions + potions > MaxPotions) { --potions; crystals += 1; }   // (she carries five: more is a crystal)
+        mGrowth.Potions += potions;
+        mGrowth.Crystals += crystals;
+        if (crystals > 0)
+        {
+            Sound::Play("world/crystal", .8f, .1f);
+            kit.Effect(gain.At, {.66f, .36f, 1.f, 1}, 16 + 4 * crystals, 4.f, .22f);
+        }
+        if (potions > 0) { Sound::Play("world/gift", .7f, 0); kit.Effect(gain.At, {1.f, .35f, .4f, 1}, 24, 3.5f, .24f); }
+        if (!gain.Place.empty())
+        {
+            Notify(L"HIDDEN PLACE FOUND", gain.Place + L". +" + std::to_wstring(gain.Crystals) + L" crystals.", 5);
+            Sound::Play("world/bell", .6f, 0);
+        }
+        else if (potions > 0 || crystals > 0)
+        {
+            std::wstring what;
+            if (crystals > 0) what = L"+" + std::to_wstring(crystals) + (crystals == 1 ? L" crystal" : L" crystals");
+            if (potions > 0) what += (what.empty() ? L"" : L"   ") + std::wstring(L"+") + std::to_wstring(potions) + (potions == 1 ? L" potion" : L" potions");
+            kit.Notice(what.c_str(), 1.8f);
+        }
+        else if (gain.Jars > 0) kit.Notice(gain.Jars == 1 ? L"Empty." : L"Nothing in them.", 1.2f);
     }
 
     void EaglesAscentGame::NewClimb(DoorwaysGameHost& host)
     {
         mSavedNest = 0; mSavedBeaten.clear(); mReached = 0;
+        mSavedGrowth = {}; mGrowth = {}; mFormShown = 0; mSavedJars.clear(); mSavedPlaces.clear();
+        if (mWayside.Laid()) mWayside.Restore({}, {});
         std::error_code ignored;
         if (!GameSession().Unattended || mSaveTest) std::filesystem::remove(mSavePath, ignored);
         if (mCreaturesOn) mCreatures.SetMountainCreatures(mCreatureList, {});
         mBeatenWritten = 0;
         mMap.Checkpoint = 0;
         mMap.Visit(host, 0);
-        Notify(L"A NEW CLIMB", L"From the shore. The nests and the creatures she beat are forgotten.", 4);
+        Notify(L"A NEW CLIMB", L"From the shore. Her save is forgotten: her growth, the creatures she beat, the jars.", 4);
     }
 
     // An Eagle Nest (the owner, 2026-11-19: "place something like Eagle Nest that will be save spots for nyxara"): the

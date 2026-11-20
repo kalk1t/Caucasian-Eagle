@@ -97,6 +97,9 @@ namespace CaucasianEagle
         static constexpr int MountainMostAlive = 3;   // the owner (2026-11-19): "at the same time you may only spawn 3 monsters"
         static int KindByName(const std::string& name);                    // "chinka" .. "devi", "gveleshapi", "giant", "devi_lord", "eagle"; -1
         static float KindHeight(int kind);
+        static int KindCrystals(int kind);   // what one leaves her (the Eagle's Ascent, 0.5): a boss BossCrystals, else its Cost
+        // the Eagle's Ascent (0.5): her growth there (its armour and defence: the blows she takes)
+        void SetMountainGrowth(const Growth::State& growth) { mGrowth = growth; }
         static const wchar_t* KindTitle(int kind);   // "THE GIANT"
         bool InitializeMountain(Renderer& renderer, std::string& error);    // the creatures' bodies and joints
         // Each line: its points (a few metres apart), how far each is to its sides from its middle, and m along it.
@@ -456,6 +459,7 @@ namespace CaucasianEagle
         int mRuneRow = 0;
         std::vector<DirectX::XMFLOAT3> mFatherFeathers;   // where each region's feather lies (index = region)
         bool mPotionKey = false;
+       // 0 to 9 choose her guard for E (UpdateWorld); she was given guard 0
         float mRespawnSeen = -10;        // mTime when she was last found back at the start of the road after a death
         DirectX::XMFLOAT3 mSoundAt{};   // where she stood last frame (footsteps)
         bool mSoundAir = false;          // she was in the air last frame (the wing beat of taking off)

@@ -101,6 +101,8 @@
     <ClCompile Include="src\WorldMap.cpp" />
     <ClCompile Include="src\EaglesAscent.cpp" />
     <ClCompile Include="src\EaglesAscentGame.cpp" />
+    <ClCompile Include="src\Wayside.cpp" />
+    <ClCompile Include="src\AscentGrass.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\CaucasianEagleGame.h" />
@@ -123,6 +125,8 @@
     <ClInclude Include="src\WorldMap.h" />
     <ClInclude Include="src\EaglesAscent.h" />
     <ClInclude Include="src\EaglesAscentGame.h" />
+    <ClInclude Include="src\Wayside.h" />
+    <ClInclude Include="src\AscentGrass.h" />
     <ClInclude Include="src\HudAtlas.h" />
   </ItemGroup>
   <ItemGroup>

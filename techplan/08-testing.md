@@ -10,7 +10,7 @@
 | Character pipeline gate | `DoorwaysAssetBuilder character-pipeline ...` prints `[PASS]` and the rig signature | yes | Mesh, skeleton and clips are consistent; altered-bind and reordered-joint rejection |
 | Sound | Run the unattended pilot with the game window in front; debug output contains one line `Doorways Audio: game sound loaded: <file>` per file the first time it plays, and no line `sound file missing or not PCM 16-bit WAV`. Seen on 2026-11-11 for music, wind, flight, swings, skills, hits, blows, creature sounds, crystals and a memory line. Nobody has listened to the result: levels, timing and quality are untested | manual |
 | Start-up | Run the staged exe; debug output contains `[PASS] Caucasian Eagle: Nyxara (EagleV1) is the player and her combat kit started.` | manual | Assets found, hero loaded, kit started |
-| Scripted showcase | `CAUCASIAN_EAGLE_DEMO=1`, watch or capture frames | manual review | Skills, combos, barrier, swap, travel, HUD on screen |
+| Scripted showcase | `CaucasianEagle.exe --road` with `CAUCASIAN_EAGLE_DEMO=1` (since 0.5 the exe alone starts the Ascent), watch or capture frames | manual review | Skills, combos, barrier, swap, travel, HUD on screen |
 | **Test pilot** | `CAUCASIAN_EAGLE_DEMO=1` and `CAUCASIAN_EAGLE_PILOT=1`; read the `[JOURNEY]` lines in the debugger output ([03-workflows.md](03-workflows.md), 6.11) | unattended; a person reads the log | The whole journey: road, gates, every arena and wave, roaming packs, chests, bosses, the Eagle, the chain, the ending. With `CAUCASIAN_EAGLE_MORTAL=1` also death, respawn and the return to the last arena. Not saving, not real input. |
 | Engine sandbox | Build and run `Doorways.exe` in the engine repository | manual | The engine still works without a game |
 | Engine unit tests | `DoorwaysRuntimeTests` in the engine repository | yes | Engine logic only; nothing game-specific |
@@ -96,6 +96,20 @@ All on the development PC, which has Visual Studio and has run the game before.
 - [not verified] **F9 restart**, for the same reason.
 - [not verified] **Frame rate** beyond "the pilot's log showed the 60 fps cap in a 1280 x 720 window on the development PC".
 - [not verified] A clean clone, a second machine, an installed copy (unchanged from v0.1.0).
+
+## 11.2d What was verified for v0.5.0 (2026-11-20)
+
+| Check | Result |
+|---|---|
+| The jars' test, `CAUCASIAN_EAGLE_DEMO=4` (`ways.tsv`) | 3,710 jars in 936 groups (way 433, caves 843, rings 2,434), 73 places. Her own cuts (the kit's test-pilot keys) broke jars at 8 groups of the way and rings and 2 in caves. Saved at the first nest, 12 more jars broken and a place found (14 crystals gained), then `RollBack`: crystals, potions, broken jars and found places exactly as saved; the save read back the same. `WAYS_PASS` |
+| The caves' walls, Map Lab `-CaveWalls` | Before the fix 42 failures in the first three caves (past the wall, one out of the tube). With `EaglesAscent::HoldInCave`: 558 tries in 89 caves (every 30 m, a run at the right wall, a run and two jumps at the left), 0 failures; `CAVES_PASS`; then `-Smoke` passed |
+| The finishers | Character Lab: the four on each of 12 creatures, 48 of 48. Mountain tour with finishers (after the cave fix): 123 finishing kills (Reaper's Wheel 28, Mountain Breaker 28, Tempest Flurry 29, Headsman 38), bosses too, none without room |
+| The creatures' tour, `CAUCASIAN_EAGLE_DEMO=3` | `CREATURES_FAIL bad=4`, the same before and after the cave fix: two groups placed off their ground (way-0800; way-4500, a Kaji that never wakes) and two stops out of reach. Known, not fixed in 0.5.0 |
+| The Ascent smoke (`DEMO=1`) | `ASCENT_PASS` |
+| Map Lab `-Smoke`, Character Lab `-NyxaraCheck` | `SMOKE_PASS`, `CHECK_PASS` |
+| The nature test, `CAUCASIAN_EAGLE_DEMO=5` (`nature.tsv`, pictures) | Grass at eight spots from 59 m to 3,044 m: 4,748 to 22,579 tufts drawn, the frame at the 60-a-second cap (16.7 ms). 24 trunks beside the way, run at for 2.4 s: 23 reached, none entered (held at the bark, most then sliding round it), `NATURE_PASS`. Baseline with `CAUCASIAN_EAGLE_TREES=0`: 13 of 24 run through |
+| Start-up | `CaucasianEagle.exe` with no switch: the Ascent's smoke run, `ASCENT_PASS`; the jars' test `WAYS_PASS` on the final build; `--road`: the road's window ("Caucasian Eagle") |
+| **Not tested** | The I window, the crystal and potion panel and the H prompt seen on screen by a person; a whole climb by hand; the installer installed and run |
 
 ## 11.3 Manual test checklist (run before each release)
 

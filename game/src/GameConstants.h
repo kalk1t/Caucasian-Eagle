@@ -37,7 +37,7 @@ namespace CaucasianEagle
     constexpr float StepLength = 1.7f;        // metres on the ground between two footsteps
     constexpr float StepVolume = .4f;
     constexpr float SoundRepeatSeconds = .07f; // the same sound is not started again sooner than this
-    constexpr const char* GameVersion = "0.4.0";
+    constexpr const char* GameVersion = "0.5.0";
     constexpr const wchar_t* UserDataFolder = L"CaucasianEagle"; // %LOCALAPPDATA%\CaucasianEagle: settings and saves
 
     // ---- content
@@ -47,7 +47,12 @@ namespace CaucasianEagle
     constexpr const char* AscentSceneId = "MapA_EaglesAscent";              // assets/Compiled/Scenes/<id>.dscene
     constexpr const char* AscentDataFile = "assets/Maps/EaglesAscent.txt";   // + .heights: tools/map-to-game.ps1 copies both from Map Lab's build
     constexpr const wchar_t* AscentSwitch = L"--eagles-ascent";
-    constexpr const char* AscentEnvironmentVariable = "CAUCASIAN_EAGLE_ASCENT";   // =1: the same as the switch
+    constexpr const char* AscentEnvironmentVariable = "CAUCASIAN_EAGLE_ASCENT";   // =1: the same as the switch; =0: the road
+    // Since 0.5 (the owner, 2026-11-20: "update CaucasianEagle's main exe to latest version") the Eagle's Ascent is what
+    // CaucasianEagle.exe starts; the road of 0.4 is started with --road (or CAUCASIAN_EAGLE_ROAD=1, or the road's test
+    // pilot, CAUCASIAN_EAGLE_PILOT=1).
+    constexpr const wchar_t* RoadSwitch = L"--road";
+    constexpr const char* RoadEnvironmentVariable = "CAUCASIAN_EAGLE_ROAD";
     constexpr const char* AscentLogEnvironmentVariable = "CAUCASIAN_EAGLE_MAP_LOG";   // testing: the Ascent's evidence file (CAUCASIAN_EAGLE_DEMO=1: its smoke test)
     // its Eagle Nests, bosses and creatures (2026-11-20; art/map/ascent_creatures.py writes it), and her save: the last
     // nest she rested at and the creatures she has beaten (in the user data folder; the road's journey.sav is apart)
@@ -263,6 +268,9 @@ namespace CaucasianEagle
     constexpr int ChestCrystals = 5;             // crystals in every chest
     constexpr int SaveCrystalsPerArena = 20;     // a save from before crystals existed is given this many per arena already won
     constexpr int MaxItemTier = 3;               // wings, swords and armour evolve this many times
+    // The Eagle's Ascent (0.5, owner 2026-11-20): "when nyxara starts first time she is only able to fly for 10 seconds,
+    // first upgrade increase the flying time to 15,second upgrade to 20 and third upgrade to 30"
+    constexpr float AscentFlightSeconds[MaxItemTier + 1] = {10, 15, 20, 30};
     constexpr int ItemTierCost[MaxItemTier] = {40, 140, 320};   // crystals for the first, second and third evolution of one item
     constexpr int MaxTrainingLevel = 8;          // power and defence
     constexpr int TrainingCostBase = 10;         // crystals for the first level...

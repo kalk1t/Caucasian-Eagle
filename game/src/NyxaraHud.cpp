@@ -63,7 +63,7 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     ui.Spaced(L"NYXARA", vx, ey + 9 * S, TextName * S, 3 * S, Silver);
     const float hy = ey + 34 * S;
     ui.Bar(vx, hy, HealthWidth * S, HealthHeight * S, health, low ? Red : Soul, trail);
-    ui.Centered(std::to_wstring(hp), vx + HealthWidth * S * .5f, hy + (HealthHeight * S - ui.Height(TextTiny * S)) * .5f, TextTiny * S, Ink);
+    (void)hp;   // (the bar alone: owner, 2026-11-20, "in nyxara's healthbar remove the number 100 and just leave bar there")
     const float ny = hy + (HealthHeight + 6) * S;
     (void)energy;   // the thin bar is her flying energy (2026-11-18); while Space is held on foot a gold line under it fills to the take-off
     ui.Bar(vx, ny, EnergyWidth * S, EnergyHeight * S, hud.Flight, hud.Flight < .1f ? Red : Moon, 0, true);
@@ -185,14 +185,8 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         }
     }
 
-    // ---------------------------------------------------------------- enemy health bars
-    for (int i = 0; i < hud.EnemyCount; ++i)
-    {
-        const auto& e = hud.Enemies[i];
-        if (!e.Visible) continue;
-        const float w = 78 * S, h = 9 * S;
-        ui.Bar(e.X * W - w * .5f, e.Y * H - h, w, h, e.Health, e.Flash > 0 ? White : Red, 0, true);
-    }
+    // (no enemy health bars over the kit's own shades since 2026-11-20, the owner: "in game, just hide all monster's
+    // health bar"; see Journey::DrawMonsters)
 
     if (context.ShowPerformance && context.Performance.Valid)
     {

@@ -13,7 +13,7 @@
 | Name | Value | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|
 | `GameTitle` | `"Caucasian Eagle"` | Window title | `GameConstants.h:9` | code | Also written in the installer script (`tools/installer/CaucasianEagle.iss`) |
-| `GameVersion` | `"0.4.0"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
+| `GameVersion` | `"0.5.0"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
 | `UserDataFolder` | `"CaucasianEagle"` | Folder under `%LOCALAPPDATA%` for settings and saves | `GameConstants.h:11` | code | Changing it orphans existing players' settings and saves |
 | `StartSceneId` | `"RoadToAmirani"` | Scene loaded at start | `GameConstants.h:14` | code | `assets/Compiled/Scenes/<id>.dscene` must exist in the stage |
 | `HeroBundle` | `"Characters/Nyxara/EagleV1"` | Hero asset folder under `assets/Compiled` | `GameConstants.h:15` | code | Must contain the 31 clips listed in `Game::Prepare` |
@@ -443,3 +443,19 @@ The region table (grass density, blade height, colours, share of trees, fir or b
 | `FanEvery`, `KajiNovaOrbs` | 3, 8 | volleys, orbs | Shot patterns | `GameConstants.h` |
 
 None of these has been tuned by play.
+
+## The Eagle's Ascent 0.5 (2026-11-20)
+
+| Name | Value | Unit | What it does | Def | Kind | Note |
+|---|---|---|---|---|---|---|
+| `AscentFlightSeconds` | 10, 15, 20, 30 | s | How long her wings carry her at wing tier 0 to 3 | `GameConstants.h` | code | The owner's numbers; `NyxaraKit::SetFlightSeconds` |
+| Jar groups | every 30 to 50 | m | Along every road (way, caves, rings), 3 to 5 jars a group | `Wayside.cpp` (`JarStepLeast`, `JarStepMore`) | code | |
+| Jar contents | 30 % a crystal or two (7 in 10 one), 8 % a potion | | What a jar holds, from a hash of its id | `Wayside.cpp` (`Lay`) | code | About 1,450 crystals and 300 potions on the mountain |
+| `PlaceCrystals` | 8 | crystals | A hidden place found | `GameConstants.h` | code | Shared with the road's places |
+| `BossCrystals` / a creature's `Cost` | 60 / 1 to 10 | crystals | What a beaten creature leaves on the mountain | `GameConstants.h`, `Journey.cpp` (`KindCrystals`) | code | |
+| A potion over five | 1 | crystal | A potion found with five carried | `EaglesAscentGame::Collect` | code | |
+| Grass squares | 12; thick to 34, light to 78 | m | Side of a square of grass; how far the thick field and its light layer reach | `AscentGrass.h` | code | |
+| Grass density | 13 | places per m² | Tried where the ground is all meadow; the patches keep about half to nine tenths | `AscentGrass.h` (`Density`) | code | |
+| Grass slope | 0.78 | rise per m | No grass steeper (the terrain shader draws rock there) | `AscentGrass.cpp` | code | |
+| Her half width at a trunk | 0.42 / 0.6 | m | On foot / on wings; a trunk holds her from its foot to three quarters of its height | `EaglesAscent::HoldOffTrees` | code | |
+| Cave wall margin on foot | 0.75 | m | How far from a cave's wall line she is held (her half width and the rough rock) | `EaglesAscent::HoldInCave` | code | In flight 0.9 (`KeepOutOfRock`) |
