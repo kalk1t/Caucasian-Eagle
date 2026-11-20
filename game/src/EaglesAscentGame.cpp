@@ -104,6 +104,7 @@ namespace CaucasianEagle
         mSmoke = Env(DemoEnvironmentVariable) == "1";   // the unattended test of the mode
         mClimb = Env(DemoEnvironmentVariable) == "2";   // the whole climb, unattended
         mTour = Env(DemoEnvironmentVariable) == "3";    // the creatures' tour, unattended (Tour)
+        mTourFinish = mTour && Env("CAUCASIAN_EAGLE_TOUR_FINISH") == "1";   // (and her finishing kill of each creature)
         mLog = Env(AscentLogEnvironmentVariable);
         mTrace = !mLog.empty();
         if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
@@ -375,7 +376,7 @@ namespace CaucasianEagle
             mTour = false; PostQuitMessage(mTourBad == 0 ? 0 : 2);
         };
         mTourDamage += static_cast<float>(host.Combat.RestorePlayerHealth(world, 10000));   // she is kept whole: what they took is counted
-        mTourClock += dt;
+        mTourClock += dt; mTourFinClock += dt;
 
         if (mTourAt < 0)
         {   // the stops: every placement, by where it is along the way (a cave's: where its mouth is nearest the way)
@@ -496,6 +497,7 @@ namespace CaucasianEagle
                      << (mTourWoke - mTourCalm) << '\t' << closed << '\t' << mTourDamage << '\t' << her.y - mTourStand.y << '\t';
                 if (her.y - mTourStand.y < -3) bad("she_fell");
                 mTourRow = line.str();
+                if (mTourFinish) { mTourPhase = 10; return; }   // (her finishing kill of each: below)
                 mCreatures.MountainStrike(index);
                 mTourPhase = 5;
             }
@@ -509,6 +511,116 @@ namespace CaucasianEagle
                 row(mTourRow + std::to_string(beaten) + "/" + std::to_string(wanted) + '\t' + mTourNote);
                 ++mTourAt; mTourPhase = 0; mTourClock = 0;
             }
+            else if (mTourPhase == 10)
+            {   // the finishers' tour: the next creature of it she may finish; she is put 3 m before it where she can
+                // stand (from the side she is on first), facing it
+                auto& kit = GetNyxaraKit();
+                auto& enemies = kit.Enemies();
+                const Journey::MountainLook* next = nullptr;
+                for (const auto* l : mine)
+                {
+                    if (l->Slot < 0 || l->Slot >= static_cast<int>(enemies.size())) continue;
+                    const auto& e = enemies[static_cast<size_t>(l->Slot)];
+                    if (e.Finishable && e.Alive && e.Doom <= 0) { next = l; break; }
+                }
+                if (!next)
+                {   // none left of it she may finish (a boss): the rest struck down, as in the creatures' tour
+                    mCreatures.MountainStrike(index);
+                    mTourPhase = 5; mTourClock = 5.6f;
+                    return;
+                }
+                const XMFLOAT3 feet{next->Pos.x, next->Ground, next->Pos.z};
+                const float from = std::atan2(her.x - feet.x, her.z - feet.z);
+                bool put = false;
+                for (const float turn : {0.f, .7f, -.7f, 1.4f, -1.4f, 2.1f, -2.1f, 3.1416f})
+                {
+                    for (const float d : {3.f, 2.4f, 3.6f})
+                    {
+                        const XMFLOAT3 at{feet.x + d * std::sin(from + turn), feet.y, feet.z + d * std::cos(from + turn)};
+                        float y = 0;
+                        if (!world.RuntimeScene || !Standable(*world.RuntimeScene, at, y) || std::abs(y - feet.y) > 1.2f) continue;
+                        // (and not in a wall: she could never walk there, and from there every way of hers seems blocked)
+                        if (FindDoorwaysRuntimeSceneBlockingProxyForPlayer(*world.RuntimeScene, {at.x, y, at.z}, world.MainPlayer.CollisionRadius,
+                                                                           world.MainPlayer.CollisionHeight)) continue;
+                        Put(host, {at.x, y, at.z}, std::atan2(feet.x - at.x, feet.z - at.z));
+                        mTourVictimY = y; put = true; break;
+                    }
+                    if (put) break;
+                }
+                mTourVictim = next->Slot; mTourVictimId = next->Id; mTourVictimKind = next->Kind;
+                mTourKind = 0; mTourFinClock = 0; mTourFinStart = 0; mTourFinAir = 0; mTourFinShot = false;
+                if (!put)
+                {   // nowhere before it to stand: it is struck down
+                    row("finish\t" + std::to_string(mTourAt) + '\t' + next->Id + "\tkind=" + std::to_string(next->Kind) + "\tno_place");
+                    auto& e = enemies[static_cast<size_t>(next->Slot)]; e.Health = 0; e.Alive = false;
+                    ++mTourFinNoPlace; mTourPhase = 13;
+                    return;
+                }
+                mTourPhase = 11;
+            }
+            else if (mTourPhase == 11 && mTourFinClock > .35f)
+            {   // she stands: it is doomed, as a blow of hers that would kill it dooms it (one that would not, out of her
+                // reach or over her head, as a spirit riding the air: struck down, and counted apart)
+                auto& kit = GetNyxaraKit();
+                if (kit.CanDoom(mTourVictim))
+                {
+                    kit.Doom(mTourVictim);
+                    mTourPhase = 12; mTourFinClock = 0;
+                }
+                else
+                {
+                    auto& e = kit.Enemies()[static_cast<size_t>(mTourVictim)];
+                    std::ostringstream line; line << std::fixed << std::setprecision(2);
+                    line << "finish\t" << mTourAt << '\t' << mTourVictimId << "\tkind=" << mTourVictimKind << "\tout_of_reach\tgap="
+                         << std::hypot(e.Pos.x - her.x, e.Pos.z - her.z) - e.Radius << "\tits_dy=" << e.Pos.y - 1.3f + e.Lift - her.y;
+                    row(line.str());
+                    e.Health = 0; e.Alive = false; ++mTourFinOut;
+                    mTourPhase = 13; mTourFinClock = 0;
+                }
+            }
+            else if (mTourPhase == 12)
+            {   // her finisher: which; a picture of it as it kills; she must stay on her ground (not over an edge)
+                auto& kit = GetNyxaraKit();
+                auto& e = kit.Enemies()[static_cast<size_t>(mTourVictim)];
+                const int now = kit.Finishing();
+                if (now && !mTourKind) { mTourKind = now; mTourFinStart = mTourFinClock; }
+                const float into = mTourFinClock - mTourFinStart;
+                if (mTourKind && !world.MainPlayer.IsGrounded) mTourFinAir += dt;
+                constexpr float ShotAt[4] = {0, 1.f, 1.2f, 1.6f};   // (the cross past it; the plunge's blades in; the slide's blow)
+                if (mTourKind && !mTourFinShot && into >= ShotAt[mTourKind] && !mTourShots.empty())
+                {
+                    wchar_t name[128]; swprintf_s(name, L"%03d_%S_f%d_%S", mTourAt, pl.Id.c_str(), mTourKind, mTourVictimId.c_str());
+                    mTourShot = name; mTourFinShot = true;
+                }
+                const bool over = mTourKind && !now, none = !mTourKind && mTourFinClock > 1.2f, stuck = mTourKind && now && into > 4.5f;
+                if (over || none || stuck)
+                {
+                    std::ostringstream line; line << std::fixed << std::setprecision(2);
+                    line << "finish\t" << mTourAt << '\t' << mTourVictimId << "\tkind=" << mTourVictimKind << "\tfinisher=" << mTourKind
+                         << "\ther_dy=" << her.y - mTourVictimY << "\tair=" << mTourFinAir;
+                    if (none)
+                    {   // (how far it was from her, how much higher, whether it was doomed; then it is struck down)
+                        const XMFLOAT3 its{e.Pos.x, e.Pos.y - 1.3f + e.Lift, e.Pos.z};
+                        line << "\tno_room\tgap=" << std::hypot(its.x - her.x, its.z - her.z) - e.Radius << "\tits_dy=" << its.y - her.y
+                             << "\tdoomed=" << (e.Doom > 0 ? 1 : 0) << "\tgrounded=" << (world.MainPlayer.IsGrounded ? 1 : 0);
+                        ++mTourFinNoRoom; e.Health = 0; e.Alive = false;
+                    }
+                    else ++mTourFinPlayed[mTourKind];
+                    if (stuck) { line << "\tSTUCK"; bad("finisher_stuck"); }
+                    if (mTourFinAir > .3f) { line << "\tFELL"; bad("finisher_fell"); ++mTourFinFell; }
+                    row(line.str());
+                    mTourPhase = 13; mTourFinClock = 0;
+                }
+            }
+            else if (mTourPhase == 13 && mTourFinClock > .7f) mTourPhase = 10;
+            return;
+        }
+        if (mTourFinish)
+        {   // the finishers' tour ends with the stops (the nests and the save are the creatures' tour's)
+            row("finishers\tcross=" + std::to_string(mTourFinPlayed[1]) + "\tplunge=" + std::to_string(mTourFinPlayed[2]) + "\tslide=" +
+                std::to_string(mTourFinPlayed[3]) + "\tno_room=" + std::to_string(mTourFinNoRoom) + "\tno_place=" + std::to_string(mTourFinNoPlace) +
+                "\tfell=" + std::to_string(mTourFinFell) + "\tout=" + std::to_string(mTourFinOut));
+            finish();
             return;
         }
 

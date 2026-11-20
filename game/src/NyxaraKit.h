@@ -105,6 +105,7 @@ namespace Doorways
             // on its knees, its body lowered by Knee * Kneel; Limp (0..1) how far it hangs limp as the dying do
             // (< 0: as its Hold has it).
             bool Finishable = false;
+            bool RoomLooked = false;   // (set by the kit: since it was doomed, whether her finishers' room was looked at)
             float Doom = 0, Knee = .45f, Depth = 0, Width = 0, Linger = 0;
             float Daze = 0, Kneel = 0, Limp = -1;
             // On its knees its shins are bent back KneelShin radians (at Kneel 1) and its body lowered so that its feet
@@ -176,6 +177,7 @@ namespace Doorways
         // (the Character Lab's cue; it must be Finishable). Finishing: the finisher she plays now (0 none, 1 Talon
         // Cross, 2 Eagle's Plunge, 3 Gale Slide). CAUCASIAN_EAGLE_NYXARA_FINISHER=<1|2|3> plays that one every time.
         void Doom(int index);
+        bool CanDoom(int index) const;   // would a killing blow of hers doom it now (near her and on her level, she on foot)?
         int Finishing() const;
         void SetInputBlocked(bool blocked) { mInputBlocked = blocked; } // the story journal is open: no attacks or skills
         void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
@@ -227,6 +229,8 @@ namespace Doorways
         void DamageWraith(int index, int damage, const DirectX::XMFLOAT3& from, float push, float launch);
         // It dies now (its owner sees Alive go false); its body lies linger seconds before it fades.
         void KillWraith(int index, float linger);
+        void StrikeDown(int index);   // killed by her blow: it dies as the dead do (no finisher), with the blow's burst
+        bool AnyFinishFits(WorldState& world, int index, std::string* why = nullptr);   // has any finisher room from where she is? (StartFinish's ways; why not)
         // A dead creature's body as the kit lets it fall and lie (her finishing kills; a doomed one that falls on its own).
         // Over Wait s its knees give, from KneelFrom to Kneel; then it falls toward Way (level) in Takes s, gathering speed
         // as a thing tipping over does, about its knees as far as it kneels and about its feet otherwise, its legs
@@ -248,6 +252,14 @@ namespace Doorways
         // Her finishing kills: one begun at the nearest doomed creature in reach (when 'free'), and the one she plays.
         void UpdateFinish(WorldState& world, float dt, bool free);
         void StartFinish(WorldState& world, int index);
+        // One finisher set up in her body to be played on that creature from where she is ('side' 1 her right, -1 her
+        // left, and 'behind': the cross's way past it); false where its clip is not made. Has its way room (ground under
+        // it all the way, nothing in it)? At the first moment it has not: when, and what it lacks.
+        bool SetUpFinish(WorldState& world, int index, int which, float side, bool behind);
+        bool FinishFits(const WorldState& world, float& at, std::string& why) const;
+        // where the finisher set up in her body puts her 'at' s into it (the world's x and z), her facing, and how high
+        // her picture is lifted ('ground': how far the creature's feet are over hers)
+        void FinishPlan(float at, float ground, DirectX::XMFLOAT3& place, float& yaw, float& lift) const;
         DirectX::XMFLOAT3 mHerPlace{}; bool mHerAfoot = false;   // where she is this frame and whether on foot (a blow dooms near her only)
         float mSlow = 0, mSlowFull = 0, mSlowRate = 1;           // slow motion: real seconds left of it, in all, and how slow at its slowest
         void Burst(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size);

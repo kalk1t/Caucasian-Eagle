@@ -2114,6 +2114,7 @@ namespace CaucasianEagle
             const auto& m = mMonsters[slot]; const auto& e = enemies[slot]; const auto& mc = mMountainCreatures[c];
             out.push_back({mc.Id, mc.Group, m.Kind, m.Calm, m.Dying, e.Pos, mc.Home, m.Ground,
                            static_cast<float>(e.Health) / static_cast<float>(std::max(1, e.MaxHealth))});
+            out.back().Slot = slot;   // (its enemy: the kit's creature)
         }
         return out;
     }

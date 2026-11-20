@@ -113,7 +113,7 @@ namespace CaucasianEagle
         std::vector<MountainNews> TakeMountainNews() { auto news = std::move(mMountainNews); mMountainNews.clear(); return news; }
         // tests (EaglesAscentGame's creatures' tour, CAUCASIAN_EAGLE_DEMO=3): the creatures awake, and a group's awake
         // creatures falling as if she had beaten them
-        struct MountainLook { std::string Id; int Group = 0, Kind = 0, Calm = 0; bool Dying = false; DirectX::XMFLOAT3 Pos{}, Home{}; float Ground = 0, Health = 1; };
+        struct MountainLook { std::string Id; int Group = 0, Kind = 0, Calm = 0; bool Dying = false; DirectX::XMFLOAT3 Pos{}, Home{}; float Ground = 0, Health = 1; int Slot = -1; };
         std::vector<MountainLook> MountainLooks() const;
         void MountainStrike(int group);
         // what the creatures did ("woke way-1200.0", "roused ..", "lost_her ..", "home ..", "sleep_far ..",

@@ -7,6 +7,8 @@
 #include "DoorwaysGame.h"
 #include "DoorwaysGamepad.h"
 #include "DoorwaysRuntimePathResolver.h"
+#include "DoorwaysPhysicsTypes.h"
+#include "DoorwaysRuntimeScene.h"
 #include "DoorwaysWalkableSurfaceQuery.h"
 #include "GameConstants.h"
 #include "NyxaraClips.h"
@@ -24,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -193,6 +196,9 @@ namespace Doorways
             {L"EAGLE'S PLUNGE", "Finish_Plunge", 2.75f, {1.10f, -1}, 1.10f, .65f},
             {L"GALE SLIDE", "Finish_Slide", 2.6f, {.39f, -1}, 1.55f, .55f},
         };
+        // Eagle's Plunge: when she springs off it ('contact': when her blades went in), and how long her spring takes
+        constexpr float PlungeHop = .45f;
+        float PlungeHopFrom(float contact) { return (std::max)(2.05f, contact + Finishes[2].Falls + .1f); }
         constexpr float FlyHover = .5f;      // m she is shown over the ground when she rests on it in flight
         constexpr float RunFrom = 2.0f;      // m/s: slower than this she walks
         // Stairs_Up (Mixamo's climb fitted to Map A's stairs) is off: the owner (2026-11-17) prefers her ordinary walk and run
@@ -515,6 +521,8 @@ namespace Doorways
         // ---- her finishing kills (Finishes; UpdateFinish)
         int Finish = 0, FinishLast = 0, FinishTarget = -1;    // the one she plays (0 none), the last she played, the creature
         float FinishTime = 0;
+        float FinishRetry = 0;                                // s before she tries again where no finisher had room (StartFinish)
+        float FinishSide = 1; bool FinishBehind = true;       // (the cross) past it on her right (1) or left (-1); round to behind it or beside it
         bool FinishBlown[2] = {false, false}, FinishKilled = false, FinishLanded = false, FinishRipped = false;
         float FinishBlowAt[2] = {-1, -1}, FinishDeathAt = 1;  // (this time: when her blows land and it dies)
         // as it began: her place and facing, its feet, the way from her to it (level) and her right as she faces it; its
@@ -3739,7 +3747,7 @@ namespace Doorways
         CaucasianEagle::Sound::Play("nyxara/cut", .85f + .15f * heavy, .08f);   // the 'meat heavy' the user chose in the lab
         if (dooms)
         {   // it stops where it stands, dazed, its head hanging, and waits for her (UpdateDoomed, UpdateFinish)
-            w.Health = 1; w.Doom = DoomSeconds;
+            w.Health = 1; w.Doom = DoomSeconds; w.RoomLooked = false;
             mHitStop = (std::max)(mHitStop, .07f);
             mShake = (std::max)(mShake, .14f);
             CaucasianEagle::Sound::Play("combat/blow", .8f, .1f);
@@ -3747,13 +3755,18 @@ namespace Doorways
             return;
         }
         if (w.Health > 0 && Random() < .4f) CaucasianEagle::Sound::Play("creatures/hurt", .6f, .15f);
-        if (w.Health <= 0)
-        {
-            KillWraith(index, 0);
-            Burst(w.Pos, ShadeViolet, 26, 6.f, .35f);
-            Fx ring; ring.Kind = FxKind::Ring; ring.Pos = {w.Pos.x, w.Pos.y - w.Lift - 1.2f, w.Pos.z}; ring.Size = 2.2f;
-            ring.Life = .6f; ring.Color = ShadeViolet; mFx.push_back(ring);
-        }
+        if (w.Health <= 0) StrikeDown(index);
+    }
+
+    void NyxaraKit::StrikeDown(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(mWraiths.size())) return;
+        auto& w = mWraiths[index];
+        if (!w.Alive) return;
+        KillWraith(index, 0);
+        Burst(w.Pos, ShadeViolet, 26, 6.f, .35f);
+        Fx ring; ring.Kind = FxKind::Ring; ring.Pos = {w.Pos.x, w.Pos.y - w.Lift - 1.2f, w.Pos.z}; ring.Size = 2.2f;
+        ring.Life = .6f; ring.Color = ShadeViolet; mFx.push_back(ring);
     }
 
     void NyxaraKit::KillWraith(int index, float linger)
@@ -3770,7 +3783,7 @@ namespace Doorways
         if (index < 0 || index >= static_cast<int>(mWraiths.size())) return;
         auto& w = mWraiths[index];
         if (!w.Alive || !w.Finishable || w.Doom > 0) return;
-        w.Health = 1; w.Doom = DoomSeconds; w.Flash = .16f;
+        w.Health = 1; w.Doom = DoomSeconds; w.Flash = .16f; w.RoomLooked = false;
         mShake = (std::max)(mShake, .1f);
         CaucasianEagle::Sound::Play("combat/blow", .8f, .1f);
     }
@@ -3853,25 +3866,142 @@ namespace Doorways
 
     // ------------------------------------------------------------------ her finishing kills
     // Each is a made clip (MakeFinishes) and a plan of where she goes, how she faces and how high she is lifted over its
-    // time, worked out as it begins from where she and it are, how big it is, and where her blades are in the clip:
-    // so that the blades go where the creature is, whatever its size. The engine moves her (the session's impulse) to
-    // the plan's place a frame ahead; her picture is lifted (FinishLiftNow); the clip is played by the finisher's clock.
+    // time (FinishPlan), worked out as it begins from where she and it are, how big it is, and where her blades are in
+    // the clip: so that the blades go where the creature is, whatever its size. The engine moves her (the session's
+    // impulse) to the plan's place a frame ahead; her picture is lifted (FinishLiftNow); the clip is played by the
+    // finisher's clock. Only one whose way has room is played (FinishFits: ground under it all the way, nothing in it;
+    // 2026-11-20: on Map A she goes over any edge, and a way past a creature at an edge would take her over it): one at
+    // random, never the one she played last; where it has no room its other ways (the cross: past it on her other side,
+    // round to beside it), then the others. Where none has room as it is doomed, her blow kills it at once (StrikeDown:
+    // as before her finishers); where room was there then and is gone when her move ends, it collapses (its doom cut
+    // to 0.3 s; FinishRetry keeps her from looking again before it has).
     void NyxaraKit::StartFinish(WorldState& world, int index)
     {
         auto& b = *mBody;
-        auto& p = world.MainPlayer;
         auto& w = mWraiths[index];
-        // which: at random, never the one she played last (CAUCASIAN_EAGLE_NYXARA_FINISHER=<1|2|3>: that one every time)
+        // CAUCASIAN_EAGLE_NYXARA_FINISHER=<1|2|3>: that one first every time; CAUCASIAN_EAGLE_NYXARA_FINISH_SIDE=<1|-1>:
+        // the cross past it on her right or her left first (tests)
         static const int forced = []
         {
             char v[8]{}; size_t n = 0;
             return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FINISHER") == 0 && n > 1 ? std::clamp(std::atoi(v), 0, 3) : 0;
         }();
-        int which = forced;
-        if (!which && (b.FinishLast < 1 || b.FinishLast > 3)) which = 1 + (std::min)(2, static_cast<int>(Random() * 3.f));
-        else if (!which) which = (b.FinishLast + (Random() < .5f ? 1 : 2) - 1) % 3 + 1;   // (one of the other two)
+        static const int forcedSide = []
+        {
+            char v[8]{}; size_t n = 0;
+            return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FINISH_SIDE") == 0 && n > 1 ? std::clamp(std::atoi(v), -1, 1) : 0;
+        }();
+        const auto named = [](int kind, float to, bool backOf) -> const char*
+        {   // (the cross's way, for the log)
+            if (kind != 1) return "";
+            return to > 0 ? (backOf ? " right behind" : " right beside") : (backOf ? " left behind" : " left beside");
+        };
+        int first = forced;
+        if (!first && (b.FinishLast < 1 || b.FinishLast > 3)) first = 1 + (std::min)(2, static_cast<int>(Random() * 3.f));
+        else if (!first) first = (b.FinishLast + (Random() < .5f ? 1 : 2) - 1) % 3 + 1;   // (one of the other two)
+        int order[3] = {first, first % 3 + 1, (first + 1) % 3 + 1};
+        if (order[1] == b.FinishLast || (order[2] != b.FinishLast && Random() < .5f)) std::swap(order[1], order[2]);   // (the last she played, last)
+        const float side = forcedSide ? static_cast<float>(forcedSide) : Random() < .5f ? 1.f : -1.f;
+        struct Way { int Which; float Side; bool Behind; };
+        Way ways[6]{}; int count = 0;
+        for (const int kind : order)
+        {
+            if (kind != 1) { ways[count++] = {kind, 1, true}; continue; }
+            ways[count++] = {1, side, true}; ways[count++] = {1, -side, true};
+            ways[count++] = {1, side, false}; ways[count++] = {1, -side, false};
+        }
+        std::string misfits;
+        const auto began = std::chrono::steady_clock::now();
+        bool found = false;
+        for (int k = 0; k < count && !found; ++k)
+        {
+            const Way& way = ways[k];
+            if (!SetUpFinish(world, index, way.Which, way.Side, way.Behind)) continue;
+            float at = 0; std::string why;
+            found = FinishFits(world, at, why);
+            if (found) break;
+            char said[160];
+            std::snprintf(said, sizeof said, "%s%s %s at %.2f s; ", Finishes[way.Which].Clip, named(way.Which, way.Side, way.Behind), why.c_str(), at);
+            misfits += said;
+        }
+        const double took = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - began).count();
+        if (!found)
+        {   // (room was there as it was doomed, and is gone: it does not wait out its three seconds, it collapses)
+            w.Doom = (std::min)(w.Doom, .3f);
+            b.Finish = 0; b.FinishTarget = -1; b.FinishRetry = .5f;
+            char said[48];
+            std::snprintf(said, sizeof said, " (looked in %.1f ms)", took);
+            b.Log(world, ("finish none has room: " + misfits + said).c_str());
+            return;
+        }
+        const int which = b.Finish;
         const auto& spec = Finishes[which];
-        if (b.FinishTipAt[which][0].empty() || b.FinishTipAt[which][1].empty() || b.Duration(spec.Clip) <= 0) return;
+        b.FinishLast = which;
+        b.Attack.clear(); b.Queued = 0; b.Jumping = false; b.Step = 0;
+        w.Pinned = true; w.Push = {};
+        mNotice = spec.Name; mNoticeTimer = 1.2f;
+        CaucasianEagle::Sound::Play("nyxara/effort", .8f, .08f);
+        {
+            char said[720];
+            const XMFLOAT3 F = b.FinishFeet, u = b.FinishWay, r = b.FinishRight;
+            const XMFLOAT3 a = Sub(b.FinishA, F), k = Sub(b.FinishStrike, F);
+            std::snprintf(said, sizeof said, "finish %s%s at %d height %.2f neck %.2f knee %.2f radius %.2f depth %.2f width %.2f | blow %.3f death %.3f "
+                          "lift %.2f kneel %.2f | A %.2f %.2f (along, right) strike %.2f %.2f %.2f | room looked at in %.1f ms%s%s",
+                          spec.Clip, named(which, b.FinishSide, b.FinishBehind), index, b.FinishHeight, (std::max)(.3f, b.FinishNeck.y), b.FinishKnee,
+                          b.FinishRadius, b.FinishDepth, w.Width, b.FinishBlowAt[0], b.FinishDeathAt, b.FinishLiftMost, b.FinishKneelTo,
+                          a.x * u.x + a.z * u.z, a.x * r.x + a.z * r.z, k.x * u.x + k.z * u.z, k.x * r.x + k.z * r.z, k.y, took,
+                          misfits.empty() ? "" : " | no room: ", misfits.c_str());
+            b.Log(world, said);
+        }
+    }
+
+    bool NyxaraKit::AnyFinishFits(WorldState& world, int index, std::string* why)
+    {
+        auto& b = *mBody;
+        if (b.Finish) return true;   // (she finishes one already: not hers to look at now)
+        bool fits = false;
+        for (int which = 1; which <= 3 && !fits; ++which)
+            for (int k = 0; k < (which == 1 ? 4 : 1) && !fits; ++k)
+            {
+                if (!SetUpFinish(world, index, which, k % 2 ? -1.f : 1.f, k < 2)) continue;
+                float at = 0; std::string said;
+                fits = FinishFits(world, at, said);
+                if (!fits && why)
+                {
+                    char line[160];
+                    std::snprintf(line, sizeof line, "%s%s%s %s at %.2f s; ", Finishes[which].Clip, which != 1 ? "" : k % 2 ? " left" : " right",
+                                  which != 1 ? "" : k < 2 ? " behind" : " beside", said.c_str(), at);
+                    *why += line;
+                }
+            }
+        b.Finish = 0; b.FinishTarget = -1;
+        if (!fits && why && world.RuntimeScene)
+        {   // (and where she stands: in a wall already, every way of hers would seem blocked)
+            const auto& p = world.MainPlayer;
+            const auto* in = FindDoorwaysRuntimeSceneBlockingProxyForPlayer(*world.RuntimeScene, p.Position, p.CollisionRadius, p.CollisionHeight);
+            *why += in ? "where she stands: in " + in->Name : std::string("where she stands: clear");
+        }
+        return fits;
+    }
+
+    bool NyxaraKit::CanDoom(int index) const
+    {
+        if (index < 0 || index >= static_cast<int>(mWraiths.size())) return false;
+        const auto& w = mWraiths[index];
+        if (!w.Alive || !w.Finishable || w.Doom > 0 || !mHerAfoot) return false;
+        const float feet = w.Pos.y - 1.3f + w.Lift;
+        return std::hypot(w.Pos.x - mHerPlace.x, w.Pos.z - mHerPlace.z) - w.Radius <= FinishReach && std::abs(feet - mHerPlace.y) <= FinishHigh;
+    }
+
+    // One finisher set up in her body to be played on that creature from where she is ('side' 1 her right, -1 her left,
+    // and 'behind': the cross's way past it); false where its clip is not made.
+    bool NyxaraKit::SetUpFinish(WorldState& world, int index, int which, float side, bool behind)
+    {
+        auto& b = *mBody;
+        const auto& p = world.MainPlayer;
+        const auto& w = mWraiths[index];
+        const auto& spec = Finishes[which];
+        if (b.FinishTipAt[which][0].empty() || b.FinishTipAt[which][1].empty() || b.Duration(spec.Clip) <= 0) return false;
         const float tall = (std::max)(.01f, world.AnimatedPlayerVisual.Scale.y);
         const XMFLOAT3 S = p.Position, F = FeetOf(w), neck = NeckFrom(w);
         XMFLOAT3 u{F.x - S.x, 0, F.z - S.z};
@@ -3879,7 +4009,7 @@ namespace Doorways
         u = d0 > 1e-3f ? XMFLOAT3{u.x / d0, 0, u.z / d0} : Forward(p.Yaw);
         const XMFLOAT3 r{u.z, 0, -u.x};   // her right as she faces it
         const float R = w.Radius, H = w.Height, N = (std::max)(.3f, neck.y), K = std::clamp(w.Knee, .1f, .5f * H);
-        b.Finish = b.FinishLast = which; b.FinishTarget = index; b.FinishTime = 0;
+        b.Finish = which; b.FinishTarget = index; b.FinishTime = 0; b.FinishSide = side; b.FinishBehind = behind;
         b.FinishBlown[0] = b.FinishBlown[1] = false; b.FinishKilled = b.FinishLanded = b.FinishRipped = false;
         b.FinishBlowAt[0] = spec.Blow[0]; b.FinishBlowAt[1] = spec.Blow[1]; b.FinishDeathAt = spec.Death;
         b.FinishFrom = S; b.FinishFeet = F; b.FinishWay = u; b.FinishRight = r; b.FinishNeck = neck;
@@ -3887,13 +4017,15 @@ namespace Doorways
         b.FinishYawFrom = p.Yaw; b.FinishYawTo = b.FinishYawEnd = std::atan2(u.x, u.z);
         b.FinishTheirYawFrom = w.Yaw; b.FinishTheirYawTo = std::atan2(-u.x, -u.z);
         b.FinishLiftMost = b.FinishLiftNow = b.FinishKneel = b.FinishKneelTo = 0; b.FinishGo = {0, 0}; b.FinishStrike = F;
-        b.Attack.clear(); b.Queued = 0; b.Jumping = false; b.Step = 0;
-        w.Pinned = true; w.Push = {};
         if (which == 1)
-        {   // Talon Cross: in to cutting reach, two cuts crossing on it, and past it round its side to stand behind it
+        {   // Talon Cross: in to cutting reach, two cuts crossing on it, and past it round its side ('side') to stand
+            // behind it, or (where there is no room behind it) round to beside it: out to the side from before it, and
+            // coming to beside it going on past it
+            const XMFLOAT3 rs = Mul(r, side);
             b.FinishA = Add(S, Mul(u, (std::max)(d0 - (R + .9f), -.5f)));
-            b.FinishB = Add(F, Mul(r, 2 * (R + .55f))); b.FinishB.y = S.y;
-            b.FinishC = Add(Add(F, Mul(u, R + 1.7f)), Mul(r, .2f)); b.FinishC.y = S.y;
+            if (behind) { b.FinishB = Add(F, Mul(rs, 2 * (R + .55f))); b.FinishC = Add(Add(F, Mul(u, R + 1.7f)), Mul(rs, .2f)); }
+            else { b.FinishC = Add(Add(F, Mul(rs, R + 1.f)), Mul(u, .2f)); b.FinishB = Sub(b.FinishC, Mul(u, .7f)); }
+            b.FinishB.y = b.FinishC.y = S.y;
             b.FinishLiftMost = std::clamp(.5f * H - 1.4f, 0.f, 1.4f);   // (at a tall one she leaps into the cuts)
         }
         else if (which == 2)
@@ -3976,16 +4108,97 @@ namespace Doorways
             b.FinishBlowAt[0] = .39f; b.FinishBlowAt[1] = -1;
             for (int k = 0; k <= 94; ++k) if (SlideShare(static_cast<float>(k) / 120.f) >= .5f) { b.FinishBlowAt[0] = static_cast<float>(k) / 120.f; break; }
         }
-        mNotice = spec.Name; mNoticeTimer = 1.2f;
-        CaucasianEagle::Sound::Play("nyxara/effort", .8f, .08f);
+        return true;
+    }
+
+    // Has the way of the finisher set up in her body room? Every 20th of a second of it: walkable ground under her
+    // place, no more than a step over the ground under her the moment before and no deeper than a step down (as the
+    // engine moves her: higher stops her, deeper takes her over the edge), and nothing blocking where she stands (rock,
+    // a trunk, a wall). False at the first moment that fails ('at': when; 'why': what). With no scene (no ground known)
+    // every way has room.
+    bool NyxaraKit::FinishFits(const WorldState& world, float& at, std::string& why) const
+    {
+        at = 0; why.clear();
+        if (!world.RuntimeScene) return true;
+        const auto& b = *mBody;
+        const auto& p = world.MainPlayer;
+        const float seconds = Finishes[b.Finish].Seconds;
+        const int steps = (std::max)(1, static_cast<int>(std::ceil(seconds * 20.f)));
+        XMFLOAT3 was = b.FinishFrom;
+        float under = b.FinishFrom.y;
+        for (int k = 1; k <= steps; ++k)
         {
-            char said[320];
-            const XMFLOAT3 a = Sub(b.FinishA, F), k = Sub(b.FinishStrike, F);
-            std::snprintf(said, sizeof said, "finish %s at %d height %.2f neck %.2f knee %.2f radius %.2f depth %.2f width %.2f | blow %.3f death %.3f "
-                          "lift %.2f kneel %.2f | A %.2f %.2f (along, right) strike %.2f %.2f %.2f",
-                          spec.Clip, index, H, N, K, R, b.FinishDepth, w.Width, b.FinishBlowAt[0], b.FinishDeathAt, b.FinishLiftMost, b.FinishKneelTo,
-                          a.x * u.x + a.z * u.z, a.x * r.x + a.z * r.z, k.x * u.x + k.z * u.z, k.x * r.x + k.z * r.z, k.y);
-            b.Log(world, said);
+            at = seconds * static_cast<float>(k) / static_cast<float>(steps);
+            XMFLOAT3 place{}; float yaw = 0, lift = 0;
+            FinishPlan(at, b.FinishFeet.y - under, place, yaw, lift);
+            const float moved = std::hypot(place.x - was.x, place.z - was.z);
+            if (moved < .05f) continue;
+            const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*world.RuntimeScene, place.x, place.z,
+                under - DoorwaysMaxWalkableStepDown - .6f * moved, under + DoorwaysMaxWalkableStepUp + .6f * moved);
+            if (!hit.Hit) { why = "no ground"; return false; }
+            if (const auto* in = FindDoorwaysRuntimeSceneBlockingProxyForPlayer(*world.RuntimeScene, {place.x, hit.GroundY, place.z}, p.CollisionRadius, p.CollisionHeight))
+            {
+                why = "blocked by " + in->Name; return false;
+            }
+            was = place; under = hit.GroundY;
+        }
+        return true;
+    }
+
+    void NyxaraKit::FinishPlan(float at, float ground, XMFLOAT3& place, float& yaw, float& lift) const
+    {
+        const auto& b = *mBody;
+        const int which = b.Finish;
+        const XMFLOAT3 S = b.FinishFrom;
+        const float contact = b.FinishBlowAt[0], hopFrom = PlungeHopFrom(contact), yawU = b.FinishYawTo;
+        const auto turnTo = [](float from, float to, float s) { return from + std::remainder(to - from, XM_2PI) * s; };
+        const auto lerp = [](XMFLOAT3 a, XMFLOAT3 c, float s) { return Add(a, Mul(Sub(c, a), s)); };
+        if (which == 1)
+        {   // in (a dash), the cuts, and past (round its side, facing on: her back to it, or beside it)
+            const XMFLOAT3 &A = b.FinishA, &C = b.FinishB, &E = b.FinishC;
+            const float s = Smooth(.66f, .96f, at);
+            place = at <= .66f ? lerp(S, A, Smooth(.04f, .38f, at)) : Curve(A, C, E, s);
+            const XMFLOAT3 go = CurveWay(A, C, E, s);
+            const float along = .4f * (Smooth(.62f, .72f, at) - Smooth(.92f, 1.08f, at));
+            yaw = turnTo(turnTo(b.FinishYawFrom, yawU, Smooth(0, .2f, at)), std::atan2(go.x, go.z), along);
+            lift = (std::max)(0.f, b.FinishLiftMost + ground) * (Smooth(.30f, .44f, at) - Smooth(.62f, .80f, at));
+        }
+        else if (which == 2)
+        {   // the leap onto it, riding it down (PlungeRide), and back off it
+            yaw = turnTo(b.FinishYawFrom, yawU, Smooth(0, .25f, at));
+            if (at < contact)
+            {
+                place = lerp(S, b.FinishA, Smooth(.30f, contact - .04f, at));
+                lift = (std::max)(0.f, b.FinishLiftMost + ground) * Smooth(.36f, .80f, at);
+            }
+            else if (at < hopFrom) { b.PlungeRide(at, place, lift); lift += ground; }
+            else
+            {
+                XMFLOAT3 off; float high;
+                b.PlungeRide(hopFrom, off, high);
+                const float x = std::clamp((at - hopFrom) / PlungeHop, 0.f, 1.f), s = x * x * (3 - 2 * x);
+                place = lerp(off, b.FinishLand, s);
+                lift = (high + ground) * (1 - s) + (.3f + .1f * LenXZ(Sub(b.FinishLand, off))) * std::sin(XM_PI * x);
+            }
+        }
+        else
+        {   // the slide past it, at the slide's own pace; up and round to the blow
+            const XMFLOAT3 &A = b.FinishA, &C = b.FinishB;
+            if (at <= .78f)
+            {
+                const float s = SlideShare(at);
+                place = Curve(S, C, A, s);
+                const XMFLOAT3 go = CurveWay(S, C, A, s);
+                yaw = turnTo(b.FinishYawFrom, std::atan2(go.x, go.z), Smooth(0, .12f, at));
+            }
+            else
+            {
+                place = A;
+                const XMFLOAT3 go = CurveWay(S, C, A, 1);
+                yaw = turnTo(std::atan2(go.x, go.z), b.FinishYawEnd, Smooth(.78f, 1.12f, at));
+            }
+            const float kill = b.FinishDeathAt;
+            lift = (std::max)(0.f, b.FinishLiftMost + ground) * (Smooth(kill - .34f, kill - .04f, at) - Smooth(kill + .06f, kill + .42f, at));
         }
     }
 
@@ -3997,8 +4210,22 @@ namespace Doorways
         if (!b.Finish)
         {   // a doomed creature near her, and she is free on foot (a cut of hers lands first): she goes to finish it
             b.FinishLiftNow = 0; b.FinishGo = {0, 0};
+            b.FinishRetry = (std::max)(0.f, b.FinishRetry - dt);
+            for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
+            {   // just doomed: where no finisher has room from where she is (an edge, a wall close by), her blow kills it
+                // as it did before her finishers (2026-11-20: a doomed creature takes no more blows, and with no finisher
+                // to come she would strike at it for its three seconds)
+                auto& w = mWraiths[i];
+                if (!w.Alive || w.Doom <= 0 || w.RoomLooked) continue;
+                w.RoomLooked = true;
+                std::string why;
+                if (AnyFinishFits(world, i, &why)) continue;
+                b.Log(world, ("finish: none has room, her blow kills it: " + why).c_str());
+                StrikeDown(i);
+            }
             if (!free || p.TraversalMode == DoorwaysPlayerTraversalMode::Flight || !p.IsGrounded || b.Jumping || mFalling || b.Carried() || !mPreview.empty()) return;
             if (!b.Attack.empty() && b.AttackTime < Body::Hit(b.Attack) + ChainAfter) return;
+            if (b.FinishRetry > 0) return;   // (none had room a moment ago: StartFinish)
             int chosen = -1; float nearest = FinishReach;
             for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
             {
@@ -4023,69 +4250,23 @@ namespace Doorways
             b.Log(world, "finish broken off");
             return;
         }
+        if (!p.IsGrounded && p.VerticalVelocity < -7.f)
+        {   // she went over an edge after all (FinishFits looks every 20th of a second of its way): it ends here, she falls
+            b.Finish = 0; b.FinishTarget = -1; b.FinishLiftNow = 0; b.FinishGo = {0, 0};
+            b.Log(world, "finish broken off: she fell");
+            return;
+        }
         auto& w = mWraiths[b.FinishTarget];
         const float t = b.FinishTime;
-        const XMFLOAT3 S = b.FinishFrom, F = b.FinishFeet, u = b.FinishWay, r = b.FinishRight, up{0, 1, 0};
+        const XMFLOAT3 F = b.FinishFeet, u = b.FinishWay, r = b.FinishRight, up{0, 1, 0};
         const float R = b.FinishRadius, H = b.FinishHeight, K = b.FinishKnee, ground = F.y - p.Position.y;
-        const float contact = b.FinishBlowAt[0], hopFrom = (std::max)(2.05f, contact + spec.Falls + .1f), hop = .45f;
+        const float contact = b.FinishBlowAt[0], hopFrom = PlungeHopFrom(contact), hop = PlungeHop;
         const auto turnTo = [](float from, float to, float s) { return from + std::remainder(to - from, XM_2PI) * s; };
-        const auto lerp = [](XMFLOAT3 a, XMFLOAT3 c, float s) { return Add(a, Mul(Sub(c, a), s)); };
-        // where she is (the world's x and z), how she faces and how high her picture is lifted, 'at' s into it
-        const auto plan = [&](float at, XMFLOAT3& place, float& yaw, float& lift)
-        {
-            const float yawU = b.FinishYawTo;
-            if (which == 1)
-            {   // in (a dash), the cuts, and past (round its side, facing on: her back to it)
-                const XMFLOAT3 &A = b.FinishA, &C = b.FinishB, &E = b.FinishC;
-                const float s = Smooth(.66f, .96f, at);
-                place = at <= .66f ? lerp(S, A, Smooth(.04f, .38f, at)) : Curve(A, C, E, s);
-                const XMFLOAT3 go = CurveWay(A, C, E, s);
-                const float along = .4f * (Smooth(.62f, .72f, at) - Smooth(.92f, 1.08f, at));
-                yaw = turnTo(turnTo(b.FinishYawFrom, yawU, Smooth(0, .2f, at)), std::atan2(go.x, go.z), along);
-                lift = b.FinishLiftMost * (Smooth(.30f, .44f, at) - Smooth(.62f, .80f, at));
-            }
-            else if (which == 2)
-            {   // the leap onto it, riding it down (PlungeRide), and back off it
-                yaw = turnTo(b.FinishYawFrom, yawU, Smooth(0, .25f, at));
-                if (at < contact)
-                {
-                    place = lerp(S, b.FinishA, Smooth(.30f, contact - .04f, at));
-                    lift = (std::max)(0.f, b.FinishLiftMost + ground) * Smooth(.36f, .80f, at);
-                }
-                else if (at < hopFrom) { b.PlungeRide(at, place, lift); lift += ground; }
-                else
-                {
-                    XMFLOAT3 off; float high;
-                    b.PlungeRide(hopFrom, off, high);
-                    const float x = std::clamp((at - hopFrom) / hop, 0.f, 1.f), s = x * x * (3 - 2 * x);
-                    place = lerp(off, b.FinishLand, s);
-                    lift = (high + ground) * (1 - s) + (.3f + .1f * LenXZ(Sub(b.FinishLand, off))) * std::sin(XM_PI * x);
-                }
-            }
-            else
-            {   // the slide past it, at the slide's own pace; up and round to the blow
-                const XMFLOAT3 &A = b.FinishA, &C = b.FinishB;
-                if (at <= .78f)
-                {
-                    const float s = SlideShare(at);
-                    place = Curve(S, C, A, s);
-                    const XMFLOAT3 go = CurveWay(S, C, A, s);
-                    yaw = turnTo(b.FinishYawFrom, std::atan2(go.x, go.z), Smooth(0, .12f, at));
-                }
-                else
-                {
-                    place = A;
-                    const XMFLOAT3 go = CurveWay(S, C, A, 1);
-                    yaw = turnTo(std::atan2(go.x, go.z), b.FinishYawEnd, Smooth(.78f, 1.12f, at));
-                }
-                const float kill = b.FinishDeathAt;
-                lift = (std::max)(0.f, b.FinishLiftMost + ground) * (Smooth(kill - .34f, kill - .04f, at) - Smooth(kill + .06f, kill + .42f, at));
-            }
-        };
+        // where she is (the world's x and z), how she faces and how high her picture is lifted, now and a frame on
         XMFLOAT3 now{}, next{}; float yaw = p.Yaw, lift = 0, yawNext = 0, liftNext = 0;
         constexpr float Step = 1 / 60.f, Settle = .08f;
-        plan(t, now, yaw, lift);
-        plan(t + Step, next, yawNext, liftNext);
+        FinishPlan(t, ground, now, yaw, lift);
+        FinishPlan(t + Step, ground, next, yawNext, liftNext);
         p.Yaw = std::remainder(yaw, XM_2PI);
         b.FinishLiftNow = (std::max)(0.f, lift);
         b.FinishGo = {0, 0};

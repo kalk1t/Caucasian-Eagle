@@ -75,6 +75,12 @@ namespace CaucasianEagle
         bool mTour = false; std::vector<TourStop> mTourStops; int mTourAt = -1, mTourPhase = 0, mTourBad = 0, mTourWoke = 0, mTourCalm = 0, mTourAgain = 0;
         float mTourClock = 0, mTourDamage = 0, mTourOff = 0, mTourFirst = 0; DirectX::XMFLOAT3 mTourStand{};
         std::string mTourNote, mTourRow; std::filesystem::path mTourShots; std::wstring mTourShot;
+        // the finishers' tour (CAUCASIAN_EAGLE_TOUR_FINISH=1 with the creatures' tour): her finishing kill of every creature
+        // of the road where it stands; the one she finishes, which finisher, how many of each, none with room, nowhere
+        // to stand, she off her ground
+        bool mTourFinish = false, mTourFinShot = false; int mTourVictim = -1, mTourVictimKind = 0, mTourKind = 0;
+        int mTourFinPlayed[4] = {0, 0, 0, 0}, mTourFinNoRoom = 0, mTourFinNoPlace = 0, mTourFinFell = 0, mTourFinOut = 0;
+        float mTourFinClock = 0, mTourFinStart = 0, mTourFinAir = 0, mTourVictimY = 0; std::string mTourVictimId;
         Renderer* mRenderer = nullptr;
         std::array<bool, 256> mKeys{};
         bool mPaused = false, mFlying = false, mWasDead = false;

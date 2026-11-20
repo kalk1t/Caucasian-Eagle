@@ -261,7 +261,7 @@ A blow of hers that would kill a creature of the road, while she is on foot and 
 | **Eagle's Plunge** | She crouches and springs, her wings beating, drives both swords into it under its neck and rides it down onto its back; then she pulls them out and springs back off it |
 | **Gale Slide** | She slides past it low, her sword through its legs, and it goes down on its knees; she rises, turns her back to it, and her sword comes down behind her through its neck (a giant's: into its shoulder) |
 
-A finishing kill takes two to three seconds and nothing can hurt her while it plays; its blows freeze the moment and slow it a little. Each kill is fitted to the creature's size: her blades go where its neck and chest are, and at a tall one she leaps into the blow. One creature is doomed at a time; a doomed creature she does not come to within 3 seconds falls by itself. Bosses, and anything killed from afar or while she flies, die at once as before.
+A finishing kill takes two to three seconds and nothing can hurt her while it plays; its blows freeze the moment and slow it a little. Each kill is fitted to the creature's size: her blades go where its neck and chest are, and at a tall one she leaps into the blow. One creature is doomed at a time; a doomed creature she does not come to within 3 seconds falls by itself. A finishing kill is played only where its way has room: at the edge of a drop or against a wall she takes another way round, or another kill, and where none of the three has room her blow kills the creature at once. Bosses, and anything killed from afar or while she flies, die at once as before.
 
 ## The screen
 
