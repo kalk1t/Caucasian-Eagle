@@ -4331,6 +4331,7 @@ namespace Doorways
                     mHitStop = (std::max)(mHitStop, k ? .09f : .05f);
                     mShake = (std::max)(mShake, k ? .16f : .1f);
                     b.Log(world, k ? "finish cut 2" : "finish cut 1");
+                    CaucasianEagle::Sound::Play("nyxara/swing", .55f, .15f);
                     CaucasianEagle::Sound::Play("nyxara/cut", 1.f, .06f);
                     CaucasianEagle::Sound::Play("combat/hit", .7f, .1f);
                 }
@@ -4351,6 +4352,7 @@ namespace Doorways
                 for (auto& wing : b.WingSpring) wing.FlapGo += 3.2f;
                 RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.8f, {.62f, .56f, .48f, 1}, .4f);
                 CaucasianEagle::Sound::Play("nyxara/effort", .9f, .08f);
+                CaucasianEagle::Sound::Play("nyxara/wing", .75f);
                 CaucasianEagle::Sound::Play("nyxara/dash", .6f, .1f);
             }
             if (!b.FinishBlown[0] && passed(contact))
@@ -4371,6 +4373,7 @@ namespace Doorways
                 b.PlungeRide(hopFrom, place, high, &anchor);
                 b.Spray(anchor, {0, 1, 0}, 26, 3.5f, F.y);
                 for (auto& wing : b.WingSpring) wing.FlapGo += 3.f;
+                CaucasianEagle::Sound::Play("nyxara/wing", .6f);
                 CaucasianEagle::Sound::Play("nyxara/dash", .7f, .1f);
                 CaucasianEagle::Sound::Play("nyxara/effort", .7f, .1f);
             }
@@ -4392,6 +4395,7 @@ namespace Doorways
                 b.Spray(legs, Add(r, Mul(u, .5f)), 14, 3.f, F.y);
                 w.Flash = .16f;
                 mHitStop = (std::max)(mHitStop, .04f); mShake = (std::max)(mShake, .1f);
+                CaucasianEagle::Sound::Play("nyxara/swing", .5f, .15f);
                 CaucasianEagle::Sound::Play("nyxara/cut", .95f, .06f);
                 CaucasianEagle::Sound::Play("creatures/hurt", .85f, .1f);
             }
@@ -4400,6 +4404,7 @@ namespace Doorways
             {   // (a tall one) her wings beat her up into the blow
                 b.FinishBlown[1] = true;
                 for (auto& wing : b.WingSpring) wing.FlapGo -= 2.8f;
+                CaucasianEagle::Sound::Play("nyxara/wing", .65f);
                 CaucasianEagle::Sound::Play("nyxara/dash", .6f, .1f);
             }
             if (!b.FinishKilled && passed(b.FinishDeathAt))
@@ -4412,6 +4417,7 @@ namespace Doorways
                 b.Spray(b.FinishStrike, Add(Mul(way, .6f), {0, .5f, 0}), 46, 5.f, F.y);
                 mHitStop = (std::max)(mHitStop, .1f); mShake = (std::max)(mShake, .3f);
                 slow(.45f, .35f);
+                CaucasianEagle::Sound::Play("nyxara/swing_heavy", .6f, .1f);
                 CaucasianEagle::Sound::Play("nyxara/cut", 1.f, .05f);
                 CaucasianEagle::Sound::Play("combat/blow", .8f, .08f);
             }

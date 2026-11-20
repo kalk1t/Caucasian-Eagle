@@ -19,8 +19,8 @@ Running a script again overwrites its files, including any recording saved under
 
 | Name | Files | Plays when |
 |---|---|---|
-| `swing` | 3 | A sword slash or a combo starts |
-| `swing_heavy` | 2 | The charged slash |
+| `swing` | 3 | A sword slash or a combo starts; the cuts of her finishing kills |
+| `swing_heavy` | 2 | The Gale Slide's killing blow, through the neck (it was the charged slash's) |
 | `dash` | 1 | Talon Dash (first skill) |
 | `skill` | 2 | The second and third skill and the leaping combos |
 | `guard` | 1 | The two-sword barrier goes up |
@@ -29,7 +29,7 @@ Running a script again overwrites its files, including any recording saved under
 | `hurt` | 2 | Her voice when a blow lands on her |
 | `death` | 1 | Her voice when she falls |
 | `step` | 4 | Every 1.7 m she walks on the ground |
-| `wing` | 2 | She leaves the ground |
+| `wing` | 2 | She leaves the ground; her wings beat in a finishing kill |
 | `land` | 1 | She comes back to the ground |
 | `flight` | 1, loop | While she is in the air |
 | `evolve` | 1 | She reaches a new form |
