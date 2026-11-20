@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy to signing.local.json (git-ignored) and fill ONE mode. No passwords or keys go here: a certificate stays in the Windows store or on its token; Artifact Signing signs in through Azure.",
+  "Mode": "certificate",
+  "Thumbprint": "<SHA-1 thumbprint of the code-signing certificate in Cert:\\CurrentUser\\My>",
+  "TimestampUrl": "<the RFC 3161 timestamp URL of the certificate's CA>",
+  "_artifact_example": {
+    "Mode": "artifact",
+    "Dlib": "C:\\Tools\\Microsoft.ArtifactSigning.Client\\bin\\x64\\Azure.CodeSigning.Dlib.dll",
+    "Metadata": "C:\\Tools\\artifact-signing-metadata.json",
+    "TimestampUrl": "http://timestamp.acs.microsoft.com"
+  }
+}

@@ -29,6 +29,7 @@
 // since stand on the way again, the jars she broke since are whole.
 namespace CaucasianEagle
 {
+    class Ui;
     // The switch or the environment variable asks for the Eagle's Ascent (main.cpp registers the module).
     bool EaglesAscentRequested();
 
@@ -77,6 +78,7 @@ namespace CaucasianEagle
         // tufts drawn, frame time), then she runs at trunks beside the way and must not go into or through any.
         // nature.tsv beside the evidence; NATURE_PASS or NATURE_FAIL.
         void Nature(Doorways::DoorwaysGameHost& host, float dt);
+        void NatureMenu(Doorways::DoorwaysGameHost& host);
         bool mNature = false; int mNatPhase = 0, mNatPick = 0, mNatBad = 0, mNatFrames = 0, mNatThrough = 0, mNatReached = 0;
         float mNatClock = 0, mNatMs = 0, mNatClosest = 0;
         std::vector<DirectX::XMFLOAT3> mNatSpots; std::vector<EaglesAscent::Trunk> mNatTrunks; DirectX::XMFLOAT3 mNatFrom{};
@@ -116,6 +118,11 @@ namespace CaucasianEagle
         Renderer* mRenderer = nullptr;
         std::array<bool, 256> mKeys{};
         bool mPaused = false, mFlying = false, mWasDead = false;
+        // Her menu (Esc, 2026-11-20, the owner: Esc gave "the testing lab options"): the road's panel, gold and ink, its rows
+        // chosen with W / S or the mouse; Settings opens the game's own settings window (Settings.h), as on the road.
+        static constexpr int MenuRows = 8;   // continue, Nyxara, the mountain, settings, last nest, new climb, start screen, leave
+        int mMenuRow = 0; float mMenuFade = 0, mMouseX = -1, mMouseY = -1; bool mMouseWas = false, mFocused = true;
+        void DrawMenu(Ui& ui) const;
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;
         std::wstring mNoticeTitle, mNoticeLine; float mNotice = 0;

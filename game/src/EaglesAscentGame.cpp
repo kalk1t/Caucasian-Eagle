@@ -18,6 +18,7 @@
 #include "GameUi.h"
 #include "NyxaraHud.h"
 #include "NyxaraKit.h"
+#include "Settings.h"
 #include "Sound.h"
 #include "StartScreen.h"
 #include "Renderer.h"
@@ -460,6 +461,7 @@ namespace CaucasianEagle
             if (mNatClock > 6.3f) { ++mNatPick; mNatClock = 0; mNatMs = 0; mNatFrames = 0; }
             return;
         }
+        if (mNatPhase == 3) { NatureMenu(host); return; }
         if (mNatPhase == 2)
         {   // trees: 3.5 m from a trunk's bark, running at it for 2.4 s
             if (mNatPick >= static_cast<int>(mNatTrunks.size()))
@@ -468,9 +470,7 @@ namespace CaucasianEagle
                 if (mNatTrunks.empty()) { ++mNatBad; row("NO_TRUNKS"); }
                 if (mMap.TreesHold && mNatThrough > 0) ++mNatBad;
                 row(std::string("trees_hold\t") + (mMap.TreesHold ? "yes" : "no (CAUCASIAN_EAGLE_TREES=0: the baseline)"));
-                row(mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL\tbad=" + std::to_string(mNatBad));
-                Evidence(world, mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL");
-                mNature = false; PostQuitMessage(mNatBad == 0 ? 0 : 2);
+                mNatPhase = 3; mNatClock = 0;   // then her menu (Esc) and its settings window, pictured
                 return;
             }
             const auto& t = mNatTrunks[static_cast<size_t>(mNatPick)];
@@ -504,6 +504,25 @@ namespace CaucasianEagle
                 row(line.str());
                 ++mNatPick; mNatClock = 0;
             }
+        }
+    }
+
+    // (the nature test's last phase: her menu and its settings window open; tools\release\Save-GameWindow.ps1 pictures them)
+    void EaglesAscentGame::NatureMenu(DoorwaysGameHost& host)
+    {
+        auto& world = host.World;
+        const auto table = std::filesystem::path(mLog).parent_path() / "nature.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        if (mNatClock < .1f) { mPaused = true; mMenuRow = 3; }                      // Esc: her menu, Settings chosen
+        if (mNatClock > 1.f && mNatPick != 100 && mNatPick < 101) { mNatPick = 100; row(std::string("menu\topen=") + (mPaused ? "yes" : "no") + "\trows=" + std::to_string(MenuRows)); if (!mPaused) ++mNatBad; }
+        if (mNatClock > 4.f && mNatPick == 100) { mNatPick = 101; Settings::Open(); }   // Settings taken
+        if (mNatClock > 5.f && mNatPick == 101) { mNatPick = 102; row(std::string("settings\topen=") + (Settings::IsOpen() ? "yes" : "no")); if (!Settings::IsOpen()) ++mNatBad; }
+        if (mNatClock > 8.f && mNatPick == 102)
+        {
+            mNatPick = 103; Settings::Close(); mPaused = false;
+            row(mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL\tbad=" + std::to_string(mNatBad));
+            Evidence(world, mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL");
+            mNature = false; PostQuitMessage(mNatBad == 0 ? 0 : 2);
         }
     }
 
@@ -1005,13 +1024,63 @@ namespace CaucasianEagle
             kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
             return;
         }
-        if (session.EscapePressed) { session.EscapePressed = false; mPaused = !mPaused; }
+        // Esc: her menu (DrawMenu). Its settings window stands over it and has the keys while it is open.
+        mFocused = inputAllowed;
+        mMenuFade = std::clamp(mMenuFade + (mPaused ? 1.f : -1.f) * realDt / .15f, 0.f, 1.f);
+        const bool settings = Settings::IsOpen();
+        if (session.EscapePressed)
+        {
+            session.EscapePressed = false;
+            if (settings) Settings::Back();
+            else { mPaused = !mPaused; mMenuRow = 0; Sound::PlayUi(mPaused ? "ui/open" : "ui/close", .7f); }
+        }
+        session.FreeCursor = mPaused;   // the pointer shows and the mouse leaves the camera alone
+        if (!mPaused && settings) Settings::Close();
         if (mPaused)
         {
-            if (Press(VK_BACK, inputAllowed)) { mPaused = false; mMap.Visit(host, mMap.Checkpoint); Notify(BackTitle(), Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 3); }
-            if (Press(VK_RETURN, inputAllowed)) { mPaused = false; session.MenuRequest = DoorwaysGameSession::Request::MainMenu; }
-            if (Press('N', inputAllowed) && !mMap.Nests.empty()) { mPaused = false; NewClimb(host); }
-            if (Press('Q', inputAllowed)) session.MenuRequest = DoorwaysGameSession::Request::Exit;
+            if (!settings)
+            {
+                bool take = Press(VK_RETURN, inputAllowed) || Press(VK_SPACE, inputAllowed);
+                {   // the pointer: the row it moves over is chosen, a click takes it
+                    float mx = -1, my = -1; bool button = false;
+                    if (inputAllowed)
+                    {
+                        POINT point{};
+                        if (GetCursorPos(&point) && ScreenToClient(GetForegroundWindow(), &point)) { mx = static_cast<float>(point.x); my = static_cast<float>(point.y); }
+                        button = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+                    }
+                    const bool click = button && !mMouseWas, moved = std::abs(mx - mMouseX) + std::abs(my - mMouseY) > .5f;
+                    mMouseWas = button; mMouseX = mx; mMouseY = my;
+                    if (mx >= 0 && (moved || click))
+                    {
+                        const int hit = Pointer::Hit(Pointer::PauseRow, mx, my);
+                        if (hit >= 0)
+                        {
+                            if (hit != mMenuRow) { mMenuRow = hit; Sound::PlayUi("ui/move", .5f); }
+                            if (click) take = true;
+                        }
+                    }
+                }
+                const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
+                if (move != 0) { mMenuRow = (mMenuRow + move + MenuRows) % MenuRows; Sound::PlayUi("ui/move", .5f); }
+                if (take)
+                {
+                    using Request = DoorwaysGameSession::Request;
+                    switch (mMenuRow)
+                    {
+                    case 0: mPaused = false; break;
+                    case 1: mPaused = false; if (alive) { mGrowthOpen = true; Sound::PlayUi("ui/open", .6f); } break;
+                    case 2: mPaused = false; mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit); break;
+                    case 3: Settings::Open(); break;   // her menu stays open under it
+                    case 4: mPaused = false; mMap.Visit(host, mMap.Checkpoint); Notify(BackTitle(), Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 3); break;
+                    case 5: if (!mMap.Nests.empty()) { mPaused = false; NewClimb(host); } break;
+                    case 6: mPaused = false; session.MenuRequest = Request::MainMenu; break;
+                    default: session.MenuRequest = Request::Exit; break;
+                    }
+                    if (!mPaused) session.FreeCursor = false;
+                }
+            }
+            if (mNature) Nature(host, realDt);   // (the nature test pictures her menu: it goes on while she is paused)
             kit.SetInputBlocked(true);
             kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
             return;
@@ -1348,20 +1417,49 @@ namespace CaucasianEagle
             for (const auto& pl : mWayside.Places()) v.Places += pl.Found ? 1 : 0;
             Growth::Draw(ui, v);
         }
-        if (mPaused)
-        {
-            const bool nests = !mMap.Nests.empty();
-            const float w = 460 * s, h = (nests ? 194 : 170) * s, px = (ui.W - w) * .5f, py = (ui.H - h) * .45f;
-            ui.Rect(0, 0, ui.W, ui.H, {0, 0, 0, .35f});
-            ui.Rect(px, py, w, h, {.015f, .025f, .04f, .92f});
-            ui.Centered(L"PAUSED", ui.W * .5f, py + 18 * s, big, Palette::Gold);
-            ui.Centered(L"Esc   back to the climb", ui.W * .5f, py + 62 * s, body, Palette::Ink);
-            ui.Centered(nests ? L"Backspace   the last Eagle Nest she stood in" : L"Backspace   the last checkpoint", ui.W * .5f, py + 86 * s, body, Palette::Ink);
-            ui.Centered(L"Enter   the start screen", ui.W * .5f, py + 110 * s, body, Palette::Ink);
-            if (nests) ui.Centered(L"N   a new climb from the shore (forgets the save)", ui.W * .5f, py + 134 * s, body, Palette::Ink);
-            ui.Centered(L"Q   leave the game", ui.W * .5f, py + (nests ? 158 : 134) * s, body, Palette::Dim);
-        }
+        DrawMenu(ui);
+        Settings::Draw(ui, mFocused, false);
         return true;
+    }
+
+    // Her menu (Esc): the road's panel (Journey::DrawPause), with the climb's rows.
+    void EaglesAscentGame::DrawMenu(Ui& ui) const
+    {
+        if (mMenuFade <= 0) return;
+        using namespace Palette;
+        const float S = ui.S, a = mMenuFade;
+        constexpr float Width = 420, Row = 46, Gap = 5, Pad = 16, Head = 96, Foot = 44, Tiny = 1.55f, Small = 2.0f, Name = 2.6f;
+        struct Entry { const wchar_t* Label; const wchar_t* Note; };
+        const Entry entries[MenuRows] = {
+            {L"Continue the climb", L""}, {L"Nyxara", L"wings, swords, armour"}, {L"The mountain", L"seen from outside"},
+            {L"Settings", L"picture, sound, mouse"}, {L"Back to the last nest", L"her last nest"},
+            {L"A new climb", L"forgets the save"}, {L"To the start screen", L"H saves at nests"},
+            {L"Leave the game", L"H saves at nests"}};
+        const float w = Width * S, h = (Head + MenuRows * (Row + Gap) + Foot) * S;
+        const float x = (ui.W - w) * .5f, y = (ui.H - h) * .5f;
+        ui.Rect(0, 0, ui.W, ui.H, Black.Fade(.5f * a));
+        ui.Nine(HudArt::Panel, x, y, w, h, White.Fade(a));
+        ui.SpacedCentered(L"CAUCASIAN EAGLE", x + w * .5f, y + 16 * S, Tiny * S, 4 * S, Gold.Fade(a));
+        ui.Centered(L"The mountain waits", x + w * .5f, y + 34 * S, Name * S, Ink.Fade(a));
+        ui.Centered(L"Nothing moves while this is open.", x + w * .5f, y + 66 * S, Tiny * S, Dim.Fade(a));
+        float cy = y + Head * S;
+        for (int i = 0; i < MenuRows; ++i)
+        {
+            const bool selected = i == mMenuRow, off = i == 5 && mMap.Nests.empty();
+            const float cx = x + Pad * S, cw = w - 2 * Pad * S, ch = Row * S;
+            if (mPaused) Pointer::Add(Pointer::PauseRow, i, cx, cy, cw, ch);
+            ui.Rect(cx, cy, cw, ch, Well.Fade(a * (selected ? .92f : .55f)));
+            const Color edge = selected ? GoldLight.Fade(a * (.75f + .25f * std::sin(ui.Time * 4))) : Gold.Fade(a * .25f);
+            const float line = (selected ? 2 : 1) * S;
+            ui.Rect(cx, cy, cw, line, edge); ui.Rect(cx, cy + ch - line, cw, line, edge);
+            ui.Rect(cx, cy, line, ch, edge); ui.Rect(cx + cw - line, cy, line, ch, edge);
+            ui.Icon(HudArt::Diamond, cx + 20 * S, cy + ch * .5f, (selected ? 13 : 9) * S, (selected ? GoldLight : Faint).Fade(a));
+            const Color ink = off ? Faint : i >= 5 ? (selected ? Red : Dim) : (selected ? Ink : Dim);
+            ui.Text(entries[i].Label, cx + 40 * S, cy + (ch - ui.Height(Small * S)) * .5f, Small * S, ink.Fade(a));
+            ui.RightAligned(entries[i].Note, cx + cw - 14 * S, cy + (ch - ui.Height(Tiny * S)) * .5f, Tiny * S, (selected ? Dim : Faint).Fade(a));
+            cy += (Row + Gap) * S;
+        }
+        ui.Centered(L"W  S  or the mouse      ENTER  take      ESC  back", x + w * .5f, cy + 10 * S, Tiny * S, Dim.Fade(a));
     }
 
     // The placing model's creatures on their lines (Journey::SetMountainLines): the way is line 0, its points every

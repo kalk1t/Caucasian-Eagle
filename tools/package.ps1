@@ -13,11 +13,14 @@
 # tools\stage.ps1 does it, plus the executable and the Visual C++ runtime DLLs beside it, so the
 # game starts on a PC without Visual Studio.
 #
-# Usage: powershell -ExecutionPolicy Bypass -File tools\package.ps1 [-SkipBuild] [-Exe <path>] [-NoZip]
+# Usage: powershell -ExecutionPolicy Bypass -File tools\package.ps1 [-SkipBuild] [-Exe <path>] [-NoZip] [-Sign]
 #   -SkipBuild   use the executable already in build\stage\CaucasianEagle
 #   -Exe <path>  use this executable instead (it is packed as CaucasianEagle.exe); implies -SkipBuild
 #   -NoZip       only the folder and the installer
-param([switch]$SkipBuild, [string]$Exe, [switch]$NoZip)
+#   -Sign        sign the game before it is zipped, and the installer and its uninstaller while Inno Setup builds
+#                them (tools\release\Sign-Files.ps1 and its tools\release\signing.local.json); stops if any fails.
+#                Without it everything is unsigned and tools\release\Test-Release.ps1 fails the release.
+param([switch]$SkipBuild, [string]$Exe, [switch]$NoZip, [switch]$Sign)
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -67,6 +70,12 @@ foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
     Copy-Item (Join-Path $crt.FullName $dll) $out
 }
 
+$signer = Join-Path $PSScriptRoot 'release\Sign-Files.ps1'
+if ($Sign) {   # signed here, before the zip and the installer take it: nothing changes it afterwards
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $signer -Files (Join-Path $out 'CaucasianEagle.exe')
+    if ($LASTEXITCODE -ne 0) { throw "Signing CaucasianEagle.exe failed ($LASTEXITCODE)." }
+} else { Write-Warning 'UNSIGNED: CaucasianEagle.exe, the installer and the uninstaller are not signed (-Sign).' }
+
 $size = (Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
 Write-Host ("Folder: {0} ({1:N0} MB)" -f $out, $size)
 
@@ -90,7 +99,9 @@ $iscc = @(
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if ($iscc) {
-    & $iscc /Qp "/DAppVersion=$version" "/DSourceDir=$out" "/DOutputDir=$dist" (Join-Path $PSScriptRoot 'installer\CaucasianEagle.iss')
+    $signing = @()
+    if ($Sign) { $signing = @('/DSignInstaller=1', "/Scesign=powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$signer`" -Files `$f") }
+    & $iscc /Qp "/DAppVersion=$version" "/DSourceDir=$out" "/DOutputDir=$dist" @signing (Join-Path $PSScriptRoot 'installer\CaucasianEagle.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compile failed.' }
     $setup = Join-Path $dist "CaucasianEagle-$version-Setup.exe"
     Hash $setup

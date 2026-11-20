@@ -4,7 +4,7 @@
 ; %LOCALAPPDATA%\CaucasianEagle and are left in place on uninstall.
 
 #ifndef AppVersion
-  #define AppVersion "0.5.0"
+  #define AppVersion "0.5.1"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\CaucasianEagle-" + AppVersion + "-win64"
@@ -34,6 +34,18 @@ UninstallDisplayIcon={app}\CaucasianEagle.exe
 SetupIconFile=..\..\game\CaucasianEagle.ico
 AppPublisherURL=https://github.com/kalk1t/Caucasian-Eagle
 VersionInfoVersion={#AppVersion}.0
+; who made it, in the installer's own file properties (release audit 2026-11-20: v0.5's showed no copyright)
+VersionInfoCompany=Giorgi Samkharadze
+VersionInfoDescription=Caucasian Eagle Setup
+VersionInfoProductName=Caucasian Eagle
+VersionInfoProductVersion={#AppVersion}
+VersionInfoCopyright=(C) 2026 Giorgi Samkharadze
+AppCopyright=(C) 2026 Giorgi Samkharadze
+#ifdef SignInstaller
+; tools\package.ps1 -Sign: Inno Setup signs the installer and its uninstaller with tools\release\Sign-Files.ps1
+SignTool=cesign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
