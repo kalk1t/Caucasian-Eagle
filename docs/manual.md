@@ -178,8 +178,8 @@ The road is the main street of seven Georgian cities. Walking through a city gat
 
 A mountain to climb on its own, apart from the road: from the sea to Amiran's court at 4,200 m, on foot and on her wings. Start it with **Play-EaglesAscent.cmd** (or `CaucasianEagle.exe --eagles-ascent`). The start screen is the game's own; there are no creatures and nothing is saved.
 
-- **The way up** is a path of streets, stairs and terraces about 7.6 km long. Where it needs wings the place is marked when you come near: *the road goes on above* (a cliff: R, then Space to climb), *the road is broken* (a gap: R and fly across), *a cleft in the rock* (fly through it). Rising air carries her up where it is marked; a crosswind pushes her on one ridge.
-- **R** takes her up from the ground; in flight **R** lands her wherever she is (she sinks until she stands). There is no ceiling here: fly as high as you like. Rock stops her in flight.
+- **The way up** is a path of streets, stairs and terraces about 7.6 km long. Where it needs wings the place is marked when you come near: *the road goes on above* (a cliff: take wing, then Space to climb), *the road is broken* (a gap: take wing and fly across), *a cleft in the rock* (fly through it). Rising air carries her up where it is marked; a crosswind pushes her on one ridge.
+- **Space** held 1.5 seconds on foot takes her up (a tap jumps); her wings carry her 30 seconds, then she falls, and on the ground they fill again in 20. In flight **R** lands her wherever she is (she sinks until she stands). There is no ceiling here: fly as high as you like. Rock stops her in flight.
 - **Checkpoints**: the shore, and the terraces at the village square, the forest clearing, the cloud-line rest, the temple balcony, the snow-line gate and the summit court. Standing on one makes it the place you come back to. The bar at the right shows how high she is and where the checkpoints are.
 - **Falling**: into the sea, or onto land away from the path (where there is no ground to stand on), brings her back to the last checkpoint. **Backspace** brings her back there at any time.
 - **Esc** pauses: Esc goes on climbing, Backspace returns to the last checkpoint, Enter goes to the start screen, Q leaves the game.
@@ -188,7 +188,7 @@ A mountain to climb on its own, apart from the road: from the sea to Amiran's co
 
 | Input | What happens |
 |---|---|
-| R, walking | Nyxara takes wing: she rises 6 m in 3 seconds and is flying. The key list at the bottom right shows what R will do (**FLY** or **LAND**). |
+| Space held, walking | Held 1.5 seconds, Nyxara takes wing and is flying (a tap jumps). Her wings carry her 30 seconds (the thin bar under her health); when they are spent she falls. On the ground they fill again in 20 seconds. |
 | W A S D, flying | **W** flies where the camera looks: look up with the mouse and she climbs, look down and she dives, look level (the view the game begins with) and she flies level. Going forward she leans along her flight like an eagle, wings held wide; with no key she hovers. A, S and D slide her sideways and back. She can climb 45 m above where she took off. Flying is a way of going, not a height: she stays flying when she fights, when she touches the ground and when a window is open. Resting on the ground in flight, look up and press W and she lifts again. |
 | W A S D, walking | She goes on foot at an easy jog (3.2 m/s), her back low and her wings half open, beating with her stride. Hold **Shift** to run (5.4 m/s), **Ctrl** to stalk slowly (1.4 m/s). Her legs keep pace with the ground at each. |
 | Shift (hold) | Walking: run. Flying: wing boost, much faster, with a trail of feathers. |

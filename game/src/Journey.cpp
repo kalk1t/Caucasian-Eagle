@@ -3172,7 +3172,7 @@ namespace CaucasianEagle
             const bool pressed = (key && !mModeKey) || asked;
             mModeKey = key; mLandAsk = false;
             if (flying && !mFlying) Notify(HudArt::IconWings, Palette::Silver, L"IN FREE FLIGHT", L"W flies where you look. Her wings last 30 seconds. Come down low, then R lands.", 5);
-            // (R no longer takes her up: Space held 3 s does, and her flying energy lasts 30 s: NyxaraKit. Owner, 2026-11-18.)
+            // (R no longer takes her up: Space held 1.5 s does (3 s until 2026-11-19), and her flying energy lasts 30 s: NyxaraKit. Owner, 2026-11-18.)
             if (pressed && flying && !mLanding)
             {
                 if (height <= FlightLandReach || asked) { mLanding = true; mLandTime = FlightLandSeconds; Sound::Play("nyxara/wing", .8f); }
@@ -3181,7 +3181,7 @@ namespace CaucasianEagle
             if (!flying)
             {
                 session.FreeFlightEnd = false;
-                if (mFlying) { Sound::Play("nyxara/land", .6f); Notify(HudArt::IconWings, Palette::Silver, L"ON FOOT", L"Shift runs; Ctrl walks; Space jumps. Hold Space 3 seconds to fly.", 4); }
+                if (mFlying) { Sound::Play("nyxara/land", .6f); Notify(HudArt::IconWings, Palette::Silver, L"ON FOOT", L"Shift runs; Ctrl walks; Space jumps. Hold Space 1.5 seconds to fly.", 4); }
                 mLanding = false; session.FreeFlightLandSpeed = 0;
             }
             else if (mLanding)

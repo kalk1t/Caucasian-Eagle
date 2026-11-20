@@ -104,7 +104,8 @@ namespace Doorways
         // Flying is a limited resource (owner, 2026-11-18). Space held FlightHoldSeconds on foot takes her up; she can
         // fly FlightEnergySeconds on full energy; out of it, gravity brings her down (the Fall clip) and she lands on
         // foot. On the ground it comes back in FlightRefillSeconds. Unattended runs (the tests) are not limited.
-        static constexpr float FlightHoldSeconds = 3, FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
+        // (FlightHoldSeconds 3 until 2026-11-19; the owner: "reduce flying uptime from 3 seconds to 1.5s")
+        static constexpr float FlightHoldSeconds = 1.5f, FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
         float FlightEnergy() const { return mFlightEnergy; }                    // 0..1
         float FlightCharge() const { return mFlightHold / FlightHoldSeconds; }  // 0..1: how far the take-off hold has come
         bool Falling() const { return mFalling; }

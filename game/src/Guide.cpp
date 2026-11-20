@@ -24,7 +24,7 @@ namespace CaucasianEagle::Guide
               {L"Saving, dying", L"The game saves by itself, and F8 saves where you stand. If you fall, you wake where it was last saved."},
               {L"F9, held", L"Begins the whole journey again. Everything won on the road is lost."}}},
             {L"MOVING AND KEYS", L"Keyboard and mouse. An Xbox-style controller works too; its buttons are in the manual.",
-             {{L"Space, held", L"Held for three seconds on foot, she takes off. Her wings carry her for 30 seconds (the thin bar under her health); when they are spent she falls. On the ground they rest and the bar fills again."},
+             {{L"Space, held", L"Held for a second and a half on foot, she takes off. Her wings carry her for 30 seconds (the thin bar under her health); when they are spent she falls. On the ground they rest and the bar fills again."},
               {L"R", L"In flight, close to the ground: she lands and walks. The landing takes three seconds."},
               {L"W A S D", L"W goes the way she faces, S steps back, A and D turn her. Flying: the mouse tips her up and down. She fights in both."},
               {L"Mouse", L"Turns the view. In her windows it is a pointer: point at a row or a card and click it."},
