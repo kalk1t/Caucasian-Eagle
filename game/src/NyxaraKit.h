@@ -116,6 +116,9 @@ namespace Doorways
                 const float bent = (std::min)(KneelShin * std::clamp(kneel, 0.f, 1.f), 1.5707963f);
                 return knee * (1 - std::cos(bent));
             }
+            // Of its Linger, the seconds its body lies once her kill of it is over (or once it is down, fallen on its
+            // own); then the journey fades it. The Character Lab's stations take it away sooner (UpdateCreatureStations).
+            static constexpr float LiesAfter = 1.1f;
         };
         struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
         // K1 F, K2 V, C K3. (Q and G are kept for the test pilot's scripts; they do nothing now.)

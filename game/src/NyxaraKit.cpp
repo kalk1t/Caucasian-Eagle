@@ -97,7 +97,7 @@ namespace Doorways
         constexpr float CastAirRange = 3, CastAirHeight = .35f, CastAirSink = 9;
         constexpr float SwordReach = 1.7f, JumpReach = 2.2f, SwordArc = FrontArc;
         constexpr int CutDamage = 45, LastDamage = 80, JumpDamage = 110;
-        constexpr float SteerRate = 90.f;    // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it)
+        constexpr float SteerRate = 110.f;   // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it, 90; 2026-11-20: "i want to increase little bit")
         constexpr float BackSpeed = 1.25f;   // metres a second stepping backwards
         // The Jump clip (Mixamo's Running Jump as build_from_mixamo.py leaves it, 0.9 s), measured from the clip: she
         // leaves the ground at its start, is at the top at JumpApex, her first foot is down again at JumpLand; falling
@@ -180,7 +180,7 @@ namespace Doorways
         // then over in DoomFall s. A dead body lies FallenLies s after it is down, then fades; down, it lies FallenTilt
         // radians from upright (the rest of the way it is raised onto the ground by its owner).
         constexpr float DoomSeconds = 3.f, FinishReach = 5.5f, FinishHigh = 1.6f;
-        constexpr float DoomKneel = .4f, DoomFall = .55f, FallenLies = 1.1f, FallenTilt = 1.45f;
+        constexpr float DoomKneel = .4f, DoomFall = .55f, FallenLies = NyxaraKit::Wraith::LiesAfter, FallenTilt = 1.45f;
         // Each finisher: its name (shown as it begins), its clip (MakeFinishes), how long it lasts; when its blows land
         // (s into it; < 0 none), when the creature dies and begins to fall, and how long its fall takes. Talon Cross:
         // a dash in, two cuts crossing on it (Attack_R1's and Attack_L1's, where their blades go fastest), and past it

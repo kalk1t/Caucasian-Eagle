@@ -1737,21 +1737,25 @@ namespace CaucasianEagle
         }
     }
 
-    // A station creature that dies is seen dead for StationDeathSeconds, is gone for StationAwaySeconds and then
-    // stands in its place again.
-    constexpr float StationDeathSeconds=.55f, StationAwaySeconds=5.f;
+    // A station creature that dies lies where it fell while her kill of it lasts (the kit's Linger, less the while the
+    // game lets a body lie after it: Wraith::LiesAfter), sinks away over StationDeathSeconds and stands in its place
+    // again StationBackSeconds after her kill of it was over, or after it died where there was none (the owner,
+    // 2026-11-20: "let monsters die and respawn after 1 sec in character-lab, i want to test finishers"; it lay as long
+    // as in the game and was gone 5 s more).
+    constexpr float StationDeathSeconds=.55f, StationBackSeconds=1.f, StationAwaySeconds=StationBackSeconds-StationDeathSeconds;
 
     void Journey::UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks)
     {
         if(!mCreatureStations)return;
         mTime+=dt;
-        {   // A station creature dies in its place and is back at once. Its death is kept away from OnDeath: that
-            // pays gold, drops charms and writes the journey's save, none of which a test fixture may do.
+        {   // A station creature dies in its place and stands there again (StationBackSeconds). Its death is kept away
+            // from OnDeath: that pays gold, drops charms and writes the journey's save, none of which a test fixture may do.
             auto& all=GetNyxaraKit().Enemies();
             for(size_t i=0;i<mMonsters.size();++i)
             {
                 auto& e=all[i];auto& m=mMonsters[i];
                 e.Flash=std::max(0.f,e.Flash-dt);
+                if(i==0){e.Health=e.MaxHealth;e.Alive=true;continue;}   // the training dummy only flinches (her blows may take health)
                 if(m.Dying)
                 {
                     if(!attacks)m.Death-=dt;                 // (UpdateMonsters counts it down otherwise)
@@ -1763,8 +1767,9 @@ namespace CaucasianEagle
                     }
                 }
                 else if(m.Active && (!e.Alive || e.Health<=0))
-                {   // (finished by her, it lies where it fell first: Wraith::Linger)
-                    e.Alive=false;e.Health=0;m.Dying=true;m.Death=StationDeathSeconds+std::clamp(e.Linger,0.f,6.f)+StationAwaySeconds;m.Windup=-1;m.Lunge=0;m.Slam=0;
+                {   // (finished by her, it lies where it fell until her kill of it is over: its Linger, less LiesAfter)
+                    e.Alive=false;e.Health=0;m.Dying=true;
+                    m.Death=std::max(0.f,std::clamp(e.Linger,0.f,6.f)-NyxaraKit::Wraith::LiesAfter)+StationBackSeconds;m.Windup=-1;m.Lunge=0;m.Slam=0;
                     m.Rush=0;m.Emit=0;m.Evade=0;m.EvadeIn=-1;m.Leap=0;
                 }
             }

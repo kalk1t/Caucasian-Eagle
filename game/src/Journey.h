@@ -64,7 +64,7 @@ namespace CaucasianEagle
         void UpdateCreatureStations(WorldState& world, CombatSystem& combat, float dt, bool attacks=true);
         // A blow from 'from', facing 'yaw': every station creature within reach (plus its own radius) and within
         // arcDegrees to either side loses 'damage' health. At no health it dies where it stands and stands there
-        // again at once (UpdateCreatureStations). The training dummy only flinches. Returns the creatures struck.
+        // again 1 s after (UpdateCreatureStations). The training dummy only flinches. Returns the creatures struck.
         int StrikeCreatureStations(const DirectX::XMFLOAT3& from, float yaw, float reach, float arcDegrees, int damage);
         void DrawCreatureStations(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         std::vector<CreatureStation> CreatureStations() const;
