@@ -36,14 +36,22 @@ if ($Picture) {
     $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
     $shot = Join-Path $Out ("screen-" + [IO.Path]::GetFileNameWithoutExtension($File) + ".png"); $bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()
 }
-# what opened: the installer's own window (no warning stood before it) or only SmartScreen's (it holds the file back)
-$new = Get-Process | Where-Object { $before -notcontains $_.Id -and $_.StartTime -ge $started.AddSeconds(-1) } | Select-Object Id, ProcessName, MainWindowTitle
+# what opened: the installer's own window (no warning stood before it) or only SmartScreen's (it holds the file back).
+# Only the copy's own processes (its image, and everything started from it) and SmartScreen's count; any other program
+# that happened to start meanwhile on this PC is none of the test's business and is never touched (2026-11-20: the
+# first version took every new process for the installer's and stopped them all).
+$all = @(Get-CimInstance Win32_Process | Where-Object { $before -notcontains [int]$_.ProcessId })
+$ours = New-Object 'System.Collections.Generic.HashSet[int]'
+foreach ($c in $all) { if ($c.ExecutablePath -and [IO.Path]::GetFullPath($c.ExecutablePath) -eq [IO.Path]::GetFullPath($copy)) { [void]$ours.Add([int]$c.ProcessId) } }
+do { $grew = $false; foreach ($c in $all) { if (-not $ours.Contains([int]$c.ProcessId) -and $ours.Contains([int]$c.ParentProcessId)) { [void]$ours.Add([int]$c.ProcessId); $grew = $true } } } while ($grew)
+$new = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $ours.Contains($_.Id) -or ($_.ProcessName -eq 'smartscreen' -and $before -notcontains $_.Id) } |
+    Select-Object Id, ProcessName, MainWindowTitle)
 $report = [ordered]@{
     File = (Split-Path $File -Leaf); Sha256 = (Get-FileHash -LiteralPath $copy -Algorithm SHA256).Hash.ToLower()
     Mark = (Get-Content -LiteralPath $copy -Stream Zone.Identifier) -join ' | '
     Started = $started.ToString('o'); Picture = $shot
     NewProcesses = @($new | ForEach-Object { "$($_.ProcessName) [$($_.MainWindowTitle)]" })
-    Verdict = $(if (@($new | Where-Object { $_.ProcessName -notin 'smartscreen', 'dllhost', 'conhost' }).Count -gt 0) { 'OPENED: the file ran with no warning before it' } elseif (@($new | Where-Object ProcessName -eq 'smartscreen').Count) { 'HELD: SmartScreen stood before the file (a warning)' } else { 'UNKNOWN' })
+    Verdict = $(if (@($new | Where-Object { $_.ProcessName -ne 'smartscreen' }).Count -gt 0) { 'OPENED: the file ran with no warning before it' } elseif (@($new | Where-Object ProcessName -eq 'smartscreen').Count) { 'HELD: SmartScreen stood before the file (a warning)' } else { 'UNKNOWN' })
 }
 $report | ConvertTo-Json | Set-Content (Join-Path $Out ("result-" + [IO.Path]::GetFileNameWithoutExtension($File) + ".json"))
 $report | Format-List | Out-String
@@ -54,3 +62,6 @@ foreach ($p in $new) {
     if ($proc.ProcessName -eq 'smartscreen') { [void]$proc.CloseMainWindow() }    # the warning: closed, never answered
     else { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }          # the opened copy (an installer's wizard)
 }
+# stopped at its first page, an installer has written nothing; say so if it had
+$app = Join-Path $env:LOCALAPPDATA 'Programs\Caucasian Eagle'
+if ((Test-Path $app) -and (Get-Item $app).LastWriteTime -ge $started) { Write-Warning "The game's install folder changed during the test: $app" }

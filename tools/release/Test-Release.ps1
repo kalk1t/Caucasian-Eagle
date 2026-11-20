@@ -23,10 +23,10 @@ $folder = Join-Path $dist "CaucasianEagle-$Version-win64"
 $zip = "$folder.zip"; $setup = Join-Path $dist "CaucasianEagle-$Version-Setup.exe"
 $exe = Join-Path $folder 'CaucasianEagle.exe'
 Check (Test-Path $exe) "the package folder holds CaucasianEagle.exe"
-if (Test-Path $exe) { Check ((Get-Item $exe).VersionInfo.ProductVersion -eq $Version) "CaucasianEagle.exe says $Version" }
+if (Test-Path $exe) { Check ((Get-Item $exe).VersionInfo.ProductVersion.Trim([char[]]" `0") -eq $Version) "CaucasianEagle.exe says $Version" }
 if (Test-Path $setup) {
     $vi = (Get-Item $setup).VersionInfo
-    Check ($vi.ProductVersion -eq $Version) "the installer says $Version"
+    Check ($vi.ProductVersion.Trim([char[]]" `0") -eq $Version) "the installer says $Version"
     Check ([bool]$vi.LegalCopyright -and [bool]$vi.CompanyName) "the installer names its publisher and copyright"
 }
 foreach ($file in $zip, $setup) {

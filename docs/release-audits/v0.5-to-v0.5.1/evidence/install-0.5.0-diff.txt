@@ -1,0 +1,6 @@
+﻿=> installed	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle	1141 files	3099 MB
+=> shortcut	%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Caucasian Eagle\Caucasian Eagle - The Road (0.4).lnk	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\CaucasianEagle.exe --road
+=> shortcut	%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Caucasian Eagle\Caucasian Eagle.lnk	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\CaucasianEagle.exe 
+=> shortcut	<Desktop>\Caucasian Eagle.lnk	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\CaucasianEagle.exe 
+=> uninstall	Caucasian Eagle	0.5.0	Giorgi Samkharadze	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\
+

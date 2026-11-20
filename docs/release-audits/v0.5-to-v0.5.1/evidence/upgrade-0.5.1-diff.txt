@@ -1,0 +1,2 @@
+﻿=> uninstall	Caucasian Eagle	0.5.1	Giorgi Samkharadze	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\
+<= uninstall	Caucasian Eagle	0.5.0	Giorgi Samkharadze	%USERPROFILE%\AppData\Local\Programs\Caucasian Eagle\

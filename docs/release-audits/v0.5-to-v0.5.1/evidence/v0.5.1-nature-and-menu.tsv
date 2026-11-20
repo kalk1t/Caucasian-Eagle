@@ -1,0 +1,41 @@
+﻿what	values
+map	trees=261650	grass=on
+picked	spots=8	trunks=24
+grass	0	y=58.7	tufts=7413	squares=42	frame_ms=16.7
+grass	1	y=285.9	tufts=11032	squares=46	frame_ms=16.7
+grass	2	y=331.8	tufts=21739	squares=76	frame_ms=16.7
+grass	3	y=1243.2	tufts=4748	squares=42	frame_ms=16.7
+grass	4	y=1753.1	tufts=5198	squares=53	frame_ms=16.7
+grass	5	y=2333.0	tufts=22579	squares=39	frame_ms=16.7
+grass	6	y=2460.0	tufts=9927	squares=74	frame_ms=16.7
+grass	7	y=3043.9	tufts=10287	squares=45	frame_ms=16.7
+trunk	0	r=0.33	h=15.90	closest=0.75	past=-0.75	held	at=-175.17,70.46,82.45
+trunk	1	r=0.38	h=14.00	closest=0.80	past=7.09	held_slid_round	at=-230.99,227.19,155.78
+trunk	2	r=0.53	h=25.40	closest=1.14	past=-1.14	held	at=-137.26,298.10,238.63
+trunk	3	r=0.58	h=23.00	closest=1.00	past=-1.00	held	at=-78.28,471.68,315.45
+trunk	4	r=0.32	h=15.40	closest=0.74	past=8.63	held_slid_round	at=-186.88,663.35,424.06
+trunk	5	r=0.77	h=39.00	closest=3.16	past=1.09	not_reached	at=-134.52,966.07,588.91
+trunk	6	r=0.54	h=26.00	closest=0.96	past=6.05	held_slid_round	at=-130.74,1095.41,693.28
+trunk	7	r=0.21	h=9.80	closest=0.63	past=8.74	held_slid_round	at=-253.66,1224.01,705.45
+trunk	8	r=0.76	h=38.50	closest=1.18	past=7.09	held_slid_round	at=-324.62,1469.65,828.38
+trunk	9	r=0.39	h=21.90	closest=0.81	past=7.77	held_slid_round	at=-497.37,1621.84,1019.68
+trunk	10	r=0.65	h=39.40	closest=1.07	past=-1.07	held	at=-146.06,1744.15,1083.70
+trunk	11	r=0.84	h=52.10	closest=1.26	past=6.17	held_slid_round	at=-74.59,1954.07,1162.32
+trunk	12	r=0.73	h=44.70	closest=1.15	past=-1.12	held	at=-161.58,2101.42,1274.68
+trunk	13	r=0.15	h=7.90	closest=0.57	past=8.51	held_slid_round	at=-123.39,2232.32,1366.18
+trunk	14	r=0.16	h=6.50	closest=0.58	past=6.86	held_slid_round	at=-253.44,2355.71,1369.08
+trunk	15	r=0.21	h=9.90	closest=0.63	past=7.36	held_slid_round	at=-405.83,2521.99,1557.00
+trunk	16	r=0.18	h=9.70	closest=0.60	past=7.97	held_slid_round	at=-402.00,2639.92,1600.44
+trunk	17	r=0.21	h=10.20	closest=0.63	past=3.63	held_slid_round	at=-399.23,2773.32,1697.69
+trunk	18	r=0.28	h=14.70	closest=0.70	past=8.69	held_slid_round	at=-431.95,3005.67,1848.21
+trunk	19	r=0.28	h=14.80	closest=0.70	past=6.67	held_slid_round	at=-258.93,3070.78,1821.71
+trunk	20	r=0.27	h=14.10	closest=0.69	past=6.35	held_slid_round	at=-297.93,3241.32,1904.01
+trunk	21	r=0.17	h=7.60	closest=0.59	past=7.61	held_slid_round	at=-73.00,3328.09,2015.23
+trunk	22	r=0.16	h=6.90	closest=0.58	past=9.00	held_slid_round	at=-161.73,3467.05,2091.55
+trunk	23	r=0.20	h=9.30	closest=0.62	past=7.72	held_slid_round	at=-134.44,3618.52,2214.56
+trees	tries=24	reached=23	through=0
+trees_hold	yes
+menu	open=yes	rows=8
+settings	open=yes
+NATURE_PASS
+

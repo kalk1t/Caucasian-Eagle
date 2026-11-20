@@ -13,7 +13,7 @@
 | Name | Value | Purpose | Def | Config? | Limits / dependencies |
 |---|---|---|---|---|---|
 | `GameTitle` | `"Caucasian Eagle"` | Window title | `GameConstants.h:9` | code | Also written in the installer script (`tools/installer/CaucasianEagle.iss`) |
-| `GameVersion` | `"0.5.0"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
+| `GameVersion` | `"0.5.1"` | Version | `GameConstants.h:40` | code | Read by `tools/package.ps1`; must match the git tag, the changelog and the numbers in `game/CaucasianEagle.rc` |
 | `UserDataFolder` | `"CaucasianEagle"` | Folder under `%LOCALAPPDATA%` for settings and saves | `GameConstants.h:11` | code | Changing it orphans existing players' settings and saves |
 | `StartSceneId` | `"RoadToAmirani"` | Scene loaded at start | `GameConstants.h:14` | code | `assets/Compiled/Scenes/<id>.dscene` must exist in the stage |
 | `HeroBundle` | `"Characters/Nyxara/EagleV1"` | Hero asset folder under `assets/Compiled` | `GameConstants.h:15` | code | Must contain the 31 clips listed in `Game::Prepare` |

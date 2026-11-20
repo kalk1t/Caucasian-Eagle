@@ -1,0 +1,10 @@
+﻿2026-11-20T21:38:17Z GET https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-Setup.exe
+200 final=https://release-assets.githubusercontent.com/github-production-release-asset/1453357932/5e134427-331e-424b-a7e6-d25c988e6c9d?sp=<redacted>&sv=<redacted>&sr=<redacted>&spr=https&se=<redacted>&rscd=<redacted>&rsct=<redacted>&skoid=<redacted>&sktid=<redacted>&skt=<redacted>&ske=<redacted>&sks=<redacted>&skv=<redacted>&sig=<redacted>&jwt=<redacted>&response-content-disposition=<redacted>&response-content-type=<redacted> redirects=1 type=application/octet-stream bytes=1904074852
+2026-11-20T21:39:08Z GET https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-Setup.exe.sha256
+200 final=https://release-assets.githubusercontent.com/github-production-release-asset/1453357932/9dac4b30-7c85-4b52-ac56-8360acc2b62f?sp=<redacted>&sv=<redacted>&sr=<redacted>&spr=https&se=<redacted>&rscd=<redacted>&rsct=<redacted>&skoid=<redacted>&sktid=<redacted>&skt=<redacted>&ske=<redacted>&sks=<redacted>&skv=<redacted>&sig=<redacted>&jwt=<redacted>&response-content-disposition=<redacted>&response-content-type=<redacted> redirects=1 type=application/octet-stream bytes=98
+2026-11-20T21:39:08Z GET https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-win64.zip
+200 final=https://release-assets.githubusercontent.com/github-production-release-asset/1453357932/3521d614-1f10-4123-a771-ae383ce8184a?sp=<redacted>&sv=<redacted>&sr=<redacted>&spr=https&se=<redacted>&rscd=<redacted>&rsct=<redacted>&skoid=<redacted>&sktid=<redacted>&skt=<redacted>&ske=<redacted>&sks=<redacted>&skv=<redacted>&sig=<redacted>&jwt=<redacted>&response-content-disposition=<redacted>&response-content-type=<redacted> redirects=1 type=application/octet-stream bytes=2130315028
+2026-11-20T21:40:09Z GET https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-win64.zip.sha256
+404 final=https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-win64.zip.sha256 redirects=0 type=text/plain; charset=utf-8 bytes=9
+2026-11-20T21:40:09Z done
+

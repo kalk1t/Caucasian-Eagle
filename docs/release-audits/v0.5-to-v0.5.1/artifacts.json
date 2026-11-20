@@ -1,0 +1,41 @@
+{
+  "audit": "v0.5 to v0.5.1 Windows trust audit",
+  "date": "2026-11-20",
+  "note": "SHA-256 of each file. Download URLs are the public GitHub links, without the temporary signed parameters of the CDN redirect. No binary is in Git; the untouched v0.5.0 reference copies are kept outside it, in build/release-audit/v0.5/original (git-ignored).",
+  "v0.5.0": {
+    "state": "published (GitHub release v0.5.0); not changed by this audit",
+    "tag": "v0.5.0",
+    "commit": "ec0542b",
+    "engine_commit": "8cfa05ffe8086791f59ad3fa0c57dd4f41848be7",
+    "downloaded_utc": "2026-11-20T21:38:17Z",
+    "public_links_rechecked_utc": "2026-11-20T22:02Z",
+    "release_assets": [
+      { "name": "CaucasianEagle-0.5.0-Setup.exe", "asset_id": 773409111, "size": 1904074852, "sha256": "5bb5677b276df1b4212415ebbd4c70ba0fc18be99616016543069709f868fc4f", "authenticode": "NotSigned", "url": "https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-Setup.exe", "equals_local_build": true },
+      { "name": "CaucasianEagle-0.5.0-Setup.exe.sha256", "asset_id": 773409113, "size": 98, "states": "5bb5677b276df1b4212415ebbd4c70ba0fc18be99616016543069709f868fc4f", "url": "https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-Setup.exe.sha256" },
+      { "name": "CaucasianEagle-0.5.0-win64.zip", "asset_id": 773409115, "size": 2130315028, "sha256": "3e9f56a35f8bef18bce5d671438d9c1afaecc3690195fe6b2a3a915e1af0f0fd", "url": "https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-win64.zip", "equals_local_build": true },
+      { "name": "CaucasianEagle-0.5.0-win64.zip.sha256", "asset_id": 773409112, "size": 98, "states": "3e9f56a35f8bef18bce5d671438d9c1afaecc3690195fe6b2a3a915e1af0f0fd", "url": "https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.0/CaucasianEagle-0.5.0-win64.zip.sha256", "remark": "404 at 21:40:09Z while the repository was private; 200 and correct at 22:02Z" }
+    ],
+    "shipped_programs": [
+      { "path": "CaucasianEagle.exe", "size": 5784064, "sha256": "d283ec11edfe28fc422ed5c792d88e8104c0c19ab8af949cebd4d3993758bbad", "authenticode": "NotSigned", "product_version": "0.5.0", "manifest": "asInvoker, dpiAware" },
+      { "path": "msvcp140.dll", "size": 643512, "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca", "authenticode": "Valid (Microsoft Corporation)", "version": "14.51.36247.0" },
+      { "path": "vcruntime140.dll", "size": 178616, "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7", "authenticode": "Valid (Microsoft Corporation)" },
+      { "path": "vcruntime140_1.dll", "size": 50112, "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e", "authenticode": "Valid (Microsoft Corporation)" },
+      { "path": "Play-TheRoad.cmd", "size": 161, "sha256": "92b2232d82aeb95afc3416ad79aa5015c901a9682735602f9fd232e57ad5c350", "authenticode": "not signable (batch file)" },
+      { "path": "unins000.exe (written by the installer)", "authenticode": "NotSigned" }
+    ],
+    "installer_version_info": { "CompanyName": "Giorgi Samkharadze", "FileDescription": "Caucasian Eagle Setup", "ProductVersion": "0.5.0", "LegalCopyright": "" }
+  },
+  "v0.5.1": {
+    "state": "published on the owner's approval (2026-11-20); see REPORT.md, Publication",
+    "tag": "v0.5.1",
+    "commit_of_the_build": "106cf006f6b3b9c9c1cda037351b03ebb0428a72",
+    "engine_commit": "8cfa05ffe8086791f59ad3fa0c57dd4f41848be7",
+    "files": [
+      { "name": "CaucasianEagle-0.5.1-Setup.exe", "size": 1904774543, "sha256": "1e58ccae18b5f833fa8cd4676af466fec462a2254ab363dd8bdaa5b8ca9a6b5d", "authenticode": "NotSigned", "product_version": "0.5.1", "legal_copyright": "© 2026 Giorgi Samkharadze" },
+      { "name": "CaucasianEagle-0.5.1-win64.zip", "size": 2130318968, "sha256": "690217ccc08bbc98fa70e0d666b7f53ffab7f76a736e2b82bfc6ed99d0b27aae", "limit_note": "2,032 MiB of GitHub's 2,048 MiB per file" },
+      { "name": "CaucasianEagle-0.5.1-win64/CaucasianEagle.exe", "size": 5790720, "sha256": "1e490122abe063784f87f98e4c8d6af08f2e6720f19ac2100b5e8d4eabc278af", "authenticode": "NotSigned", "product_version": "0.5.1" },
+      { "name": "CaucasianEagle-0.5.1-win64/ (folder)", "files": 1139, "other_programs": "msvcp140.dll, vcruntime140.dll, vcruntime140_1.dll (unchanged, Microsoft-signed), Play-TheRoad.cmd (unchanged)" }
+    ],
+    "signing": "unsigned by the owner's decision (2026-11-20): signing waits for version 1.0.0; tools/package.ps1 -Sign is ready"
+  }
+}

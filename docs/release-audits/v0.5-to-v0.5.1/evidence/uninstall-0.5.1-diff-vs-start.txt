@@ -1,0 +1,1 @@
+﻿(no difference: startup entries, scheduled tasks, services, firewall rules, uninstall entry, shortcuts, install folder, player-data hashes)

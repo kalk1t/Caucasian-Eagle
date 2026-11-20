@@ -1,0 +1,20 @@
+﻿ok    GameVersion is 0.5.1
+ok    the package folder holds CaucasianEagle.exe
+ok    CaucasianEagle.exe says 0.5.1
+ok    the installer says 0.5.1
+ok    the installer names its publisher and copyright
+ok    CaucasianEagle-0.5.1-win64.zip matches its .sha256
+ok    CaucasianEagle-0.5.1-win64.zip is under GitHub's 2 GiB limit (2,032 MiB)
+ok    CaucasianEagle-0.5.1-Setup.exe matches its .sha256
+ok    CaucasianEagle-0.5.1-Setup.exe is under GitHub's 2 GiB limit (1,817 MiB)
+ok    no other program ships ()
+ok    msvcp140.dll keeps Microsoft's signature
+ok    vcruntime140.dll keeps Microsoft's signature
+ok    vcruntime140_1.dll keeps Microsoft's signature
+UNSIGNED  CaucasianEagle.exe is signed and timestamped (NotSigned)
+UNSIGNED  CaucasianEagle-0.5.1-Setup.exe is signed and timestamped (NotSigned)
+UNSIGNED  the installed uninstaller is signed (NotSigned)
+
+Warnings: UNSIGNED: CaucasianEagle.exe; UNSIGNED: CaucasianEagle-0.5.1-Setup.exe; UNSIGNED: unins000.exe
+RELEASE CHECK PASSED WITH UNSIGNED FILES (not for publication without the owner's decision)
+

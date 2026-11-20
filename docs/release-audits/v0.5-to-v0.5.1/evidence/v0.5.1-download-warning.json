@@ -1,0 +1,13 @@
+﻿{
+    "File":  "CaucasianEagle-0.5.1-Setup.exe",
+    "Sha256":  "1e58ccae18b5f833fa8cd4676af466fec462a2254ab363dd8bdaa5b8ca9a6b5d",
+    "Mark":  "[ZoneTransfer] | ZoneId=3 | ReferrerUrl=https://github.com/kalk1t/Caucasian-Eagle/releases | HostUrl=https://github.com/kalk1t/Caucasian-Eagle/releases/download/v0.5.1/CaucasianEagle-0.5.1-Setup.exe",
+    "Started":  "2026-11-20T17:16:06.8087307-05:00",
+    "Picture":  "",
+    "NewProcesses":  [
+                         "CaucasianEagle-0.5.1-Setup []",
+                         "CaucasianEagle-0.5.1-Setup.tmp [Setup - Caucasian Eagle version 0.5.1]"
+                     ],
+    "Verdict":  "OPENED: the file ran with no warning before it"
+}
+

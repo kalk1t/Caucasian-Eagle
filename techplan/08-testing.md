@@ -97,6 +97,19 @@ All on the development PC, which has Visual Studio and has run the game before.
 - [not verified] **Frame rate** beyond "the pilot's log showed the 60 fps cap in a 1280 x 720 window on the development PC".
 - [not verified] A clean clone, a second machine, an installed copy (unchanged from v0.1.0).
 
+## 11.2e What was verified for v0.5.1 (2026-11-20)
+
+The Windows trust audit, with its evidence: [`docs/release-audits/v0.5-to-v0.5.1/REPORT.md`](../docs/release-audits/v0.5-to-v0.5.1/REPORT.md).
+
+| Check | Result |
+|---|---|
+| The nature test with her menu, `CAUCASIAN_EAGLE_DEMO=5` | Trees: 24 tries, 23 reached, 0 through. Then Esc's menu (8 rows) and its settings window open: `NATURE_PASS`. Pictured with `tools/release/Save-GameWindow.ps1` (the game's window only): the notes of three rows ran into their names and were shortened |
+| The package (`dist/CaucasianEagle-0.5.1-win64`) | Ascent smoke `ASCENT_PASS`, jars `WAYS_PASS`, `--road` opens the road's window |
+| The release gate, `tools/release/Test-Release.ps1` | With `-AllowUnsigned -Scan`: passed (versions 0.5.1, checksums, under 2 GiB: zip 2,032 MiB, no other program, Microsoft's DLLs signed, Defender: no threat); without it: fails the three unsigned files |
+| Install, upgrade, uninstall, as the ordinary user | Public 0.5.0 installed (no administrator mode), first launch `ASCENT_PASS`; 0.5.1 over it: one uninstall entry, now 0.5.1, saves and settings unchanged (hashes); the installed 0.5.1 from its Start-menu shortcut `ASCENT_PASS`; uninstalled: the system equal to before the first install (startup entries, tasks, services, firewall rules, shortcuts, folder) |
+| Opening a downloaded installer | A copy marked as from the internet opened through the shell: the wizard opened, no SmartScreen window on this PC (0.5.0 and 0.5.1). Not a browser download |
+| **Not tested** | Signing with a real identity; Smart App Control on; a browser download; a second PC |
+
 ## 11.2d What was verified for v0.5.0 (2026-11-20)
 
 | Check | Result |
