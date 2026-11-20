@@ -97,7 +97,7 @@ namespace Doorways
         constexpr float CastAirRange = 3, CastAirHeight = .35f, CastAirSink = 9;
         constexpr float SwordReach = 1.7f, JumpReach = 2.2f, SwordArc = FrontArc;
         constexpr int CutDamage = 45, LastDamage = 80, JumpDamage = 110;
-        constexpr float SteerRate = 110.f;   // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it, 90; 2026-11-20: "i want to increase little bit")
+        constexpr float SteerRate = 180.f;   // degrees a second A and D turn her (owner, 2026-11-18: A/D turn her slowly round, the view stays where the mouse puts it, 90; 2026-11-20: "make it one seconds 180dagree")
         constexpr float BackSpeed = 1.25f;   // metres a second stepping backwards
         // The Jump clip (Mixamo's Running Jump as build_from_mixamo.py leaves it, 0.9 s), measured from the clip: she
         // leaves the ground at its start, is at the top at JumpApex, her first foot is down again at JumpLand; falling
@@ -4622,16 +4622,25 @@ namespace Doorways
         {
             b.Attack.clear(); b.Queued = 0; b.Jumping = true; b.JumpTime = 0;
             b.JumpReal = false; b.JumpAir = false; b.JumpClock = 0; b.Dropped = 0;
-            b.Log(world, "jump");
+            float jumpLift = 0;
             // a real jump where the game asks for one: from the ground, or from the brink of an edge she stands on
             if (mRealJump > 0 && p.VerticalVelocity <= 0 &&
                 (p.IsGrounded || p.GroundState == Doorways::DoorwaysPhysicsGroundState::UnsupportedAirPrepared))
             {
+                // From the ground she is on (2026-11-20, the owner: "jumping is blocked while walking up on staris or
+                // hills"). Going up, her feet are behind the ground they follow (the engine eases her height to it, 12 a
+                // second: speed x slope / 12 under it, 10 cm at a jog up 20 degrees, 30 at a run up the stairs), and her
+                // jump's first frame did not take them out of it: the ground over her feet was taken for her landing
+                // (EaglesAscent::KeepOutOfRock, the engine's sweep for rising ground) and the jump was over as it began.
+                if (p.IsGrounded && p.GroundY > p.Position.y && p.GroundY - p.Position.y < .6f) { jumpLift = p.GroundY - p.Position.y; p.Position.y = p.GroundY; }
                 p.VerticalVelocity = mRealJump; p.IsGrounded = false;
                 p.GroundState = Doorways::DoorwaysPhysicsGroundState::Airborne;
                 p.MissingAuthoritativeGround = false; p.GroundY = p.TargetGroundY = p.Position.y;
                 b.JumpReal = true;
             }
+            char jumpSaid[48];
+            std::snprintf(jumpSaid, sizeof jumpSaid, "jump %s lifted %.2f", b.JumpReal ? "real" : "clip-only", jumpLift);
+            b.Log(world, jumpSaid);
         }
         else if (b.Jumping && b.JumpReal)
         {   // A jump the world moves her in (2026-11-19): the clip is played by her rise and fall, not by the clock. It

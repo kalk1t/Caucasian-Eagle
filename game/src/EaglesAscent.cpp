@@ -479,7 +479,9 @@ namespace CaucasianEagle
                 if (under.Hit)
                 {
                     standable = true;
-                    if (under.GroundY > p.Position.y) { p.Position.y = under.GroundY; p.VerticalVelocity = std::min(p.VerticalVelocity, 0.f); }
+                    // (rising, she goes on rising from it: in a jump's first moments up a stair, the next tread over her
+                    // feet stopped her jump there, 2026-11-20)
+                    if (under.GroundY > p.Position.y) p.Position.y = under.GroundY;
                 }
             }
             if (!standable && p.Position.y < h - .05f && mFlown.y >= was - .5f)
