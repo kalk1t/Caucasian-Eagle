@@ -96,7 +96,7 @@ creature on her other side, or round to beside it), then the other two kills. Wh
 creature at once, as before the kills. Should she go over an edge in the middle of a kill after all, the kill ends and
 she falls.
 
-**How it was checked.** The finishers' tour: the game itself stands her before every creature of the mountain's 103
+**How it was checked.** The finishers' tour: the game itself stands her before every creature of the mountain's 78
 stops in turn (on the stairs, the slopes, in the caves, in the snow) and dooms it, and she finishes it as she would in
 play. 115 kills (Talon Cross 36, Eagle's Plunge 40, Gale Slide 39), none in which she fell or stuck. Two had no room: one
 creature at a parapet's edge, every way past it blocked; one where the tour had put her down inside a parapet, so that
