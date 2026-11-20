@@ -21,6 +21,17 @@
 //   A / D          turn her way (and the view with it); S steps back
 //   Space          jump (in flight: climb)
 //
+// Her finishing kills (2026-11-20): a blow that would kill a creature of the road dooms it instead; dazed, it waits
+// for her, and as soon as she is free on foot near it she finishes it with one of three finishers, at random and never
+// the same one twice running (each worked out for its size as it begins: StartFinish):
+//   Talon Cross     she dashes in, two cuts cross on its chest, and she flashes past round its side; she stands with
+//                   her back to it, and the cross opens and it falls on its face
+//   Eagle's Plunge  she springs on her wings, drives both swords into it under its neck and rides it down onto its
+//                   back, then springs off it
+//   Gale Slide      she slides past it, her blade through its legs, it drops to its knees, and her blade comes down
+//                   behind her through its neck (a giant's shoulder)
+// Doomed and not finished in time, it falls on its own.
+//
 // Session-owned: it drives the animated character, owns its shade wraith targets and its effects, and reaches
 // player health only through CombatSystem::ApplyIncomingDamage.
 
@@ -30,6 +41,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -82,6 +94,27 @@ namespace Doorways
             bool Pinned = false;
             float Hold = 0;
             DirectX::XMFLOAT3 HeldNeck{}, HeldFeet{};
+            // Her finishing kills (2026-11-19). Set by its owner: Finishable, a blow of hers that would kill it dooms it
+            // instead (the journey: its creatures of the road; not bosses, chests or the Kaji press; the kit's own and
+            // the labs' test creatures die at once); Knee, metres from its feet to its knees; Depth, metres front to back
+            // of its model (lying, its owner raises it by 0.3 of that: the kit's rider stays on it); Width, metres from
+            // its middle to the outside of its arms at its shoulders (0: its Radius). Set by the kit: Doom > 0,
+            // doomed, seconds left before it falls on its own (it stays alive at 1 health meanwhile, Pinned); Linger,
+            // as it kills it, seconds its body lies where it fell before it fades. Set by the kit every frame and
+            // cleared by it before, for its owner's drawing: Daze (0..1) dazed, its head hanging, swaying; Kneel (0..1)
+            // on its knees, its body lowered by Knee * Kneel; Limp (0..1) how far it hangs limp as the dying do
+            // (< 0: as its Hold has it).
+            bool Finishable = false;
+            float Doom = 0, Knee = .45f, Depth = 0, Width = 0, Linger = 0;
+            float Daze = 0, Kneel = 0, Limp = -1;
+            // On its knees its shins are bent back KneelShin radians (at Kneel 1) and its body lowered so that its feet
+            // (as far as they still reach down) or its knees stand on the ground (CreatureRig's pose; its owner's drawing).
+            static constexpr float KneelShin = 1.65f;
+            static float KneelDrop(float knee, float kneel)
+            {
+                const float bent = (std::min)(KneelShin * std::clamp(kneel, 0.f, 1.f), 1.5707963f);
+                return knee * (1 - std::cos(bent));
+            }
         };
         struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
         // K1 F, K2 V, C K3. (Q and G are kept for the test pilot's scripts; they do nothing now.)
@@ -136,8 +169,14 @@ namespace Doorways
         void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
-        // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing.
+        // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing (and
+        // none hurts her while she finishes a creature).
         bool Hurt(WorldState& world, CombatSystem& combat, int damage);
+        // Her finishing kills. Doom: that creature is brought to the end of its health as a blow of hers would bring it
+        // (the Character Lab's cue; it must be Finishable). Finishing: the finisher she plays now (0 none, 1 Talon
+        // Cross, 2 Eagle's Plunge, 3 Gale Slide). CAUCASIAN_EAGLE_NYXARA_FINISHER=<1|2|3> plays that one every time.
+        void Doom(int index);
+        int Finishing() const;
         void SetInputBlocked(bool blocked) { mInputBlocked = blocked; } // the story journal is open: no attacks or skills
         void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
         // The Character Lab's clip viewer: one of her clips, as the kit keeps them (after its fixes at load), shown in
@@ -184,8 +223,33 @@ namespace Doorways
         void UpdateEffects(float dt);
         int mFeatherBlows = 0;                                             // blows her storm's feathers struck since the last frame (for the log)
         // A blow of hers at one enemy: damage (scaled), the hit's flash, push and launch, a short freeze and shake;
-        // a creature at no health dies (its owner sees Alive go false).
+        // a creature at no health dies (its owner sees Alive go false), or, one she may finish, is doomed.
         void DamageWraith(int index, int damage, const DirectX::XMFLOAT3& from, float push, float launch);
+        // It dies now (its owner sees Alive go false); its body lies linger seconds before it fades.
+        void KillWraith(int index, float linger);
+        // A dead creature's body as the kit lets it fall and lie (her finishing kills; a doomed one that falls on its own).
+        // Over Wait s its knees give, from KneelFrom to Kneel; then it falls toward Way (level) in Takes s, gathering speed
+        // as a thing tipping over does, about its knees as far as it kneels and about its feet otherwise, its legs
+        // straightening as it goes and going limp; down (the thud), it lies until Until s after it began (its owner keeps
+        // it Linger + 0.55 s). Feet: its feet as it stood; Neck: its neck from them (the world's axes); Daze: its head
+        // hanging as it goes; Knee: metres from its feet to its knees.
+        struct Fallen
+        {
+            int Index = -1;
+            DirectX::XMFLOAT3 Feet{}, Neck{0, 1.5f, 0}, Way{0, 0, 1};
+            float Wait = 0, Takes = .6f, KneelFrom = 0, Kneel = 0, Daze = 0, Knee = .45f, Until = 2;
+            float Time = 0;
+            bool Down = false;
+        };
+        std::vector<Fallen> mFallen;
+        void LetFall(const Fallen& fall);
+        // Every frame: the doomed (dazed, waiting; one not finished in time falls on its own) and the fallen.
+        void UpdateDoomed(float dt);
+        // Her finishing kills: one begun at the nearest doomed creature in reach (when 'free'), and the one she plays.
+        void UpdateFinish(WorldState& world, float dt, bool free);
+        void StartFinish(WorldState& world, int index);
+        DirectX::XMFLOAT3 mHerPlace{}; bool mHerAfoot = false;   // where she is this frame and whether on foot (a blow dooms near her only)
+        float mSlow = 0, mSlowFull = 0, mSlowRate = 1;           // slow motion: real seconds left of it, in all, and how slow at its slowest
         void Burst(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size);
         void PublishHud(WorldState& world) const;
 

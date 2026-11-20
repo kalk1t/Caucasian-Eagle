@@ -246,6 +246,18 @@ You can walk and run while you cut: her legs keep their stride and her body cuts
 
 What a blow leaves: a bright streak along the cut, sparks, and blood thrown the way the blade went, which falls and lies on the ground for a few seconds.
 
+### Her finishing kills
+
+A blow of hers that would kill a creature of the road, while she is on foot and near it (5.5 m), brings it down instead: it stands dazed, its head hanging, a violet ring pulsing under it. As soon as her move ends she finishes it with one of three finishing kills, chosen at random and never the same one twice running:
+
+| Finishing kill | What she does |
+|---|---|
+| **Talon Cross** | She dashes in, two cuts cross on its chest, and she flashes past round its side to stand behind it with her back to it. A moment later the cross opens and it falls on its face |
+| **Eagle's Plunge** | She crouches and springs, her wings beating, drives both swords into it under its neck and rides it down onto its back; then she pulls them out and springs back off it |
+| **Gale Slide** | She slides past it low, her sword through its legs, and it goes down on its knees; she rises, turns her back to it, and her sword comes down behind her through its neck (a giant's: into its shoulder) |
+
+A finishing kill takes two to three seconds and nothing can hurt her while it plays; its blows freeze the moment and slow it a little. Each kill is fitted to the creature's size: her blades go where its neck and chest are, and at a tall one she leaps into the blow. One creature is doomed at a time; a doomed creature she does not come to within 3 seconds falls by itself. Bosses, and anything killed from afar or while she flies, die at once as before.
+
 ## The screen
 
 - **Bottom left:** your health (green, red when low; the pale part is what you just lost), your soul bar (blue), and which axe is in which hand. The edge of the screen turns red when you are hit or low on health.

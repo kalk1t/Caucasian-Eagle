@@ -120,6 +120,22 @@ namespace CaucasianEagle
             // ---- hit: the chest and head are knocked back, the arms fly out
             a[R::Chest].X -= .35f * recoil; a[R::Head].X -= .30f * recoil;
             a[R::ArmL].Z -= .35f * recoil;  a[R::ArmR].Z += .35f * recoil;
+            // ---- dazed (2026-11-19: doomed by her, waiting for her finishing kill): it sags, its head hangs, its arms
+            //      are slack, its knees soft, and it sways
+            const float daze = Ease(std::clamp(pose.Daze, 0.f, 1.f)), sway = std::sin(pose.Time * 1.9f);
+            a[R::Chest].X += .25f * daze;   a[R::Head].X += .45f * daze;
+            a[R::Chest].Z += .06f * sway * daze; a[R::Head].Z += .09f * std::sin(pose.Time * 1.9f - .6f) * daze;
+            a[R::ForeL].X += .20f * daze;   a[R::ForeR].X += .20f * daze;
+            a[R::ArmL].Z += .08f * daze;    a[R::ArmR].Z -= .08f * daze;
+            a[R::LegL].X -= .10f * daze;    a[R::ShinL].X += .20f * daze;
+            a[R::LegR].X -= .10f * daze;    a[R::ShinR].X += .20f * daze;
+            // ---- on its knees: its thighs upright, its shins back along the ground (KneelShin), bowed, arms hanging
+            const float kneel = std::clamp(pose.Kneel, 0.f, 1.f);
+            a[R::LegL].X -= .15f * kneel;   a[R::ShinL].X += 1.65f * kneel;
+            a[R::LegR].X -= .15f * kneel;   a[R::ShinR].X += 1.65f * kneel;
+            a[R::Chest].X += .30f * kneel;  a[R::Head].X += .15f * kneel;
+            a[R::ArmL].X += .10f * kneel;   a[R::ArmR].X += .10f * kneel;
+            a[R::ForeL].X -= .20f * kneel;  a[R::ForeR].X -= .20f * kneel;
             // ---- dying: the knees give way, the arms are flung up, the head drops back
             a[R::Chest].X -= .45f * death;  a[R::Head].X -= .40f * death;
             a[R::ArmL].X -= 1.1f * death;   a[R::ArmR].X -= 1.1f * death;
@@ -135,13 +151,13 @@ namespace CaucasianEagle
                 Angles& j = a[chain[k]];
                 j.Y = .11f * std::sin(pose.Time * 1.4f - static_cast<float>(k) * .9f) * (1 + walk);
                 j.Z = .06f * std::sin(pose.Time * 1.1f - static_cast<float>(k) * .7f);
-                j.X = -.16f * drawn + Blow(strike, -.16f, .30f) - .10f * recoil + .35f * death;
+                j.X = -.16f * drawn + Blow(strike, -.16f, .30f) - .10f * recoil + .35f * death + .22f * std::clamp(pose.Daze + pose.Kneel, 0.f, 1.f);
             }
         }
         else if (rig.Kind == R::Type::Winged)
         {   // wings beat; they open wide before a blow and clap down with it
             const float beat = .30f * std::sin(pose.Time * 4.5f), tip = .26f * std::sin(pose.Time * 4.5f - .9f);
-            const float open = -.45f * drawn + Blow(strike, -.45f, .65f) + .5f * death;
+            const float open = -.45f * drawn + Blow(strike, -.45f, .65f) + .5f * death + .4f * std::clamp(pose.Daze, 0.f, 1.f);   // (dazed: they droop)
             a[R::WingL].Z = beat + open;     a[R::WingL2].Z = tip + .5f * open;
             a[R::WingR].Z = -(beat + open);  a[R::WingR2].Z = -(tip + .5f * open);
             a[R::Chest].X = .05f * std::sin(pose.Time * 4.5f + 1.2f) - .15f * recoil;

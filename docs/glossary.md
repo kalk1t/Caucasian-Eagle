@@ -47,6 +47,8 @@ Names used in the story, the code and the assets. One name per thing.
 | **Charged Slash** | The right-click heavy attack |
 | **The slide, the thrown swords, the feather storm** | The three skills (F, V, C); in flight F is the twisted dash (the finishing throw at a broken creature was taken out on 2026-11-19) |
 | **Twin Talons, Rising Eagle, Tempest Triple, Whirlwind Talons, Soul Weave, Moonfall Dive** | The six combos |
+| **Doomed** | A creature of the road brought down by what would have been her killing blow: dazed, a violet ring under it, waiting (3 s) for her finishing kill |
+| **Finishing kills: Talon Cross, Eagle's Plunge, Gale Slide** | The three ways she kills a doomed creature, one at random each time (never the same twice running): two crossing cuts and past it; a leap that drives both swords in and rides it down; a slide through its legs and a blow behind her through its neck |
 | **Sword Barrier** | The E guard: two spectral swords that block orbs |
 | **Wing boost** | Faster travel on Shift |
 | **Soul bar** | The blue bar under health (the engine's energy value) |

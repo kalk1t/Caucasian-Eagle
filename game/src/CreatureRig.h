@@ -49,6 +49,8 @@ namespace CaucasianEagle
         float Strike = 0;    // 1 at the moment of the blow, falling to 0
         float Recoil = 0;    // 1 when just hit, falling to 0
         float Death = 0;     // 0 .. 1 while falling
+        float Daze = 0;      // 0 .. 1 dazed (doomed: its head hangs, it sways)
+        float Kneel = 0;     // 0 .. 1 down on its knees (its owner lowers it: NyxaraKit::Wraith::KneelDrop)
         CreatureRig::Attack Attack = CreatureRig::Attack::Swing;
     };
 
