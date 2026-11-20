@@ -136,6 +136,13 @@ namespace Doorways
         bool Hurt(WorldState& world, CombatSystem& combat, int damage);
         void SetInputBlocked(bool blocked) { mInputBlocked = blocked; } // the story journal is open: no attacks or skills
         void SetAutoKeys(const Keys* keys) { mAutoKeys = keys; } // unattended runs: the journey's test pilot presses the keys
+        // The Character Lab's clip viewer: one of her clips, as the kit keeps them (after its fixes at load), shown in
+        // place of what she is doing; "" ends it. At seconds >= 0 it is held there, otherwise it plays round and round.
+        // Her feet are not set on the ground and her head does not look about while it shows. (The game never calls it.)
+        void SetPreview(const std::string& clip, float seconds = -1) { mPreview = clip; mPreviewTime = seconds; mPreviewClock = 0; }
+        std::vector<std::string> ClipNames() const;   // every clip she has, by name
+        const std::string& ShownClip() const;          // the clip she shows now (hers, or the previewed one)
+        float ShownTime() const { return mShownTime; } // and the time in it
         bool Busy() const;
         ID3D11ShaderResourceView* GlowTexture() const { return mGlowTex.Get(); }
         const DoorwaysGpuMesh& QuadMesh() const { return mQuadMesh; }
@@ -149,6 +156,7 @@ namespace Doorways
         float mDamageScale = 1, mCooldownScale = 1;
         float mMercy = 0;
         const Keys* mAutoKeys = nullptr;
+        std::string mPreview; float mPreviewTime = -1, mPreviewClock = 0, mShownTime = 0;
         bool mInputBlocked = false;
         float mRealJump = 0; bool mScriptedSpaceWas = false;
         enum class FxKind { Ring, Spark, Feather };

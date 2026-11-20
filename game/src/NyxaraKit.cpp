@@ -2924,6 +2924,19 @@ namespace Doorways
 
     bool NyxaraKit::Busy() const { return mBody->Moving() || mGuarding; }
 
+    std::vector<std::string> NyxaraKit::ClipNames() const
+    {
+        std::vector<std::string> names;
+        if (mBody) for (const auto& clip : mBody->Clips) names.push_back(clip.first);
+        return names;
+    }
+
+    const std::string& NyxaraKit::ShownClip() const
+    {
+        static const std::string none;
+        return mBody ? mBody->Current : none;
+    }
+
     NyxaraKit::Keys NyxaraKit::ReadKeys(bool inputAllowed) const
     {
         Keys k;
@@ -3806,7 +3819,13 @@ namespace Doorways
         b.FlyBody = (cutting || (b.Cast >= 1 && b.Cast <= 3)) && flying;   // a cut in the air: her legs, hips and wings go on flying
         if (b.FlyBody) b.Legs = b.Sample("Fly", b.FlyTime, b.LegsPose, nullptr) ? 1.f : 0.f;
         else if (b.Legs > 0 && !b.Sample(b.Gait, b.GaitTime(), b.LegsPose, nullptr)) b.Legs = 0;
-        if (b.Dead) { clip = "Death"; time = b.DeathTime; }
+        const bool previewing = !mPreview.empty() && b.Duration(mPreview) > 0;   // (the Character Lab's clip viewer)
+        if (previewing)
+        {
+            clip = mPreview; mPreviewClock += dt;
+            time = mPreviewTime >= 0 ? (std::min)(mPreviewTime, b.Duration(clip)) : std::fmod(mPreviewClock, b.Duration(clip));
+        }
+        else if (b.Dead) { clip = "Death"; time = b.DeathTime; }
         else if (b.Rise >= 0) { clip = "Fly_Rise"; time = b.Rise; }
         else if (b.Touch >= 0) { clip = "Fly_Land"; time = b.Touch; }
         else if (mFalling && b.Attack.empty() && !b.Cast && b.Duration("Fall") > 0) { clip = "Fall"; time = std::fmod(b.Clock, b.Duration("Fall")); }
@@ -3818,14 +3837,14 @@ namespace Doorways
         else if (b.Jumping && b.JumpReal && b.Dropped > DropSeconds && b.Duration("Fall") > 0) { clip = "Fall"; time = std::fmod(b.Clock, b.Duration("Fall")); }
         else if (b.Jumping) { clip = "Jump"; time = b.JumpTime; }
         else if (moving) { clip = b.Gait; time = b.GaitTime(); }
-        b.Current = clip;
+        b.Current = clip; mShownTime = time;
         if (!cutting && !b.FlyBody && (clip == "Stand" || clip == "Idle") && b.TurnSteps > .02f && b.Sample("Move", b.GaitTime(), b.LegsPose, nullptr)) b.Legs = b.TurnSteps;
         {
             DoorwaysSkeletonPose pose;
             std::string error;
             // her feet on the drawn ground: on foot and standing on it, not while a move lifts or carries her
             const bool planted = !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
-                                 std::abs(b.LiftNow) < .05f;
+                                 std::abs(b.LiftNow) < .05f && !previewing;
             const bool composed = b.Compose(world, clip, time, dt, pose, &error);
             if (composed) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + b.PlantFeet(world, mFootGround, mStairTread, pose, dt, planted);
             {   // (her bank turns about her chest, not about her feet: her picture is put back by what the roll moves her chest)
@@ -3845,7 +3864,7 @@ namespace Doorways
                     if (std::abs(a) < LookWide) { nearest = d; toward = a; }
                 }
             }
-            if (composed) b.LookAbout(pose, dt, b.TurnRate, toward, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 ? 0.f : 1.f);
+            if (composed) b.LookAbout(pose, dt, b.TurnRate, toward, b.Dead || b.Cast || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 || previewing ? 0.f : 1.f);
             {   // Standing at ease for a while she opens her wings, shakes them out and lowers them again (2026-11-19): every
                 // quarter of a minute or so, not by a clock. A blow up on both wings as they open, one down after it.
                 constexpr float StretchSeconds = 1.7f, Shake = .65f;

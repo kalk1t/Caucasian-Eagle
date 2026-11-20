@@ -40,7 +40,7 @@ All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle
 
 ## 7.3 `NyxaraKit`
 
-One object, reached through `Doorways::GetNyxaraKit()`. Her moves are a port of the Character Lab's controller (`testing/CharacterLab/CharacterLab.cpp`, where they were made); the numbers keep the lab's names so the two can be read side by side. The game's rules around them stay the kit's: damage scale and charm weakness, cooldowns, the barrier, mercy time, broken creatures and the finishing reward, training mode, the test pilot's keys.
+One object, reached through `Doorways::GetNyxaraKit()`. Her moves are a port of the Character Lab's controller (`testing/CharacterLab/CharacterLab.cpp`, where they were made); the numbers keep the lab's names so the two can be read side by side. Since 2026-11-19 the Character Lab has no copy of its own: it runs this kit, set up as the Eagle's Ascent sets it up, and `SetPreview` (one clip shown in place of what she is doing, round and round or held), `ClipNames`, `ShownClip` and `ShownTime` are its clip viewer; the game never calls them. The game's rules around them stay the kit's: damage scale and charm weakness, cooldowns, the barrier, mercy time, broken creatures and the finishing reward, training mode, the test pilot's keys.
 
 ### Her body
 
