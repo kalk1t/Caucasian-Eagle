@@ -251,11 +251,7 @@ namespace CaucasianEagle
     constexpr float SlamRadius = 3.2f;           // m, the marked circle
     constexpr float SlamDamage = 1.3f;           // times the giant's blow
     constexpr float SlamEvery = 7.f;             // s between a giant's slams, about
-    constexpr float DodgeDistance = 4.5f;        // m, small creatures this near may jump aside when she attacks facing them
-    constexpr float DodgeChance = 0.5f;
-    constexpr float DodgeEvery = 2.5f;           // s before the same creature may try again, about
-    constexpr float HopSeconds = 0.28f;          // length of a jump aside or back
-    constexpr float HopSpeed = 3.f;              // times the creature's speed
+    // (the creatures' dodges, each kind its own: Journey.cpp's Styles and BeginEvade, 2026-11-20)
     constexpr float RoundGuardSeconds = 2.5f;    // a creature whose blow she blocked runs round to her back for this long
     constexpr float WoundedShare = 0.3f;         // below this share of health a small creature fights hit-and-run
     constexpr float WoundedKeep = 6.5f;          // m it keeps away between its blows

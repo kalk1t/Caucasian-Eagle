@@ -57,6 +57,7 @@ namespace CaucasianEagle
             float Height=0, Radius=0, Windup=0, Strike=0;
             int Health=0, MaximumHealth=0, Shots=0;
             DirectX::XMFLOAT3 Neck{};   // where its neck is as it stands (from its joints; without joints .84 of its height)
+            std::string Doing;          // what it is doing (its move, the part of it, its pose's wind-up, action, blow, dodge): the lab's films
         };
         bool InitializeCreatureStations(Renderer& renderer, std::string& error);
         void ResetCreatureStations();
@@ -157,6 +158,8 @@ namespace CaucasianEagle
         struct StationHeld { float Hold=0; DirectX::XMFLOAT3 Neck{}, Feet{}; };
         std::vector<StationHeld> mStationHeld;
         std::vector<float> mStationDown;   // per station creature: 0 standing .. 1 lying
+        std::vector<int> mShowMoves;       // the lab's show: the moves every station creature shows in turn (InitializeCreatureStations)
+        bool mShowHarmless = false;        // ...harmlessly: no blow of theirs touches her, their orbs carry no damage
         struct Sample { DirectX::XMFLOAT3 P{}; float W = 0; int Stage = 0; float Tx = 0, Tz = 1, Nx = 1, Nz = 0; };
         struct Arena { int Stage = 0; float S = 0; int Kind = 0; float R = 0; DirectX::XMFLOAT3 P{}; };
         struct Chest { DirectX::XMFLOAT3 P{}; float Yaw = 0; int Tier = 0; int Arena = -1; bool Opened = false; int Slot = -1; float Open = 0; };
@@ -188,7 +191,7 @@ namespace CaucasianEagle
             int Blow = 0;           // the blow being wound up: 0 light, 1 heavy, 2 the quick second blow
             int Shots = 0;          // volleys fired (every few are a different pattern)
             float Slam = 0, SlamWait = 3;   // giants: seconds until the marked ground is struck; until the next mark
-            float Dodge = 0, Hop = 0, Round = 0;   // until it may dodge again; jump running; running round her guard
+            float Dodge = 0, Round = 0;   // until it may dodge again (its dodge: Evade below); running round her guard
             float Air = 0;          // m its feet are over the ground (spirits and witches that follow her up; a leap)
             float Leap = 0, LeapWait = 2, LeapHigh = 0, LeapSpeed = 0;   // s left of a leap at her; until the next; its height; its speed over the ground
             bool LeapHit = false;   // this leap has struck her
@@ -203,6 +206,36 @@ namespace CaucasianEagle
             int Place = -1, Calm = 0;
             float Lost = 0, Walk = 0, WalkWay = 1, Mend = 0;   // (Mend: health it has got back, not yet a whole point)
             int First = 0, Last = -1;
+            // How it fights and goes (2026-11-20; Journey.cpp Styles and Moves). The move wound up or under way, its look
+            // (CreatureRig::Attack), from which side, how long its blow is seen; its moves from farther off, each on its
+            // own clock; a rush (a charge, the eagle's swoop) under way: how long, how fast, whether it has struck her; a
+            // leap's length and its move; the serpent's spray under way and how many it has let go.
+            int Move = 0, Look = 0; bool Mirror = false; float LungeFull = .28f;
+            // the blow landing (Lunge): its look and side as it began (a quick creature's second blow is wound up with
+            // its other arm while the first is still coming down)
+            int Struck = 0; bool StruckMirror = false;
+            void Strikes(float seconds) { Lunge = LungeFull = seconds; Struck = Look; StruckMirror = Mirror; }
+            float FarWait[2] = {3, 6};
+            float Rush = 0, RushFull = 0, RushSpeed = 0; bool RushHit = false;
+            float LeapFull = .95f; int LeapMove = 0;
+            float Emit = 0, EmitFull = 0; int Emitted = 0;
+            // Its dodge: s left, its length, how far, which (CreatureRig::Dodge), which way (1 its right, -1 its left, 0
+            // back), the moment it waits before it (< 0: none coming), whether a step through fire has taken it yet; her
+            // blows begun as it last saw (NyxaraKit::AttacksBegun).
+            float Evade = 0, EvadeFull = 0, EvadeMetres = 0, EvadeSide = 0, EvadeIn = -1; int EvadeHow = 0; bool EvadeMoved = false;
+            bool EvadeCounter = false;   // (out of her blow's way, it strikes back at once: the kinds that do)
+            int HerBlows = 0;
+            // How it goes: its legs' phase (radians, a step per pi, its legs in turn: as far as it has gone), its fighting
+            // stance (0..1), how fast it turns (rad/s, smoothed) and where it faced the frame before; which way it goes
+            // from where it faces (radians, smoothed: CreaturePose::Heading).
+            float Stride = 0, Ready = 0, Turning = 0, LastYaw = 0, Heading = 0;
+            // The Eagle's dive: where it set out from (it rises, and comes down on its mark: UpdateMonsters, LookOf).
+            DirectX::XMFLOAT3 DiveFrom{};
+            // Creature stations (the Character Lab): how far its moves have carried it from where it stands (it is drawn
+            // there, and walks back); the lab's show (CAUCASIAN_EAGLE_LAB_CREATURE_MOVES): the next of it, the pause
+            // before it, and a walk or run on the spot under way.
+            DirectX::XMFLOAT3 Show{};
+            int ShowAt = 0, ShowHow = 0; float ShowWait = 1, ShowGo = 0, ShowSide = 0;
         };
         struct Banner { std::wstring Label, Title, Line; float Seconds = 5; };   // small title at the top of the screen
         struct Toast                                                              // small panel at the right edge
@@ -234,6 +267,20 @@ namespace CaucasianEagle
         void ClearArena(WorldState& world, CombatSystem& combat);
         void UpdateMonsters(WorldState& world, CombatSystem& combat, float dt);
         void UpdateBoss(int slot, WorldState& world, CombatSystem& combat, float dt, float distance, DirectX::XMFLOAT3 toPlayer);
+        // How each kind fights and goes (2026-11-20; Journey.cpp): one of its blows chosen; a move begun (its wind-up and
+        // its ring); what a move does as its wind-up ends; a dodge begun (way: 0 aside either way, 1 back, 2 its right, 3
+        // its left) and its step this frame; how fast its legs step at a speed, and its legs' length; how it is drawn
+        // (its pose; its whole body: leaning, banking, lifted, its hover's share, turned, how much of a blow's lunge
+        // forward it follows, how high over its hover it is (the Eagle's dive), hidden).
+        void ChooseBlow(int slot, float gap);
+        void BeginMove(int slot, int move, const WorldState& world);
+        void EndWindup(int slot, WorldState& world, CombatSystem& combat, float distance, bool overhead, float damageScale, bool alive);
+        void BeginEvade(int slot, const DirectX::XMFLOAT3& toHer, int way, bool counter = false);
+        DirectX::XMFLOAT3 EvadeStep(int slot, float dt);
+        float StrideRate(int kind, float speed) const;
+        float LegLength(int kind) const;
+        struct Look { CreaturePose Pose; float Pitch = 0, Roll = 0, Lift = 0, Hover = 1, Yaw = 0, Forward = 1, Rise = 0; bool Hidden = false; };
+        Look LookOf(int slot) const;
         void OnDeath(int slot, WorldState& world, CombatSystem& combat);
         void UpdateChests(WorldState& world);
         void OpenChest(int chest, WorldState& world, CombatSystem& combat);

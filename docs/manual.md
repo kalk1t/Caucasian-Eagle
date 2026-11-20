@@ -129,11 +129,14 @@ The chest in each arena always holds an Eagle Feather; a boss's hoard holds thre
 
 | Creature | How it fights | Advice |
 |---|---|---|
-| Chinka | Small, fast, in packs | The feather storm (C) strikes every one near her |
-| Ali, Kudiani | Keep away and throw orbs | Hold the Sword Barrier (E), or reach them with the thrown swords (V) |
-| Ochokochi | Fast, leaps at you | Step aside when the ring under him flares |
-| Almasty, Kaji | Heavy blows, thrown rocks and embers | Hit, move, hit |
-| Uaig, Devi | Slow, very strong | Never stand still in front of them |
+| Chinka | Small and fast, in packs. Claws, often twice in a row; pounces on you from a few metres off; springs back after it strikes; hops aside from your blows and claws straight back | The feather storm (C) strikes every one near her |
+| Ali | Keeps away and throws orbs. Come close and it shrieks a ring of cold round itself and glides back; it glides aside from your blows | Hold the Sword Barrier (E), or reach it with the thrown swords (V) |
+| Kudiani | Keeps away and throws orbs. Curses the ground where you will be: a red circle that bursts a moment later. Hops back from your blows | Leave the circle; reach her with the thrown swords (V) |
+| Ochokochi | Claws, slams both fists down, sweeps wide; charges at you from farther off; steps aside from your blows and strikes back | Step aside when the ring under him flares |
+| Almasty | Heavy blows; close in under it and it pounds the ground all round itself; throws rocks; steps aside or back from your blows | Hit, move, hit |
+| Kaji | Hammer blows; throws embers; breathes a short fan of fire at you, and now and then lets a ring of fire go round itself; vanishes into its fire out of your blows and steps out beside you to strike | Hit, move, hit |
+| Uaig | Slow and very strong: slams, wide sweeps, a stamp when you are close under it; throws rocks up at you when you are above it; takes a heavy step back from your blows | Never stand still in front of it |
+| Devi | As the Uaig, and charges at you from far off | Never stand still in front of it |
 
 A bright ring under a creature means its blow is about to land. Move out of it.
 
@@ -141,10 +144,13 @@ A bright ring under a creature means its blow is about to land. Move out of it.
 
 - **Light and heavy blows.** A red ring on the ground is an ordinary blow. A wider **yellow** ring is a heavy blow: it comes slower, reaches farther and hurts 60 % more. Step out of it or guard.
 - **Two blows.** Quick creatures (the Chinka, spirits, witches, the Ochokochi) sometimes strike a second time straight after the first.
-- **Hit and run.** A Chinka springs back out of reach after it strikes, and jumps aside now and then when you attack it from the front. A small creature that is badly hurt keeps its distance and comes in only to strike.
+- **Hit and run.** A Chinka springs back out of reach after it strikes. A small creature that is badly hurt keeps its distance and comes in only to strike.
+- **They dodge.** A creature that sees your blow coming (you begin it facing the creature, near it) may get out of its way, each kind its own way: the Chinka hops aside, the Kudiani mostly hops back, the Ali glides aside, the Ochokochi steps aside and the Almasty aside or back, the Kaji vanishes into its fire and steps out a few metres off, the Uaig and the Devi mostly take a heavy step back. The Chinka, the Ochokochi and the Kaji strike back at once. Having dodged, a creature does not dodge again for a few seconds.
+- **From farther off.** The Chinka pounces, the Ochokochi and the Devi charge (a yellow ring round its feet: it is coming), the Kudiani curses the ground where you will be, the Kaji breathes fire, the Ali shrieks when you come close.
+- **They face you as they go.** Circling you between their blows, or falling back to shoot, creatures keep their eyes on you and step sideways or backwards.
 - **Round your guard.** A creature whose blow you blocked runs round to your back.
 - **Giants strike the ground.** A Uaig or a Devi that cannot reach you marks a red circle where you stand and breaks the ground there a second later. Leave the circle, or be in the air.
-- **Shots are aimed ahead of you.** Spirits and witches shoot at where you are running to; every third volley is a fan of three. The Kaji breathes a ring of fire round itself every third shot.
+- **Shots are aimed ahead of you.** Spirits and witches shoot at where you are running to; every third volley is a fan of three.
 
 ### The seven cities
 
@@ -182,7 +188,7 @@ A mountain to climb on its own, apart from the road: from the sea to Amiran's co
 - **Its forests** change as she climbs: pines with wild oranges and pomegranates by the sea; orchards on the village terraces (red and yellow apples, oranges, pomegranates, cherries, vines, tomatoes and cucumbers); beech, oak, maple and hornbeam in the gorge and the great forest, a few already gold, firs among them; Nordmann firs and oriental spruces above; birches bent by the snow among junipers and flowering rhododendrons (mauve, and cream higher up); and last the firs under snow. Small trees cling to the rock faces.
 - **Space** held 1.5 seconds on foot takes her up (a tap jumps); her wings carry her 30 seconds, then she falls, and on the ground they fill again in 20. In flight **R** lands her wherever she is (she sinks until she stands). There is no ceiling here: fly as high as you like. Rock stops her in flight.
 - **The creatures**: a small group of one to three about every 100 m along the way, and more in the caves beside it: Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig and Devi, stronger the higher she climbs. Each group has its place: some stand there, some walk 20 m to and fro. A group comes at her when one of it sees her (about 20 m off, at its own height or on the stairs below or above it) or when she strikes one. It follows her only so far from its place (45 m); when she is out of its reach for a few seconds (she went on, or flew away over it) it goes home and its wounds close. Never more than three creatures are awake at once: the groups ahead wake as she comes near. A creature she has beaten stays beaten.
-- **The bosses**: the Gveleshapi rises out of the water about 1,150 m along the way, the Giant (a Uaig of a boss's size) waits at about 2,150 m, the Devi Lord at about 3,500 m, and the Eagle, her father, in Amiran's court at the top. While she fights one its name and health are at the top of the screen. She may fly away from a boss: it goes home and mends.
+- **The bosses**: the Gveleshapi rises out of the water about 1,150 m along the way, the Giant (a Uaig of a boss's size) waits at about 2,150 m, the Devi Lord at about 3,500 m, and the Eagle, her father, in Amiran's court at the top. While she fights one its name and health are at the top of the screen. She may fly away from a boss: it goes home and mends. Each fights its own way. The Gveleshapi bites, sweeps a spray of seven orbs across, and rears up to crash down on the circle where you stand. The Giant slams, sweeps, stamps, and leaps up to come down on the circle where you stand. The Devi Lord slams, sweeps, stamps and charges. The Eagle strikes with his wings, throws a gust of feathers, swoops low through where you stand, and dives on a marked circle. Before its great blow (a ring of orbs, stones, fire or feathers bursting out round it) each boss gathers itself for a moment: rearing, stamping, roaring, its wings spread.
 - **Eagle Nests**: nine, beside the way: at the Tide Gate top, the village square, the gorge shelf, the forest clearing, the Eagle shrine, the cloud-line rest, the stone refuge, the temple balcony and the snow-line gate. They are the only saves. Step into one and she rests: she is healed and the climb is saved (that nest, and every creature she has beaten; a creature she beats is saved at once). A nest she has not rested in is marked in gold. The bar at the right shows how high she is and where the nests are.
 - **Falling**: when the creatures beat her, she wakes in the last nest she rested in (at the shore before the first), and the creatures she has beaten are still beaten. Falling into the sea, or onto land away from the path (where there is no ground to stand on), brings her back there too. **Backspace** brings her back there at any time.
 - **Saving**: the climb is saved in `eagles-ascent.sav`, beside the road's save. Starting the Ascent again goes on from the last nest.

@@ -189,6 +189,7 @@ namespace Doorways
         const std::string& ShownClip() const;          // the clip she shows now (hers, or the previewed one)
         float ShownTime() const { return mShownTime; } // and the time in it
         bool Busy() const;
+        int AttacksBegun() const;   // how many blows she has begun (a cut, a skill): the creatures before her see one coming
         ID3D11ShaderResourceView* GlowTexture() const { return mGlowTex.Get(); }
         const DoorwaysGpuMesh& QuadMesh() const { return mQuadMesh; }
 

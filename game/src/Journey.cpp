@@ -91,6 +91,150 @@ namespace CaucasianEagle
             {Kaji, Kudiani}, {Uaig, Almasty, Ochokochi}, {Ali, Chinka, Kudiani}, {Devi, Kaji, Chinka}, {Kudiani, Ali, Ochokochi}, {Kaji, Devi, Uaig}};
         const int StageBoss[12] = {-1, -1, -1, -1, -1, -1, -1, -1, Gveleshapi, DeviLord, Rokapi, -1};
 
+        // ------------------------------------------------------------ how each kind fights and goes
+        // (2026-11-20, the owner: "update each monster combat skills and movements animations, attacking skills and
+        // dodging skills for those twelve monsters"). In reach, one of its blows is chosen by weight at every wind-up
+        // (some only with her close in under it); farther off, each of its moves comes on a clock of its own; its shots
+        // have a pose; as she begins a blow before it, near, now and then it dodges, its own way; and it goes its own way
+        // (CreatureGait). The poses: CreatureRig.cpp.
+        enum Move { MoveNone, MoveSwing, MoveHeavy, MoveQuick, MoveSweep, MovePound, MoveStamp, MoveCharge, MovePounce,
+                    MoveCurse, MoveRear, MoveLeapSlam, MoveShriek, MoveBreath, MoveNova, MoveSpray, MoveGust, MoveSwoop, MoveCount };
+        const char* const MoveNames[MoveCount] = {"none", "swing", "heavy", "quick", "sweep", "pound", "stamp", "charge", "pounce",
+                                                  "curse", "rear", "leapslam", "shriek", "breath", "nova", "spray", "gust", "swoop"};
+        enum ShowCode { ShowShot = 100, ShowDodge, ShowDodgeBack, ShowWalk, ShowRun, ShowStrafe, ShowBack };   // the lab's show, beside the moves
+        using Pose = CreatureRig::Attack;
+        using Dodge = CreatureRig::Dodge;
+        // A move: its look (-1: as its kind gives it, ChooseBlow); its wind-up (s; 0: Windup times its kind's); its damage
+        // (times its kind's blow); how far it lands (m beyond its reach and radius; Round: beyond its radius, all round
+        // it; a mark: the marked circle's radius; a rush: how near it passes her); the arc before it that it lands in
+        // (degrees); how long its blow is seen (s).
+        struct MoveDef { int Look; float Seconds, Windup, Damage, Reach, Arc, After; bool Round; };
+        constexpr int Looks(Pose look) { return static_cast<int>(look); }
+        const MoveDef Moves[MoveCount] = {
+            {-1, 0, 1, 1, .9f, 360, .28f, false},                                        // (none)
+            {-1, 0, 1, 1, .9f, 240, .28f, false},                                        // swing: a light blow, as before
+            {-1, 0, HeavyBlowWindup, HeavyBlowDamage, HeavyBlowReach, 240, .34f, false}, // heavy: slower, wider, harder, as before
+            {-1, 0, FollowUpWindup, 1, .9f, 240, .24f, false},                           // quick: the second blow, with the other arm
+            {-1, 0, 1.25f, 1.2f, 1.5f, 220, .40f, false},                                // sweep: a wide flat arc before it
+            {-1, 0, 1.5f, 1.4f, 2.4f, 360, .50f, true},                                  // pound: both fists into the ground, all round it
+            {-1, 0, .9f, 1.f, 1.9f, 360, .32f, true},                                    // stamp: a foot stamped down, all round it
+            {Looks(Pose::Charge), .8f, 1, 1.5f, 1.1f, 360, .40f, false},                 // charge: a rush through where she is
+            {Looks(Pose::Pounce), .45f, 1, 1.3f, 0, 360, .32f, false},                   // pounce: a leap at her, claws first
+            {Looks(Pose::Curse), 1.3f, 1, 1.5f, 2.4f, 360, .40f, false},                 // curse: the ground under her bursts
+            {Looks(Pose::Rear), 1.5f, 1, 1.5f, 3.6f, 360, .50f, false},                  // rear: the serpent crashes down on her mark
+            {Looks(Pose::Pounce), 1.1f, 1, 1.6f, 4.5f, 360, .50f, false},                // leap-slam: the giant leaps onto her mark
+            {Looks(Pose::Shriek), .55f, 1, 1, 0, 360, .65f, false},                      // shriek: a ring of cold round it
+            {Looks(Pose::Breath), .6f, 1, 1, 0, 360, .60f, false},                       // breath: a short fan of fire at her
+            {Looks(Pose::Roar), .75f, 1, 1, 0, 360, .65f, false},                        // nova: a ring of fire round it
+            {Looks(Pose::Spray), .6f, 1, 1, 0, 360, .35f, false},                        // spray: water swept from side to side
+            {Looks(Pose::Gust), .7f, 1, 1, 0, 360, .45f, false},                         // gust: a wide fan of feathers
+            {Looks(Pose::Swoop), .8f, 1, 1.4f, 2.f, 360, .45f, false},                   // swoop: low through where she is
+        };
+        constexpr float PounceSeconds = .55f, LeapSlamSeconds = 1.f, CloseIn = 1.6f;
+        constexpr int SprayOrbs = 7;
+        // A boss's own blow (UpdateBoss: its ring, the Eagle's dive), and how long before it the boss gathers itself
+        // for it (its wind-up, when it is doing nothing else): the serpent rears up and crashes down, the Devi Lord
+        // roars, the Giant stamps, the Eagle throws its wings forward, or folds them to dive.
+        constexpr float BossBrace = .6f, BossBlowSeconds = .5f;
+        constexpr float DiveRise = 6.f;   // m the Eagle rises over its hover before it comes down on its mark
+        Pose BossPose(int kind, int stage)
+        {
+            switch (kind)
+            {
+            case Gveleshapi: return Pose::Rear;
+            case DeviLord: return Pose::Roar;
+            case Giant: return Pose::Stamp;
+            case Eagle: return stage % 2 == 0 ? Pose::Swoop : Pose::Gust;
+            default: return Pose::Cast;
+            }
+        }
+        // m from its middle within which a blow of it lands
+        float Lands(int kind, int move)
+        {
+            return Moves[move].Round ? Kinds[kind].Radius + Moves[move].Reach : Kinds[kind].Reach + Kinds[kind].Radius + Moves[move].Reach;
+        }
+        // Its blows in reach (Close: only with her within CloseIn of it); its moves from farther off (s between, about; from
+        // and to: m from her beyond its radius); its dodge (how; the chance as she begins a blow before it within Reach m;
+        // s before it may again, about; how far and how long; the moment it waits; Back: back more often than aside;
+        // Counter: it strikes again as soon as it is done); its gait.
+        struct BlowDef { int Move = MoveNone; Pose Look = Pose::Swing; float Weight = 0; bool Close = false; };
+        struct FarDef { int Move = MoveNone; float Every = 0, From = 0, To = 0; };
+        struct DodgeDef { Dodge How = Dodge::None; float Chance = 0, Every = 3, Reach = 0, Metres = 0, Seconds = .4f, React = .1f; bool Back = false, Counter = false; };
+        struct StyleDef { BlowDef Blows[4]; FarDef Far[2]; Pose Shot = Pose::Cast; DodgeDef Evade; CreatureGait Gait; };
+        // gait: hunch, arm swing, arms low, arms out, knee lift, sway, limp, prowl, slither
+        const StyleDef Styles[KindCount] = {
+            // Chinka: claws, quick and twice; from a few metres it pounces; it hops aside and is straight back at her; it
+            // scuttles low on bent legs, its arms out
+            {{{MoveSwing, Pose::Swing, 3.f}, {MoveHeavy, Pose::Swing, 1.f}},
+             {{MovePounce, 4.f, 2.5f, 7.f}}, Pose::Swing,
+             {Dodge::SideHop, .55f, 2.2f, 3.5f, 2.6f, .34f, .06f, false, true},
+             {.35f, .7f, .2f, .2f, 1.3f, .02f, 0, .45f, 0}},
+            // Ali: a claw rake; with her close it shrieks a ring of cold round itself and glides back; it glides aside
+            {{{MoveSwing, Pose::Cast, 1.f}},
+             {{MoveShriek, 6.f, 0, 3.5f}}, Pose::Cast,
+             {Dodge::Glide, .5f, 2.5f, 4.f, 3.2f, .40f, .1f, false, false},
+             {.10f, .4f, 0, .25f, 1, 0, 0, 0, 0}},
+            // Kudiani: a blow of her staff; from afar she curses the ground under her; she hops back; she hobbles, bent
+            {{{MoveSwing, Pose::Swing, 1.f}},
+             {{MoveCurse, 7.f, 4.f, 15.f}}, Pose::Cast,
+             {Dodge::BackHop, .5f, 2.8f, 4.f, 2.6f, .36f, .1f, true, false},
+             {.30f, .5f, 0, .05f, .8f, .02f, .6f, .2f, 0}},
+            // Ochokochi: a swing, a two-handed blow, a sweep; it charges, the blade of its chest first; a lunge aside and
+            // back at her; it lopes on long legs, arms swinging
+            {{{MoveSwing, Pose::Swing, 2.f}, {MoveHeavy, Pose::Slam, 1.f}, {MoveSweep, Pose::Sweep, 1.f}},
+             {{MoveCharge, 6.f, 4.5f, 11.f}}, Pose::Swing,
+             {Dodge::SideStep, .35f, 3.f, 4.f, 2.4f, .40f, .12f, false, true},
+             {.20f, 1.3f, 0, .05f, 1.2f, .03f, 0, 0, 0}},
+            // Almasty: an overhand blow, a two-handed one, both fists into the ground with her close in; it throws stones
+            // (its shots); it ducks back; it goes like an ape, long arms low
+            {{{MoveSwing, Pose::Swing, 2.f}, {MoveHeavy, Pose::Slam, 1.f}, {MovePound, Pose::Pound, 2.f, true}},
+             {}, Pose::Throw,
+             {Dodge::SideStep, .30f, 3.5f, 4.5f, 2.2f, .45f, .15f, true, false},
+             {.35f, 1.1f, .8f, .1f, .9f, .06f, 0, 0, 0}},
+            // Kaji: claws; it breathes fire at her from close by and roars a ring of fire round itself; it steps into fire
+            // and out of it a few metres off, and strikes; it prowls low, claws out
+            {{{MoveSwing, Pose::Swing, 2.f}, {MoveHeavy, Pose::Swing, 1.f}},
+             {{MoveBreath, 5.f, 1.5f, 7.f}, {MoveNova, 9.f, 0, 9.f}}, Pose::Cast,
+             {Dodge::FlameStep, .35f, 4.f, 4.5f, 3.5f, .55f, .1f, false, true},
+             {.15f, .6f, 0, .35f, 1, .04f, 0, .45f, 0}},
+            // Uaig: two-handed blows, a sweep, a stamp with her close in; it strikes the ground from afar and throws stones
+            // (below); a heavy step back; it rolls from foot to foot
+            {{{MoveSwing, Pose::Slam, 2.f}, {MoveSweep, Pose::Sweep, 2.f}, {MoveStamp, Pose::Stamp, 2.f, true}, {MoveHeavy, Pose::Slam, 1.f}},
+             {}, Pose::Throw,
+             {Dodge::HeavyStep, .22f, 5.f, 5.f, 1.8f, .60f, .2f, true, false},
+             {.10f, .8f, 0, .15f, .7f, .09f, 0, 0, 0}},
+            // Devi: two-handed blows, a sweep, a stamp; it charges from afar; a heavy step back
+            {{{MoveSwing, Pose::Slam, 2.f}, {MoveSweep, Pose::Sweep, 2.f}, {MoveHeavy, Pose::Slam, 1.f}, {MoveStamp, Pose::Stamp, 1.f, true}},
+             {{MoveCharge, 8.f, 6.f, 12.f}}, Pose::Throw,
+             {Dodge::HeavyStep, .22f, 5.f, 5.f, 1.8f, .60f, .2f, true, false},
+             {.15f, .9f, 0, .2f, .7f, .08f, 0, 0, 0}},
+            // Rokapi (not on the mountain): as before
+            {{{MoveSwing, Pose::Cast, 1.f}}, {}, Pose::Cast, {}, {}},
+            // the Gveleshapi: its bite; it sprays the water of its lake in a sweep, and rears up and crashes down on her; it
+            // pulls its neck back out of her reach; it winds as it goes
+            {{{MoveSwing, Pose::Bite, 1.f}},
+             {{MoveSpray, 7.f, 5.f, 24.f}, {MoveRear, 10.f, 3.f, 14.f}}, Pose::Bite,
+             {Dodge::Sway, .30f, 4.f, 6.f, 2.5f, .60f, .15f, true, false},
+             {0, 1, 0, 0, 1, 0, 0, 0, .8f}},
+            // the Devi Lord: as a Devi, larger
+            {{{MoveSwing, Pose::Slam, 2.f}, {MoveSweep, Pose::Sweep, 2.f}, {MoveHeavy, Pose::Slam, 1.f}, {MoveStamp, Pose::Stamp, 1.f, true}},
+             {{MoveCharge, 8.f, 6.f, 14.f}}, Pose::Throw,
+             {Dodge::HeavyStep, .20f, 6.f, 6.f, 2.2f, .65f, .2f, true, false},
+             {.15f, .9f, 0, .2f, .7f, .08f, 0, 0, 0}},
+            // the Giant: as a Uaig, larger; and it leaps at her from afar and lands with a blow that shakes the ground
+            {{{MoveSwing, Pose::Slam, 2.f}, {MoveSweep, Pose::Sweep, 2.f}, {MoveStamp, Pose::Stamp, 2.f, true}, {MoveHeavy, Pose::Slam, 1.f}},
+             {{MoveLeapSlam, 12.f, 8.f, 22.f}}, Pose::Throw,
+             {Dodge::HeavyStep, .20f, 6.f, 6.f, 2.2f, .65f, .2f, true, false},
+             {.10f, .8f, 0, .15f, .7f, .09f, 0, 0, 0}},
+            // the Eagle: its talons; it throws a gust of feathers at her and swoops low through where she stands (its dive
+            // and its rings: UpdateBoss); a hard beat of its wings takes it aside
+            {{{MoveSwing, Pose::Swing, 1.f}},
+             {{MoveGust, 7.f, 5.f, 22.f}, {MoveSwoop, 11.f, 9.f, 26.f}}, Pose::Gust,
+             {Dodge::AirStrafe, .30f, 4.f, 7.f, 5.f, .50f, .1f, false, false},
+             {}},
+            {}, {}, {}   // the chest, the chain and its links
+        };
+
         // ------------------------------------------------------------ traps of the road
         // Where each stands (m along the road) and the place model it is built of. Most stand in the open clearings
         // that were fights in older versions. Sources: techplan/04-components.md (traps).
@@ -243,6 +387,21 @@ namespace CaucasianEagle
             char buffer[512];
             va_list args; va_start(args, format); std::vsnprintf(buffer, sizeof(buffer), format, args); va_end(args);
             OutputDebugStringA(buffer);
+        }
+        // which way it goes from where it faces, smoothed: its legs step that way (CreaturePose::Heading); standing
+        // (under .3 m/s), as it was
+        void Head(float& heading, const XMFLOAT3& went, float yaw, float dt)
+        {
+            if (LenXZ(went) < .3f * dt) return;
+            const float way = std::remainder(std::atan2(went.x, went.z) - yaw, 2 * Pi);
+            heading = std::remainder(heading + std::remainder(way - heading, 2 * Pi) * std::min(1.f, dt * 8), 2 * Pi);
+        }
+        // its legs' phase goes quicker stepping aside, where its steps are shorter (CreatureRig: they open .30 rad a leg
+        // where they swing .55 ahead or back)
+        float Shorter(float heading)
+        {
+            const float ahead = std::cos(heading), aside = std::sin(heading) * .30f / .55f;
+            return std::min(1.8f, 1 / std::max(.3f, std::sqrt(ahead * ahead + aside * aside)));
         }
     }
 
@@ -605,6 +764,7 @@ namespace CaucasianEagle
             if (!Kinds[k].Model[0]) continue;
             if (!LoadModel(renderer, Kinds[k].Model, mModels[k], error)) return false;
             if (!mModels[k].Rig.Load(ResolveDoorwaysRuntimePath("assets/Compiled") / (std::string(Kinds[k].Model) + ".rig"), error)) return false;
+            mModels[k].Rig.Sole = mModels[k].Min.y;
             if (k != ChestKind && mModels[k].Rig.Kind == CreatureRig::Type::None) Log("[CaucasianEagle] %s has no .rig: it is drawn rigid\n", Kinds[k].Model);
         }
         mPropModels.resize(4);
@@ -1536,6 +1696,25 @@ namespace CaucasianEagle
         {
             if(!LoadModel(renderer,Kinds[kind].Model,mModels[kind],error))return false;
             if(!mModels[kind].Rig.Load(ResolveDoorwaysRuntimePath("assets/Compiled")/(std::string(Kinds[kind].Model)+".rig"),error))return false;
+            mModels[kind].Rig.Sole=mModels[kind].Min.y;
+        }
+        {   // CAUCASIAN_EAGLE_LAB_CREATURE_MOVES: the moves every station creature shows, one after another, over and over,
+            // harmlessly (2026-11-20; names: MoveNames, and shot, dodge, dodgeback, and on the spot walk, run, strafe, back)
+            char asked[512]={};mShowMoves.clear();
+            if(GetEnvironmentVariableA("CAUCASIAN_EAGLE_LAB_CREATURE_MOVES",asked,sizeof(asked))>0)
+            {
+                std::stringstream list(asked);std::string word;
+                while(std::getline(list,word,','))
+                {
+                    int code=-1;
+                    for(int k=1;k<MoveCount;++k)if(word==MoveNames[k])code=k;
+                    if(word=="shot")code=ShowShot;else if(word=="dodge")code=ShowDodge;else if(word=="dodgeback")code=ShowDodgeBack;
+                    else if(word=="walk")code=ShowWalk;else if(word=="run")code=ShowRun;
+                    else if(word=="strafe")code=ShowStrafe;else if(word=="back")code=ShowBack;
+                    if(code>=0)mShowMoves.push_back(code);
+                }
+            }
+            mShowHarmless=!mShowMoves.empty();
         }
         ResetCreatureStations();return true;
     }
@@ -1586,6 +1765,7 @@ namespace CaucasianEagle
                 else if(m.Active && (!e.Alive || e.Health<=0))
                 {   // (finished by her, it lies where it fell first: Wraith::Linger)
                     e.Alive=false;e.Health=0;m.Dying=true;m.Death=StationDeathSeconds+std::clamp(e.Linger,0.f,6.f)+StationAwaySeconds;m.Windup=-1;m.Lunge=0;m.Slam=0;
+                    m.Rush=0;m.Emit=0;m.Evade=0;m.EvadeIn=-1;m.Leap=0;
                 }
             }
         }
@@ -1601,6 +1781,48 @@ namespace CaucasianEagle
                 auto& m=mMonsters[i];m.Windup=-1;m.Lunge=0;m.Slam=0;
                 m.Cooldown=std::max(m.Cooldown,.8f);m.Shoot=std::max(m.Shoot,.8f);m.Special=std::max(m.Special,.8f);
             }
+        if(!mShowMoves.empty())
+        {   // the lab's show: the station creature she stands before shows the moves asked, one after another, and
+            // nothing else; the rest stand by
+            const XMFLOAT3 her=world.MainPlayer.Position;
+            auto& all=GetNyxaraKit().Enemies();
+            size_t shown=0;float nearest=1e9f;
+            for(size_t i=1;i<mMonsters.size() && i<all.size();++i)
+            {
+                if(!mMonsters[i].Active || mMonsters[i].Kind>=ChestKind)continue;
+                const float d=LenXZ(Sub(all[i].Anchor,her))-all[i].Radius;
+                if(d<nearest){nearest=d;shown=i;}
+            }
+            for(size_t i=1;i<mMonsters.size() && i<all.size();++i)
+            {
+                auto& m=mMonsters[i];const auto& e=all[i];
+                if(!m.Active || m.Dying || e.Doom>0 || m.Kind>=ChestKind)continue;
+                m.Cooldown=m.Shoot=m.Special=m.SlamWait=m.LeapWait=5.f;m.FarWait[0]=m.FarWait[1]=5.f;   // (only what it is asked)
+                if(i!=shown)continue;
+                if(m.ShowGo>0){m.ShowGo-=dt;continue;}
+                if(m.Windup>=0 || m.Rush>0 || m.Leap>0 || m.Emit>0 || m.Evade>0 || m.Lunge>0 || m.Slam>0)continue;
+                if(LenXZ(m.Show)>.05f)continue;   // (back in its place first)
+                if((m.ShowWait-=dt)>0)continue;
+                const int code=mShowMoves[static_cast<size_t>(m.ShowAt++)%mShowMoves.size()];
+                m.ShowWait=1.1f;
+                const XMFLOAT3 to{her.x-e.Pos.x,0,her.z-e.Pos.z};
+                if(code==ShowDodge)BeginEvade(static_cast<int>(i),to,m.ShowAt%2?2:3);
+                else if(code==ShowDodgeBack)BeginEvade(static_cast<int>(i),to,1);
+                else if(code==ShowWalk || code==ShowRun || code==ShowStrafe || code==ShowBack)
+                {   // on the spot: ahead, faster, to a side (each time the other), back
+                    m.ShowHow=code;m.ShowGo=2.5f;
+                    m.ShowSide=code==ShowStrafe?(m.ShowAt%2?Pi*.5f:-Pi*.5f):code==ShowBack?Pi:0.f;
+                }
+                else if(code==ShowShot){m.Look=Looks(Styles[m.Kind].Shot);m.Mirror=false;m.Strikes(.3f);m.Move=MoveNone;}
+                else if(code>MoveNone && code<MoveCount)
+                {   // a blow as its kind gives it (its look), or a move from afar
+                    m.Look=Moves[code].Look>=0?Moves[code].Look:Looks(m.Kind>=Gveleshapi && m.Kind!=DeviLord && m.Kind!=Giant?Styles[m.Kind].Shot:Pose::Swing);
+                    for(const auto& b:Styles[m.Kind].Blows)if(b.Move==code && b.Weight>0)m.Look=Looks(b.Look);
+                    m.Mirror=m.Kind==Kudiani;
+                    BeginMove(static_cast<int>(i),code,world);
+                }
+            }
+        }
         if(attacks)UpdateMonsters(world,combat,dt);
         else for(auto& m:mMonsters){m.Phase+=dt;m.Lunge=std::max(0.f,m.Lunge-dt);}
         // Also catches boss dives/teleports and any kit knockback/launch.
@@ -1609,7 +1831,15 @@ namespace CaucasianEagle
         {
             auto& e=enemies[i];auto& m=mMonsters[i];
             e.Pos=e.Anchor;e.Push={};e.Lift=e.LiftVel=0;e.PushScale=0;
-            m.Ground=0;m.Air=0;m.Moving=0;
+            m.Ground=0;if(m.Leap<=0)m.Air=0;
+            // (on the spot, walking or running for the lab's show; walking back to its place after a move)
+            if(m.ShowGo>0 && i>0)
+            {
+                m.Moving=Kinds[m.Kind].Speed*MonsterSpeedScale*(m.ShowHow==ShowRun?1.4f:.55f);
+                m.Heading+=std::remainder(m.ShowSide-m.Heading,2*Pi)*std::min(1.f,dt*8);
+            }
+            else if(m.Rush>0)m.Moving=m.RushSpeed;
+            else if(!attacks)m.Moving=0;   // (else as UpdateMonsters left it: walking back to its place, or standing)
         }
     }
 
@@ -1659,7 +1889,24 @@ namespace CaucasianEagle
             station.Anchor={e.Anchor.x,0,e.Anchor.z};station.Height=i==0?1.8f:def.Height;station.Radius=e.Radius;
             station.Health=e.Health;station.MaximumHealth=e.MaxHealth;station.Shots=m.Shots;
             station.Windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
-            station.Strike=std::min(1.f,m.Lunge/.28f);
+            station.Strike=std::min(1.f,m.Lunge/std::max(m.LungeFull,.05f));
+            if(i>0 && m.Kind<ChestKind)
+            {   // what it is doing, for the lab's films
+                const Look look=LookOf(static_cast<int>(i));
+                const char* part=m.Dying?"dying":m.Evade>0?"dodge":m.Rush>0?"rush":m.Leap>0?"leap":m.Emit>0?"spray":m.Stage>=100?"dive":
+                                 m.Windup>=0?"windup":m.Slam>0?"slam":m.Lunge>0?"strike":m.ShowGo>0?"going":m.Moving>.1f?"return":"";
+                // (its move while it is under way; a dodge, a walk on the spot, as such)
+                const bool moving=m.Windup>=0 || m.Slam>0 || m.Lunge>0 || m.Rush>0 || m.Leap>0 || m.Emit>0 || m.Stage>=100;
+                const char* shown=m.ShowHow==ShowRun?"run":m.ShowHow==ShowStrafe?"strafe":m.ShowHow==ShowBack?"back":"walk";
+                const char* name=m.Evade>0?(m.EvadeSide==0?"dodgeback":"dodge"):m.ShowGo>0?shown:
+                                 !moving?"idle":m.Move>MoveNone && m.Move<MoveCount?MoveNames[m.Move]:   // (a shot, a throw, a giant's slam: no move)
+                                 m.Slam>0 || m.Struck==Looks(Pose::Slam) || m.Struck==Looks(Pose::Pound)?"slam":
+                                 m.Struck==Looks(Pose::Throw)?"throw":"shot";
+                char doing[96];
+                std::snprintf(doing,sizeof doing,"%s %s w%.2f a%.2f s%.2f e%.2f",name,part,
+                              look.Pose.Windup,look.Pose.Action,look.Pose.Strike,look.Pose.Evade);
+                station.Doing=doing;
+            }
             {
                 const auto& model=mModels[m.Kind];const XMFLOAT3 local=NeckLocal(model.Min,model.Max,model.Rig,def.Height);
                 XMFLOAT3 turned;XMStoreFloat3(&turned,XMVector3TransformNormal(XMLoadFloat3(&local),XMMatrixRotationY(e.Yaw)));
@@ -1702,23 +1949,27 @@ namespace CaucasianEagle
             {   // its health, over its head, turned to the camera (as in the campaign's Draw)
                 const float ratio=static_cast<float>(e.Health)/static_cast<float>(std::max(1,e.MaxHealth));
                 const float top=def.Height+.35f,width=std::min(2.4f,.9f+def.Radius);
-                const XMMATRIX face=XMMatrixRotationY(std::atan2(world.MainCamera.Position.x-feet.x,world.MainCamera.Position.z-feet.z));
-                renderer.DrawBox(XMMatrixScaling(width,.09f,.03f)*face*XMMatrixTranslation(feet.x,top,feet.z),viewProjection,Surface(renderer.mWhiteTextureView.Get(),{.03f,.03f,.04f,1},0));
+                const XMFLOAT3 bar{feet.x+m.Show.x,0,feet.z+m.Show.z};   // (over where its moves have carried it)
+                const XMMATRIX face=XMMatrixRotationY(std::atan2(world.MainCamera.Position.x-bar.x,world.MainCamera.Position.z-bar.z));
+                renderer.DrawBox(XMMatrixScaling(width,.09f,.03f)*face*XMMatrixTranslation(bar.x,top,bar.z),viewProjection,Surface(renderer.mWhiteTextureView.Get(),{.03f,.03f,.04f,1},0));
                 if(ratio>0)
-                    renderer.DrawBox(XMMatrixScaling(width*.96f*ratio,.06f,.04f)*XMMatrixTranslation(-width*.48f*(1-ratio),0,0)*face*XMMatrixTranslation(feet.x,top,feet.z),viewProjection,
+                    renderer.DrawBox(XMMatrixScaling(width*.96f*ratio,.06f,.04f)*XMMatrixTranslation(-width*.48f*(1-ratio),0,0)*face*XMMatrixTranslation(bar.x,top,bar.z),viewProjection,
                                      Surface(renderer.mWhiteTextureView.Get(),ratio<.2f?XMFLOAT4{1.f,.15f,.1f,1}:XMFLOAT4{def.Color.x,def.Color.y,def.Color.z,1},.9f));
             }
             const auto& model=mModels[m.Kind];const bool rigged=model.Rig.Kind!=CreatureRig::Type::None;
-            // Same combat pose parameters as campaign Draw: no root lunge/hover translation.
-            const float windup=m.Windup>=0?1-m.Windup/std::max(m.WindupFull,.01f):m.Slam>0?1-m.Slam/SlamSeconds:0;
-            float pitch=m.Windup>=0?-.32f*std::sin(windup*Pi*.5f):m.Lunge>0?.45f*(m.Lunge/.28f):0;
+            // Same combat pose parameters as campaign Draw (LookOf): no root lunge/hover translation, but where its moves
+            // carried it from its place (Show) and a leap's height.
+            const Look look=LookOf(static_cast<int>(i));
+            if(look.Hidden && !m.Dying)continue;   // (a Kaji in the middle of its step through fire)
+            float pitch=m.Windup>=0?-.32f*std::sin(look.Pose.Windup*Pi*.5f):m.Lunge>0?.45f*look.Pose.Strike:0;
             if(rigged)pitch*=.25f;
+            pitch+=look.Pitch;
             if(i<mStationDown.size() && mStationDown[i]>0)pitch=pitch*(1-mStationDown[i])+1.5f*mStationDown[i];   // thrown: over its feet onto its face
             // dying, in its last StationDeathSeconds it sinks away (before that it lies where it fell); on its knees,
             // doomed, it is let down onto them (NyxaraKit::Wraith::KneelDrop)
             const float sink=m.Dying?(1-std::clamp((m.Death-StationAwaySeconds)/StationDeathSeconds,0.f,1.f))*def.Height*.3f:0.f;
-            const XMFLOAT3 standing{feet.x,feet.y-sink-NyxaraKit::Wraith::KneelDrop(e.Knee,e.Kneel),feet.z};
-            auto place=Place(model.Min,model.Max,def.Height,e.Yaw,standing,pitch,0);
+            const XMFLOAT3 standing{feet.x+m.Show.x,feet.y+m.Air+look.Lift-sink-NyxaraKit::Wraith::KneelDrop(e.Knee,e.Kneel),feet.z+m.Show.z};
+            auto place=Place(model.Min,model.Max,def.Height,e.Yaw+look.Yaw,standing,pitch,look.Roll);
             const float held=i<mStationHeld.size()?mStationHeld[i].Hold:0;
             if(e.Hold>0)
             {   // the kit holds it (as the campaign's Draw has it): pushed over by V, or fallen
@@ -1733,13 +1984,11 @@ namespace CaucasianEagle
             const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission,false,model.Normal.Get());
             if(rigged)
             {
-                CreaturePose pose;pose.Time=m.Phase;pose.Stride=m.Phase*(def.Height>4?3.2f:7.5f);
-                pose.Windup=windup;pose.Strike=std::min(1.f,m.Lunge/.28f);pose.Recoil=std::min(1.f,e.Flash/.16f);
-                pose.Attack=def.Keep>0 || model.Rig.Kind==CreatureRig::Type::Robed?CreatureRig::Attack::Cast:def.Height>4?CreatureRig::Attack::Slam:CreatureRig::Attack::Swing;
-                if(held>0 || e.Hold>0){pose.Windup=0;pose.Strike=0;pose.Death=e.Limp>=0?e.Limp:.8f*std::max(held,e.Hold);}   // limp: arms flung up, head back, knees loose
+                CreaturePose pose=look.Pose;
+                if(held>0 || e.Hold>0){pose.Walk=0;pose.Windup=0;pose.Strike=0;pose.Action=0;pose.Ready=0;pose.Evade=0;pose.Death=e.Limp>=0?e.Limp:.8f*std::max(held,e.Hold);}   // limp: arms flung up, head back, knees loose
                 else if(e.Limp>=0)pose.Death=e.Limp;
                 pose.Daze=e.Daze;pose.Kneel=e.Kneel;   // (doomed: her finishing kills)
-                if(e.Doom>0){pose.Windup=0;pose.Strike=0;}
+                if(e.Doom>0){pose.Walk=0;pose.Windup=0;pose.Strike=0;pose.Action=0;pose.Ready=0;pose.Evade=0;}
                 static DoorwaysGpuSkinningPalette palette;BuildCreaturePalette(model.Rig,pose,palette);
                 renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh,place,viewProjection,palette,skin);
             }
@@ -1788,6 +2037,7 @@ namespace CaucasianEagle
             if (kind == Rokapi) continue;   // never on the mountain (the owner, 2026-11-19)
             if (!LoadModel(renderer, Kinds[kind].Model, mModels[kind], error)) return false;
             if (!mModels[kind].Rig.Load(ResolveDoorwaysRuntimePath("assets/Compiled") / (std::string(Kinds[kind].Model) + ".rig"), error)) return false;
+            mModels[kind].Rig.Sole = mModels[kind].Min.y;
         }
         auto& kit = GetNyxaraKit(); kit.SetExternalEnemies(true); kit.SetTrainingMode(false);
         kit.Enemies().clear(); mMonsters.clear();
@@ -1939,6 +2189,7 @@ namespace CaucasianEagle
             const KindDef& def = Kinds[m.Kind];
             e.Alive = false; e.Health = 0; m.Dying = true; m.Calm = 0;
             m.Death = .55f + std::clamp(e.Linger, 0.f, 6.f); m.Windup = -1; m.Lunge = 0; m.Slam = 0;
+            m.Rush = 0; m.Emit = 0; m.Evade = 0; m.EvadeIn = -1;
             st.Beaten = true; mMountainBeaten.push_back(mMountainCreatures[c].Id); Trace("beaten", c);
             Sound::Play(def.Boss ? "creatures/boss_death" : "creatures/death", def.Boss ? 1.f : .9f, .18f);
             Sound::Play("combat/kill", 1.f, .1f);
@@ -2070,6 +2321,7 @@ namespace CaucasianEagle
                     next = Add(e.Pos, Mul(step, move / left));
                     e.Yaw = AngleTo(e.Yaw, std::atan2(step.x, step.z), MonsterTurnRate * .5f * dt);
                     m.Moving = move / std::max(dt, 1e-4f);
+                    Head(m.Heading, Sub(next, e.Pos), e.Yaw, dt);
                 }
                 else
                 {
@@ -2093,7 +2345,7 @@ namespace CaucasianEagle
                 m.Lost = reach ? 0.f : m.Lost + dt;
                 if (m.Lost > MountainLoseAfter && e.Doom <= 0 && !e.Pinned && e.Hold <= 0)
                 {
-                    m.Calm = 2; m.Lost = 0; m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Leap = 0; m.Stage = m.Stage >= 100 ? m.Stage - 100 : m.Stage;
+                    m.Calm = 2; m.Lost = 0; m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Leap = 0; m.Rush = 0; m.Emit = 0; m.Evade = 0; m.EvadeIn = -1; m.Stage = m.Stage >= 100 ? m.Stage - 100 : m.Stage;
                     Trace("lost_her", c);
                     if (mMountainRoused == c) mMountainRoused = -1;
                 }
@@ -2375,12 +2627,15 @@ namespace CaucasianEagle
                 kit.Effect(e.Pos, def.Color, 40, 8.f, .3f); kit.Shake(.3f);
                 if (LenXZ(Sub(world.MainPlayer.Position, m.Aim)) < 3.6f && combat.PlayerActionsAllowed() && !kit.Blocks(world, e.Pos))
                     kit.Hurt(world, combat, static_cast<int>(22 * DamageTaken()));
-                m.Stage -= 100; m.Special = health < .5f ? 4.5f : 6.5f; m.Lunge = .4f;
+                m.Stage -= 100; m.Special = health < .5f ? 4.5f : 6.5f; m.Look = Looks(Pose::Swing); m.Mirror = false; m.Strikes(.4f);
+                m.Move = MoveSwoop;   // (low as it comes through, and up again: LookOf)
             }
             return;
         }
         m.Special -= dt;
         if (m.Special > 0) return;
+        const Pose special = BossPose(m.Kind, m.Stage);
+        const bool quiet = m.Windup < 0 && m.Slam <= 0 && m.Rush <= 0 && m.Leap <= 0 && m.Emit <= 0 && m.Evade <= 0 && m.Lunge <= 0;
         switch (m.Kind)
         {
         case Rokapi:
@@ -2419,7 +2674,7 @@ namespace CaucasianEagle
                 m.Aim = world.MainPlayer.Position;
                 kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, 4.2f, {1.f, .35f, .25f, 1}, 1.0f);
                 kit.Notice(L"HE DIVES", .9f);
-                m.Stage += 101; m.Special = 1.0f;
+                m.Stage += 101; m.Special = 1.0f; m.DiveFrom = e.Pos;
             }
             else
             {
@@ -2429,7 +2684,347 @@ namespace CaucasianEagle
             break;
         default: m.Special = 5; break;
         }
+        if (quiet && m.Stage < 100) { m.Look = Looks(special); m.Mirror = false; m.Strikes(BossBlowSeconds); m.Move = MoveNone; }
         (void)distance; (void)toPlayer; (void)chest;
+    }
+
+    // ================================================================ how the creatures fight and go (2026-11-20)
+    float Journey::LegLength(int kind) const
+    {   // m from its hips to its soles (two-legged: from its rig; the rest: a share of its height)
+        const KindDef& def = Kinds[kind];
+        if (kind < static_cast<int>(mModels.size()) && mModels[kind].Rig.Kind == CreatureRig::Type::Biped)
+        {
+            const Model& model = mModels[kind];
+            const float scale = def.Height / std::max(model.Max.y - model.Min.y, 1e-4f);
+            const float hips = std::max(model.Rig.Pivot[CreatureRig::LegL].y, model.Rig.Pivot[CreatureRig::LegR].y);
+            const float leg = (hips - model.Min.y) * scale;
+            if (leg > .1f * def.Height && leg < .7f * def.Height) return leg;
+        }
+        return def.Height * .4f;
+    }
+
+    float Journey::StrideRate(int kind, float speed) const
+    {   // radians of its legs' phase a second at this speed: a step (pi) carries it as far as its legs reach, swinging .55
+        // rad each way at a full walk and less as it goes slower (CreatureRig), so the foot it stands on does not slide
+        const float walk = std::clamp(speed / std::max(Kinds[kind].Speed, .1f), .2f, 1.f);
+        return speed / (.35f * LegLength(kind) * walk);
+    }
+
+    void Journey::ChooseBlow(int slot, float gap)
+    {   // one of its blows in reach, by weight (those for her close in under it only when she is), now and then with its
+        // other arm (the Kudiani's staff is in her left hand)
+        Monster& m = mMonsters[slot];
+        const StyleDef& style = Styles[m.Kind];
+        float total = 0;
+        for (const auto& b : style.Blows)
+            if (b.Weight > 0 && (!b.Close || gap < CloseIn)) total += b.Weight;
+        float pick = Random() * total;
+        m.Move = MoveSwing; m.Look = Looks(Pose::Swing);
+        for (const auto& b : style.Blows)
+        {
+            if (b.Weight <= 0 || (b.Close && gap >= CloseIn)) continue;
+            m.Move = b.Move; m.Look = Looks(b.Look);
+            pick -= b.Weight;
+            if (pick <= 0) break;
+        }
+        m.Mirror = m.Kind == Kudiani || ((m.Move == MoveSwing || m.Move == MoveSweep || m.Move == MoveStamp) && Random() < .4f);
+    }
+
+    void Journey::BeginMove(int slot, int move, const WorldState& world)
+    {   // its wind-up, and what she sees of it coming: a ring where it will land (a light blow's red; a heavy one's, or one
+        // all round it, yellow); a move from afar, a yellow ring round its feet; a marked one, a red ring where she stands
+        auto& kit = GetNyxaraKit();
+        Monster& m = mMonsters[slot];
+        const auto& e = kit.Enemies()[slot];
+        const KindDef& def = Kinds[m.Kind];
+        const MoveDef& mv = Moves[move];
+        const XMFLOAT3 feet{e.Pos.x, m.Ground + .05f, e.Pos.z};
+        const XMFLOAT4 red{1.f, .35f, .25f, 1}, yellow{1.f, .72f, .15f, 1};
+        m.Move = move; m.Blow = move == MoveHeavy ? 1 : move == MoveQuick ? 2 : 0;
+        if (mv.Look >= 0) { m.Look = mv.Look; m.Mirror = false; }
+        m.Windup = m.WindupFull = mv.Seconds > 0 ? mv.Seconds : def.Windup * mv.Windup;
+        switch (move)
+        {
+        case MoveSwing: case MoveQuick: kit.RingEffect(feet, def.Reach + def.Radius, red, m.Windup); break;
+        case MoveHeavy: case MoveSweep: case MovePound: case MoveStamp: kit.RingEffect(feet, Lands(m.Kind, move), yellow, m.Windup); break;
+        case MoveCurse: case MoveRear: case MoveLeapSlam:
+        {   // where she will be when it comes
+            const XMFLOAT3 her = world.MainPlayer.Position;
+            m.Aim = {her.x + mPlayerVelocity.x * .35f, her.y, her.z + mPlayerVelocity.z * .35f};
+            kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, mv.Reach, red, m.Windup + (move == MoveLeapSlam ? LeapSlamSeconds : 0.f));
+            break;
+        }
+        case MoveCharge: case MovePounce: case MoveSwoop: kit.RingEffect(feet, def.Radius * 2 + 1, yellow, m.Windup); break;
+        default: kit.RingEffect(feet, def.Radius * 2 + .6f, def.Color, m.Windup); break;   // its fire, its cry, its spray, its gust
+        }
+        Sound::Play(move == MoveShriek || move == MoveNova || move == MoveRear ? "creatures/growl" : "creatures/attack",
+                    move == MoveSwing || move == MoveQuick ? .6f : .8f, .2f);
+    }
+
+    void Journey::EndWindup(int slot, WorldState& world, CombatSystem& combat, float distance, bool overhead, float damageScale, bool alive)
+    {   // what its move does as its wind-up ends
+        auto& kit = GetNyxaraKit();
+        Monster& m = mMonsters[slot];
+        const auto& e = kit.Enemies()[slot];
+        const KindDef& def = Kinds[m.Kind];
+        const StyleDef& style = Styles[m.Kind];
+        const int move = m.Move;
+        const MoveDef& mv = Moves[move];
+        const XMFLOAT3 herFeet = world.MainPlayer.Position, chest = Add(herFeet, {0, 1.2f, 0});
+        XMFLOAT3 to = Sub(herFeet, e.Pos); to.y = 0;
+        const XMFLOAT3 dir = Norm(to);
+        const int damage = std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * mv.Damage));
+        const int orb = std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage > 0 ? def.OrbDamage : def.Damage) * damageScale));
+        const auto shoot = [&](XMFLOAT3 from, float angle, float speed, float rise, float life, XMFLOAT4 colour)
+        {   // (in the lab's show, harmless)
+            kit.SpawnOrb(from, {std::sin(angle) * speed, rise, std::cos(angle) * speed}, mShowHarmless ? 0 : orb, colour, life);
+        };
+        m.Strikes(mv.After);
+        m.Blow = 0;
+        switch (move)
+        {
+        case MoveSwing: case MoveHeavy: case MoveQuick: case MoveSweep: case MovePound: case MoveStamp:
+        {   // a blow: she is within its reach and before it (a blow all round it: anywhere; one into the ground she may
+            // jump over)
+            const bool heavy = move != MoveSwing && move != MoveQuick;
+            const float lands = Lands(m.Kind, move);
+            m.Cooldown = def.Cooldown * MonsterAttackPace * Collection::CreaturePace(mCollection) * (.85f + .3f * Random()) * (heavy ? 1.25f : 1.f);
+            const XMFLOAT3 faces{std::sin(e.Yaw), 0, std::cos(e.Yaw)};
+            const bool before = mv.Arc >= 360 || distance < def.Radius + .6f || dir.x * faces.x + dir.z * faces.z >= std::cos(mv.Arc * .5f * Pi / 180);
+            if (distance < lands && alive && !overhead && before && !(mv.Round && kit.Airborne()))
+            {
+                if (kit.Blocks(world, e.Pos)) { if (!def.Boss) m.Round = RoundGuardSeconds; }   // her guard is up: go round it
+                else
+                {
+                    kit.Hurt(world, combat, damage);
+                    kit.Effect(chest, {1.f, .3f, .25f, 1}, heavy ? 22 : 10, 3.f, .2f); kit.Shake(def.Damage > 12 || heavy ? .22f : .1f);
+                }
+            }
+            if (def.Radius > 1.2f || heavy) kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, lands, def.Color, .45f);
+            if (mv.Round)
+            {   // the ground takes it
+                kit.Effect({e.Pos.x, m.Ground + .3f, e.Pos.z}, def.Color, 24, 5.f, .3f); kit.Shake(.18f);
+                Sound::Play("combat/blow", .7f, .15f);
+            }
+            if (!def.Boss && move == MoveSwing && alive)
+            {
+                if (def.Windup < QuickWindup && distance < lands + 1.5f && Random() < FollowUpChance)
+                {   // quick creatures strike twice, the second time with the other arm
+                    m.Move = MoveQuick; m.Blow = 2; m.Mirror = !m.Mirror;
+                    m.Windup = m.WindupFull = def.Windup * FollowUpWindup;
+                    kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Reach + def.Radius, {1.f, .35f, .25f, 1}, m.Windup);
+                }
+                else if ((style.Evade.How == Dodge::SideHop || style.Evade.How == Dodge::BackHop) && def.Keep == 0)
+                    BeginEvade(slot, to, 1);   // small ones strike and spring back out of her reach
+            }
+            break;
+        }
+        case MoveCharge:
+        {   // the rush: straight through where she will be
+            const float speed = def.Speed * (def.Boss ? 1.f : MonsterSpeedScale) * 3.2f;
+            XMFLOAT3 aim = Add(to, Mul(mPlayerVelocity, .25f)); aim.y = 0;
+            m.HopDir = LenXZ(aim) > .3f ? Norm(aim) : dir;
+            m.RushSpeed = speed; m.Rush = m.RushFull = std::clamp((LenXZ(aim) + 2.5f) / speed, .3f, 1.1f); m.RushHit = false;
+            m.Lunge = 0;   // (its blow is seen as the rush ends)
+            kit.Effect({e.Pos.x, m.Ground + .3f, e.Pos.z}, def.Color, 16, 3.f, .25f);
+            break;
+        }
+        case MovePounce:
+        {   // a leap at where she will be, claws first; it comes down just before her
+            XMFLOAT3 mark = Add(to, Mul(mPlayerVelocity, PounceSeconds * .6f)); mark.y = 0;
+            m.HopDir = LenXZ(mark) > .2f ? Norm(mark) : dir;
+            m.Leap = m.LeapFull = PounceSeconds; m.LeapMove = MovePounce; m.LeapHit = false;
+            m.LeapHigh = .4f + .3f * def.Height; m.LeapSpeed = std::max(0.f, LenXZ(mark) - def.Radius - .3f) / PounceSeconds;
+            m.Lunge = 0;
+            break;
+        }
+        case MoveLeapSlam:
+        {   // up, and down onto its mark (it strikes as it lands: UpdateMonsters)
+            XMFLOAT3 mark = Sub(m.Aim, e.Pos); mark.y = 0;
+            m.HopDir = LenXZ(mark) > .2f ? Norm(mark) : dir;
+            m.Leap = m.LeapFull = LeapSlamSeconds; m.LeapMove = MoveLeapSlam; m.LeapHit = true;
+            m.LeapHigh = 2.f + .25f * def.Height; m.LeapSpeed = LenXZ(mark) / LeapSlamSeconds;
+            m.Lunge = 0;
+            kit.Shake(.15f); Sound::Play("creatures/growl", .9f, .1f);
+            break;
+        }
+        case MoveCurse: case MoveRear:
+        {   // the marked ground bursts
+            m.Cooldown = std::max(m.Cooldown, .8f);
+            kit.Effect(Add(m.Aim, {0, .6f, 0}), def.Color, 40, 7.f, .3f); kit.Shake(move == MoveRear ? .35f : .15f);
+            kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, mv.Reach * 1.3f, def.Color, .5f);
+            Sound::Play("combat/blow", .8f, .15f);
+            if (alive && LenXZ(Sub(herFeet, m.Aim)) < mv.Reach && !kit.Airborne() && !kit.Blocks(world, e.Pos)) kit.Hurt(world, combat, damage);
+            break;
+        }
+        case MoveShriek:
+        {   // a ring of cold round it; then it glides back from her
+            const XMFLOAT3 from{e.Pos.x, m.Ground + m.Air + def.Height * .5f, e.Pos.z};
+            for (int k = 0; k < 8; ++k) shoot(from, 2 * Pi * static_cast<float>(k) / 8, 5.f, 0, 1.5f, def.Color);
+            kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 3 + 1, def.Color, .5f);
+            BeginEvade(slot, to, 1);
+            break;
+        }
+        case MoveBreath:
+        {   // a short fan of fire at her
+            const XMFLOAT3 from{e.Pos.x + dir.x * def.Radius, m.Ground + def.Height * .8f, e.Pos.z + dir.z * def.Radius};
+            const float base = std::atan2(dir.x, dir.z), fall = (chest.y - from.y) / std::max(distance, 1.f);
+            for (int k = 0; k < 5; ++k) shoot(from, base + static_cast<float>(k - 2) * .2f, 11.f, fall * 11.f, .8f, def.Color);
+            kit.Effect(from, def.Color, 18, 4.f, .25f);
+            break;
+        }
+        case MoveNova:
+        {   // a ring of fire round itself
+            const XMFLOAT3 from = Add(e.Pos, {0, def.Height * .25f, 0});
+            for (int k = 0; k < KajiNovaOrbs; ++k) shoot(from, 2 * Pi * static_cast<float>(k) / KajiNovaOrbs, 6.f, 0, 2.4f, def.Color);
+            kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 3, def.Color, .5f);
+            kit.Shake(.12f);
+            break;
+        }
+        case MoveSpray: m.Emit = m.EmitFull = .8f; m.Emitted = 0; m.Lunge = 0; m.Mirror = Random() < .5f; break;   // (its orbs go out as its head sweeps: UpdateMonsters)
+        case MoveGust:
+        {   // a wide fan of feathers at her
+            const XMFLOAT3 from{e.Pos.x, m.Ground + std::max(0.f, def.Hover) + def.Height * .4f, e.Pos.z};
+            const float base = std::atan2(dir.x, dir.z), fall = (chest.y - from.y) / std::max(distance, 1.f);
+            for (int k = 0; k < 9; ++k) shoot(from, base + static_cast<float>(k - 4) * .24f, 12.f, fall * 12.f, 2.2f, {.92f, .95f, 1.f, 1});
+            Sound::Play("nyxara/wing", 1.f, .1f);
+            break;
+        }
+        case MoveSwoop:
+        {   // low through where she is, and on beyond her
+            m.HopDir = dir; m.RushSpeed = 17.f; m.Rush = m.RushFull = std::clamp((distance + 9.f) / 17.f, .6f, 2.2f); m.RushHit = false;
+            m.Lunge = 0;
+            Sound::Play("nyxara/wing", 1.f, .1f);
+            break;
+        }
+        default: break;
+        }
+    }
+
+    void Journey::BeginEvade(int slot, const XMFLOAT3& toHer, int way, bool counter)
+    {   // its dodge, as its kind dodges: aside (way 0 either way, 2 its right, 3 its left) or back (1); a blow it was
+        // winding up is given up; counter: out of her blow's way it strikes back at once
+        auto& kit = GetNyxaraKit();
+        Monster& m = mMonsters[slot];
+        const auto& e = kit.Enemies()[slot];
+        const StyleDef& style = Styles[m.Kind];
+        if (style.Evade.How == Dodge::None) return;
+        const XMFLOAT3 flat{toHer.x, 0, toHer.z};
+        const XMFLOAT3 dir = LenXZ(flat) > 1e-3f ? Norm(flat) : XMFLOAT3{std::sin(e.Yaw), 0, std::cos(e.Yaw)}, right{dir.z, 0, -dir.x};
+        m.EvadeHow = static_cast<int>(style.Evade.How);
+        m.Evade = m.EvadeFull = style.Evade.Seconds; m.EvadeMetres = style.Evade.Metres; m.EvadeMoved = false; m.EvadeIn = -1;
+        m.EvadeCounter = counter;
+        m.EvadeSide = way == 1 ? 0.f : way == 2 ? 1.f : way == 3 ? -1.f : Random() < .5f ? -1.f : 1.f;
+        m.HopDir = way == 1 ? Mul(dir, -1.f) : Norm(Add(Mul(right, m.EvadeSide), Mul(dir, -.35f)));
+        m.Windup = -1; m.Blow = 0;
+        if (style.Evade.How == Dodge::FlameStep) kit.Effect(Add(e.Pos, {0, .4f, 0}), Kinds[m.Kind].Color, 26, 3.5f, .3f);
+        if (style.Evade.How == Dodge::Glide || style.Evade.How == Dodge::AirStrafe) Sound::Play("nyxara/wing", .5f, .2f);
+    }
+
+    XMFLOAT3 Journey::EvadeStep(int slot, float dt)
+    {   // its dodge under way: the step it takes this frame (m/s), gentle at its start and end; a step through fire all at
+        // once, halfway, while it is hidden; as it ends, those that strike back may strike at once
+        auto& kit = GetNyxaraKit();
+        Monster& m = mMonsters[slot];
+        const auto& e = kit.Enemies()[slot];
+        if (m.Evade <= 0 || m.EvadeFull <= 0) return {0, 0, 0};
+        const float was = 1 - m.Evade / m.EvadeFull;
+        m.Evade = std::max(0.f, m.Evade - dt);
+        const float now = 1 - m.Evade / m.EvadeFull;
+        const auto gone = [](float at) { return at - std::sin(2 * Pi * at) / (2 * Pi); };   // the share of its way gone by then
+        float share = gone(now) - gone(was);
+        if (m.EvadeHow == static_cast<int>(Dodge::FlameStep))
+        {
+            share = 0;
+            if (!m.EvadeMoved && now >= .5f)
+            {
+                share = 1; m.EvadeMoved = true;
+                const XMFLOAT3 there = Add(e.Pos, Mul(m.HopDir, m.EvadeMetres));
+                kit.Effect(Add(there, {0, .4f, 0}), Kinds[m.Kind].Color, 26, 3.5f, .3f);
+                kit.RingEffect({there.x, m.Ground + .05f, there.z}, Kinds[m.Kind].Radius * 2 + .5f, Kinds[m.Kind].Color, .4f);
+            }
+        }
+        if (m.Evade <= 0 && m.EvadeCounter) m.Cooldown = std::min(m.Cooldown, .05f);
+        return Mul(m.HopDir, m.EvadeMetres * share / std::max(dt, 1e-4f));
+    }
+
+    Journey::Look Journey::LookOf(int slot) const
+    {   // its pose (CreatureRig) and how its whole body moves with it, for the road's drawing and the creature stations'
+        const Monster& m = mMonsters[slot];
+        const auto& e = GetNyxaraKit().Enemies()[slot];
+        const KindDef& def = Kinds[m.Kind];
+        Look look;
+        CreaturePose& pose = look.Pose;
+        float walk = std::min(1.f, m.Moving / std::max(def.Speed, .1f));
+        // running: from its own speed to 1.8 times it (it chases her at 1.2 times, sprints at nearly twice); in a charge
+        // only half (its charge has its own lean)
+        pose.Run = std::clamp((m.Moving / std::max(def.Speed, .1f) - 1) / .8f, 0.f, 1.f) * (m.Rush > 0 ? .5f : 1.f);
+        pose.Gait = Styles[m.Kind].Gait;
+        pose.Stride = m.Stride; pose.Heading = m.Heading; pose.Time = m.Phase;
+        pose.Attack = static_cast<CreatureRig::Attack>(m.Look); pose.Mirror = m.Mirror;
+        pose.Struck = static_cast<CreatureRig::Attack>(m.Struck); pose.StruckMirror = m.StruckMirror;
+        if (!m.Dying)
+        {
+            if (m.Windup >= 0) pose.Windup = 1 - m.Windup / std::max(m.WindupFull, .01f);
+            else if (m.Slam > 0) pose.Windup = 1 - m.Slam / SlamSeconds;
+            else if (m.Rush > 0) { pose.Windup = 1; pose.Action = 1 - m.Rush / std::max(m.RushFull, .01f); }
+            else if (m.Leap > 0)
+            {   // in the air: its legs do not step, and its feet are not kept on the ground (CreatureRig)
+                pose.Windup = 1; pose.Action = 1 - m.Leap / std::max(m.LeapFull, .01f);
+                walk = 0; pose.Air = std::sin(Pi * pose.Action);
+            }
+            else if (m.Emit > 0) { pose.Windup = 1; pose.Action = 1 - m.Emit / std::max(m.EmitFull, .01f); }
+            else if (m.Stage >= 100)
+            {   // the Eagle's dive: its wings folded, up, and down onto its mark (UpdateMonsters carries it there)
+                const float t = 1 - std::clamp(m.Special, 0.f, 1.f);
+                pose.Attack = Pose::Swoop; pose.Mirror = false; pose.Windup = 1; pose.Action = t;
+                look.Rise = DiveRise * (t < .35f ? Smooth(t, 0, .35f) : 1 - Smooth(t, .35f, 1));
+                look.Hover = 1 - .8f * Smooth(t, .35f, 1);
+            }
+            else if (def.Boss && m.Calm == 0 && m.Special > 0 && m.Special < BossBrace && m.Lunge <= 0 && m.Evade <= 0)
+            {   // a boss gathers itself for its own blow (UpdateBoss)
+                pose.Attack = BossPose(m.Kind, m.Stage); pose.Mirror = false; pose.Windup = 1 - m.Special / BossBrace;
+            }
+            pose.Strike = std::min(1.f, m.Lunge / std::max(m.LungeFull, .05f));
+            pose.Recoil = std::min(1.f, e.Flash / .16f);
+            pose.Ready = m.Ready;
+            if (m.Evade > 0)
+            {   // its dodge: its pose, and its whole body (a hop's arc, banking; a Kaji hidden in its fire); its legs
+                // step no more through it (a hop is off the ground)
+                pose.Dodge = static_cast<CreatureRig::Dodge>(m.EvadeHow); pose.EvadeSide = m.EvadeSide;
+                pose.Evade = 1 - m.Evade / std::max(m.EvadeFull, .01f);
+                const float h = std::sin(Pi * pose.Evade);
+                walk *= 1 - h;
+                switch (pose.Dodge)
+                {
+                case Dodge::SideHop: look.Lift = .18f * def.Height * h; look.Roll = -.08f * h * m.EvadeSide; pose.Air = h; break;
+                case Dodge::BackHop: look.Lift = .14f * def.Height * h; look.Pitch = -.10f * h; pose.Air = h; break;
+                case Dodge::Glide: look.Roll = -.15f * h * m.EvadeSide; look.Pitch = std::abs(m.EvadeSide) < .5f ? -.12f * h : 0.f; break;
+                case Dodge::FlameStep: look.Hidden = pose.Evade > .35f && pose.Evade < .65f; break;
+                case Dodge::AirStrafe: look.Roll = -.30f * h * (m.EvadeSide < 0 ? -1.f : 1.f); break;
+                default: break;
+                }
+            }
+            pose.Turn = std::clamp(m.Turning / 3.f, -1.f, 1.f) * (1 - walk) * (pose.Air > 0 ? 0.f : 1.f);
+        }
+        pose.Walk = m.Dying ? 0.f : walk;
+        // how much of a blow's lunge its whole body follows: none for one into the ground at its feet or all round it
+        switch (pose.Attack)
+        {
+        case Pose::Pound: case Pose::Stamp: case Pose::Roar: case Pose::Shriek: case Pose::Curse: case Pose::Spray: case Pose::Gust: case Pose::Swoop:
+            look.Forward = 0; break;
+        case Pose::Sweep: case Pose::Throw: case Pose::Rear: look.Forward = .4f; break;
+        default: break;
+        }
+        const auto type = m.Kind < static_cast<int>(mModels.size()) ? mModels[m.Kind].Rig.Kind : CreatureRig::Type::None;
+        if (type == CreatureRig::Type::Winged) look.Roll += std::clamp(-m.Turning * .10f, -.35f, .35f);   // it banks into its turns
+        if (type == CreatureRig::Type::Serpent) look.Yaw = .10f * walk * std::sin(m.Stride);                // it winds as it goes
+        if (m.Move == MoveSwoop && !m.Dying && m.Stage < 100)
+        {   // low through where she is (and up again after it, as after its dive)
+            const float low = m.Windup >= 0 ? pose.Windup : m.Rush > 0 ? 1.f : pose.Strike;
+            look.Hover = 1 - .8f * low;
+        }
+        return look;
     }
 
     void Journey::UpdateMonsters(WorldState& world, CombatSystem& combat, float dt)
@@ -2438,7 +3033,7 @@ namespace CaucasianEagle
         auto& enemies = kit.Enemies();
         const auto& player = world.MainPlayer;
         const XMFLOAT3 chest = Add(player.Position, {0, 1.2f, 0});
-        const bool alive = combat.PlayerActionsAllowed();
+        const bool alive = combat.PlayerActionsAllowed() && !mShowHarmless;   // (the lab's show: nothing of theirs touches her)
         const int count = static_cast<int>(mMonsters.size());
         const Arena* arena = mFighting && mArenasCleared < static_cast<int>(mArenas.size()) ? &mArenas[mArenasCleared] : nullptr;
 
@@ -2472,6 +3067,16 @@ namespace CaucasianEagle
             m.Spawn = std::min(1.f, m.Spawn + dt * 2.2f);
             m.Phase += dt;
             m.Lunge = std::max(0.f, m.Lunge - dt);
+            {   // how it goes (2026-11-20): its legs step as far as it has gone, or round on the spot as it turns; its
+                // fighting stance comes up as it is awake and near her
+                const float turned = std::remainder(e.Yaw - m.LastYaw, 2 * Pi); m.LastYaw = e.Yaw;
+                m.Turning += (std::clamp(turned / std::max(dt, 1e-4f), -6.f, 6.f) - m.Turning) * std::min(1.f, dt * 10);
+                const float spin = std::abs(m.Turning) * Kinds[m.Kind].Radius * .8f;   // (stepping round on the spot)
+                const float aside = 1 + (Shorter(m.Heading) - 1) * m.Moving / std::max(m.Moving + spin, 1e-4f);
+                if (m.Kind < ChestKind) m.Stride += dt * StrideRate(m.Kind, m.Moving + spin) * aside;
+                const bool close = m.Calm == 0 && e.Doom <= 0 && LenXZ(Sub(player.Position, e.Pos)) < 14.f;
+                m.Ready += ((close ? 1.f : 0.f) - m.Ready) * std::min(1.f, dt * 3);
+            }
             if (m.Calm > 0) continue;   // on the mountain, waiting at its place or going home (UpdateMountain moves it)
             if (m.Kind == ChestKind || m.Kind == ChainKind || m.Kind == LinkKind) continue;
             const KindDef& def = Kinds[m.Kind];
@@ -2480,6 +3085,7 @@ namespace CaucasianEagle
             if ((e.Pinned || e.Hold > 0) && m.Stage < 100)
             {   // her swords are in it, or she holds it (NyxaraKit): whatever it was doing is over, and it waits
                 m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Moving = 0;
+                m.Rush = 0; m.Emit = 0; m.Evade = 0; m.EvadeIn = -1; if (m.Leap > 0) { m.Leap = 0; m.Air = 0; }
                 m.Cooldown = std::max(m.Cooldown, .8f); m.Shoot = std::max(m.Shoot, .8f); m.Special = std::max(m.Special, .8f);
                 continue;
             }
@@ -2489,7 +3095,13 @@ namespace CaucasianEagle
             const XMFLOAT3 dir = Norm(to);
             e.Yaw = AngleTo(e.Yaw, std::atan2(dir.x, dir.z), MonsterTurnRate * dt);
             if (def.Boss) UpdateBoss(i, world, combat, dt, distance, to);
-            if (m.Stage >= 100) { e.Pos.y = m.Ground + 1.3f; continue; } // mid-dive
+            if (m.Stage >= 100)
+            {   // mid-dive: up, and over onto its mark (LookOf: how high)
+                const float t = 1 - std::clamp(m.Special, 0.f, 1.f), f = Smooth(t, .2f, 1.f);
+                e.Pos.x = m.DiveFrom.x + (m.Aim.x - m.DiveFrom.x) * f; e.Pos.z = m.DiveFrom.z + (m.Aim.z - m.DiveFrom.z) * f;
+                e.Pos.y = m.Ground + (m.Aim.y - m.Ground) * f + 1.3f;
+                continue;
+            }
             // How far she is over its feet. Over its head she is out of reach of its blows, and it answers another
             // way: spirits and witches come up after her, small creatures leap, giants throw stones, the rest shoot.
             const float over = player.Position.y - (m.Ground + m.Air);
@@ -2500,52 +3112,74 @@ namespace CaucasianEagle
                 m.Air += std::clamp(want - m.Air, -FlyerClimb * dt, FlyerClimb * dt);
             }
 
-            // ---- melee
+            const StyleDef& style = Styles[m.Kind];
+            const bool bracing = def.Boss && m.Special < BossBrace;   // (a boss gathering itself for its own blow: UpdateBoss)
+            // ---- its dodge (2026-11-20): as she begins a blow, before her and near, now and then it gets out of the way, a
+            //      moment later (as quick as it is); some strike back at once after it (EvadeStep)
+            {
+                const int herBlows = kit.AttacksBegun();
+                if (herBlows != m.HerBlows)
+                {
+                    m.HerBlows = herBlows;
+                    const bool before = dir.x * facing.x + dir.z * facing.z < -.5f;   // (dir: from it to her; facing: where she looks)
+                    if (style.Evade.How != Dodge::None && alive && m.Dodge <= 0 && m.Evade <= 0 && m.EvadeIn < 0 && before && !overhead &&
+                        distance - def.Radius < style.Evade.Reach && m.Rush <= 0 && m.Leap <= 0 && m.Emit <= 0 && m.Slam <= 0 &&
+                        (m.Windup < 0 || def.Windup < QuickWindup) && !bracing)
+                    {
+                        m.Dodge = style.Evade.Every * (.7f + .6f * Random());
+                        if (Random() < style.Evade.Chance) m.EvadeIn = style.Evade.React;
+                    }
+                }
+                m.Dodge -= dt;
+                if (m.EvadeIn >= 0)
+                {
+                    m.EvadeIn -= dt;
+                    if (m.EvadeIn < 0) BeginEvade(i, to, style.Evade.Back && Random() < .6f ? 1 : 0, style.Evade.Counter);
+                }
+            }
+
+            // ---- melee: one of its blows (ChooseBlow), and what it does as it lands (EndWindup)
             m.Cooldown -= dt;
             bool rooted = false;
             if (m.Windup >= 0)
             {
                 rooted = true;
                 m.Windup -= dt;
-                if (m.Windup < 0)
-                {
-                    const int blow = m.Blow; m.Blow = 0;
-                    const bool heavy = blow == 1;
-                    const float lands = def.Reach + def.Radius + (heavy ? HeavyBlowReach : .9f);
-                    m.Lunge = .28f; m.Cooldown = def.Cooldown * MonsterAttackPace * Collection::CreaturePace(mCollection) * (.85f + .3f * Random()) * (heavy ? 1.25f : 1.f);
-                    if (distance < lands && alive && !overhead)
-                    {
-                        if (kit.Blocks(world, e.Pos)) { if (!def.Boss) m.Round = RoundGuardSeconds; }   // her guard is up: go round it
-                        else
-                        {
-                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * (heavy ? HeavyBlowDamage : 1.f))));
-                            kit.Effect(chest, {1.f, .3f, .25f, 1}, heavy ? 22 : 10, 3.f, .2f); kit.Shake(def.Damage > 12 || heavy ? .22f : .1f);
-                        }
-                    }
-                    if (def.Radius > 1.2f || heavy) kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, lands, def.Color, .45f);
-                    if (!def.Boss && blow == 0 && alive)
-                    {
-                        if (def.Windup < QuickWindup && distance < lands + 1.5f && Random() < FollowUpChance)
-                        {   // quick creatures strike twice
-                            m.Blow = 2; m.Windup = m.WindupFull = def.Windup * FollowUpWindup; rooted = true;
-                            kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Reach + def.Radius, {1.f, .35f, .25f, 1}, m.Windup);
-                        }
-                        else if (def.Radius < .6f && def.Keep == 0)
-                        {   // small ones strike and spring back out of her reach
-                            m.Hop = HopSeconds; m.HopDir = Norm(Add(Mul(dir, -1.f), Mul(XMFLOAT3{dir.z, 0, -dir.x}, Random() - .5f)));
-                        }
-                    }
-                }
+                if (m.Windup < 0) EndWindup(i, world, combat, distance, overhead, damageScale, alive);
             }
             else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && !def.Boss && windingUp >= MaxAttackers)
                 m.Cooldown = .25f + .35f * Random();   // others are already striking: wait for a turn
-            else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && m.Slam <= 0 && !overhead && m.Leap <= 0)   // not in the middle of striking the ground, or of a leap
+            else if (alive && m.Cooldown <= 0 && distance < def.Reach + def.Radius + .2f && def.Reach > 0 && m.Slam <= 0 && !overhead && m.Leap <= 0 &&
+                     m.Rush <= 0 && m.Emit <= 0 && m.Evade <= 0 && m.EvadeIn < 0 && !bracing)   // not in the middle of another move, or of a dodge
             {
                 if (!def.Boss) ++windingUp;
-                m.Blow = !def.Boss && Random() < HeavyBlowChance ? 1 : 0;
-                m.Windup = m.WindupFull = def.Windup * (m.Blow == 1 ? HeavyBlowWindup : 1.f); rooted = true; Sound::Play("creatures/attack", m.Blow == 1 ? .8f : .6f, .2f);
-                if (m.Blow == 1) kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Reach + def.Radius + HeavyBlowReach, {1.f, .72f, .15f, 1}, m.Windup);   // heavy: a wider, yellow ring
-                else kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Reach + def.Radius, {1.f, .35f, .25f, 1}, m.Windup);
+                ChooseBlow(i, distance - def.Radius);
+                BeginMove(i, m.Move, world);
+                rooted = true;
+            }
+
+            // ---- its moves from farther off, each on a clock of its own (a pounce, a charge, a curse, its fire, the
+            //      serpent's spray and rearing, the giant's leap, the eagle's gust and swoop)
+            for (int k = 0; k < 2; ++k)
+            {
+                const FarDef& distant = style.Far[k];
+                if (distant.Move == MoveNone) continue;
+                m.FarWait[k] -= dt;
+                if (m.FarWait[k] > 0 || !alive || rooted || m.Windup >= 0 || m.Slam > 0 || m.Leap > 0 || m.Rush > 0 || m.Emit > 0 || m.Evade > 0 ||
+                    m.EvadeIn >= 0 || m.Stage >= 100 || bracing) continue;
+                const float gap = distance - def.Radius;
+                if (gap < distant.From || gap > distant.To) continue;
+                const bool onGround = distant.Move == MoveCharge || distant.Move == MovePounce || distant.Move == MoveCurse || distant.Move == MoveRear ||
+                                      distant.Move == MoveLeapSlam;
+                if (onGround && (overhead || std::abs(over) > 2.5f)) continue;   // (a charge, a pounce, a mark: on her ground)
+                if (!def.Boss && windingUp >= MaxAttackers) continue;
+                if (!def.Boss) ++windingUp;
+                m.FarWait[k] = distant.Every * (.75f + .5f * Random());
+                if (style.Far[1 - k].Move != MoveNone) m.FarWait[1 - k] = std::max(m.FarWait[1 - k], 2.f);   // (not one straight after the other)
+                BeginMove(i, distant.Move, world);
+                m.Shoot = std::max(m.Shoot, 1.5f);   // (its shots wait: one thing at a time)
+                rooted = true;
+                break;
             }
 
             // ---- giants strike the ground where she stands, from a distance
@@ -2556,7 +3190,7 @@ namespace CaucasianEagle
                     rooted = true; m.Slam -= dt;
                     if (m.Slam <= 0)
                     {
-                        m.Slam = 0; m.SlamWait = SlamEvery * (.8f + .4f * Random()); m.Lunge = .28f;
+                        m.Slam = 0; m.SlamWait = SlamEvery * (.8f + .4f * Random()); m.Strikes(.4f); m.Move = MoveNone;
                         kit.Effect(Add(m.Aim, {0, .6f, 0}), def.Color, 36, 7.f, .3f); kit.Shake(.25f);
                         kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, SlamRadius * 1.4f, def.Color, .5f);
                         Sound::Play("combat/blow", .8f, .15f);
@@ -2564,30 +3198,33 @@ namespace CaucasianEagle
                             kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * SlamDamage)));
                     }
                 }
-                else if (alive && m.Windup < 0)
+                else if (alive && m.Windup < 0 && m.Leap <= 0 && m.Rush <= 0 && m.Emit <= 0 && m.Evade <= 0)
                 {
                     m.SlamWait -= dt;
                     if (m.SlamWait <= 0 && distance > 5.f && distance < SlamRange)
                     {
                         m.Aim = Add(player.Position, Mul(mPlayerVelocity, .45f)); m.Slam = SlamSeconds; rooted = true;
+                        m.Look = Looks(Pose::Slam); m.Mirror = false; m.Move = MoveNone;
                         kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, SlamRadius, {1.f, .35f, .25f, 1}, SlamSeconds);
                         Sound::Play("creatures/attack", .8f, .2f);
                     }
                 }
             }
 
-            // ---- she is over its head: small creatures leap up at her, giants throw stones
+            // ---- she is over its head: small creatures leap up at her, giants throw stones; a pounce and the giant's leap
+            //      are leaps too (EndWindup)
             if (m.Leap > 0)
-            {   // in the air: up to where she was and down again
+            {   // in the air: up and down again, on toward where it leapt
                 rooted = true; m.Leap -= dt;
-                const float t = 1 - std::max(0.f, m.Leap) / LeapSeconds;
+                const float t = 1 - std::max(0.f, m.Leap) / std::max(m.LeapFull, .01f);
                 m.Air = m.LeapHigh * std::sin(t * Pi);
                 if (!m.LeapHit && alive && Len(Sub(chest, {e.Pos.x, m.Ground + m.Air + def.Height * .6f, e.Pos.z})) < def.Radius + LeapTouch)
                 {
                     m.LeapHit = true;
                     if (!kit.Blocks(world, e.Pos))
                     {
-                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * LeapDamage)));
+                        const float times = m.LeapMove == MovePounce ? Moves[MovePounce].Damage : LeapDamage;
+                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * times)));
                         kit.Effect(chest, {1.f, .3f, .25f, 1}, 16, 3.f, .2f); kit.Shake(.16f);
                     }
                 }
@@ -2595,6 +3232,17 @@ namespace CaucasianEagle
                 {
                     m.Air = 0; m.Cooldown = std::max(m.Cooldown, .7f);
                     kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2 + 1, def.Color, .35f);
+                    if (m.LeapMove == MoveLeapSlam)
+                    {   // down on its mark: the ground shakes and bursts round it
+                        const float reach = Moves[MoveLeapSlam].Reach;
+                        kit.Effect({e.Pos.x, m.Ground + .5f, e.Pos.z}, def.Color, 50, 8.f, .35f); kit.Shake(.4f);
+                        kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, reach * 1.3f, def.Color, .6f);
+                        Sound::Play("combat/blow", 1.f, .1f);
+                        if (alive && distance < reach + def.Radius * .5f && !kit.Airborne() && !kit.Blocks(world, e.Pos))
+                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * Moves[MoveLeapSlam].Damage)));
+                    }
+                    m.Strikes(m.LeapMove != MoveNone ? Moves[m.LeapMove].After : .3f);   // (it lands raking, or slamming)
+                    m.LeapMove = MoveNone;
                 }
             }
             else if (alive && overhead && !rooted && !def.Boss && def.Range == 0)
@@ -2605,7 +3253,8 @@ namespace CaucasianEagle
                     if (m.LeapWait <= 0 && over < LeapReach && distance < LeapRange)
                     {
                         m.LeapWait = LeapEvery * (.7f + .6f * Random());
-                        m.Leap = LeapSeconds; m.LeapHigh = std::max(1.f, over - def.Height * .5f); m.LeapHit = false;
+                        m.Leap = m.LeapFull = LeapSeconds; m.LeapMove = MoveNone; m.LeapHigh = std::max(1.f, over - def.Height * .5f); m.LeapHit = false;
+                        m.Look = Looks(Pose::Pounce); m.Mirror = false; m.Move = MoveNone;
                         XMFLOAT3 mark = Add(to, Mul(mPlayerVelocity, LeapSeconds * .5f)); mark.y = 0;   // where she will be when it is at the top
                         m.HopDir = LenXZ(mark) > .2f ? Norm(mark) : dir;
                         m.LeapSpeed = LenXZ(mark) / (LeapSeconds * .5f);
@@ -2623,7 +3272,8 @@ namespace CaucasianEagle
                         const XMFLOAT3 mark = Add(chest, Mul(mPlayerVelocity, RangedLead * std::min(Len(Sub(chest, from)) / ThrowSpeed, 1.2f)));
                         kit.SpawnOrb(from, Mul(Norm(Sub(mark, from)), ThrowSpeed), std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * ThrowDamage)),
                                      {.78f, .72f, .62f, 1}, 3.2f);
-                        m.Shoot = ThrowEvery * (.8f + .4f * Random()); m.Lunge = .28f;
+                        m.Shoot = ThrowEvery * (.8f + .4f * Random()); m.Look = Looks(Pose::Throw); m.Mirror = false; m.Strikes(.35f);
+                        m.Move = MoveNone;
                         Sound::Play("creatures/attack", .8f, .2f);
                     }
                 }
@@ -2633,7 +3283,7 @@ namespace CaucasianEagle
             if (def.Range > 0 && alive)
             {
                 m.Shoot -= dt;
-                if (m.Shoot <= 0 && distance < def.Range && (def.Keep > 0 || distance > 5.f) && !rooted)
+                if (m.Shoot <= 0 && distance < def.Range && (def.Keep > 0 || distance > 5.f) && !rooted && m.Evade <= 0 && m.Rush <= 0 && m.Emit <= 0)
                 {
                     const XMFLOAT3 from = Add(e.Pos, {0, def.Height * .25f, 0});
                     const float speed = def.Boss ? 9.5f : 8.f;
@@ -2644,32 +3294,79 @@ namespace CaucasianEagle
                     ++m.Shots;
                     int volley = def.Volley;
                     if (!def.Boss && def.Keep > 0 && m.Shots % FanEvery == 0) volley = 3;          // spirits and witches: a fan
-                    if (!def.Boss && m.Kind == Kaji && m.Shots % 3 == 0)
-                    {   // the Kaji breathes a ring of fire round itself
-                        volley = 0;
-                        for (int v = 0; v < KajiNovaOrbs; ++v)
-                        {
-                            const float a = 2 * Pi * static_cast<float>(v) / static_cast<float>(KajiNovaOrbs);
-                            kit.SpawnOrb(from, {std::sin(a) * 6.f, 0, std::cos(a) * 6.f}, std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage) * damageScale)), def.Color, 2.4f);
-                        }
-                        kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 3, def.Color, .5f);
-                    }
                     for (int v = 0; v < volley; ++v)
                     {
                         const float a = base + (static_cast<float>(v) - static_cast<float>(volley - 1) * .5f) * .2f;
                         kit.SpawnOrb(from, {std::sin(a) * speed, fall * speed, std::cos(a) * speed}, std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage) * damageScale)), def.Color);
                     }
                     m.Shoot = def.OrbEvery * (.8f + .4f * Random());
-                    m.Lunge = .2f;
+                    for (float& later : m.FarWait) later = std::max(later, 1.2f);   // (and its moves from afar)
+                    m.Look = Looks(style.Shot); m.Mirror = false; m.Strikes(.3f); m.Move = MoveNone;
                 }
             }
 
+            // ---- a rush under way (a charge; the eagle's swoop): on as it set out, striking her once if it passes close by
+            //      (her guard stops it); it ends winded, her moment
+            if (m.Rush > 0)
+            {
+                rooted = true; m.Rush -= dt;
+                const MoveDef& rushing = Moves[m.Move];
+                if (!m.RushHit && alive && distance < def.Radius + rushing.Reach + .4f && (m.Move == MoveSwoop || !overhead))
+                {
+                    m.RushHit = true;
+                    if (kit.Blocks(world, e.Pos)) m.Rush = std::min(m.Rush, .06f);
+                    else
+                    {
+                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * rushing.Damage)));
+                        kit.Effect(chest, {1.f, .3f, .25f, 1}, 20, 3.5f, .22f); kit.Shake(.25f);
+                    }
+                }
+                if (m.Rush <= 0)
+                {
+                    m.Rush = 0; m.Strikes(rushing.After);
+                    m.Cooldown = std::max(m.Cooldown, 1.1f);
+                    kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2 + 1, def.Color, .35f);
+                }
+            }
+            // ---- the serpent's spray under way: its orbs go out one after another as its head sweeps across
+            if (m.Emit > 0)
+            {
+                rooted = true; m.Emit -= dt;
+                const float swept = 1 - std::max(0.f, m.Emit) / std::max(m.EmitFull, .01f);
+                const float base = std::atan2(dir.x, dir.z), way = m.Mirror ? -1.f : 1.f;
+                const XMFLOAT3 from{e.Pos.x, m.Ground + def.Height * .55f, e.Pos.z};
+                const float fall = (chest.y - from.y) / std::max(distance, 1.f);
+                const int orb = std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage) * damageScale));
+                while (m.Emitted < SprayOrbs && swept >= (static_cast<float>(m.Emitted) + .5f) / static_cast<float>(SprayOrbs))
+                {
+                    const float a = base + way * (.9f - 1.8f * static_cast<float>(m.Emitted) / static_cast<float>(SprayOrbs - 1));
+                    kit.SpawnOrb(from, {std::sin(a) * 10.f, fall * 10.f, std::cos(a) * 10.f}, mShowHarmless ? 0 : orb, def.Color, 2.6f);
+                    ++m.Emitted;
+                }
+                if (m.Emit <= 0) { m.Emit = 0; m.Strikes(Moves[MoveSpray].After); }
+            }
+            const XMFLOAT3 dodged = m.Evade > 0 ? EvadeStep(i, dt) : XMFLOAT3{0, 0, 0};   // (its dodge: the step it takes)
+
             // Anchored training keeps the campaign attack state machine above,
-            // but no chase, separation, retreat, leap or forced displacement.
+            // but no chase, separation, retreat, leap or forced displacement:
+            // its moves carry it only as it is drawn (Show), and it walks back.
             if (mCreatureStations)
             {
+                XMFLOAT3 went = dodged;
+                if (m.Rush > 0) went = Mul(m.HopDir, m.RushSpeed);
+                if (m.Leap > 0) went = Mul(m.HopDir, m.LeapSpeed);
+                m.Moving = 0;
+                if (went.x != 0 || went.z != 0) m.Show = Add(m.Show, Mul(went, dt));
+                else if (m.Evade <= 0 && m.Windup < 0 && m.Lunge <= 0 && m.Slam <= 0 && m.Emit <= 0 && LenXZ(m.Show) > .01f)
+                {   // its move over: walking back to its place (facing her: ahead, aside or back)
+                    const float pace = .55f * Kinds[m.Kind].Speed * MonsterSpeedScale;
+                    const float back = LenXZ(m.Show), step = std::min(back, pace * dt);
+                    const XMFLOAT3 home = Mul(m.Show, -step / back);
+                    m.Show = Add(m.Show, home);
+                    m.Moving = pace; Head(m.Heading, home, e.Yaw, dt);
+                }
                 e.Pos=e.Anchor; e.Push={}; e.Lift=e.LiftVel=0;
-                m.Moving=0; m.Air=0; m.Ground=0;
+                if (m.Leap <= 0) m.Air=0; m.Ground=0;
                 continue;
             }
             // ---- movement
@@ -2692,16 +3389,9 @@ namespace CaucasianEagle
                 const XMFLOAT3 round = (side.x * facing.x + side.z * facing.z) < 0 ? side : Mul(side, -1.f);
                 const bool behind = dir.x * facing.x + dir.z * facing.z > .3f;      // it is behind her already
                 if (m.Round > 0) { m.Round -= dt; if (behind) m.Round = 0; }
-                m.Dodge -= dt;
-                if (!def.Boss && def.Radius < .6f && m.Dodge <= 0 && kit.Busy() && distance < DodgeDistance && dir.x * facing.x + dir.z * facing.z < -.5f)
-                {   // she attacks and it is in front of her: now and then it jumps aside
-                    m.Dodge = DodgeEvery * (.7f + .6f * Random());
-                    if (Random() < DodgeChance) { m.Hop = HopSeconds; m.HopDir = Norm(Add(Mul(side, Random() < .5f ? 1.f : -1.f), Mul(dir, -.6f))); }
-                }
                 const bool wounded = !def.Boss && def.Cost <= 2 && def.Keep == 0 && pack > 1 &&
                                      static_cast<float>(e.Health) < WoundedShare * static_cast<float>(e.MaxHealth);
-                if (m.Hop > 0) { m.Hop -= dt; move = Mul(m.HopDir, speed * HopSpeed); }
-                else if (m.Round > 0 && distance < def.Reach + def.Radius + 3.f)
+                if (m.Round > 0 && distance < def.Reach + def.Radius + 3.f)
                     move = Mul(Norm(Add(round, Mul(dir, distance > def.Reach + def.Radius ? .5f : -.15f))), speed * 1.15f);
                 else if (wounded && m.Cooldown > .7f)
                 {   // badly hurt: it stays out of her reach and comes in only to strike
@@ -2724,6 +3414,8 @@ namespace CaucasianEagle
                 else if (!def.Boss && m.Cooldown > 0) move = Mul(side, speed * MonsterCircleSpeed);   // in reach, between blows or waiting for a turn: circle her
             }
             if (m.Leap > 0) move = Mul(m.HopDir, m.LeapSpeed);
+            if (m.Rush > 0) move = Mul(m.HopDir, m.RushSpeed);
+            if (m.Evade > 0 || dodged.x != 0 || dodged.z != 0) move = dodged;   // (a step through fire stands still, then is gone at once)
             for (int j = 0; j < count; ++j)
             {   // keep apart
                 if (j == i || !mMonsters[j].Active || mMonsters[j].Dying || mMonsters[j].Kind == ChestKind || mMonsters[j].Kind == LinkKind) continue;
@@ -2772,6 +3464,7 @@ namespace CaucasianEagle
                 }
             }
             m.Moving = LenXZ(Sub(next, e.Pos)) / std::max(dt, 1e-4f);
+            Head(m.Heading, Sub(next, e.Pos), e.Yaw, dt);   // (facing her, it goes ahead, aside or back)
             m.Index = index;
             m.Ground = mMountain ? MountainGroundAt(next.x, next.z, m.Ground) : GroundAt(next.x, next.z, m.Index);
             if (roams)
@@ -3719,17 +4412,20 @@ namespace CaucasianEagle
                 continue;
             }
             const Model& model = mModels[m.Kind];
-            const float walk = std::min(1.f, m.Moving / std::max(def.Speed, .1f));
-            const float stride = def.Height > 4 ? 3.2f : 7.5f;
-            float pitch = .10f * walk, roll = .05f * walk * std::sin(m.Phase * stride);
-            float lift = std::abs(std::sin(m.Phase * stride)) * .07f * def.Height * walk * (def.Hover > 0 ? 0.f : 1.f);
+            const bool rigged = model.Rig.Kind != CreatureRig::Type::None, legs = model.Rig.Kind == CreatureRig::Type::Biped;
+            const Look look = LookOf(i);
+            if (look.Hidden) continue;   // (a Kaji in the middle of its step through fire)
+            const float walk = look.Pose.Walk;
+            float pitch = .10f * walk * std::cos(look.Pose.Heading), roll = .05f * walk * std::sin(m.Stride);
+            // its body rises and falls with its steps (two-legged: its feet keep it on the ground, BuildCreaturePalette)
+            float lift = legs ? 0.f : std::abs(std::sin(m.Stride)) * .07f * def.Height * walk * (def.Hover > 0 ? 0.f : 1.f);
             float forward = 0;
-            if (m.Windup >= 0) { const float t = 1 - m.Windup / std::max(m.WindupFull, .01f); pitch = -.32f * std::sin(t * Pi * .5f); lift += .04f * def.Height * t; }
-            if (m.Lunge > 0) { const float t = m.Lunge / .28f; pitch = .45f * t; forward = .5f * def.Radius * t + .3f * t; }
-            const bool rigged = model.Rig.Kind != CreatureRig::Type::None;
+            if (m.Windup >= 0) { const float t = look.Pose.Windup; pitch = -.32f * std::sin(t * Pi * .5f); if (!legs) lift += .04f * def.Height * t; }
+            if (m.Lunge > 0) { const float t = look.Pose.Strike; pitch = .45f * t; forward = (.5f * def.Radius * t + .3f * t) * look.Forward; }
             if (rigged) { pitch *= .25f; roll *= .4f; }   // the joints do the leaning; the whole body only follows a little
             if (m.Hover < 0) pitch += .25f;
-            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) + (m.Stage >= 100 ? 6.f * std::min(1.f, m.Special) : 0.f);
+            pitch += look.Pitch; roll += look.Roll; lift += look.Lift;
+            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) * look.Hover + look.Rise;
             // (dying it sinks away; on its knees, doomed, it is let down onto them: NyxaraKit::Wraith::KneelDrop)
             const float sink = m.Dying ? (1 - fade) * def.Height * .3f : 0.f;
             const XMFLOAT3 at{feet.x + std::sin(e.Yaw) * forward, feet.y + lift + hover - sink - NyxaraKit::Wraith::KneelDrop(e.Knee, e.Kneel), feet.z + std::cos(e.Yaw) * forward};
@@ -3737,22 +4433,20 @@ namespace CaucasianEagle
             const XMFLOAT4 tint = flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{MonsterTint, MonsterTint, MonsterTint, 1};
             const XMFLOAT3 heldNeck{e.HeldNeck.x, e.HeldNeck.y - sink, e.HeldNeck.z}, heldFeet{e.HeldFeet.x, e.HeldFeet.y - sink, e.HeldFeet.z};
             const XMMATRIX place = e.Hold > 0 ? HeldPlace(model.Min, model.Max, model.Rig, def.Height, e.Yaw, feet, e.Hold, heldNeck, heldFeet)   // in her hold, or fallen
-                                              : Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
+                                              : Place(model.Min, model.Max, height, e.Yaw + look.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
             const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission, false, model.Normal.Get());
             if (rigged)
             {   // limbs, spine and head move on their own joints
-                CreaturePose pose;
-                pose.Walk = m.Dying ? 0.f : walk; pose.Stride = m.Phase * stride; pose.Time = m.Phase;
-                pose.Windup = m.Windup >= 0 && !m.Dying ? 1 - m.Windup / std::max(m.WindupFull, .01f) : m.Slam > 0 && !m.Dying ? 1 - m.Slam / SlamSeconds : 0.f;
-                pose.Strike = m.Dying ? 0.f : std::min(1.f, m.Lunge / .28f);
-                pose.Recoil = m.Dying ? 0.f : std::min(1.f, e.Flash / .16f);
+                CreaturePose pose = look.Pose;
                 pose.Death = m.Dying ? 1 - fade : 0.f;
-                if (e.Hold > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Death = e.Limp >= 0 ? e.Limp : std::max(pose.Death, .8f * e.Hold); }   // limp in her hold
+                if (e.Hold > 0)
+                {   // limp in her hold
+                    pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Action = 0; pose.Ready = 0; pose.Evade = 0;
+                    pose.Death = e.Limp >= 0 ? e.Limp : std::max(pose.Death, .8f * e.Hold);
+                }
                 else if (e.Limp >= 0) pose.Death = e.Limp;
                 pose.Daze = e.Daze; pose.Kneel = e.Kneel;   // (doomed: her finishing kills)
-                if (e.Doom > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; }
-                pose.Attack = def.Keep > 0 || model.Rig.Kind == CreatureRig::Type::Robed ? CreatureRig::Attack::Cast
-                            : def.Height > 4 ? CreatureRig::Attack::Slam : CreatureRig::Attack::Swing;
+                if (e.Doom > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Action = 0; pose.Ready = 0; pose.Evade = 0; }
                 static Doorways::DoorwaysGpuSkinningPalette palette;   // 128 matrices: too large to build on the stack every creature
                 BuildCreaturePalette(model.Rig, pose, palette);
                 renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh, place, viewProjection, palette, skin);

@@ -470,6 +470,7 @@ namespace Doorways
 
         // ---- what she is doing
         std::string Attack;                // the cut or skill being played, empty: none
+        int Begun = 0;                     // cuts and skills begun (NyxaraKit::AttacksBegun)
         float AttackTime = 0, SkillStrike = 0, SkillReach = 1;
         int Step = 0, Queued = 0;          // place in the combo; the button pressed during a cut (1 left, 2 right)
         int RowAt[2] = {0, 0}, LastHand = 0; bool RowUsed[2] = {false, false};   // each hand's place in its row of cuts; the hand that cut last; whether each has cut in this combo
@@ -2169,7 +2170,7 @@ namespace Doorways
 
         void StartAttack(const WorldState& world, const std::string& name, float into = 0)
         {
-            Attack = name;
+            Attack = name; ++Begun;
             // A cut is entered so that her body can come to it (2026-11-19; owner: "odd gaps between attacks",
             // "animations seems like concated wrong way", "hands are not following the skills and combos properly").
             // Every cut was entered 0.34 s before its blow and her body brought to it in a tenth of a second, wherever
@@ -3636,6 +3637,7 @@ namespace Doorways
     }
 
     bool NyxaraKit::Busy() const { return mBody->Moving() || mGuarding; }
+    int NyxaraKit::AttacksBegun() const { return mBody->Begun; }
 
     std::vector<std::string> NyxaraKit::ClipNames() const
     {
