@@ -480,7 +480,10 @@ namespace Doorways
         float JumpClock = 0, AirSeconds = 0, Dropped = 0, FellAt = 0; // seconds of this jump; off the ground on foot; held reaching down; her fall a frame ago (m/s)
         float Squat = 0, SquatGo = 0;      // her knees taking a landing: her hips let down (m), and how fast
         bool Struck = false;               // something hurt her since her last frame
-        float Flinch = 0, FlinchGo = 0;    // knocked back by it: her picture tipped back (radians), and how fast
+        float Flinch = 0, FlinchGo = 0;    // knocked back by it: her picture tipped forward (radians; back < 0), and how fast
+        float FlinchRoll = 0, FlinchRollGo = 0;   // and to a side (to her left > 0), and how fast
+        float StruckWeight = 1, StruckX = 0, StruckZ = -1;   // how hard it was (1: a blow of 9), and the way it knocked her (her axes: x her right, z the way she faces)
+        bool StruckBelow = false;          // it burst under her feet
         float FlyTime = 0, FlyLean = 0, Hover = 0, Rise = -1, Touch = -1;
         bool WasFlying = false;
         int Air = 0; float AirTime = 0;    // F in flight: 1 the twisted dash
@@ -908,10 +911,12 @@ namespace Doorways
         // turns into the swing she now goes through the clip's own poses, all of her, but evenly: the distance her hand
         // goes along its way (against her hips) goes as a cubic from the clip's pace at one end to its pace at the other,
         // in the same time. Every frame is still one of the clip's own poses; the blow is where it was. A cut whose
-        // wind-up is calm already (at most WindUpCalm of its blow's speed) is left as it is.
+        // wind-up is calm already (at most WindUpCalm of its blow's speed) is left as it is. (2026-11-20: R3's cock, 44 %
+        // of its blow, was left just under the line at 45 %, and still read as a twitch before the blow; at 40 % it is
+        // made one move too, and L1's, 35 %, is still left.)
         void EvenWindUps()
         {
-            constexpr float WindUpFrom = .45f, WindUpCalm = .45f, Tick = 1 / 240.f, KeysEvery = 1 / 120.f;
+            constexpr float WindUpFrom = .45f, WindUpCalm = .40f, Tick = 1 / 240.f, KeysEvery = 1 / 120.f;
             if (Hips < 0) return;
             for (auto& entry : Clips)
             {
@@ -5063,16 +5068,26 @@ namespace Doorways
             const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
             const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
             {   // Struck, she is knocked back a little and comes upright again (2026-11-19: a blow took her health and
-                // did nothing else to her), and her wings start up (below, with her guard).
-                constexpr float Spring = 13.f;
-                if (b.Struck && !b.Dead) b.FlinchGo -= 4.5f;
+                // did nothing else to her), and her wings start up (below, with her guard). Away from the blow, as hard
+                // as it was (2026-11-20: every blow tipped her back by the same 7 degrees, a Chinka's claw as a giant's
+                // leap-slam, from behind as from before her): 4 to 13 degrees, forward, back or to a side; a heavy blow,
+                // or a burst under her feet, makes her knees give.
+                constexpr float Spring = 13.f, Knock = 4.5f;
+                if (b.Struck && !b.Dead)
+                {
+                    b.FlinchGo += Knock * b.StruckWeight * b.StruckZ;
+                    b.FlinchRollGo -= Knock * b.StruckWeight * b.StruckX;
+                    if (afoot) b.SquatGo += 2.f * (b.StruckBelow ? b.StruckWeight : (std::max)(0.f, b.StruckWeight - 1));
+                }
                 for (float left = dt; left > 1e-6f;)
                 {
                     const float h = (std::min)(left, 1 / 120.f); left -= h;
                     b.FlinchGo += (-Spring * Spring * b.Flinch - 2 * Spring * b.FlinchGo) * h;
                     b.Flinch += b.FlinchGo * h;
+                    b.FlinchRollGo += (-Spring * Spring * b.FlinchRoll - 2 * Spring * b.FlinchRollGo) * h;
+                    b.FlinchRoll += b.FlinchRollGo * h;
                 }
-                if (b.Dead || b.Cast || b.Finish) b.Flinch = b.FlinchGo = 0;
+                if (b.Dead || b.Cast || b.Finish) b.Flinch = b.FlinchGo = b.FlinchRoll = b.FlinchRollGo = 0;
             }
             b.LeanRoll += (roll - b.LeanRoll) * (std::min)(1.f, dt * 5);
             b.LeanPitch += (pitch - b.LeanPitch) * (std::min)(1.f, dt * 7);
@@ -5080,7 +5095,7 @@ namespace Doorways
             const bool winging = flying && !p.IsGrounded && !b.Dead && !b.Cast && !b.Air && b.Rise < 0 && b.Touch < 0;
             b.Bank += ((winging ? std::clamp(-b.TurnRate * .24f, -.42f, .42f) : 0.f) - b.Bank) * (std::min)(1.f, dt * (b.Air ? 12.f : 3.5f));
         }
-        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch + b.Flinch, 0, b.LeanRoll + b.Bank};
+        world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch + b.Flinch, 0, b.LeanRoll + b.Bank + b.FlinchRoll};
         b.Hover += ((flying && p.IsGrounded && !landing && b.Rise < 0 ? 1.f : 0.f) - b.Hover) * (std::min)(1.f, dt * 3);
         const float hover = b.Hover * FlyHover;
         b.LiftNow = lift + hover;
@@ -5484,20 +5499,42 @@ namespace Doorways
             }
             else if (distance < .65f && combat.PlayerActionsAllowed())
             {
-                o.Life = 0; Hurt(world, combat, o.Damage);
+                const XMFLOAT3 came{o.Pos.x - o.Vel.x * .1f, o.Pos.y, o.Pos.z - o.Vel.z * .1f};   // (a little back along its way)
+                o.Life = 0; Hurt(world, combat, o.Damage, &came);
                 Burst(o.Pos, o.Color, 16, 3.f, .22f);
             }
         }
         mOrbs.erase(std::remove_if(mOrbs.begin(), mOrbs.end(), [](const Orb& o) { return o.Life <= 0; }), mOrbs.end());
     }
 
-    bool NyxaraKit::Hurt(WorldState& world, CombatSystem& combat, int damage)
+    bool NyxaraKit::Hurt(WorldState& world, CombatSystem& combat, int damage, const XMFLOAT3* from)
     {
         if (mMercy > 0 || !combat.PlayerActionsAllowed() || mBody->Finish) return false;   // (finishing one, nothing touches her)
         mMercy = CaucasianEagle::MercySeconds;
         if (mTrainingMode) ++mTrainingPlayerHits;
         else combat.ApplyIncomingDamage(world, damage);
-        mBody->Struck = true;
+        auto& b = *mBody;
+        b.Struck = true;
+        // (how hard: a Chinka's claw 0.67, a blow of 9 one, a Devi's heavy blow 1.6, a boss's at most 1.8; which way:
+        // away from where it came, in her axes; from under her feet, none)
+        b.StruckWeight = std::clamp(std::sqrt(static_cast<float>((std::max)(damage, 1)) / 9.f), .65f, 1.8f);
+        b.StruckX = 0; b.StruckZ = -1; b.StruckBelow = false;
+        if (from)
+        {
+            const auto& p = world.MainPlayer;
+            const float dx = p.Position.x - from->x, dz = p.Position.z - from->z, d = std::hypot(dx, dz);
+            if (d < .4f) { b.StruckZ = 0; b.StruckBelow = true; }
+            else
+            {
+                const float c = std::cos(p.Yaw), sn = std::sin(p.Yaw);
+                b.StruckX = (dx * c - dz * sn) / d; b.StruckZ = (dx * sn + dz * c) / d;
+            }
+        }
+        {
+            char said[96];
+            std::snprintf(said, sizeof(said), "struck %d weight %.2f way %.2f %.2f%s", damage, b.StruckWeight, b.StruckX, b.StruckZ, b.StruckBelow ? " below" : "");
+            b.Log(world, said);
+        }
         CaucasianEagle::Sound::Play("combat/blow", .9f); CaucasianEagle::Sound::Play("nyxara/hurt", .9f);
         return true;
     }

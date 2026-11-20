@@ -2626,7 +2626,7 @@ namespace CaucasianEagle
                 kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, 4.5f, {1, 1, 1, 1}, .5f);
                 kit.Effect(e.Pos, def.Color, 40, 8.f, .3f); kit.Shake(.3f);
                 if (LenXZ(Sub(world.MainPlayer.Position, m.Aim)) < 3.6f && combat.PlayerActionsAllowed() && !kit.Blocks(world, e.Pos))
-                    kit.Hurt(world, combat, static_cast<int>(22 * DamageTaken()));
+                    kit.Hurt(world, combat, static_cast<int>(22 * DamageTaken()), &e.Pos);
                 m.Stage -= 100; m.Special = health < .5f ? 4.5f : 6.5f; m.Look = Looks(Pose::Swing); m.Mirror = false; m.Strikes(.4f);
                 m.Move = MoveSwoop;   // (low as it comes through, and up again: LookOf)
             }
@@ -2796,7 +2796,7 @@ namespace CaucasianEagle
                 if (kit.Blocks(world, e.Pos)) { if (!def.Boss) m.Round = RoundGuardSeconds; }   // her guard is up: go round it
                 else
                 {
-                    kit.Hurt(world, combat, damage);
+                    kit.Hurt(world, combat, damage, &e.Pos);
                     kit.Effect(chest, {1.f, .3f, .25f, 1}, heavy ? 22 : 10, 3.f, .2f); kit.Shake(def.Damage > 12 || heavy ? .22f : .1f);
                 }
             }
@@ -2854,7 +2854,7 @@ namespace CaucasianEagle
             kit.Effect(Add(m.Aim, {0, .6f, 0}), def.Color, 40, 7.f, .3f); kit.Shake(move == MoveRear ? .35f : .15f);
             kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, mv.Reach * 1.3f, def.Color, .5f);
             Sound::Play("combat/blow", .8f, .15f);
-            if (alive && LenXZ(Sub(herFeet, m.Aim)) < mv.Reach && !kit.Airborne() && !kit.Blocks(world, e.Pos)) kit.Hurt(world, combat, damage);
+            if (alive && LenXZ(Sub(herFeet, m.Aim)) < mv.Reach && !kit.Airborne() && !kit.Blocks(world, e.Pos)) kit.Hurt(world, combat, damage, &m.Aim);
             break;
         }
         case MoveShriek:
@@ -3195,7 +3195,7 @@ namespace CaucasianEagle
                         kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, SlamRadius * 1.4f, def.Color, .5f);
                         Sound::Play("combat/blow", .8f, .15f);
                         if (alive && LenXZ(Sub(player.Position, m.Aim)) < SlamRadius && !kit.Airborne() && !kit.Blocks(world, e.Pos))
-                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * SlamDamage)));
+                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * SlamDamage)), &m.Aim);
                     }
                 }
                 else if (alive && m.Windup < 0 && m.Leap <= 0 && m.Rush <= 0 && m.Emit <= 0 && m.Evade <= 0)
@@ -3224,7 +3224,7 @@ namespace CaucasianEagle
                     if (!kit.Blocks(world, e.Pos))
                     {
                         const float times = m.LeapMove == MovePounce ? Moves[MovePounce].Damage : LeapDamage;
-                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * times)));
+                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * times)), &e.Pos);
                         kit.Effect(chest, {1.f, .3f, .25f, 1}, 16, 3.f, .2f); kit.Shake(.16f);
                     }
                 }
@@ -3239,7 +3239,7 @@ namespace CaucasianEagle
                         kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, reach * 1.3f, def.Color, .6f);
                         Sound::Play("combat/blow", 1.f, .1f);
                         if (alive && distance < reach + def.Radius * .5f && !kit.Airborne() && !kit.Blocks(world, e.Pos))
-                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * Moves[MoveLeapSlam].Damage)));
+                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * Moves[MoveLeapSlam].Damage)), &e.Pos);
                     }
                     m.Strikes(m.LeapMove != MoveNone ? Moves[m.LeapMove].After : .3f);   // (it lands raking, or slamming)
                     m.LeapMove = MoveNone;
@@ -3317,7 +3317,7 @@ namespace CaucasianEagle
                     if (kit.Blocks(world, e.Pos)) m.Rush = std::min(m.Rush, .06f);
                     else
                     {
-                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * rushing.Damage)));
+                        kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale * rushing.Damage)), &e.Pos);
                         kit.Effect(chest, {1.f, .3f, .25f, 1}, 20, 3.5f, .22f); kit.Shake(.25f);
                     }
                 }

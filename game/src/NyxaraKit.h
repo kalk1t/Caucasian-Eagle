@@ -171,8 +171,9 @@ namespace Doorways
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
         // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing (and
-        // none hurts her while she finishes a creature).
-        bool Hurt(WorldState& world, CombatSystem& combat, int damage);
+        // none hurts her while she finishes a creature). from: where the blow came from (the creature, the burst, a
+        // point behind the orb on its way), so she is knocked away from it; none: from before her.
+        bool Hurt(WorldState& world, CombatSystem& combat, int damage, const DirectX::XMFLOAT3* from = nullptr);
         // Her finishing kills. Doom: that creature is brought to the end of its health as a blow of hers would bring it
         // (the Character Lab's cue; it must be Finishable). Finishing: the finisher she plays now (0 none, 1 Talon
         // Cross, 2 Eagle's Plunge, 3 Gale Slide). CAUCASIAN_EAGLE_NYXARA_FINISHER=<1|2|3> plays that one every time.
