@@ -147,6 +147,84 @@ namespace CaucasianEagle
         return true;
     }
 
+    // nest <station> <x> <y> <z> <yaw> <along>
+    // boss <id> <kind> <x> <y> <z> <yaw> <along> <lo> <hi>
+    // group <id> <fixed|patrol> <x> <y> <z> <yaw> <along> <lo> <hi> <roam> <count> <kind>...
+    // cave <id> <fixed|patrol> <x> <y> <z> <yaw> <cave> <at> <lo> <hi> <roam> <count> <kind>...
+    bool EaglesAscent::LoadCreatures(const std::filesystem::path& path, std::string& error)
+    {
+        Nests.clear(); Placements.clear();
+        std::ifstream in(path);
+        if (!in) { error = "Cannot read " + path.string(); return false; }
+        std::string line;
+        int number = 0;
+        while (std::getline(in, line))
+        {
+            ++number;
+            std::istringstream s(line);
+            std::string word;
+            if (!(s >> word) || word[0] == '#') continue;
+            bool good = true;
+            if (word == "nest")
+            {
+                Nest n;
+                good = static_cast<bool>(s >> n.Station >> n.P.x >> n.P.y >> n.P.z >> n.Yaw >> n.Along) && n.Station >= 0 && n.Station < static_cast<int>(Stations.size());
+                if (good) Nests.push_back(n);
+            }
+            else if (word == "boss" || word == "group" || word == "cave")
+            {
+                Placed p; p.Boss = word == "boss";
+                std::string keep, kind;
+                if (p.Boss)
+                {
+                    good = static_cast<bool>(s >> p.Id >> kind >> p.P.x >> p.P.y >> p.P.z >> p.Yaw >> p.At >> p.Lo >> p.Hi);
+                    p.Kinds = {kind};
+                }
+                else
+                {
+                    int count = 0;
+                    good = static_cast<bool>(s >> p.Id >> keep >> p.P.x >> p.P.y >> p.P.z >> p.Yaw);
+                    if (good && word == "cave") good = static_cast<bool>(s >> p.Cave) && p.Cave >= 0 && p.Cave < static_cast<int>(mCaves.size());
+                    good = good && static_cast<bool>(s >> p.At >> p.Lo >> p.Hi >> p.Roam >> count) && count > 0 && count <= 3;
+                    for (int k = 0; good && k < count; ++k)
+                    {
+                        good = static_cast<bool>(s >> kind);
+                        if (good) p.Kinds.push_back(kind);
+                    }
+                    p.Patrol = keep == "patrol";
+                }
+                if (good) Placements.push_back(p);
+            }
+            if (!good) { error = path.filename().string() + " line " + std::to_string(number) + ": cannot read \"" + line.substr(0, 60) + "\""; return false; }
+        }
+        // the nests are the only checkpoints (the owner, 2026-11-19: "special saved points only"); she begins on the shore
+        // (EaglesAscentGame sets it), but going back down to it does not make it the place she wakes at
+        if (!Nests.empty())
+        {
+            for (auto& station : Stations) station.Checkpoint = false;
+            for (const auto& n : Nests)
+            {
+                auto& station = Stations[static_cast<size_t>(n.Station)];
+                station.Checkpoint = true; station.HasNest = true; station.Nest = n.P;
+            }
+        }
+        // each nest is a game model as made (art/map/eagle_nest/build_eagle_nest.py), when it is there: LoadModels loads it
+        NestModels = false;
+        if (!Nests.empty() && std::filesystem::exists(ResolveDoorwaysRuntimePath("assets/Compiled") / (std::string(NestModel) + ".dmesh")))
+        {
+            auto found = std::find(mPropNames.begin(), mPropNames.end(), NestModel);
+            if (found == mPropNames.end()) { mPropNames.push_back(NestModel); found = mPropNames.end() - 1; }
+            for (const auto& n : Nests)
+            {
+                Prop prop; prop.Model = static_cast<int>(found - mPropNames.begin()); prop.P = n.P; prop.Yaw = n.Yaw; prop.Height = 0;   // its own size
+                mProps.push_back(prop);
+            }
+            ModelCount = static_cast<int>(mProps.size());
+            NestModels = true;
+        }
+        return true;
+    }
+
     bool EaglesAscent::LoadModels(Renderer& renderer, std::string& error)
     {
         const auto root = ResolveDoorwaysRuntimePath("assets/Compiled");
@@ -460,7 +538,8 @@ namespace CaucasianEagle
         station = std::clamp(station, 0, static_cast<int>(Stations.size()) - 1);
         const auto& s = Stations[static_cast<size_t>(station)];
         auto& p = host.World.MainPlayer;
-        p.Position = {s.P.x, s.P.y + .05f, s.P.z}; p.Yaw = s.Yaw; p.VerticalVelocity = 0;
+        const XMFLOAT3& at = Rest(station);
+        p.Position = {at.x, at.y + .05f, at.z}; p.Yaw = s.Yaw; p.VerticalVelocity = 0;
         p.TraversalMode = DoorwaysPlayerTraversalMode::Ground;
         GameSession().FreeFlightEnd = true; GameSession().ImpulseX = GameSession().ImpulseZ = 0;
         host.World.MainCamera.Yaw = s.Yaw; host.World.MainCamera.Pitch = -.12f;
@@ -486,9 +565,12 @@ namespace CaucasianEagle
         }
         if (!flying && p.IsGrounded)
             for (size_t i = 0; i < Stations.size(); ++i)
-                if (Stations[i].Checkpoint && std::abs(p.Position.y - Stations[i].P.y) < 3 &&
-                    std::hypot(p.Position.x - Stations[i].P.x, p.Position.z - Stations[i].P.z) < 22)
+            {   // a station's terrace; a nest's station only in its nest (she steps into it)
+                const XMFLOAT3& at = Stations[i].HasNest ? Stations[i].Nest : Stations[i].P;
+                if (Stations[i].Checkpoint && std::abs(p.Position.y - at.y) < 3 &&
+                    std::hypot(p.Position.x - at.x, p.Position.z - at.z) < (Stations[i].HasNest ? NestReach : StationReach))
                     Checkpoint = static_cast<int>(i);
+            }
         // falling inside the mountain: on foot, not grounded and 8 m under the land's lowest grid corner
         mInRock = !flying && !p.IsGrounded && p.Position.y < LandLow(p.Position.x, p.Position.z) - 8 && !InCave(p.Position) ? mInRock + dt : 0;
         // far from the trail is lost only when far from the rings too (2026-11-18: they go round the back of the mountain)
@@ -512,17 +594,36 @@ namespace CaucasianEagle
         m.SpecularColor = {0, 0, 0, 0}; m.EmissiveStrength = light == 2 ? .25f : .04f; m.DoubleSided = true; m.ReceiveFog = true;
         for (const auto& prop : mProps)
         {
+            if (prop.Hidden) continue;
             const float dx = prop.P.x - eye.x, dy = prop.P.y - eye.y, dz = prop.P.z - eye.z;
             const float limit = prop.Height > PropBig ? PropFar : PropNear;
             if (dx * dx + dy * dy + dz * dz > limit * limit) continue;
             const auto& model = mPropModels[static_cast<size_t>(prop.Model)];
-            const float scale = prop.Height / std::max(model.Max.y - model.Min.y, 1e-4f);
+            const float scale = prop.Height > 0 ? prop.Height / std::max(model.Max.y - model.Min.y, 1e-4f) : 1.f;   // (0: as made)
             m.DiffuseMap = model.Texture.Get();
             renderer.DrawDoorwaysGpuMesh(model.Mesh,
                 XMMatrixTranslation(-(model.Min.x + model.Max.x) * .5f, -model.Min.y, -(model.Min.z + model.Max.z) * .5f) * XMMatrixScaling(scale, scale, scale) *
                 XMMatrixRotationY(prop.Yaw) * XMMatrixTranslation(prop.P.x, prop.P.y, prop.P.z), vp, m);
             ++ModelsDrawn;
         }
+    }
+
+    const XMFLOAT3& EaglesAscent::Rest(int station) const
+    {
+        const auto& s = Stations[static_cast<size_t>(std::clamp(station, 0, static_cast<int>(Stations.size()) - 1))];
+        return s.HasNest ? s.Nest : s.P;
+    }
+
+    int EaglesAscent::HideModels(const std::string& name, const XMFLOAT3& p, float radius, bool hidden)
+    {
+        int count = 0;
+        for (auto& prop : mProps)
+        {
+            const float dx = prop.P.x - p.x, dy = prop.P.y - p.y, dz = prop.P.z - p.z;
+            if (mPropNames[static_cast<size_t>(prop.Model)] != name || dx * dx + dy * dy + dz * dz > radius * radius) continue;
+            prop.Hidden = hidden; ++count;
+        }
+        return count;
     }
 
     void EaglesAscent::StyleEnvironment(EnvironmentSettings& e, int light, int fog)

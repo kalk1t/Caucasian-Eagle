@@ -49,6 +49,12 @@ namespace CaucasianEagle
     constexpr const wchar_t* AscentSwitch = L"--eagles-ascent";
     constexpr const char* AscentEnvironmentVariable = "CAUCASIAN_EAGLE_ASCENT";   // =1: the same as the switch
     constexpr const char* AscentLogEnvironmentVariable = "CAUCASIAN_EAGLE_MAP_LOG";   // testing: the Ascent's evidence file (CAUCASIAN_EAGLE_DEMO=1: its smoke test)
+    // its Eagle Nests, bosses and creatures (2026-11-20; art/map/ascent_creatures.py writes it), and her save: the last
+    // nest she rested at and the creatures she has beaten (in the user data folder; the road's journey.sav is apart)
+    constexpr const char* AscentCreaturesFile = "assets/Maps/EaglesAscent.creatures.txt";
+    constexpr const char* AscentSaveFileName = "eagles-ascent.sav";
+    constexpr const char* AscentCreaturesEnvironmentVariable = "CAUCASIAN_EAGLE_CREATURES";   // =0: the Ascent without its creatures
+    constexpr const char* AscentSaveEnvironmentVariable = "CAUCASIAN_EAGLE_ASCENT_SAVE";       // testing: this file is the Ascent's save
     constexpr const char* HeroBundle = "Characters/Nyxara/MixamoV1";        // under assets/Compiled: her body built from Mixamo clips (Character Lab bundle v31): two swords, wings, no bow
     constexpr const char* HeroBundleBefore = "Characters/Nyxara/EagleV1";   // the body before it, weapons part of the mesh: kept whole, the way back
     constexpr const char* HeroBundleFolder = "Characters/Nyxara";           // CAUCASIAN_EAGLE_HERO names another bundle in this folder

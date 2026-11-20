@@ -2,16 +2,23 @@
 
 #include "DoorwaysGame.h"
 #include "EaglesAscent.h"
+#include "Journey.h"
 #include "MountainView.h"
 
 #include <array>
+#include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 // The Eagle's Ascent: Map A on its own, another way into the game than the road (CaucasianEagle.exe --eagles-ascent).
 // Nyxara climbs from the sea to Amiran's court at 4,200 m, on foot and in flight, with the road's controls, start screen,
-// settings, sound and HUD. No journey, no monsters, no saves: checkpoints on the mountain bring her back after a fall.
-// The map's rules are EaglesAscent (EaglesAscent.h), the same code Map Lab tests.
+// settings, sound and HUD. The map's rules are EaglesAscent (EaglesAscent.h), the same code Map Lab tests.
+// Since 2026-11-20 (the owner's map plan) it has the road's creatures, in small groups along the way and in caves beside
+// it, never more than three alive at once, and four bosses: the Gveleshapi, the Giant, the Devi Lord and the Eagle in
+// Amiran's court (Journey::UpdateMountain; where they are: art/map/ascent_creatures.py). Nine Eagle Nests are the only
+// places she is saved: the last nest she rested at and every creature she has beaten (a beaten one stays beaten). She
+// wakes at the last nest when she falls.
 namespace CaucasianEagle
 {
     // The switch or the environment variable asks for the Eagle's Ascent (main.cpp registers the module).
@@ -35,8 +42,40 @@ namespace CaucasianEagle
         void Smoke(Doorways::DoorwaysGameHost& host, float realDeltaTime);
         void Climb(Doorways::DoorwaysGameHost& host, float dt);
         void Evidence(const WorldState& world, const char* event);
+        void StartCreatures();                     // the placing model's creatures on their lines (Journey::SetMountainLines)
+        void LoadSave();                           // the last nest and the beaten (AscentSaveFileName)
+        void WriteSave() const;
+        void NewClimb(Doorways::DoorwaysGameHost& host);   // from the shore, the nests and the beaten forgotten
+        void DrawNests(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
+        std::wstring BackTitle() const;            // "BACK AT THE EAGLE NEST" (or the shore, or a checkpoint: no nests)
+        // The creatures' tour (CAUCASIAN_EAGLE_DEMO=3, unattended): she is put on the way before every group and boss in
+        // turn, up the mountain. Each must wake, stand on its ground, see her and come at her; then it falls and must be
+        // beaten for good. Then every Eagle Nest is stood in and must save her there; then the save is read back and
+        // nothing she beat may wake again. Writes tour.tsv beside the evidence file (and pictures into
+        // CAUCASIAN_EAGLE_TOUR_SHOTS); ends CREATURES_PASS or CREATURES_FAIL.
+        void Tour(Doorways::DoorwaysGameHost& host, float dt);
+        void Put(Doorways::DoorwaysGameHost& host, const DirectX::XMFLOAT3& at, float yaw);   // stands her there (no checkpoint, no heal)
+        // How a nest would sit at (x, z), about nearY: its worst step of ground under it (m), or -1 where there is no
+        // ground, it is not level, the ground drops away right beside it, or something stands there (a pillar, rock)
+        static float NestFooting(const DoorwaysRuntimeScene& scene, float x, float z, float nearY, float& groundY);
+        // She can stand there (the tour): walkable ground within 1.5 m of p, and all round it 1.2 m out (1.6 m up or down: stairs)
+        static bool Standable(const DoorwaysRuntimeScene& scene, const DirectX::XMFLOAT3& p, float& groundY);
 
         EaglesAscent mMap;
+        Journey mCreatures;                        // the road's creatures on the mountain (Journey::InitializeMountain)
+        bool mCreaturesOn = false;                 // CAUCASIAN_EAGLE_CREATURES=0 and the map's own tests: none
+        std::vector<Journey::MountainCreature> mCreatureList;
+        int mSavedNest = 0;                        // the station of the last Eagle Nest she rested at (0: the shore)
+        std::vector<std::string> mSavedBeaten;
+        size_t mBeatenWritten = 0;                 // the beaten in the save: every creature she beats is saved at once
+        std::filesystem::path mSavePath; bool mSaveTest = false;
+        bool mTrace = false;                       // CAUCASIAN_EAGLE_MAP_LOG set: the creatures' and nests' events go to the evidence file too
+        // the creatures' tour (Tour)
+        struct TourStop { int Placement = 0; float Along = 0; };
+        bool mTour = false; std::vector<TourStop> mTourStops; int mTourAt = -1, mTourPhase = 0, mTourBad = 0, mTourWoke = 0, mTourCalm = 0, mTourAgain = 0;
+        float mTourClock = 0, mTourDamage = 0, mTourOff = 0, mTourFirst = 0; DirectX::XMFLOAT3 mTourStand{};
+        std::string mTourNote, mTourRow; std::filesystem::path mTourShots; std::wstring mTourShot;
+        Renderer* mRenderer = nullptr;
         std::array<bool, 256> mKeys{};
         bool mPaused = false, mFlying = false, mWasDead = false;
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)

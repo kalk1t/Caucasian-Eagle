@@ -36,7 +36,10 @@ namespace CaucasianEagle
     class EaglesAscent
     {
     public:
-        struct Station { std::string Name, Id; DirectX::XMFLOAT3 P{}; float Yaw = 0, Along = 0; bool Checkpoint = true; };
+        // Nest: the station's Eagle Nest (LoadCreatures): she rests in it (within NestReach of it) and wakes in it
+        struct Station { std::string Name, Id; DirectX::XMFLOAT3 P{}; float Yaw = 0, Along = 0; bool Checkpoint = true; bool HasNest = false; DirectX::XMFLOAT3 Nest{}; };
+        static constexpr float StationReach = 22.f, NestReach = 2.3f;   // m from a station, from a nest, that makes it hers
+        const DirectX::XMFLOAT3& Rest(int station) const;                 // where she wakes at it: its nest, or the station
         struct Flight { std::string Id, Kind; DirectX::XMFLOAT3 From{}, To{}; };   // a marked flight line: launch apron, landing apron
         struct Updraft { std::string Id; DirectX::XMFLOAT3 P{}; float Radius = 0, Top = 0, Lift = 0; };   // rising air: a column from P.y to Top
         struct Wind { std::string Id; DirectX::XMFLOAT3 P{}; float Radius = 0, X = 0, Z = 0, Speed = 0; }; // a crosswind: a ball of moving air
@@ -69,6 +72,9 @@ namespace CaucasianEagle
         void Visit(Doorways::DoorwaysGameHost& host, int station);
 
         void DrawModels(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection, int light);
+        // Hides the game models of that name (a 'prop' line's) within radius m of p, or shows them again; returns how many.
+        // The Eagle at Amiran's court is not drawn while he is there as a creature (EaglesAscentGame).
+        int HideModels(const std::string& name, const DirectX::XMFLOAT3& p, float radius, bool hidden);
         // light: 0 day, 1 dawn, 2 night. fog: 0 clear air, 1 haze (the map's own, Gate 4), 2 thick fog.
         static void StyleEnvironment(EnvironmentSettings& environment, int light, int fog);
 
@@ -96,6 +102,26 @@ namespace CaucasianEagle
         // the middle of the tread of this top nearest (x, z) along the stair, and the stair's way (false: none within 2 m)
         bool TreadCenter(float x, float z, float top, float& cx, float& cz, float& ax, float& az) const;
 
+        // Its Eagle Nests, bosses and creatures (2026-11-20): <file>.creatures.txt beside the map's data, written by its
+        // placing model, art/map/ascent_creatures.py. The nests become the only checkpoints (she begins on the shore, but
+        // it is no longer one); EaglesAscentGame saves her at them and wakes the creatures (Journey::UpdateMountain).
+        struct Nest { int Station = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Along = 0; };
+        struct Placed
+        {
+            std::string Id;                    // "way-1200", "cave-07", "boss-giant"
+            bool Boss = false, Patrol = false;
+            std::vector<std::string> Kinds;    // who is there ("chinka" ..; a boss: "gveleshapi", "giant", "devi_lord", "eagle")
+            DirectX::XMFLOAT3 P{}; float Yaw = 0;
+            int Cave = -1;                     // -1 on the way; else its cave (Caves())
+            float At = 0, Lo = 0, Hi = 0, Roam = 0;   // m along the way (or the cave's line): its place and the stretch it keeps to
+        };
+        std::vector<Nest> Nests;
+        std::vector<Placed> Placements;
+        // Before LoadModels: the nests are game models too (NestModel, when it has been compiled; NestModels then).
+        bool LoadCreatures(const std::filesystem::path& file, std::string& error);
+        static constexpr const char* NestModel = "Landmarks/EagleNest/EagleNest";
+        bool NestModels = false;
+
         // the map (read by the lab's tests and HUD)
         std::vector<Station> Stations;
         std::vector<Zone> Zones;
@@ -115,7 +141,7 @@ namespace CaucasianEagle
 
     private:
         struct PropModel { Doorways::DoorwaysGpuMesh Mesh; Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> Texture; DirectX::XMFLOAT3 Min{}, Max{}; };
-        struct Prop { int Model = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Height = 1; };
+        struct Prop { int Model = 0; DirectX::XMFLOAT3 P{}; float Yaw = 0, Height = 1; bool Hidden = false; };
         std::vector<std::string> mPropNames;
         std::vector<PropModel> mPropModels;
         std::vector<Prop> mProps;

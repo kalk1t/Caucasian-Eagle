@@ -36,6 +36,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **The Gveleshapi** | Dragon of the lake; boss of the Dragon Lake |
 | **The Devi Lord** | Boss of Devi's Gorge |
 | **Rokapi** | Queen of the witches; boss of the Witches' Hill |
+| **The Giant** | A Uaig of a boss's size (8 m); the Eagle's Ascent's second boss, in its forest. Strikes the ground round it |
 
 ## Hero and combat
 
@@ -73,6 +74,10 @@ Names used in the story, the code and the assets. One name per thing.
 | **Road.txt** | Data file written by the world builder: the path, arenas, chests, props and lights |
 | **Mountain of Amirani** | The landmark at the end of the road: peak, cave ledge, Amirani, the eagle, the dog, the chains. Code: `AmiraniMountain` |
 | **Ledge** | The flat shelf of the cave where Amirani stands, 78 m above where the road begins; reachable only after the Eagle falls |
+| **The Eagle's Ascent** | Map A played on its own (`CaucasianEagle.exe --eagles-ascent`): the climb from the sea to Amiran's court at 4,200 m. Code: `EaglesAscent` (the map's rules), `EaglesAscentGame` (the mode) |
+| **Eagle Nest** | One of the nine places on the Eagle's Ascent where she is saved: she steps into it, is healed, and wakes in it after a fall. Its model: `Landmarks/EagleNest/EagleNest` (`art/map/eagle_nest`) |
+| **Placing model** | `art/map/ascent_creatures.py`: where the Eagle's Ascent's nests, bosses and creatures are; writes `game/assets/Maps/EaglesAscent.creatures.txt` |
+| **Group** (on the mountain) | One to three creatures with one place on the Eagle's Ascent, standing or walking 20 m to and fro (a patrol); wakes as she comes near, never more than three alive at once |
 | **Sky dome** | The painted night sky drawn around the camera by the game |
 | **EagleV1** | Nyxara's compiled character bundle, `Characters/Nyxara/EagleV1` |
 | **Bundle** | One folder holding a character's mesh, skeleton, materials, textures and clips |
@@ -91,6 +96,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **Stage folder** | `build/stage/CaucasianEagle`: the complete runnable game |
 | **Showcase** | The scripted 30-second demo run (`CAUCASIAN_EAGLE_DEMO=1`) |
 | **Test pilot** | An unattended run in which the game plays the whole road by itself (`CAUCASIAN_EAGLE_PILOT=1`); used to test the journey |
+| **Creatures' tour** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=3`) that stands her before every group and boss, then in every nest, and checks they wake, see her, come at her, stay beaten and save her |
 | **Journey** | `Journey`: the code for the road, creatures, arenas, chests, story cards and the ending |
 | **Sandbox** | The engine's own executable, `Doorways.exe`, running with no game |
 | **Asset builder** | The engine tool that compiles glTF into engine formats |

@@ -40,6 +40,7 @@ class Renderer;
 class CombatSystem;
 struct WorldState;
 struct EnvironmentSettings;
+struct DoorwaysRuntimeScene;
 
 namespace CaucasianEagle
 {
@@ -73,6 +74,53 @@ namespace CaucasianEagle
         // 'neck' and its feet at 'feet', and it hangs limp. hold 0 .. 1 blends from standing; 0 frees it.
         void HoldCreatureStation(int index, const DirectX::XMFLOAT3& neck, const DirectX::XMFLOAT3& feet, float hold);
         bool CreatureStationAnchorsValid() const;
+
+        // The Eagle's Ascent's creatures (2026-11-20): the road's creatures, their AI and their bodies on the mountain,
+        // with no road, no arenas and no save of the journey's. Its placing model (art/map/ascent_creatures.py) gives
+        // each creature a place on a line, the way (line 0) or a cave, and the stretch of that line it keeps to. A group
+        // wakes as she comes near, while no more than MountainMostAlive are alive; it stands or walks its stretch until
+        // she is near, then fights; it goes home when she is gone (she may fly away), and sleeps again when she is far.
+        // It stands on the mountain's walkable ground (the scene's). A creature she kills is beaten for good
+        // (MountainBeaten: the game keeps them with her save).
+        struct MountainCreature
+        {
+            int Kind = 0;                 // KindByName
+            std::string Id;               // "<group>.<n>", or the boss's id
+            int Group = 0;                // the creatures of a group wake, fight and sleep together
+            int Line = 0;                 // 0 the way, then the caves as given to SetMountainLines
+            DirectX::XMFLOAT3 Home{};     // where it stands (its group's place, spread round it)
+            float Yaw = 0;                // the way it looks while it waits
+            float At = 0, Lo = 0, Hi = 0; // m along its line: its place, and the stretch it keeps to
+            float Roam = 0;               // > 0: it walks At - Roam .. At + Roam while it waits
+        };
+        static constexpr int MountainMostAlive = 3;   // the owner (2026-11-19): "at the same time you may only spawn 3 monsters"
+        static int KindByName(const std::string& name);                    // "chinka" .. "devi", "gveleshapi", "giant", "devi_lord", "eagle"; -1
+        static float KindHeight(int kind);
+        static const wchar_t* KindTitle(int kind);   // "THE GIANT"
+        bool InitializeMountain(Renderer& renderer, std::string& error);    // the creatures' bodies and joints
+        // Each line: its points (a few metres apart), how far each is to its sides from its middle, and m along it.
+        struct MountainPoint { DirectX::XMFLOAT3 P{}; float Half = 3, Along = 0; };
+        void SetMountainLines(const std::vector<std::vector<MountainPoint>>& lines);
+        void SetMountainCreatures(const std::vector<MountainCreature>& creatures, const std::vector<std::string>& beaten);
+        void UpdateMountain(WorldState& world, CombatSystem& combat, float dt);
+        void DrawMountain(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
+        const std::vector<std::string>& MountainBeaten() const { return mMountainBeaten; }
+        int MountainAwake() const;                                          // creatures alive now
+        // The boss she is fighting (awake and roused): its name and health 0..1. False: none.
+        bool MountainBoss(std::wstring& name, float& health) const;
+        // What happened this update that the game tells her: a boss rose ("THE GIANT", a line), a boss is beaten.
+        struct MountainNews { std::wstring Title, Line; bool Beaten = false; };
+        std::vector<MountainNews> TakeMountainNews() { auto news = std::move(mMountainNews); mMountainNews.clear(); return news; }
+        // tests (EaglesAscentGame's creatures' tour, CAUCASIAN_EAGLE_DEMO=3): the creatures awake, and a group's awake
+        // creatures falling as if she had beaten them
+        struct MountainLook { std::string Id; int Group = 0, Kind = 0, Calm = 0; bool Dying = false; DirectX::XMFLOAT3 Pos{}, Home{}; float Ground = 0, Health = 1; };
+        std::vector<MountainLook> MountainLooks() const;
+        void MountainStrike(int group);
+        // what the creatures did ("woke way-1200.0", "roused ..", "lost_her ..", "home ..", "sleep_far ..",
+        // "sleep_giving_way ..", "beaten ..", "gone .."), kept only while tracing (the evidence file)
+        void SetMountainTracing(bool on) { mMountainTracing = on; }
+        std::vector<std::string> TakeMountainTrace() { auto t = std::move(mMountainTrace); mMountainTrace.clear(); return t; }
+
         void Update(Doorways::DoorwaysGameHost& host, float deltaTime, float realDeltaTime, bool inputAllowed);
         void Draw(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         void DrawHud(Ui& ui, const WorldState& world);
@@ -85,6 +133,27 @@ namespace CaucasianEagle
 
     private:
         bool mCreatureStations = false;
+        // ---- the Eagle's Ascent (InitializeMountain)
+        bool mMountain = false;
+        struct MountainLine { int First = 0, Count = 0; };                // its samples in mSamples
+        std::vector<MountainLine> mMountainLines;
+        std::vector<float> mMountainAlong;                                 // per sample: m along its line
+        std::vector<MountainCreature> mMountainCreatures;
+        struct MountainState { int Slot = -1; bool Beaten = false; };      // its enemy slot while it is awake
+        std::vector<MountainState> mMountainStates;
+        std::vector<std::vector<int>> mMountainGroups;                     // the creatures of each group
+        std::vector<std::string> mMountainBeaten;
+        std::vector<MountainNews> mMountainNews;
+        const DoorwaysRuntimeScene* mMountainScene = nullptr;              // the scene whose walkable ground they stand on
+        int mMountainRoused = -1;                                         // the boss she fights (its creature), -1 none
+        int MountainSample(int creature, float metres) const;              // its line's sample that far along it
+        int NearestOn(float x, float z, int first, int last) const;        // the nearest sample of first..last
+        float MountainGroundAt(float x, float z, float nearY) const;       // the walkable ground there, near nearY
+        void WakeMountain(int creature);
+        void SleepMountain(int creature);
+        std::vector<std::string> mMountainTrace; bool mMountainTracing = false;
+        void Trace(const char* what, int creature) { if (mMountainTracing) mMountainTrace.push_back(std::string(what) + " " + mMountainCreatures[static_cast<size_t>(creature)].Id); }
+        void DrawMonsters(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         struct StationHeld { float Hold=0; DirectX::XMFLOAT3 Neck{}, Feet{}; };
         std::vector<StationHeld> mStationHeld;
         std::vector<float> mStationDown;   // per station creature: 0 standing .. 1 lying
@@ -128,6 +197,12 @@ namespace CaucasianEagle
             int Chest = -1;         // chest index when this slot is a chest
             int Stage = 0;          // 0.. : boss phase counter
             DirectX::XMFLOAT3 Aim{}; // dive / slam target
+            // the Eagle's Ascent (UpdateMountain): which placed creature it is; 1 it waits at its place (or walks its
+            // stretch), 2 it goes home, 0 it fights (the road's AI); how long she has been out of its reach; where it
+            // walks (m along its line, and which way); the samples it keeps to
+            int Place = -1, Calm = 0;
+            float Lost = 0, Walk = 0, WalkWay = 1, Mend = 0;   // (Mend: health it has got back, not yet a whole point)
+            int First = 0, Last = -1;
         };
         struct Banner { std::wstring Label, Title, Line; float Seconds = 5; };   // small title at the top of the screen
         struct Toast                                                              // small panel at the right edge

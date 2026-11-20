@@ -11,6 +11,7 @@
 #include "DoorwaysRenderContexts.h"
 #include "DoorwaysRuntimePathResolver.h"
 #include "DoorwaysSettingsPaths.h"
+#include "DoorwaysWalkableSurfaceQuery.h"
 #include "EnvironmentSettings.h"
 #include "GameConstants.h"
 #include "GameUi.h"
@@ -52,7 +53,7 @@ namespace CaucasianEagle
         constexpr float Pi = 3.14159265f;
 
         // ------------------------------------------------------------ monsters of the road
-        enum Kind { Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig, Devi, Rokapi, Gveleshapi, DeviLord, Eagle, ChestKind, ChainKind, LinkKind, KindCount };
+        enum Kind { Chinka, Ali, Kudiani, Ochokochi, Almasty, Kaji, Uaig, Devi, Rokapi, Gveleshapi, DeviLord, Giant, Eagle, ChestKind, ChainKind, LinkKind, KindCount };
         struct KindDef
         {
             const wchar_t* Name; const char* Model;
@@ -76,6 +77,9 @@ namespace CaucasianEagle
             {L"ROKAPI, QUEEN OF WITCHES", "Monsters/Rokapi", 3.4f, 3400, 3.0f, 2.0f, 10, 2.5f, .60f, 22, 9, 2.4f, 3, 11.f, 1.0f, 0, 0, {.7f, .3f, 1.f, 1}, true, .6f},
             {L"THE GVELESHAPI", "Monsters/Gveleshapi", 9.0f, 4200, 1.6f, 6.0f, 20, 3.0f, 1.0f, 26, 8, 3.2f, 5, 0, 2.6f, 0, 0, {.3f, .8f, 1.f, 1}, true, 0},
             {L"THE DEVI LORD", "Monsters/Devi", 8.5f, 4600, 2.6f, 5.5f, 24, 2.8f, 1.0f, 0, 0, 0, 0, 0, 2.4f, 0, 0, {1.f, .8f, .25f, 1}, true, 0},
+            // the Eagle's Ascent's second boss (the owner, 2026-11-19: a Uaig of a boss's size); it strikes the ground
+            // where she stands from afar as the giants do, and stamps a ring of stones round itself (UpdateBoss)
+            {L"THE GIANT", "Monsters/Uaig", 8.0f, 4400, 2.4f, 5.6f, 22, 2.8f, .95f, 0, 0, 0, 0, 0, 2.4f, 0, 0, {.9f, .85f, .6f, 1}, true, 0},
             {L"THE EAGLE, YOUR FATHER", "Landmarks/AmiraniMountain/Eagle", 8.0f, 7000, 4.2f, 4.5f, 16, 2.4f, .80f, 30, 9, 2.8f, 5, 9.f, 2.4f, 0, 0, {.8f, .95f, 1.f, 1}, true, 2.0f},
             {L"OLD GOLD CHEST", "Monsters/Chest", 1.0f, 30, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, .80f, 0, 0, {1.f, .8f, .3f, 1}, false, 0},
             {L"CHAIN ANCHOR", "", 3.0f, 500, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1.7f, 0, 0, {.7f, .85f, 1.f, 1}, false, 0},
@@ -1512,7 +1516,7 @@ namespace CaucasianEagle
         // her finishing kills: the creatures of the road (not bosses, chests, the chained press or its links)
         w.Finishable = !def.Boss && kind < ChestKind;
         enemies[slot] = w;
-        if (kind != ChestKind && kind != ChainKind && kind != LinkKind)
+        if (kind != ChestKind && kind != ChainKind && kind != LinkKind && !mMountain)   // (on the mountain they were there all along)
         {
             GetNyxaraKit().Effect(w.Pos, def.Color, def.Boss ? 60 : 18, def.Boss ? 7.f : 3.f, .3f);
             GetNyxaraKit().RingEffect({at.x, at.y + .05f, at.z}, def.Radius * 3 + 1, def.Color, .7f);
@@ -1543,10 +1547,12 @@ namespace CaucasianEagle
         auto& enemies=kit.Enemies();enemies.clear();mMonsters.clear();
         Monster dummy;dummy.Kind=ChestKind;dummy.Active=true;dummy.Spawn=1;mMonsters.push_back(dummy);
         NyxaraKit::Wraith target;target.Pos={0,1.3f,2.4f};target.Anchor=target.Pos;target.Health=target.MaxHealth=1000;target.PushScale=0;enemies.push_back(target);
-        for(int kind=0;kind<=Eagle;++kind)
+        for(int kind=0,n=0;kind<=Eagle;++kind)
         {
-            const float x=-30.f+20.f*static_cast<float>(kind%4);
-            const float z=20.f*static_cast<float>(kind/4);
+            if(kind==Giant)continue;   // (the Eagle's Ascent's Giant is the Uaig's body, larger: the arena keeps its twelve)
+            const float x=-30.f+20.f*static_cast<float>(n%4);
+            const float z=20.f*static_cast<float>(n/4);
+            ++n;
             const int slot=Spawn(kind,{x,0,z},false,Kinds[kind].Boss?1.f:MonsterHealthScale);
             if(slot>=0){enemies[slot].PushScale=0;mMonsters[slot].Spawn=1;}
         }
@@ -1668,7 +1674,7 @@ namespace CaucasianEagle
     {
         if(!mCreatureStations)return false;
         const auto& enemies=GetNyxaraKit().Enemies();
-        if(enemies.size()!=mMonsters.size() || enemies.size()!=static_cast<size_t>(Eagle+2))return false;
+        if(enemies.size()!=mMonsters.size() || enemies.size()!=static_cast<size_t>(Eagle+1))return false;   // the dummy and every kind to the Eagle but the Giant
         for(const auto& e:enemies)
             if(Len(Sub(e.Pos,e.Anchor))>1e-6f || e.Lift!=0 || e.LiftVel!=0 || Len(e.Push)>0 || !e.Alive || e.Health!=e.MaxHealth)return false;
         return true;
@@ -1739,6 +1745,397 @@ namespace CaucasianEagle
             }
             else renderer.DrawDoorwaysGpuMesh(model.Mesh,place,viewProjection,skin);
         }
+    }
+
+    // ================================================================ the Eagle's Ascent's creatures (Journey.h)
+    // A group wakes when she comes within MountainWake of its place and there is room among the three alive; a calm
+    // group sleeps again past MountainSleep (it is there when she comes back). A waiting creature sees her within
+    // MountainSight (and its height; a boss within MountainBossSight) and not much over or under it, or is struck: its
+    // whole group comes at her. Out of its reach (MountainLeash from its place, or flown off over it) for
+    // MountainLoseAfter, it goes home at a walk and mends while it waits.
+    constexpr float MountainWake = 110.f, MountainSleep = 150.f;
+    constexpr float MountainGiveWay = 70.f;      // m: a calm group farther than this may sleep to give a nearer one room
+    constexpr float MountainSight = 20.f, MountainBossSight = 34.f;
+    // m over or under its feet she is still seen, and more the farther off she is: the way climbs stairs as steep as 45
+    // degrees, and a group at the top of a flight sees her coming up it (2026-11-20, the creatures' tour: 7 m flat missed
+    // a third of them); over its head she is seen within half as much (she may fly away over it)
+    constexpr float MountainOver = 7.f, MountainCone = 1.f;
+    constexpr float MountainLeash = 45.f, MountainBossLeash = 70.f;
+    constexpr float MountainLoseAfter = 2.5f;
+    constexpr float MountainPace = .32f;         // of its speed, as it walks its stretch (going home: twice that)
+    constexpr float MountainMend = .12f;         // of its health a second, while it is calm
+
+    int Journey::KindByName(const std::string& name)
+    {
+        static const char* const names[] = {"chinka", "ali", "kudiani", "ochokochi", "almasty", "kaji", "uaig", "devi",
+                                            "rokapi", "gveleshapi", "devi_lord", "giant", "eagle"};
+        static_assert(sizeof(names) / sizeof(names[0]) == Eagle + 1, "a name for every creature to the Eagle");
+        for (int k = 0; k <= Eagle; ++k)
+            if (name == names[k]) return k;
+        return -1;
+    }
+
+    float Journey::KindHeight(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Height : 0.f; }
+    const wchar_t* Journey::KindTitle(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Name : L""; }
+
+    bool Journey::InitializeMountain(Renderer& renderer, std::string& error)
+    {
+        mMountain = true; mCreatureStations = false;
+        mArenas.clear(); mCities.clear(); mFighting = false; mArenasCleared = 0;
+        mModels.resize(KindCount);
+        for (int kind = 0; kind <= Eagle; ++kind)
+        {
+            if (kind == Rokapi) continue;   // never on the mountain (the owner, 2026-11-19)
+            if (!LoadModel(renderer, Kinds[kind].Model, mModels[kind], error)) return false;
+            if (!mModels[kind].Rig.Load(ResolveDoorwaysRuntimePath("assets/Compiled") / (std::string(Kinds[kind].Model) + ".rig"), error)) return false;
+        }
+        auto& kit = GetNyxaraKit(); kit.SetExternalEnemies(true); kit.SetTrainingMode(false);
+        kit.Enemies().clear(); mMonsters.clear();
+        return true;
+    }
+
+    void Journey::SetMountainLines(const std::vector<std::vector<MountainPoint>>& lines)
+    {
+        mSamples.clear(); mMountainAlong.clear(); mMountainLines.clear(); mStep = 4;
+        for (const auto& line : lines)
+        {
+            MountainLine l; l.First = static_cast<int>(mSamples.size()); l.Count = static_cast<int>(line.size());
+            for (size_t i = 0; i < line.size(); ++i)
+            {
+                const XMFLOAT3 a = line[i > 0 ? i - 1 : i].P, b = line[i + 1 < line.size() ? i + 1 : i].P;
+                XMFLOAT3 t{b.x - a.x, 0, b.z - a.z};
+                const float n = LenXZ(t);
+                t = n > 1e-4f ? Mul(t, 1 / n) : XMFLOAT3{0, 0, 1};
+                Sample s; s.P = line[i].P; s.W = line[i].Half; s.Tx = t.x; s.Tz = t.z; s.Nx = t.z; s.Nz = -t.x;
+                s.Stage = static_cast<int>(std::clamp(s.P.y / 450.f, 0.f, 9.f));   // its harm grows with the height (StageDamageGrowth)
+                mSamples.push_back(s); mMountainAlong.push_back(line[i].Along);
+            }
+            mMountainLines.push_back(l);
+        }
+    }
+
+    void Journey::SetMountainCreatures(const std::vector<MountainCreature>& creatures, const std::vector<std::string>& beaten)
+    {
+        for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i) if (mMonsters[i].Active) Release(i);
+        mMountainCreatures = creatures; mMountainBeaten = beaten; mMountainNews.clear(); mMountainRoused = -1;
+        mMountainStates.assign(creatures.size(), MountainState{});
+        mMountainGroups.clear();
+        for (int c = 0; c < static_cast<int>(creatures.size()); ++c)
+        {
+            const int g = creatures[c].Group;
+            if (g < 0) continue;
+            if (g >= static_cast<int>(mMountainGroups.size())) mMountainGroups.resize(g + 1);
+            mMountainGroups[g].push_back(c);
+            mMountainStates[c].Beaten = std::find(beaten.begin(), beaten.end(), creatures[c].Id) != beaten.end();
+        }
+    }
+
+    int Journey::MountainSample(int creature, float metres) const
+    {
+        const auto& mc = mMountainCreatures[creature];
+        if (mc.Line < 0 || mc.Line >= static_cast<int>(mMountainLines.size()) || mMountainLines[mc.Line].Count <= 0) return 0;
+        const auto& line = mMountainLines[mc.Line];
+        const auto begin = mMountainAlong.begin() + line.First, end = begin + line.Count;
+        const auto at = std::lower_bound(begin, end, metres);
+        int i = static_cast<int>(at - mMountainAlong.begin());
+        if (at == end) i = line.First + line.Count - 1;
+        else if (at != begin && metres - *(at - 1) < *at - metres) --i;
+        return i;
+    }
+
+    int Journey::NearestOn(float x, float z, int first, int last) const
+    {
+        int best = first; float bestD = 1e30f;
+        for (int i = std::max(0, first); i <= last && i < static_cast<int>(mSamples.size()); ++i)
+        {
+            const float dx = mSamples[i].P.x - x, dz = mSamples[i].P.z - z, d = dx * dx + dz * dz;
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
+    }
+
+    float Journey::MountainGroundAt(float x, float z, float nearY) const
+    {   // the scene's walkable ground there, from a little over to a fall under where it stood (a bridge over a path
+        // is not its ground); none there: it stays at that height
+        if (!mMountainScene) return nearY;
+        const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*mMountainScene, x, z, nearY - 2.5f, nearY + 1.2f);
+        return hit.Hit ? hit.GroundY : nearY;
+    }
+
+    void Journey::WakeMountain(int c)
+    {
+        auto& st = mMountainStates[c];
+        if (st.Slot >= 0 || st.Beaten) return;
+        const auto& mc = mMountainCreatures[c];
+        const KindDef& def = Kinds[mc.Kind];
+        const float growth = 1 + StageHealthGrowth * std::clamp(mc.Home.y / 450.f, 0.f, 9.f);   // the higher, the harder
+        const int slot = Spawn(mc.Kind, mc.Home, true, (def.Boss ? BossHealthScale : MonsterHealthScale) * growth);   // as on the road (Arena)
+        if (slot < 0) return;
+        st.Slot = slot;
+        auto& m = mMonsters[slot]; auto& e = GetNyxaraKit().Enemies()[slot];
+        m.Place = c; m.Calm = 1; m.Spawn = 0;
+        m.First = MountainSample(c, mc.Lo); m.Last = std::max(m.First, MountainSample(c, mc.Hi));
+        m.Index = NearestOn(mc.Home.x, mc.Home.z, m.First, m.Last);
+        m.Walk = mc.At; m.WalkWay = c % 2 ? 1.f : -1.f;
+        m.Ground = MountainGroundAt(mc.Home.x, mc.Home.z, mc.Home.y + .5f);
+        e.Pos = {mc.Home.x, m.Ground + 1.3f, mc.Home.z}; e.Anchor = e.Pos; e.Yaw = mc.Yaw;
+        Trace("woke", c);
+    }
+
+    void Journey::SleepMountain(int c)
+    {
+        auto& st = mMountainStates[c];
+        if (st.Slot < 0) return;
+        if (mMonsters[st.Slot].Place == c && !mMonsters[st.Slot].Dying) Release(st.Slot);
+        st.Slot = -1;
+    }
+
+    int Journey::MountainAwake() const
+    {
+        int alive = 0;
+        for (const auto& st : mMountainStates)
+            if (st.Slot >= 0 && mMonsters[st.Slot].Active && !mMonsters[st.Slot].Dying) ++alive;
+        return alive;
+    }
+
+    bool Journey::MountainBoss(std::wstring& name, float& health) const
+    {
+        if (mMountainRoused < 0) return false;
+        const int slot = mMountainStates[mMountainRoused].Slot;
+        if (slot < 0 || !mMonsters[slot].Active || mMonsters[slot].Dying) return false;
+        const auto& e = GetNyxaraKit().Enemies()[slot];
+        name = Kinds[mMonsters[slot].Kind].Name;
+        health = static_cast<float>(e.Health) / static_cast<float>(std::max(1, e.MaxHealth));
+        return true;
+    }
+
+    void Journey::UpdateMountain(WorldState& world, CombatSystem& combat, float dt)
+    {
+        if (!mMountain) return;
+        mTime += dt;
+        mMountainScene = world.RuntimeScene;
+        auto& kit = GetNyxaraKit(); auto& enemies = kit.Enemies();
+        const XMFLOAT3 her = world.MainPlayer.Position;
+        const bool alive = combat.PlayerActionsAllowed();
+        const int count = static_cast<int>(mMountainCreatures.size());
+        static const wchar_t* const rises[] = {L"The water stands up. It has teeth.", L"\"A bird on my mountain. Come down.\"",
+                                               L"\"Little bird. I have eaten eagles.\"", L"\"Daughter. You have climbed far enough.\""};
+        static const wchar_t* const falls[] = {L"The gorge is quiet. The way up is open.", L"The giant falls, and the forest is still.",
+                                               L"The Devi Lord's three heads are silent.", L"Her father is beaten. Amirani is free."};
+        const auto bossLine = [&](int kind, bool beaten)
+        {
+            const int i = kind == Gveleshapi ? 0 : kind == Giant ? 1 : kind == DeviLord ? 2 : 3;
+            return beaten ? falls[i] : rises[i];
+        };
+
+        // ---- the dead: beaten for good (finished by her, it lies where it fell first: Wraith::Linger)
+        for (int c = 0; c < count; ++c)
+        {
+            auto& st = mMountainStates[c];
+            if (st.Slot < 0) continue;
+            auto& m = mMonsters[st.Slot]; auto& e = enemies[st.Slot];
+            if (!m.Active || m.Place != c) { Trace("gone", c); st.Slot = -1; continue; }   // its body is gone
+            if (m.Dying || (e.Alive && e.Health > 0)) continue;
+            const KindDef& def = Kinds[m.Kind];
+            e.Alive = false; e.Health = 0; m.Dying = true; m.Calm = 0;
+            m.Death = .55f + std::clamp(e.Linger, 0.f, 6.f); m.Windup = -1; m.Lunge = 0; m.Slam = 0;
+            st.Beaten = true; mMountainBeaten.push_back(mMountainCreatures[c].Id); Trace("beaten", c);
+            Sound::Play(def.Boss ? "creatures/boss_death" : "creatures/death", def.Boss ? 1.f : .9f, .18f);
+            Sound::Play("combat/kill", 1.f, .1f);
+            if (def.Boss || mTime - mRageAt > RageCrySeconds) { mRageAt = mTime; Sound::Play("nyxara/rage", 1.f, .08f); }
+            kit.Effect(e.Pos, def.Color, def.Boss ? 90 : 14, def.Boss ? 9.f : 4.f, .3f);
+            if (def.Boss)
+            {
+                kit.Shake(.35f);
+                mMountainNews.push_back({std::wstring(def.Name) + L" IS BEATEN", bossLine(m.Kind, true), true});
+                if (mMountainRoused == c) mMountainRoused = -1;
+            }
+        }
+
+        // ---- sleep: a calm group far from her (it will be there when she comes back)
+        for (const auto& group : mMountainGroups)
+        {
+            bool awake = false, calm = true;
+            for (const int c : group)
+            {
+                const auto& st = mMountainStates[c];
+                if (st.Slot < 0) continue;
+                awake = true;
+                if (mMonsters[st.Slot].Dying || mMonsters[st.Slot].Calm == 0) calm = false;
+            }
+            if (awake && calm && Len(Sub(her, mMountainCreatures[group[0]].Home)) > MountainSleep)
+                for (const int c : group) { Trace("sleep_far", c); SleepMountain(c); }
+        }
+
+        // ---- wake: the nearest sleeping groups, as many as the three alive leave room for
+        {
+            std::vector<std::pair<float, int>> waking;
+            for (int g = 0; g < static_cast<int>(mMountainGroups.size()); ++g)
+            {
+                const auto& group = mMountainGroups[g];
+                if (group.empty()) continue;
+                bool asleep = false, awake = false;
+                for (const int c : group)
+                {
+                    if (mMountainStates[c].Slot >= 0) awake = true;
+                    else if (!mMountainStates[c].Beaten) asleep = true;
+                }
+                const float d = Len(Sub(her, mMountainCreatures[group[0]].Home));
+                if (asleep && !awake && d < MountainWake) waking.push_back({d, g});
+            }
+            std::sort(waking.begin(), waking.end());
+            const auto calmAt = [&](int g)
+            {   // m from her to a group awake and calm (none of it fighting or dying); -1: not awake, or not calm
+                bool awake = false;
+                for (const int c : mMountainGroups[g])
+                {
+                    const auto& st = mMountainStates[c];
+                    if (st.Slot < 0) continue;
+                    if (mMonsters[st.Slot].Dying || mMonsters[st.Slot].Calm == 0) return -1.f;
+                    awake = true;
+                }
+                return awake ? Len(Sub(her, mMountainCreatures[mMountainGroups[g][0]].Home)) : -1.f;
+            };
+            int awakeNow = MountainAwake();
+            for (const auto& [d, g] : waking)
+            {
+                int wanted = 0;
+                for (const int c : mMountainGroups[g]) if (!mMountainStates[c].Beaten) ++wanted;
+                while (awakeNow + wanted > MountainMostAlive)
+                {   // no room: a calm group she has gone past, farther from her than this one and out of her way, gives
+                    // way to it (or the group ahead of her would not be there when she comes to it)
+                    int farthest = -1; float most = std::max(d, MountainGiveWay);
+                    for (int h = 0; h < static_cast<int>(mMountainGroups.size()); ++h)
+                        if (const float at = calmAt(h); at > most) { most = at; farthest = h; }
+                    if (farthest < 0) break;
+                    for (const int c : mMountainGroups[farthest]) { Trace("sleep_giving_way", c); SleepMountain(c); }
+                    awakeNow = MountainAwake();
+                }
+                if (awakeNow + wanted > MountainMostAlive) continue;
+                for (const int c : mMountainGroups[g]) WakeMountain(c);
+                awakeNow = MountainAwake();
+            }
+        }
+
+        // ---- the awake: waiting, walking their stretch or going home; seeing her; losing her
+        for (int c = 0; c < count; ++c)
+        {
+            const auto& st = mMountainStates[c];
+            if (st.Slot < 0) continue;
+            auto& m = mMonsters[st.Slot]; auto& e = enemies[st.Slot];
+            if (m.Dying || !e.Alive) continue;
+            const auto& mc = mMountainCreatures[c];
+            const KindDef& def = Kinds[m.Kind];
+            const float over = her.y - m.Ground, d = LenXZ(Sub(her, e.Pos));
+            const bool level = over > -(MountainOver + MountainCone * d) && over < MountainOver + def.Height + .5f * MountainCone * d;
+            const bool reach = alive && level && LenXZ(Sub(her, mc.Home)) < (def.Boss ? MountainBossLeash : MountainLeash);
+            if (m.Calm > 0)
+            {
+                const bool sees = alive && level && d < (def.Boss ? MountainBossSight : MountainSight + def.Height);
+                if (sees || (e.Flash > 0 && alive))
+                {   // it sees her, or she struck it: its group comes at her
+                    Trace(sees ? "roused_seeing_her" : "roused_struck", c);
+                    for (const int k : mMountainGroups[mc.Group])
+                    {
+                        const int slot = mMountainStates[k].Slot;
+                        if (slot < 0 || mMonsters[slot].Dying) continue;
+                        mMonsters[slot].Calm = 0; mMonsters[slot].Lost = 0; mMonsters[slot].Cooldown = std::max(mMonsters[slot].Cooldown, .6f);
+                    }
+                    if (def.Boss)
+                    {
+                        if (mMountainRoused != c) mMountainNews.push_back({def.Name, bossLine(m.Kind, false), false});
+                        mMountainRoused = c;
+                        Sound::Play("creatures/boss_roar", 1.f, .05f);
+                    }
+                    else Sound::Play("creatures/growl", .8f, .15f);
+                    continue;
+                }
+                // calm: home, or along its stretch and back, or it stands and looks about
+                XMFLOAT3 goal = mc.Home;
+                if (m.Calm == 1 && mc.Roam > 0)
+                {
+                    m.Walk += m.WalkWay * def.Speed * MountainPace * dt;
+                    if (m.Walk > mc.At + mc.Roam) { m.Walk = mc.At + mc.Roam; m.WalkWay = -1; }
+                    if (m.Walk < mc.At - mc.Roam) { m.Walk = mc.At - mc.Roam; m.WalkWay = 1; }
+                    const Sample& home = mSamples[MountainSample(c, mc.At)], &s = mSamples[MountainSample(c, m.Walk)];
+                    const float side = (mc.Home.x - home.P.x) * home.Nx + (mc.Home.z - home.P.z) * home.Nz;   // its own place in the group, across the way
+                    goal = {s.P.x + s.Nx * side, s.P.y, s.P.z + s.Nz * side};
+                }
+                XMFLOAT3 step = Sub(goal, e.Pos); step.y = 0;
+                const float left = LenXZ(step);
+                XMFLOAT3 next = e.Pos;
+                if (left > .2f)
+                {
+                    const float move = std::min(left, def.Speed * MountainPace * (m.Calm == 2 ? 2.f : 1.f) * dt);
+                    next = Add(e.Pos, Mul(step, move / left));
+                    e.Yaw = AngleTo(e.Yaw, std::atan2(step.x, step.z), MonsterTurnRate * .5f * dt);
+                    m.Moving = move / std::max(dt, 1e-4f);
+                }
+                else
+                {
+                    m.Moving = 0;
+                    if (m.Calm == 2) { m.Calm = 1; Trace("home", c); }   // home again
+                    e.Yaw = AngleTo(e.Yaw, mc.Yaw + .45f * std::sin(m.Phase * .35f + static_cast<float>(c)), MonsterTurnRate * .15f * dt);
+                }
+                m.Index = NearestOn(next.x, next.z, m.First, m.Last);
+                m.Ground = MountainGroundAt(next.x, next.z, m.Ground);
+                m.Air = std::max(0.f, m.Air - 3 * dt);
+                e.Pos = {next.x, m.Ground + 1.3f + m.Air, next.z};
+                if (e.Health < e.MaxHealth)
+                {   // it mends while it is calm
+                    m.Mend += static_cast<float>(e.MaxHealth) * MountainMend * dt;
+                    const int whole = static_cast<int>(m.Mend);
+                    e.Health = std::min(e.MaxHealth, e.Health + whole); m.Mend -= static_cast<float>(whole);
+                }
+            }
+            else
+            {   // fighting: she is out of its reach, or flew off over it, for a while: it goes home
+                m.Lost = reach ? 0.f : m.Lost + dt;
+                if (m.Lost > MountainLoseAfter && e.Doom <= 0 && !e.Pinned && e.Hold <= 0)
+                {
+                    m.Calm = 2; m.Lost = 0; m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Leap = 0; m.Stage = m.Stage >= 100 ? m.Stage - 100 : m.Stage;
+                    Trace("lost_her", c);
+                    if (mMountainRoused == c) mMountainRoused = -1;
+                }
+            }
+        }
+
+        UpdateMonsters(world, combat, dt);   // the road's own AI for those that fight, and the dying
+    }
+
+    std::vector<Journey::MountainLook> Journey::MountainLooks() const
+    {
+        std::vector<MountainLook> out;
+        const auto& enemies = GetNyxaraKit().Enemies();
+        for (int c = 0; c < static_cast<int>(mMountainStates.size()); ++c)
+        {
+            const int slot = mMountainStates[c].Slot;
+            if (slot < 0 || !mMonsters[slot].Active) continue;
+            const auto& m = mMonsters[slot]; const auto& e = enemies[slot]; const auto& mc = mMountainCreatures[c];
+            out.push_back({mc.Id, mc.Group, m.Kind, m.Calm, m.Dying, e.Pos, mc.Home, m.Ground,
+                           static_cast<float>(e.Health) / static_cast<float>(std::max(1, e.MaxHealth))});
+        }
+        return out;
+    }
+
+    void Journey::MountainStrike(int group)
+    {
+        if (group < 0 || group >= static_cast<int>(mMountainGroups.size())) return;
+        auto& enemies = GetNyxaraKit().Enemies();
+        for (const int c : mMountainGroups[group])
+        {
+            const int slot = mMountainStates[c].Slot;
+            if (slot < 0 || mMonsters[slot].Dying) continue;
+            enemies[slot].Health = 0; enemies[slot].Alive = false;
+        }
+    }
+
+    void Journey::DrawMountain(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
+    {
+        if (!mMountain) return;
+        renderer.ResetDefaultWorldRenderState();
+        renderer.BindDoorwaysSkinningDisabled();
+        DrawMonsters(renderer, world, viewProjection);
     }
 
     void Journey::Release(int slot)
@@ -2009,6 +2406,12 @@ namespace CaucasianEagle
             ring(10, 7.f, static_cast<int>(9 * DamageTaken())); kit.Shake(.2f); ++m.Stage;
             m.Special = 8.f;
             break;
+        case Giant:
+            // it stamps: a ring of stones flies out round it and the ground shakes (more of them when it is hurt)
+            ring(health < .5f ? 12 : 8, 6.f, static_cast<int>(8 * DamageTaken())); kit.Shake(.3f); ++m.Stage;
+            Sound::Play("combat/blow", .9f, .1f);
+            m.Special = health < .5f ? 6.f : 8.f;
+            break;
         case Eagle:
             if (m.Stage % 2 == 0)
             {   // dive
@@ -2064,10 +2467,11 @@ namespace CaucasianEagle
                 if (m.Death <= 0) Release(i);
                 continue;
             }
-            if (!e.Alive) { OnDeath(i, world, combat); continue; }
+            if (!e.Alive) { if (!mMountain) OnDeath(i, world, combat); continue; }   // (the mountain's dead: UpdateMountain)
             m.Spawn = std::min(1.f, m.Spawn + dt * 2.2f);
             m.Phase += dt;
             m.Lunge = std::max(0.f, m.Lunge - dt);
+            if (m.Calm > 0) continue;   // on the mountain, waiting at its place or going home (UpdateMountain moves it)
             if (m.Kind == ChestKind || m.Kind == ChainKind || m.Kind == LinkKind) continue;
             const KindDef& def = Kinds[m.Kind];
             const float damageScale = DamageTaken() * (1 + StageDamageGrowth * static_cast<float>(mSamples[m.Index].Stage)) * Collection::DamageFrom(mCollection, m.Kind);
@@ -2144,7 +2548,7 @@ namespace CaucasianEagle
             }
 
             // ---- giants strike the ground where she stands, from a distance
-            if (!def.Boss && def.Radius > 1.2f)
+            if ((!def.Boss || m.Kind == Giant) && def.Radius > 1.2f)
             {
                 if (m.Slam > 0)
                 {
@@ -2327,7 +2731,8 @@ namespace CaucasianEagle
                 if (d < want && def.PushScale > 0) move = Add(move, Mul(Norm(d > .01f ? away : XMFLOAT3{Random() - .5f, 0, Random() - .5f}), (want - d) * 4.f));
             }
             XMFLOAT3 next = Add(e.Pos, Mul(move, dt));
-            int index = Nearest(next.x, next.z, m.Index, 30);
+            // (on the mountain: on its own line, within the stretch it keeps to)
+            int index = mMountain && m.Place >= 0 ? NearestOn(next.x, next.z, m.First, m.Last) : Nearest(next.x, next.z, m.Index, 30);
             const bool roams = !m.Encounter && !arena && !def.Boss;   // a roaming pack follows her out over the land
             if (roams)
             {
@@ -2340,7 +2745,7 @@ namespace CaucasianEagle
                     else GetNature().PushFromTrees(next.x, next.z, def.Radius);
                 }
             }
-            else if (!(next.z > LedgeWalkFrontZ && std::abs(next.x) < LedgeWalkHalfWidth))
+            else if (mMountain || !(next.z > LedgeWalkFrontZ && std::abs(next.x) < LedgeWalkHalfWidth))
             {   // stay on the road, and inside the arena while its fight lasts
                 const Sample& s = mSamples[index];
                 const float lateral = (next.x - s.P.x) * s.Nx + (next.z - s.P.z) * s.Nz;
@@ -2367,7 +2772,7 @@ namespace CaucasianEagle
             }
             m.Moving = LenXZ(Sub(next, e.Pos)) / std::max(dt, 1e-4f);
             m.Index = index;
-            m.Ground = GroundAt(next.x, next.z, m.Index);
+            m.Ground = mMountain ? MountainGroundAt(next.x, next.z, m.Ground) : GroundAt(next.x, next.z, m.Index);
             if (roams)
             {   // off the road it stands on the land (blended over the first metres beyond the edge)
                 const Sample& s = mSamples[m.Index];
@@ -3268,6 +3673,103 @@ namespace CaucasianEagle
     }
 
     // ================================================================ draw
+    // The creatures as they are now, the road's or the mountain's: their bodies on their joints, and their health
+    // over their heads (a boss's is on the screen).
+    void Journey::DrawMonsters(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
+    {
+        const XMFLOAT3 eye = world.MainCamera.Position;
+        const auto& enemies = GetNyxaraKit().Enemies();
+        ID3D11ShaderResourceView* white = renderer.mWhiteTextureView.Get();
+        for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
+        {
+            const Monster& m = mMonsters[i];
+            if (!m.Active || m.Kind == ChestKind) continue;
+            const auto& e = enemies[i];
+            const KindDef& def = Kinds[m.Kind];
+            const float fade = m.Dying ? std::clamp(m.Death / .55f, 0.f, 1.f) : Smooth(m.Spawn, 0, 1);   // (a body she finished lies first: Linger)
+            const XMFLOAT3 feet{e.Pos.x, e.Pos.y - 1.3f + e.Lift, e.Pos.z};
+            const bool flash = e.Flash > 0 && !m.Dying;
+            if (m.Kind == LinkKind)
+            {   // a link of the Kaji chain over their press: dark iron, white-hot while her blows bite
+                const bool open = m.Stage != 0;
+                const Material iron = Surface(mPropModels[3].Texture.Get(), flash ? XMFLOAT4{3, 3, 3, 1} : open ? XMFLOAT4{1.8f, .8f, .25f, 1} : XMFLOAT4{.26f, .25f, .28f, 1}, flash || open ? 1.f : .04f);
+                const XMMATRIX turn = XMMatrixRotationY(e.Yaw), where = XMMatrixTranslation(e.Pos.x, e.Pos.y, e.Pos.z);
+                for (const float s : {-1.f, 1.f})
+                {
+                    renderer.DrawBox(XMMatrixScaling(.55f, 3.4f * fade, .55f) * XMMatrixTranslation(s * 1.05f, 0, 0) * turn * where, viewProjection, iron);
+                    renderer.DrawBox(XMMatrixScaling(2.65f * fade, .55f, .55f) * XMMatrixTranslation(0, s * 1.45f, 0) * turn * where, viewProjection, iron);
+                }
+                if (!m.Dying && (open || e.Health < e.MaxHealth))
+                {
+                    const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth), top = e.Pos.y + 2.6f;
+                    const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - e.Pos.x, eye.z - e.Pos.z));
+                    renderer.DrawBox(XMMatrixScaling(2.6f, .12f, .03f) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
+                    if (ratio > 0)
+                        renderer.DrawBox(XMMatrixScaling(2.5f * ratio, .08f, .04f) * XMMatrixTranslation(-1.25f * (1 - ratio), 0, 0) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z),
+                                         viewProjection, Surface(white, {1.f, .55f, .2f, 1}, .9f));
+                }
+                continue;
+            }
+            if (m.Kind == ChainKind)
+            {   // an iron anchor block wound with chain
+                const Material iron = Surface(white, flash ? XMFLOAT4{.42f, .46f, .52f, 1} : XMFLOAT4{.10f, .11f, .13f, 1}, flash ? .35f : .08f);
+                renderer.DrawBox(XMMatrixScaling(3.2f * fade, 3.0f * fade, 3.2f * fade) * XMMatrixRotationY(.4f) * XMMatrixTranslation(feet.x, feet.y + 1.5f, feet.z), viewProjection, iron);
+                renderer.DrawBox(XMMatrixScaling(4.0f * fade, .6f, 4.0f * fade) * XMMatrixTranslation(feet.x, feet.y + .3f, feet.z), viewProjection, iron);
+                continue;
+            }
+            const Model& model = mModels[m.Kind];
+            const float walk = std::min(1.f, m.Moving / std::max(def.Speed, .1f));
+            const float stride = def.Height > 4 ? 3.2f : 7.5f;
+            float pitch = .10f * walk, roll = .05f * walk * std::sin(m.Phase * stride);
+            float lift = std::abs(std::sin(m.Phase * stride)) * .07f * def.Height * walk * (def.Hover > 0 ? 0.f : 1.f);
+            float forward = 0;
+            if (m.Windup >= 0) { const float t = 1 - m.Windup / std::max(m.WindupFull, .01f); pitch = -.32f * std::sin(t * Pi * .5f); lift += .04f * def.Height * t; }
+            if (m.Lunge > 0) { const float t = m.Lunge / .28f; pitch = .45f * t; forward = .5f * def.Radius * t + .3f * t; }
+            const bool rigged = model.Rig.Kind != CreatureRig::Type::None;
+            if (rigged) { pitch *= .25f; roll *= .4f; }   // the joints do the leaning; the whole body only follows a little
+            if (m.Hover < 0) pitch += .25f;
+            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) + (m.Stage >= 100 ? 6.f * std::min(1.f, m.Special) : 0.f);
+            // (dying it sinks away; on its knees, doomed, it is let down onto them: NyxaraKit::Wraith::KneelDrop)
+            const float sink = m.Dying ? (1 - fade) * def.Height * .3f : 0.f;
+            const XMFLOAT3 at{feet.x + std::sin(e.Yaw) * forward, feet.y + lift + hover - sink - NyxaraKit::Wraith::KneelDrop(e.Knee, e.Kneel), feet.z + std::cos(e.Yaw) * forward};
+            const float height = def.Height * (m.Dying ? .35f + .65f * fade : .25f + .75f * fade);
+            const XMFLOAT4 tint = flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{MonsterTint, MonsterTint, MonsterTint, 1};
+            const XMFLOAT3 heldNeck{e.HeldNeck.x, e.HeldNeck.y - sink, e.HeldNeck.z}, heldFeet{e.HeldFeet.x, e.HeldFeet.y - sink, e.HeldFeet.z};
+            const XMMATRIX place = e.Hold > 0 ? HeldPlace(model.Min, model.Max, model.Rig, def.Height, e.Yaw, feet, e.Hold, heldNeck, heldFeet)   // in her hold, or fallen
+                                              : Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
+            const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission, false, model.Normal.Get());
+            if (rigged)
+            {   // limbs, spine and head move on their own joints
+                CreaturePose pose;
+                pose.Walk = m.Dying ? 0.f : walk; pose.Stride = m.Phase * stride; pose.Time = m.Phase;
+                pose.Windup = m.Windup >= 0 && !m.Dying ? 1 - m.Windup / std::max(m.WindupFull, .01f) : m.Slam > 0 && !m.Dying ? 1 - m.Slam / SlamSeconds : 0.f;
+                pose.Strike = m.Dying ? 0.f : std::min(1.f, m.Lunge / .28f);
+                pose.Recoil = m.Dying ? 0.f : std::min(1.f, e.Flash / .16f);
+                pose.Death = m.Dying ? 1 - fade : 0.f;
+                if (e.Hold > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Death = e.Limp >= 0 ? e.Limp : std::max(pose.Death, .8f * e.Hold); }   // limp in her hold
+                else if (e.Limp >= 0) pose.Death = e.Limp;
+                pose.Daze = e.Daze; pose.Kneel = e.Kneel;   // (doomed: her finishing kills)
+                if (e.Doom > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; }
+                pose.Attack = def.Keep > 0 || model.Rig.Kind == CreatureRig::Type::Robed ? CreatureRig::Attack::Cast
+                            : def.Height > 4 ? CreatureRig::Attack::Slam : CreatureRig::Attack::Swing;
+                static Doorways::DoorwaysGpuSkinningPalette palette;   // 128 matrices: too large to build on the stack every creature
+                BuildCreaturePalette(model.Rig, pose, palette);
+                renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh, place, viewProjection, palette, skin);
+            }
+            else renderer.DrawDoorwaysGpuMesh(model.Mesh, place, viewProjection, skin);
+            if (!m.Dying && !def.Boss && e.Doom <= 0 && !(m.Calm > 0 && e.Health >= e.MaxHealth))
+            {   // health bar (not over a creature of the mountain that waits, unhurt)
+                const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth);
+                const float top = feet.y + def.Height + hover + .35f, width = std::min(2.4f, .9f + def.Radius);
+                const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - feet.x, eye.z - feet.z));
+                renderer.DrawBox(XMMatrixScaling(width, .09f, .03f) * face * XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
+                if (ratio > 0)
+                    renderer.DrawBox(XMMatrixScaling(width * .96f * ratio, .06f, .04f) * XMMatrixTranslation(-width * .48f * (1 - ratio), 0, 0) * face *
+                                     XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {def.Color.x, def.Color.y, def.Color.z, 1}, .9f));
+            }
+        }
+    }
+
     void Journey::Draw(Renderer& renderer, const WorldState& world, const XMMATRIX& viewProjection)
     {
         if (!mReady) return;
@@ -3276,7 +3778,6 @@ namespace CaucasianEagle
         const XMFLOAT3 eye = world.MainCamera.Position;
         auto& kit = GetNyxaraKit();
         const auto& enemies = kit.Enemies();
-        ID3D11ShaderResourceView* white = renderer.mWhiteTextureView.Get();
 
         // ---- scenery props (Meshy models placed by the world builder)
         for (const auto& prop : mProps)
@@ -3409,94 +3910,7 @@ namespace CaucasianEagle
         }
 
         // ---- monsters
-        for (int i = 0; i < static_cast<int>(mMonsters.size()); ++i)
-        {
-            const Monster& m = mMonsters[i];
-            if (!m.Active || m.Kind == ChestKind) continue;
-            const auto& e = enemies[i];
-            const KindDef& def = Kinds[m.Kind];
-            const float fade = m.Dying ? std::clamp(m.Death / .55f, 0.f, 1.f) : Smooth(m.Spawn, 0, 1);   // (a body she finished lies first: Linger)
-            const XMFLOAT3 feet{e.Pos.x, e.Pos.y - 1.3f + e.Lift, e.Pos.z};
-            const bool flash = e.Flash > 0 && !m.Dying;
-            if (m.Kind == LinkKind)
-            {   // a link of the Kaji chain over their press: dark iron, white-hot while her blows bite
-                const bool open = m.Stage != 0;
-                const Material iron = Surface(mPropModels[3].Texture.Get(), flash ? XMFLOAT4{3, 3, 3, 1} : open ? XMFLOAT4{1.8f, .8f, .25f, 1} : XMFLOAT4{.26f, .25f, .28f, 1}, flash || open ? 1.f : .04f);
-                const XMMATRIX turn = XMMatrixRotationY(e.Yaw), where = XMMatrixTranslation(e.Pos.x, e.Pos.y, e.Pos.z);
-                for (const float s : {-1.f, 1.f})
-                {
-                    renderer.DrawBox(XMMatrixScaling(.55f, 3.4f * fade, .55f) * XMMatrixTranslation(s * 1.05f, 0, 0) * turn * where, viewProjection, iron);
-                    renderer.DrawBox(XMMatrixScaling(2.65f * fade, .55f, .55f) * XMMatrixTranslation(0, s * 1.45f, 0) * turn * where, viewProjection, iron);
-                }
-                if (!m.Dying && (open || e.Health < e.MaxHealth))
-                {
-                    const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth), top = e.Pos.y + 2.6f;
-                    const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - e.Pos.x, eye.z - e.Pos.z));
-                    renderer.DrawBox(XMMatrixScaling(2.6f, .12f, .03f) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
-                    if (ratio > 0)
-                        renderer.DrawBox(XMMatrixScaling(2.5f * ratio, .08f, .04f) * XMMatrixTranslation(-1.25f * (1 - ratio), 0, 0) * face * XMMatrixTranslation(e.Pos.x, top, e.Pos.z),
-                                         viewProjection, Surface(white, {1.f, .55f, .2f, 1}, .9f));
-                }
-                continue;
-            }
-            if (m.Kind == ChainKind)
-            {   // an iron anchor block wound with chain
-                const Material iron = Surface(white, flash ? XMFLOAT4{.42f, .46f, .52f, 1} : XMFLOAT4{.10f, .11f, .13f, 1}, flash ? .35f : .08f);
-                renderer.DrawBox(XMMatrixScaling(3.2f * fade, 3.0f * fade, 3.2f * fade) * XMMatrixRotationY(.4f) * XMMatrixTranslation(feet.x, feet.y + 1.5f, feet.z), viewProjection, iron);
-                renderer.DrawBox(XMMatrixScaling(4.0f * fade, .6f, 4.0f * fade) * XMMatrixTranslation(feet.x, feet.y + .3f, feet.z), viewProjection, iron);
-                continue;
-            }
-            const Model& model = mModels[m.Kind];
-            const float walk = std::min(1.f, m.Moving / std::max(def.Speed, .1f));
-            const float stride = def.Height > 4 ? 3.2f : 7.5f;
-            float pitch = .10f * walk, roll = .05f * walk * std::sin(m.Phase * stride);
-            float lift = std::abs(std::sin(m.Phase * stride)) * .07f * def.Height * walk * (def.Hover > 0 ? 0.f : 1.f);
-            float forward = 0;
-            if (m.Windup >= 0) { const float t = 1 - m.Windup / std::max(m.WindupFull, .01f); pitch = -.32f * std::sin(t * Pi * .5f); lift += .04f * def.Height * t; }
-            if (m.Lunge > 0) { const float t = m.Lunge / .28f; pitch = .45f * t; forward = .5f * def.Radius * t + .3f * t; }
-            const bool rigged = model.Rig.Kind != CreatureRig::Type::None;
-            if (rigged) { pitch *= .25f; roll *= .4f; }   // the joints do the leaning; the whole body only follows a little
-            if (m.Hover < 0) pitch += .25f;
-            const float hover = std::max(0.f, def.Hover) * (1 + .25f * std::sin(m.Phase * 2.2f)) + (m.Stage >= 100 ? 6.f * std::min(1.f, m.Special) : 0.f);
-            // (dying it sinks away; on its knees, doomed, it is let down onto them: NyxaraKit::Wraith::KneelDrop)
-            const float sink = m.Dying ? (1 - fade) * def.Height * .3f : 0.f;
-            const XMFLOAT3 at{feet.x + std::sin(e.Yaw) * forward, feet.y + lift + hover - sink - NyxaraKit::Wraith::KneelDrop(e.Knee, e.Kneel), feet.z + std::cos(e.Yaw) * forward};
-            const float height = def.Height * (m.Dying ? .35f + .65f * fade : .25f + .75f * fade);
-            const XMFLOAT4 tint = flash ? XMFLOAT4{3, 3, 3, 1} : XMFLOAT4{MonsterTint, MonsterTint, MonsterTint, 1};
-            const XMFLOAT3 heldNeck{e.HeldNeck.x, e.HeldNeck.y - sink, e.HeldNeck.z}, heldFeet{e.HeldFeet.x, e.HeldFeet.y - sink, e.HeldFeet.z};
-            const XMMATRIX place = e.Hold > 0 ? HeldPlace(model.Min, model.Max, model.Rig, def.Height, e.Yaw, feet, e.Hold, heldNeck, heldFeet)   // in her hold, or fallen
-                                              : Place(model.Min, model.Max, height, e.Yaw, at, pitch + (m.Dying ? (1 - fade) * -1.2f : 0.f), roll);
-            const Material skin = Surface(model.Texture.Get(), tint, flash ? 1.f : MonsterEmission, false, model.Normal.Get());
-            if (rigged)
-            {   // limbs, spine and head move on their own joints
-                CreaturePose pose;
-                pose.Walk = m.Dying ? 0.f : walk; pose.Stride = m.Phase * stride; pose.Time = m.Phase;
-                pose.Windup = m.Windup >= 0 && !m.Dying ? 1 - m.Windup / std::max(m.WindupFull, .01f) : m.Slam > 0 && !m.Dying ? 1 - m.Slam / SlamSeconds : 0.f;
-                pose.Strike = m.Dying ? 0.f : std::min(1.f, m.Lunge / .28f);
-                pose.Recoil = m.Dying ? 0.f : std::min(1.f, e.Flash / .16f);
-                pose.Death = m.Dying ? 1 - fade : 0.f;
-                if (e.Hold > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; pose.Death = e.Limp >= 0 ? e.Limp : std::max(pose.Death, .8f * e.Hold); }   // limp in her hold
-                else if (e.Limp >= 0) pose.Death = e.Limp;
-                pose.Daze = e.Daze; pose.Kneel = e.Kneel;   // (doomed: her finishing kills)
-                if (e.Doom > 0) { pose.Walk = 0; pose.Windup = 0; pose.Strike = 0; }
-                pose.Attack = def.Keep > 0 || model.Rig.Kind == CreatureRig::Type::Robed ? CreatureRig::Attack::Cast
-                            : def.Height > 4 ? CreatureRig::Attack::Slam : CreatureRig::Attack::Swing;
-                static Doorways::DoorwaysGpuSkinningPalette palette;   // 128 matrices: too large to build on the stack every creature
-                BuildCreaturePalette(model.Rig, pose, palette);
-                renderer.DrawDoorwaysGpuMeshSkinned(model.Mesh, place, viewProjection, palette, skin);
-            }
-            else renderer.DrawDoorwaysGpuMesh(model.Mesh, place, viewProjection, skin);
-            if (!m.Dying && !def.Boss && e.Doom <= 0)
-            {   // health bar
-                const float ratio = static_cast<float>(e.Health) / static_cast<float>(e.MaxHealth);
-                const float top = feet.y + def.Height + hover + .35f, width = std::min(2.4f, .9f + def.Radius);
-                const XMMATRIX face = XMMatrixRotationY(std::atan2(eye.x - feet.x, eye.z - feet.z));
-                renderer.DrawBox(XMMatrixScaling(width, .09f, .03f) * face * XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {.03f, .03f, .04f, 1}, 0));
-                if (ratio > 0)
-                    renderer.DrawBox(XMMatrixScaling(width * .96f * ratio, .06f, .04f) * XMMatrixTranslation(-width * .48f * (1 - ratio), 0, 0) * face *
-                                     XMMatrixTranslation(feet.x, top, feet.z), viewProjection, Surface(white, {def.Color.x, def.Color.y, def.Color.z, 1}, .9f));
-            }
-        }
+        DrawMonsters(renderer, world, viewProjection);
 
         // ---- translucent: the light on the arena walls, lanterns and chest glows, far to near
         struct Item { XMFLOAT4X4 M; Material Mat; float Depth; };

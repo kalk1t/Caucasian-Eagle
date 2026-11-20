@@ -87,15 +87,28 @@ namespace CaucasianEagle
             Show(session, camera, {(x0 + x1) * .5f, y0, (z0 + z1) * .5f}, (std::max)(x1 - x0, z1 - z0) * .5f * 1.25f, summit);
         }
         // The words over it, and where she is.
-        void DrawHud(Ui& ui, const Camera& camera, const DirectX::XMFLOAT3& her, float summit) const
+        // A place marked on the mountain (the Eagle's Ascent: its Eagle Nests, bosses and creatures); no label: a dot.
+        struct Mark { DirectX::XMFLOAT3 P{}; std::wstring Label; Color Tint; float Size = 6; };
+        void DrawHud(Ui& ui, const Camera& camera, const DirectX::XMFLOAT3& her, float summit, const std::vector<Mark>& marks = {}) const
         {
             using namespace DirectX;
             const float s = std::clamp(ui.S, .8f, 1.5f), big = 20 * s / Doorways::DoorwaysUiFontHeight, body = 13 * s / Doorways::DoorwaysUiFontHeight;
+            const float labelSize = 11 * s / Doorways::DoorwaysUiFontHeight;
             ui.Rect(0, 0, ui.W, 64 * s, {.015f, .025f, .04f, .7f});
             ui.Centered(L"THE MOUNTAIN", ui.W * .5f, 8 * s, big, Palette::Gold);
             ui.Centered(L"Mouse: turn the mountain   |   Wheel: closer, further   |   M: close",
                         ui.W * .5f, 38 * s, body, Palette::Ink);
-            XMFLOAT4 c; XMStoreFloat4(&c, XMVector4Transform(XMVectorSet(her.x, her.y + 2, her.z, 1), camera.BuildViewProjectionMatrix(ui.W / ui.H)));
+            const XMMATRIX view = camera.BuildViewProjectionMatrix(ui.W / ui.H);
+            for (const auto& m : marks)
+            {
+                XMFLOAT4 at; XMStoreFloat4(&at, XMVector4Transform(XMVectorSet(m.P.x, m.P.y + 2, m.P.z, 1), view));
+                if (at.w <= 0 || std::abs(at.x / at.w) > 1 || std::abs(at.y / at.w) > 1) continue;
+                const float x = (at.x / at.w + 1) * ui.W * .5f, y = (1 - at.y / at.w) * ui.H * .5f, r = m.Size * .5f * s;
+                ui.Rect(x - r - 1 * s, y - r - 1 * s, 2 * r + 2 * s, 2 * r + 2 * s, {0, 0, 0, .55f});
+                ui.Rect(x - r, y - r, 2 * r, 2 * r, m.Tint);
+                if (!m.Label.empty()) ui.Centered(m.Label, x, y - r - 16 * s, labelSize, m.Tint);
+            }
+            XMFLOAT4 c; XMStoreFloat4(&c, XMVector4Transform(XMVectorSet(her.x, her.y + 2, her.z, 1), view));
             if (c.w > 0 && std::abs(c.x / c.w) <= 1 && std::abs(c.y / c.w) <= 1)
             {
                 const float x = (c.x / c.w + 1) * ui.W * .5f, y = (1 - c.y / c.w) * ui.H * .5f;
