@@ -19,6 +19,23 @@ tour on the mountain.
   times"
 - "also after finalizing the character animations - update chracterlab with latest nyxara"
 
+## V, F in flight and the take-off (2026-11-19, late)
+
+You asked of V: "she twists, sticks with two feet on [it], grab[s the] swords and make[s] then a backflip and stand[s]
+still"; of F in flight: "do same twist as it does while V, it will be called twisted-dash and it also makes damage
+through"; and "reduce flying uptime from 3 seconds to 1.5s".
+
+**V.** After her twist her feet stick on the creature's side and she crouches there, her back to the ground, her wings
+raised over her. Her back bends as far as her hands need and each arm turns onto its handle (her fists 5 to 9 cm off
+the handles at most). She kicks off it, ripping the swords out, flies back as a thrown body, is upright before she lands,
+lands facing it and stands still. A sword no longer jumps 0.4 m as it comes back to her hand.
+
+**F in flight** is the twisted dash: V's twist feet first, 9 m in 0.6 s, striking every creature she goes through and
+throwing it aside; the HUD says DASH while she flies.
+
+**Take-off.** Space held 1.5 s takes her up (it was 3 s), on the road, on the mountain and in the Character Lab; a tap is
+still a jump.
+
 ## The three finishing kills (2026-11-20)
 
 You asked: "i want 3 different finishing kill animations for nyxara to happen when she is killing monsters everytime and
@@ -63,9 +80,11 @@ Character Lab from the side and with the game's own camera (behind her, as you p
 kill's clock. And a scripted fight in the lab with her blows taking health: every killing blow doomed its creature and
 was finished, the kills in the order Plunge, Cross, Slide, Plunge.
 
-**Still open.** Not yet played by a person: on the mountain the game has played them itself (below). Three sounds her
-code asks for have no files (`nyxara/swing`, `nyxara/skill`, `nyxara/wing`: silent, as before); the kills use the
-sounds that exist.
+**Sounds.** Each kill has the bite of her blade and the creature's blow and fall; since 2026-11-20 also her blade's slash
+through the air at each cut (the heavy slash at the Gale Slide's killing blow) and her wings where they beat. (This
+report said once that `nyxara/swing`, `nyxara/skill` and `nyxara/wing` have no files: wrong, they have, and play.)
+
+**Still open.** Not yet played by a person: on the mountain the game has played them itself (below).
 
 ## Her kills on the mountain (2026-11-20)
 
@@ -113,7 +132,7 @@ fights; the changelog has it all. All
 eleven of the Character Lab's creatures were filmed showing every move, and the creatures' tour of the mountain beats
 all 125 of its creatures, every stop as it should be.
 
-## What changed
+## What changed on 2026-11-19 (her body, hands, cuts, the storm, the Character Lab)
 
 **C is the feather storm** (pictures 16 to 19). She crouches as her wings rise, leaps as they beat down, turns round
 three times in the air (gathering speed and losing it, 1280 degrees a second at the fastest), her wings spread and
