@@ -422,6 +422,7 @@ namespace Doorways
         float PushTime = 0, PushStick = 1, PushGone = -1;
         XMFLOAT3 PushWay{0, 0, 1}, PushFeet{};
         float CastWay = 1, CastTurns = 1, CastCome = 0, CastTwist = 0, CastTwistWas = 0;
+        std::string WindUpsEvened, WindUpsLeft;   // the cuts whose wind-up EvenWindUps made one move, and left (for the log)
         float CastRise = 0, CastRiseNow = 0, CastAir = CastAirHeight, CastMissing = 0;
         bool CastStruck = false, CastKicked = false;
 
@@ -633,48 +634,67 @@ namespace Doorways
         // the cut and dies away evenly until just before the blow (CutEnd): so her hand does not go all the way back to
         // where the clip winds up and wait there, it goes round by a shorter way and meets the swing as that comes
         // forward. The longer before the blow, the more of the clip's wind-up she makes and the further her hand has to
-        // go. Each of a few lengths is tried on the hands' ways as the clip has them (her hand where it is, going as it
-        // goes), and the one taken in which her hand is slowest at its fastest before the swing, a longer one costing a
-        // little (LeadCost): most cuts come 0.26 to 0.34 s after the button, the far ones later.
-        float BestLead(const CutSwing& sw) const
+        // go. Each of a few lengths is played here as Compose will play it: the clip from that point, what is carried
+        // over dying away as there (CarryAt, CarryTurn, CarryGo, CarrySpin), her joints evaluated and her hands where
+        // they put them, until the swing begins. The one taken is that in which her hand is slowest at its fastest, a
+        // longer one costing a little (LeadCost). (A first form guessed her hand's way as the clip's and a straight line
+        // to it; her joints take it on arcs, and out of her guard into L1 her hand went in at 9 m/s where much less was
+        // guessed, stopped, and struck at 11: two moves.)
+        float BestLead(const std::string& name, const CutSwing& sw) const
         {
-            constexpr float Leads[] = {.26f, .30f, .34f, .38f, .42f};
+            constexpr float Leads[] = {.26f, .30f, .34f, .38f, .42f, .46f};
             constexpr float Tick = 1 / 60.f;
-            if (Previous.ModelSpaceMatrices.size() != Skeleton.Joints.size() || ArmChain[0][3] < 0 || ArmChain[1][3] < 0) return Leads[1];
-            XMVECTOR at[2], go[2];
-            for (int s = 0; s < 2; ++s)
-            {
-                const auto& m = Previous.ModelSpaceMatrices[ArmChain[s][3]];
-                at[s] = XMVectorSet(m._41, m._42, m._43, 0);
-                go[s] = XMVectorZero();
-                if (Before.ModelSpaceMatrices.size() == Skeleton.Joints.size() && LastDt > 1e-4f)
-                {
-                    const auto& b = Before.ModelSpaceMatrices[ArmChain[s][3]];
-                    go[s] = (at[s] - XMVectorSet(b._41, b._42, b._43, 0)) / LastDt;
-                }
-            }
+            const size_t n = Skeleton.Joints.size();
+            const int hand = ArmChain[sw.Cuts[0] ? 0 : 1][3], other = ArmChain[sw.Cuts[0] ? 1 : 0][3];
+            if (Previous.LocalJoints.size() != n || Hips < 0 || hand < 0 || other < 0) return Leads[1];
+            const bool moving = Before.LocalJoints.size() == n && LastDt > 1e-4f;
+            const float hit = Hit(name);
+            DoorwaysSkeletonPose entry, pose;
+            std::vector<XMFLOAT3> at(n), go(n), turned(n), spin(n);
             float best = Leads[1], least = 1e9f;
             for (const float lead : Leads)
             {
-                const float whole = lead - CutEnd, first = CutTrackEarly - lead / Tick;
-                float top = 0;
-                for (int s = 0; s < 2; ++s)
+                const float start = (std::max)(0.f, hit - lead), seconds = (lead - CutEnd) / AttackRate;
+                if (!Sample(name, start, entry, nullptr) || entry.LocalJoints.size() != n) continue;
+                for (size_t i = 0; i < n; ++i)
                 {
-                    const auto track = [&](float f)
+                    const auto& was = Previous.LocalJoints[i]; const auto& now = entry.LocalJoints[i];
+                    const XMVECTOR apart = XMLoadFloat3(&was.Translation) - XMLoadFloat3(&now.Translation);
+                    const XMVECTOR turn = TurnVector(XMQuaternionMultiply(XMQuaternionInverse(XMLoadFloat4(&now.Rotation)), XMLoadFloat4(&was.Rotation)));
+                    XMVECTOR going = XMVectorZero(), spinning = XMVectorZero();
+                    if (moving)
                     {
-                        f = std::clamp(f, 0.f, CutTrack - 1.001f);
-                        const int i = static_cast<int>(f);
-                        return XMVectorLerp(XMLoadFloat3(&sw.Track[s][i]), XMLoadFloat3(&sw.Track[s][i + 1]), f - i);
-                    };
-                    const XMVECTOR off = at[s] - track(first);
-                    const XMVECTOR carried = XMVector3ClampLength(go[s] - (track(first + 1) - track(first)) / Tick, 0, 3 * XMVectorGetX(XMVector3Length(off)) / whole);
-                    XMVECTOR was = at[s];
-                    for (int f = 1; f * Tick < lead - .10f; ++f)
+                        const auto& before = Before.LocalJoints[i];
+                        going = (XMLoadFloat3(&was.Translation) - XMLoadFloat3(&before.Translation)) / LastDt;
+                        spinning = TurnVector(XMQuaternionMultiply(XMQuaternionInverse(XMLoadFloat4(&before.Rotation)), XMLoadFloat4(&was.Rotation))) / LastDt;
+                        going = XMVector3ClampLength(going, 0, 3 * XMVectorGetX(XMVector3Length(apart)) / seconds);
+                        spinning = XMVector3ClampLength(spinning, 0, 3 * XMVectorGetX(XMVector3Length(turn)) / seconds);
+                    }
+                    XMStoreFloat3(&at[i], apart); XMStoreFloat3(&turned[i], turn); XMStoreFloat3(&go[i], going); XMStoreFloat3(&spin[i], spinning);
+                }
+                float top = 0;
+                XMVECTOR last[2] = {XMVectorZero(), XMVectorZero()};
+                for (int f = 0; ; ++f)
+                {
+                    const float t = f * Tick, played = start + t * AttackRate;
+                    if (played > hit - sw.Lead || !Sample(name, played, pose, nullptr) || pose.LocalJoints.size() != n) break;
+                    const float g = (std::min)(1.f, t / seconds), rest = 1 - g;
+                    const float wAt = 1 - g * g * g * (10 - 15 * g + 6 * g * g), wGo = t * rest * rest * rest;
+                    for (size_t i = 0; i < n; ++i)
                     {
-                        const float t = f * Tick, g = (std::min)(1.f, t / whole), rest = 1 - g;
-                        const XMVECTOR now = track(first + f) + off * (1 - g * g * g * (10 - 15 * g + 6 * g * g)) + carried * (t * rest * rest * rest);
-                        top = (std::max)(top, XMVectorGetX(XMVector3Length(now - was)) / Tick * (sw.Cuts[s] ? 1.f : .6f));
-                        was = now;
+                        auto& to = pose.LocalJoints[i];
+                        XMStoreFloat3(&to.Translation, XMLoadFloat3(&to.Translation) + XMLoadFloat3(&at[i]) * wAt + XMLoadFloat3(&go[i]) * wGo);
+                        const XMVECTOR turn = XMLoadFloat3(&turned[i]) * wAt + XMLoadFloat3(&spin[i]) * wGo;
+                        XMStoreFloat4(&to.Rotation, XMQuaternionNormalize(XMQuaternionMultiply(XMLoadFloat4(&to.Rotation), TurnOf(turn))));
+                    }
+                    if (!EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) break;
+                    const auto& h = pose.ModelSpaceMatrices[Hips];
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        const auto& m = pose.ModelSpaceMatrices[k == 0 ? hand : other];
+                        const XMVECTOR p = XMVectorSet(m._41 - h._41, m._42 - h._42, m._43 - h._43, 0);
+                        if (f > 0) top = (std::max)(top, XMVectorGetX(XMVector3Length(p - last[k])) / Tick * (k == 0 ? 1.f : .6f));
+                        last[k] = p;
                     }
                 }
                 const float cost = top + LeadCost * (lead - Leads[0]);
@@ -744,6 +764,128 @@ namespace Doorways
                         }
                     }
                 }
+            }
+        }
+
+        // Each cut's wind-up as one move into its swing (2026-11-19; the owner: "animations seems like concated wrong
+        // way"). In four cuts (R2, R3, R4, L3) Mixamo's arm cocks the blade in a tenth of a second, at 8 to 12 m/s (nearly
+        // the blow's own speed), stops, and then strikes: two moves. From WindUpFrom before the blow to where her hand
+        // turns into the swing she now goes through the clip's own poses, all of her, but evenly: the distance her hand
+        // goes along its way (against her hips) goes as a cubic from the clip's pace at one end to its pace at the other,
+        // in the same time. Every frame is still one of the clip's own poses; the blow is where it was. A cut whose
+        // wind-up is calm already (at most WindUpCalm of its blow's speed) is left as it is.
+        void EvenWindUps()
+        {
+            constexpr float WindUpFrom = .45f, WindUpCalm = .45f, Tick = 1 / 240.f, KeysEvery = 1 / 120.f;
+            if (Hips < 0) return;
+            for (auto& entry : Clips)
+            {
+                const std::string& name = entry.first;
+                const float hit = Hit(name);
+                if (name.rfind("Attack_", 0) != 0 || name == "Attack_Jump" || hit <= WindUpFrom + .02f || hit + .06f > entry.second.DurationSeconds) continue;
+                const int s = name.rfind("Attack_L", 0) == 0 ? 0 : 1;
+                if (ArmChain[s][0] < 0 || ArmChain[s][3] < 0) continue;
+                // her hand's way against her hips, 240 times a second, from WindUpFrom before the blow to just after it
+                const int count = static_cast<int>((WindUpFrom + .05f) / Tick) + 1, blow = static_cast<int>(std::lround(WindUpFrom / Tick));
+                std::vector<XMFLOAT3> way(static_cast<size_t>(count));
+                DoorwaysSkeletonPose pose;
+                bool whole = true;
+                for (int i = 0; i < count && whole; ++i)
+                {
+                    whole = Sample(name, hit - WindUpFrom + i * Tick, pose, nullptr) && EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr);
+                    if (!whole) break;
+                    const auto& m = pose.ModelSpaceMatrices[ArmChain[s][3]];
+                    const auto& h = pose.ModelSpaceMatrices[Hips];
+                    way[i] = {m._41 - h._41, m._42 - h._42, m._43 - h._43};
+                }
+                if (!whole) continue;
+                const auto gap = [&](int i, int k) { return XMVectorGetX(XMVector3Length(XMLoadFloat3(&way[k]) - XMLoadFloat3(&way[i]))); };
+                std::vector<float> pace(static_cast<size_t>(count), 0.f), even(static_cast<size_t>(count), 0.f);
+                for (int i = 1; i + 1 < count; ++i) pace[i] = gap(i - 1, i + 1) / (2 * Tick);
+                pace[0] = pace[1]; pace[count - 1] = pace[count - 2];
+                for (int i = 0; i < count; ++i)   // (over a thirtieth of a second: a wobble is not a turn)
+                {
+                    float sum = 0; int n = 0;
+                    for (int d = -4; d <= 4; ++d) if (i + d >= 0 && i + d < count) { sum += pace[i + d]; ++n; }
+                    even[i] = sum / static_cast<float>(n);
+                }
+                int top = blow - static_cast<int>(.12f / Tick);
+                for (int i = top; i < count; ++i) if (even[i] > even[top]) top = i;
+                // back from the swing's top to where her hand turns into it: the least speed before the swing, once the
+                // speed plainly climbs again behind it
+                int turn = top;
+                float least = even[top];
+                for (int i = top - 1; i > 0; --i)
+                {
+                    if (even[i] < least) { least = even[i]; turn = i; }
+                    else if (even[i] > least * 1.3f + .3f) break;
+                }
+                float burst = 0;
+                for (int i = 0; i < turn; ++i) burst = (std::max)(burst, even[i]);
+                const auto leave = [&](const char* why)
+                {
+                    char said[160];
+                    std::snprintf(said, sizeof(said), "%s (%s: its wind-up %.1f m/s, its blow %.1f, its turn %.2f s before the blow); ",
+                                  name.c_str(), why, burst, even[top], (blow - turn) * Tick);
+                    WindUpsLeft += said;
+                };
+                if ((blow - turn) * Tick < .03f || (blow - turn) * Tick > .25f) { leave("no turn into its swing"); continue; }
+                if (burst <= WindUpCalm * even[top]) { leave("calm"); continue; }
+                std::vector<float> along(static_cast<size_t>(turn) + 1, 0.f);
+                for (int i = 1; i <= turn; ++i) along[i] = along[i - 1] + gap(i - 1, i);
+                const float length = along[turn], span = turn * Tick, from = hit - WindUpFrom, to = from + span;
+                if (length < .05f) continue;
+                float v0 = pace[0] * span / length, v1 = pace[turn] * span / length;    // (the cubic's slopes at its ends)
+                if (const float over = std::hypot(v0, v1) / 3; over > 1) { v0 /= over; v1 /= over; }   // (so it never goes back)
+                const auto shown = [&](float u)   // a share u of the window: the clip's own time whose pose is shown then
+                {
+                    const float u2 = u * u, u3 = u2 * u;
+                    const float want = std::clamp((u3 - 2 * u2 + u) * v0 + (3 * u2 - 2 * u3) + (u3 - u2) * v1, 0.f, 1.f) * length;
+                    const int i = std::clamp(static_cast<int>(std::upper_bound(along.begin(), along.end(), want) - along.begin()) - 1, 0, turn - 1);
+                    const float piece = along[i + 1] - along[i];
+                    return from + (static_cast<float>(i) + (piece > 1e-6f ? std::clamp((want - along[i]) / piece, 0.f, 1.f) : 0.f)) * Tick;
+                };
+                const int steps = (std::max)(2, static_cast<int>(std::ceil(span / KeysEvery)));
+                for (auto& track : entry.second.JointTracks)
+                {
+                    const auto redo = [&](auto& keys, auto mix)
+                    {
+                        if (keys.size() < 2) return;
+                        const auto at = [&](float t)
+                        {
+                            size_t k = 0;
+                            while (k + 1 < keys.size() && keys[k + 1].TimeSeconds <= t) ++k;
+                            if (k + 1 >= keys.size() || t <= keys[k].TimeSeconds) return keys[k].Value;
+                            const float w = (t - keys[k].TimeSeconds) / (std::max)(1e-6f, keys[k + 1].TimeSeconds - keys[k].TimeSeconds);
+                            return mix(keys[k].Value, keys[k + 1].Value, w);
+                        };
+                        auto made = keys;
+                        made.clear();
+                        for (const auto& key : keys) if (key.TimeSeconds < from - 1e-5f) made.push_back(key);
+                        for (int k = 0; k <= steps; ++k)
+                        {
+                            auto key = keys.front();
+                            key.TimeSeconds = from + span * static_cast<float>(k) / static_cast<float>(steps);
+                            key.Value = at(shown(static_cast<float>(k) / static_cast<float>(steps)));
+                            made.push_back(key);
+                        }
+                        for (const auto& key : keys) if (key.TimeSeconds > to + 1e-5f) made.push_back(key);
+                        keys = std::move(made);
+                    };
+                    redo(track.RotationKeys, [](const XMFLOAT4& a, const XMFLOAT4& b, float w)
+                    {
+                        XMFLOAT4 r;
+                        XMStoreFloat4(&r, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&a), XMLoadFloat4(&b), w)));
+                        return r;
+                    });
+                    const auto line = [](const XMFLOAT3& a, const XMFLOAT3& b, float w) { return XMFLOAT3{a.x + (b.x - a.x) * w, a.y + (b.y - a.y) * w, a.z + (b.z - a.z) * w}; };
+                    redo(track.TranslationKeys, line);
+                    redo(track.ScaleKeys, line);
+                }
+                char said[160];
+                std::snprintf(said, sizeof(said), "%s (its cock %.1f m/s, its blow %.1f, over %.2f s to %.2f s before the blow); ",
+                              name.c_str(), burst, even[top], span, (blow - turn) * Tick);
+                WindUpsEvened += said;
             }
         }
 
@@ -1370,7 +1512,7 @@ namespace Doorways
                 if (!InHand) lead = (DrawReachPressed + DrawOnCut) * AttackRate + CutEnd;
                 else
                 {
-                    lead = BestLead(swing->second);
+                    lead = BestLead(name, swing->second);
                     CutBlend = (lead - CutEnd) / AttackRate;
                 }
             }
@@ -2608,6 +2750,7 @@ namespace Doorways
         if (b.SwordJoint[0] < 0) { error = "her body has no SwordLeft / SwordRight bones (" + bundle.string() + ")"; return false; }
         if (!b.Sample("Idle", 0, b.Previous, &error)) return false;
         b.SmoothWrists();
+        b.EvenWindUps();
         b.LearnSwings();
         b.LearnGrip();
         b.MakeStorm();
@@ -2618,6 +2761,8 @@ namespace Doorways
             b.LogPath = log;
             std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\tfeet_drop\tleft_raise\tright_raise\tleft_gap\tright_gap\n";
         }
+        if (!b.WindUpsEvened.empty()) b.Log(world, ("cut wind-ups made one move: " + b.WindUpsEvened).c_str());
+        if (!b.WindUpsLeft.empty()) b.Log(world, ("cut wind-ups left as they were: " + b.WindUpsLeft).c_str());
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_POSELOG", log, sizeof(log)) > 0 && log[0])
         {
             b.PoseFile.open(log);
@@ -3258,10 +3403,12 @@ namespace Doorways
                 b.Log(world, ("cast twist " + std::to_string(static_cast<int>(b.CastTurns)) + " turns over " + std::to_string(b.CastWay) + " m").c_str());
             }
             if (b.Cast == 4)
-            {   // the twist, by how far she has come (it never goes back); the last turn slows into the grab
-                const float come = std::clamp(1 - (std::max)(0.f, away - b.CastStand - .05f) / b.CastWay, 0.f, 1.f);
+            {   // the twist, by how far she has come (it never goes back); it gathers speed over the first third of her way
+                // and the last turn slows into the grab (2026-11-19: it began at its fastest, 6.8 turns a second out of
+                // standing still, and her hands went from rest to 27 m/s in one frame)
+                const float come = std::clamp(1 - (std::max)(0.f, away - b.CastStand - .05f) / b.CastWay, 0.f, 1.f), left = 1 - come;
                 b.CastTwistWas = b.CastTwist;
-                b.CastTwist = (std::max)(b.CastTwist, 1 - (1 - come) * (1 - come));
+                b.CastTwist = (std::max)(b.CastTwist, 1 - left * left * left * (1 + 3 * come));
                 b.CastCome = (std::max)(b.CastCome, come);
             }
             if (b.Cast == 4 && dt > 1e-4f && away > .05f)
