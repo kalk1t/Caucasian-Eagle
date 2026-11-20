@@ -77,7 +77,7 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     const Slot slots[] = {
         {Ui::KeyLabel(L"LMB", VK_LBUTTON), L"LEFT", &HudArt::IconSlash, 0, 1, hud.Slashing, false, Silver, 0},
         {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"RIGHT", &HudArt::IconHeavy, 0, 1, hud.Heavy, false, Silver, 0},
-        {Ui::KeyLabel(L"F", 'F'), L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
+        {Ui::KeyLabel(L"F", 'F'), hud.Flying ? L"DASH" : L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
         {Ui::KeyLabel(L"V", 'V'), L"SWORDS", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
         {Ui::KeyLabel(L"C", 'C'), L"STORM", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},   // the feather storm (a leap)
         {Ui::KeyLabel(L"E", 'E'), L"GUARD", &HudArt::IconGuard, 0, 1, hud.Guarding, false, Moon, 2},

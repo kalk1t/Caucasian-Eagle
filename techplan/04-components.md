@@ -54,8 +54,8 @@ One object, reached through `Doorways::GetNyxaraKit()`. Her moves are a port of 
 | LMB / RMB in a jump | the leaping cut | `Attack_Jump` |
 | Space (on foot) | a jump (a clip; the engine's jump is suppressed on foot, kept in flight for climbing) | `Jump` |
 | C | the feather storm: a leap, three turns in the air, her feathers thrown all round like daggers (to 27 m, stuck in the ground where they come down), and at every creature within 27 m at each turn | `Skill_Storm` (made at load from `Fly_Rise`, `Fly_Land`, `Fly` and `Idle`: `MakeStorm`) |
-| F | the slide; flying, the dart | `Skill_Slide`; `Fly` |
-| V | the thrown swords, the twist after them, the pull and the kick | `Skill_Cast`, `Cast_Fly`, `Cast_Pull` |
+| F | the slide; flying, the twisted dash | `Skill_Slide`; `Dash_Twist` (made at load from `Cast_Fly`) |
+| V | the thrown swords, the twist after them, both feet on it, the grab and the backflip | `Skill_Cast`; `Cast_Drill`, `Cast_Flip` (made at load from `Cast_Fly`, `Skill_Cast`, `Jump`, `Fly_Land`, `Fly_Rise`, `Fly` and `Idle`: `MakeCast`) |
 | E (hold) | the sword barrier | (her stance) |
 | R (journey) | take-off and landing | `Fly_Rise`, `Fly`, `Fly_Land` |
 | A / D, S | steer her and the view; step back | `Walk` played backwards |

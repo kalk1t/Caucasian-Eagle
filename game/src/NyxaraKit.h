@@ -10,9 +10,12 @@
 //                  right 4); a click in a jump is the leaping cut
 //   C              the feather storm: she leaps, turns three times in the air and throws her wing feathers all round
 //                  her like daggers (to 27 m, stuck in the ground); at each turn every creature within 27 m is struck
-//   F              the slide, low along the ground, cutting what is before her (in flight: the dart forward)
-//   V              the thrown swords: they stick in the middle of the nearest creature before her, she flies after
-//                  them twisting with her wings folded, plants her feet on it, pulls them out and kicks it over
+//   F              the slide, low along the ground, cutting what is before her (in flight: the twisted dash, V's
+//                  twist, feet first, striking every creature it goes through)
+//   V              the thrown swords: they stick in the middle of the nearest creature before her, she twists after
+//                  them feet first with her wings folded, sticks both feet on its side, crouched there takes the
+//                  handles in both hands, and backflips off it, kicking it and ripping them out; she lands on her
+//                  feet facing it and stands still
 //   E (hold)       two spectral swords rise as a barrier and block blows and shade orbs
 //   Shift          on foot: run fast; in flight: the wing boost
 //   A / D          turn her way (and the view with it); S steps back

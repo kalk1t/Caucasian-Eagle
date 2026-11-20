@@ -66,7 +66,7 @@ namespace CaucasianEagle
             DoorwaysInputAction::Interact,                                   // E = sword barrier
             DoorwaysInputAction::CycleDebugRenderMode,                       // Q = nothing (it was the bow)
             DoorwaysInputAction::ToggleDebugAnimationSampling,               // G = nothing (it changed her swords)
-            DoorwaysInputAction::ToggleTextureFilter,                        // F = the slide (in flight the dart)
+            DoorwaysInputAction::ToggleTextureFilter,                        // F = the slide (in flight the twisted dash)
             DoorwaysInputAction::ToggleImportedAnimatedDebugSampling,        // V = the thrown swords
             DoorwaysInputAction::ToggleImportedSkinningSideBySideComparison, // C = the feather storm
             DoorwaysInputAction::RuntimeSceneSummary,                        // F8 = save the game here
@@ -80,7 +80,7 @@ namespace CaucasianEagle
         // Game controller (engine: DoorwaysGamepad.h). The engine's defaults stay: left stick moves, right stick looks,
         // A jump / fly, B dodge, X slash, Y heavy, LT wing boost, left stick click walk, Start pause.
         // Nyxara's own keys go on what is left.
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // the slide / the dart
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // the slide / the twisted dash
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // the thrown swords
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // the feather storm
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::LeftShoulder, 'E');     // sword barrier

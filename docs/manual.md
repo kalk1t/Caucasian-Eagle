@@ -212,7 +212,7 @@ An Xbox-layout controller (anything Windows sees as an XInput controller) works 
 | B | Nothing (there is no controller button for R yet: taking wing and landing need the keyboard) |
 | X | Left sword (left mouse button) |
 | Y | Right sword (right mouse button) |
-| RB | The slide; flying, the dart (F) |
+| RB | The slide; flying, the twisted dash (F) |
 | RT | The thrown swords (V) |
 | D-pad up | The feather storm (C) |
 | LB (hold) | Sword barrier (E) |
@@ -236,8 +236,8 @@ Nyxara fights with two swords, one in each hand, and her wings. (Before this ver
 | Right click | A cut of the **right** sword: four in a row. The last cut of either chain hurts most (80; the others 45) |
 | Space, then a click | **The leaping cut**, in the jump: the hardest cut (110) and the longest reach |
 | C | **The feather storm**: she leaps up, turns round three times in the air and throws her wing feathers all about her like daggers: straight out, as far as 27 m, where they stick in the ground. Each time she is half-way round, every creature within 27 m is struck by them (40 each time, 120 in all). From the ground only. 9 s to come back |
-| F | **The slide**: low along the ground, cutting what is before her (35 a cut). Flying: a dart forward that cuts the same way. 4 s to come back |
-| V | **The thrown swords**: both swords fly into the middle of the nearest creature before her (within 7 m; flying, 21 m) (90). She flies after them twisting, her wings folded, plants her feet on it, pulls them out (60) and kicks off (40), and a creature that can be moved falls over backwards and gets up again. 7 s to come back. With no creature before her V does nothing |
+| F | **The slide**: low along the ground, cutting what is before her (35 a cut). Flying: **the twisted dash**, V's twist, feet first: 9 m in 0.6 s, striking every creature she goes through (60) and throwing it aside. 4 s to come back |
+| V | **The thrown swords**: both swords fly into the middle of the nearest creature before her (within 7 m; flying, 21 m) (90). She twists after them feet first, her wings folded, and sticks both feet on its side; crouched there she takes the handles in both hands and backflips off it, kicking it with both feet (40) and ripping them out (60), and lands on her feet facing it, still (flying, she comes out of the backflip in the air). A creature that can be moved falls over backwards and gets up again. 7 s to come back. With no creature before her V does nothing |
 | E (hold) | **Sword barrier**: two spectral blades rise in front of her and block blows and orbs from the front, for up to 5 seconds |
 | A / D | Turn her way, and the view with it; alone they also carry her round in a curve |
 | S | Step back, slowly, still facing ahead |
