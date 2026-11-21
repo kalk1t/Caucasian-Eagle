@@ -259,7 +259,10 @@ namespace Doorways
         constexpr float CameraFollowLift = 25.f;
         // ---- the game's
         constexpr float SkillCooldown[3] = {4.f, 7.f, 9.f};   // F the slide, V the thrown swords, C the feather storm
-        constexpr float GuardMostSeconds = 5.f;               // the barrier stays up at most this long
+        // Her wing shield (E; owner, 2026-11-21: "i want E should protect her for 3seconds and she also should be able to keep
+        // fighting at the same time"): one press raises it for ShieldSeconds, from every side, and she goes on cutting, using
+        // her skills, walking and flying under it; then it rests ShieldRestSeconds. (Until then E was held, and held her still.)
+        constexpr float ShieldSeconds = 3.f, ShieldRestSeconds = 7.f;
         constexpr float GoneSeconds = .5f;                    // a creature that died is held this long (the journey frees its slot after .55 s)
         constexpr float CutPush = 1.5f;                       // m/s a cut knocks a creature back
         constexpr int HeavyBlow = 80;                         // from this much damage a blow freezes the moment
@@ -4246,6 +4249,7 @@ namespace Doorways
         const XMFLOAT4 shine = styled ? Guards()[static_cast<size_t>(mGuardStyle)].Color : XMFLOAT4{.45f, .75f, 1.f, 1};
         Burst(at, shine, 16, 4.f, .22f); Burst(at, MoonWhite, 6, 3.f, .16f);
         mNotice = L"BLOCKED"; mNoticeTimer = .5f;
+        mBody->Log(world, "blocked");
         return true;
     }
 
@@ -4261,7 +4265,7 @@ namespace Doorways
         return b.WasFlying || b.LiftNow > .3f || (b.Jumping && b.JumpTime > .25f && b.JumpTime < b.Duration("Jump") - .2f) || b.Attack == "Attack_Jump";
     }
 
-    bool NyxaraKit::Busy() const { return mBody->Moving() || mGuarding; }
+    bool NyxaraKit::Busy() const { return mBody->Moving(); }
     int NyxaraKit::AttacksBegun() const { return mBody->Begun; }
 
     NyxaraKit::StyleInfo NyxaraKit::Style(int style)
@@ -5398,7 +5402,7 @@ namespace Doorways
             else
             {
                 if (p.IsGrounded) mFlightEnergy = (std::min)(1.f, mFlightEnergy + dt / FlightRefillSeconds);
-                const bool can = holds && alive && !b.Dead && !mFalling && !b.Cast && !b.Carried() && !mGuarding && !b.Finish;
+                const bool can = holds && alive && !b.Dead && !mFalling && !b.Cast && !b.Carried() && !b.Finish;
                 if (can && mFlightEnergy < FlightLeastShare && mFlightHold <= 0) { mNotice = L"HER WINGS ARE RESTING"; mNoticeTimer = .5f; }
                 mFlightHold = can && mFlightEnergy >= (tried > 0 ? .99f : FlightLeastShare) ? mFlightHold + dt : 0;
                 if (mFlightHold >= FlightHoldSeconds)
@@ -5509,26 +5513,33 @@ namespace Doorways
         b.WasFlying = flying;
         const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0;   // leaving the ground or coming down, finishing one: nothing else
 
-        // ---- the barrier: E held, standing her ground
-        const bool canGuard = alive && !b.Moving() && !b.Jumping && !busy;
-        if (k.E && canGuard && (mGuarding || mGuardCooldown <= 0) && mGuardHeld < GuardMostSeconds)
+        // ---- her wing shield: E pressed, ShieldSeconds round her whatever she does (ShieldSeconds, above)
         {
-            if (!mGuarding) { CaucasianEagle::Sound::Play("nyxara/guard", .7f); mNotice = L"WING SHIELD"; mNoticeTimer = .8f; }
-            mGuarding = true; mGuardHeld += dt;
-        }
-        else
-        {
-            if (mGuarding) mGuardCooldown = CaucasianEagle::GuardCooldownSeconds;
-            mGuarding = false;
-            if (!k.E) mGuardHeld = 0;
+            const bool pressE = k.E && !mEWas;
+            mEWas = k.E;
+            if (mGuarding)
+            {
+                mGuardHeld += dt;
+                if (mGuardHeld >= ShieldSeconds || !alive || b.Dead) { mGuarding = false; mGuardCooldown = ShieldRestSeconds * mCooldownScale; }
+            }
+            else if (pressE && alive && !b.Dead)
+            {
+                if (mGuardCooldown <= 0)
+                {
+                    CaucasianEagle::Sound::Play("nyxara/guard", .7f); mNotice = L"WING SHIELD"; mNoticeTimer = .8f;
+                    mGuarding = true; mGuardHeld = 0; mBarrier = 1;   // (up at once: a press is a blow stopped)
+                    b.Log(world, "shield");
+                }
+                else { mNotice = L"WING SHIELD RESTING"; mNoticeTimer = .5f; }
+            }
         }
 
         // ---- a style's move once it is free: given up for a jump, a skill or the barrier pressed now (and for her own way:
         // the travel, below)
-        if (b.MoveFree() && (space || keyF || keyV || keyC || k.E)) { b.EndMove(world, "move given up"); b.ComboButton = -1; }
+        if (b.MoveFree() && (space || keyF || keyV || keyC)) { b.EndMove(world, "move given up"); b.ComboButton = -1; }
 
         // ---- Space: the jump clip once (a picture of a jump, as in the lab: the engine's jump is off on foot)
-        if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && !mGuarding && alive)
+        if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && alive)
         {
             b.Attack.clear(); b.Queued = 0; b.Jumping = true; b.JumpTime = 0;
             b.JumpReal = false; b.JumpAir = false; b.JumpClock = 0; b.Dropped = 0;
@@ -5582,7 +5593,7 @@ namespace Doorways
         {   // Off an edge on foot (2026-11-19): she went on walking or standing in the air until the ground came. Now, a
             // moment off the ground, she is in the jump from its top on: falling, a leg reaching down, and lands as from a jump.
             b.AirSeconds = !p.IsGrounded && !flying && alive ? b.AirSeconds + dt : 0;
-            if (!b.Jumping && !busy && !b.Cast && !b.Carried() && b.Attack.empty() && !mFalling && !mGuarding && b.Duration("Jump") > JumpLand &&
+            if (!b.Jumping && !busy && !b.Cast && !b.Carried() && b.Attack.empty() && !mFalling && b.Duration("Jump") > JumpLand &&
                 (b.AirSeconds > .18f || (b.AirSeconds > .05f && p.VerticalVelocity < -4)))
             {
                 b.Jumping = true; b.JumpReal = true; b.JumpAir = true; b.JumpClock = 1; b.JumpTime = JumpApex + .03f; b.Dropped = 0;
@@ -5623,12 +5634,12 @@ namespace Doorways
         // ---- her finishing kills: a doomed creature near her and she free on foot, she finishes it (before anything
         // else she might begin this frame); the doomed wait, and the dead fall
         {
-            const bool canFinish = alive && !busy && !b.Cast && !mGuarding;
+            const bool canFinish = alive && !busy && !b.Cast;
             UpdateFinish(world, dt, canFinish);
             UpdateDoomed(dt);
         }
         // ---- the mouse: the left sword and the right one; clicks in a row go through the cuts
-        const bool free = alive && !busy && !b.Cast && !mGuarding && !b.Finish;
+        const bool free = alive && !busy && !b.Cast && !b.Finish;
         if (free && (clickL || clickR)) { b.Queued = clickL ? 1 : 2; b.QueuedAt = b.Clock; }
         // ---- C, F, V
         const auto cooling = [&](int slot)
@@ -6214,7 +6225,7 @@ namespace Doorways
                     << " view " << XMConvertToDegrees(std::remainder(world.MainCamera.Yaw - viewFrom, XM_2PI)) << " over " << hold[1] - hold[0] << " s" << std::endl;
             }
         }
-        const bool rooted = carried || b.Rise >= 0 || b.Touch >= 0 || b.Cast != 0 || b.Air != 0 || b.Dead || mGuarding || b.Finish != 0;
+        const bool rooted = carried || b.Rise >= 0 || b.Touch >= 0 || b.Cast != 0 || b.Air != 0 || b.Dead || b.Finish != 0;
         if (steer && !carried && !b.Cast && !b.Dead && !b.Finish)
             p.Yaw = std::remainder(p.Yaw + static_cast<float>(steer) * XMConvertToRadians(SteerRate) * dt, XM_2PI);
         b.Back = keyS && !keyW && !b.Dead && !flying;
@@ -6319,8 +6330,8 @@ namespace Doorways
         }
         std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
         float time = b.Clock;
-        if (mGuarding && mGuardStyle >= 0 && b.Duration(GuardClip(mGuardStyle)) > 0)
-        {   // on guard (E): her guard's pose, swaying on it from when she raised it
+        if (mGuarding && mGuardStyle >= 0 && b.Duration(GuardClip(mGuardStyle)) > 0 && !moving && !flying && b.Attack.empty() && !b.InMove() && !b.Cast && !b.Jumping && !b.Finish)
+        {   // on guard (E), standing and doing nothing else: her guard's pose, swaying on it from when she raised it
             const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
             clip = GuardClip(mGuardStyle); time = std::fmod(mGuardHeld, gs.Breath); b.GuardRaise = gs.Raise;
         }
@@ -6435,7 +6446,10 @@ namespace Doorways
                     for (int i = 0; i < 3; ++i) { b.CloseBack[i] = gs.Back[i]; b.CloseFlap[i] = gs.Flap[i]; }
                     b.WingCloseRate = gs.Close;
                 }
-                b.WingCloseTo = shield ? 1.f : 0.f;
+                // (right round her standing; half closed while she fights or goes, so that her arms and swords are free and
+                // she still has her wings; little in flight, where they carry her)
+                const bool engaged = moving || !b.Attack.empty() || b.InMove() || b.Cast || b.Air || b.Jumping || b.Finish || b.Rise >= 0 || b.Touch >= 0;
+                b.WingCloseTo = !shield ? 0.f : flying ? .25f : engaged ? .5f : 1.f;
             }
             if (composed)
                 b.SwingWings(pose, poseDt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
@@ -6563,7 +6577,7 @@ namespace Doorways
 
         mShake *= std::exp(-8.f * realDt); if (mShake < .003f) mShake = 0;
         s.CameraShake = mShake;
-        mBarrier = std::clamp(mBarrier + (mGuarding ? 4.5f : -3.f) * dt, 0.f, 1.f);
+        mBarrier = mGuarding ? 1.f : (std::max)(0.f, mBarrier - 6.f * dt);
         mBlockFlash = (std::max)(0.f, mBlockFlash - dt);
         UpdateWraiths(world, combat, dt);
         UpdateEffects(dt);
@@ -6637,12 +6651,13 @@ namespace Doorways
             o.Pos = Add(o.Pos, Mul(o.Vel, dt)); o.Life -= dt;
             const XMFLOAT3 rel = Sub(o.Pos, chest);
             const float distance = Len(rel);
-            const bool front = (rel.x * facing.x + rel.z * facing.z) > -.3f;
+            const bool front = mGuarding || (rel.x * facing.x + rel.z * facing.z) > -.3f;   // (her shield is all round her)
             if (mBarrier > .5f && distance < 2.2f && front)
             {
                 o.Life = 0; mBlockFlash = .25f;
                 Burst(o.Pos, MoonWhite, 14, 4.f, .2f); Burst(o.Pos, SoulGreen, 8, 3.f, .18f);
                 mNotice = L"BLOCKED"; mNoticeTimer = .5f;
+                mBody->Log(world, "blocked");
             }
             else if (distance < .65f && combat.PlayerActionsAllowed())
             {
@@ -6774,7 +6789,8 @@ namespace Doorways
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
         h.Action = b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH" : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
-        h.Guarding = mGuarding; h.Boosting = mBoosting; h.Swapped = false;
+        h.Guarding = mGuarding; h.GuardCooldown = mGuarding ? 0.f : mGuardCooldown; h.GuardCooldownMax = ShieldRestSeconds * mCooldownScale;
+        h.GuardLeft = mGuarding ? (std::max)(0.f, 1 - mGuardHeld / ShieldSeconds) : 0.f; h.Boosting = mBoosting; h.Swapped = false;
         h.Bow = false; h.Aim = 0; h.Shooting = false; h.OnTarget = false; h.HitMark = 0; h.HitKill = false; h.TargetVisible = false;
         h.Slashing = b.Attack.rfind("Attack_L", 0) == 0 || b.Attack == "Attack_Jump" || (b.InMove() && b.MoveButton == 0);
         h.Heavy = b.Attack.rfind("Attack_R", 0) == 0 || (b.InMove() && b.MoveButton == 1); h.Swapping = false;

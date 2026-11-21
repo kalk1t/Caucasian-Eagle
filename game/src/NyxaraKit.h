@@ -352,7 +352,7 @@ namespace Doorways
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
-        bool mGuarding = false;
+        bool mGuarding = false, mEWas = false;   // her wing shield is up (E pressed: ShieldSeconds); E was down last frame
         std::array<float, 3> mSkillCooldown{};
         float mNoticeTimer = 0;
         std::wstring mNotice;
