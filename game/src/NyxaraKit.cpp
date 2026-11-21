@@ -28,6 +28,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -4120,6 +4121,48 @@ namespace Doorways
             for (const char* foot : {"left", "right"})
                 for (const char* what : {"_held", "_air", "_go", "_togo", "_lifted", "_stair", "_free", "_swing", "_land"}) b.PoseFile << '\t' << foot << what;
             b.PoseFile << '\n' << std::setprecision(6);
+        }
+        if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_BAKE", log, sizeof(log)) > 0 && log[0])
+        {   // Every clip as the game has it after load (its cuts' wind-ups evened, her storm, cast, finishers and combo moves
+            // made of her clips): each joint's local translation, rotation (x y z w) and scale, 30 times a second, into
+            // <folder>/<clip>.tsv; her skeleton (names, parents, bind) into skeleton.tsv, and the list into clips.tsv. For
+            // art/nyxara/bake_game_clips.py, which makes them Actions in her Blender file (owner, 2026-11-21: "update
+            // nyxara's assets/blender project with latest animations which should only include what we use ingame now")
+            const std::filesystem::path folder(log);
+            std::error_code ec; std::filesystem::create_directories(folder, ec);
+            {
+                std::ofstream sk(folder / "skeleton.tsv");
+                sk << std::setprecision(9) << "index\tname\tparent\ttx\tty\ttz\trx\try\trz\trw\tsx\tsy\tsz\n";
+                for (size_t i = 0; i < b.Skeleton.Joints.size(); ++i)
+                {
+                    const auto& j = b.Skeleton.Joints[i];
+                    sk << i << '\t' << j.Name << '\t' << j.ParentIndex << '\t' << j.LocalBindTranslation.x << '\t' << j.LocalBindTranslation.y << '\t' << j.LocalBindTranslation.z
+                       << '\t' << j.LocalBindRotation.x << '\t' << j.LocalBindRotation.y << '\t' << j.LocalBindRotation.z << '\t' << j.LocalBindRotation.w
+                       << '\t' << j.LocalBindScale.x << '\t' << j.LocalBindScale.y << '\t' << j.LocalBindScale.z << '\n';
+                }
+            }
+            std::ofstream list(folder / "clips.tsv");
+            list << "clip\tseconds\tframes\tloops\n";
+            for (const auto& [name, clip] : b.Clips)
+            {
+                const float seconds = clip.DurationSeconds;
+                if (seconds <= 0) continue;
+                const int frames = (std::max)(1, static_cast<int>(std::lround(seconds * 30)));
+                std::ofstream out(folder / (name + ".tsv"));
+                out << std::setprecision(7);
+                DoorwaysSkeletonPose pose;
+                for (int f = 0; f <= frames; ++f)
+                {
+                    const float t = (std::min)(seconds, f / 30.f);
+                    if (!SampleDoorwaysAnimationClipLocalPose(b.Skeleton, clip, t, pose, nullptr)) break;
+                    out << f;
+                    for (const auto& l : pose.LocalJoints)
+                        out << '\t' << l.Translation.x << '\t' << l.Translation.y << '\t' << l.Translation.z << '\t' << l.Rotation.x << '\t' << l.Rotation.y
+                            << '\t' << l.Rotation.z << '\t' << l.Rotation.w << '\t' << l.Scale.x << '\t' << l.Scale.y << '\t' << l.Scale.z;
+                    out << '\n';
+                }
+                list << name << '\t' << seconds << '\t' << frames << '\t' << (Body::Loops(name) ? 1 : 0) << '\n';
+            }
         }
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_CLIPDUMP", log, sizeof(log)) > 0 && log[0])
         {   // every clip as the bundle has it, 60 times a second: her joints in her own space (for looking at the clips themselves)

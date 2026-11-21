@@ -182,7 +182,7 @@ namespace CaucasianEagle::AscentGrowth
                 const Color c = have ? (l == 0 ? Ink : colour(l)) : Faint;
                 if (wearing) frame(cx - mark * .66f, cy - mark * .66f, mark * 1.32f, mark * 1.32f, 1.5f * S, c.Fade(a * (.7f + .3f * std::sin(ui.Time * 4))));
                 ui.Icon(l == 0 ? HudArt::Pip : HudArt::Diamond, cx, cy, mark * (wearing ? 1.f : .8f), c.Fade(a * (have ? 1.f : .6f)));
-                if (have && v.AtNest) Pointer::Add(Pointer::LookPip, item * 16 + l, cx - mark * .62f, cy - mark * .62f, mark * 1.24f, mark * 1.24f);
+                if (have) Pointer::Add(Pointer::LookPip, item * 16 + l, cx - mark * .62f, cy - mark * .62f, mark * 1.24f, mark * 1.24f);
                 mx += mark + gap;
             }
             ui.RightAligned(L"LEVEL " + std::to_wstring(level) + L" OF " + std::to_wstring(AscentMaxLevel), right, ty + (mark - ui.Height(Tiny * S)) * .5f, Tiny * S,
@@ -244,8 +244,8 @@ namespace CaucasianEagle::AscentGrowth
             for (int item = 0; item < ItemCount; ++item) { all += AscentGrowth::Cost(s, item, v.Prices); top = top && AscentGrowth::Cost(s, item, v.Prices) == 0; }
             ui.Spaced(v.AtNest ? L"IN THIS EAGLE NEST" : L"AT AN EAGLE NEST", x + Pad * S, cy, Tiny * S, 3 * S, (v.AtNest ? GoldLight : Gold).Fade(a));
             cy += ui.Height(Tiny * S) + 6 * S;
-            cy = ui.Paragraph(v.AtNest ? L"She levels up here, and puts on any look she has reached. What she buys is saved at once."
-                                       : L"Levels are bought, and looks put on, only standing in an Eagle Nest.",
+            cy = ui.Paragraph(v.AtNest ? L"She levels up here. What she buys is saved at once. Her looks she changes anywhere."
+                                       : L"Levels are bought only standing in an Eagle Nest. Any look she has reached she puts on anywhere.",
                               x + Pad * S, cy, Tiny * S, w - 2 * Pad * S, 1 * S, (v.AtNest ? Ink : Dim).Fade(a)) + 6 * S;
             if (top) ui.Text(L"All three are at their last level.", x + Pad * S, cy, Tiny * S, GoldLight.Fade(a));
             else
@@ -306,8 +306,8 @@ namespace CaucasianEagle::AscentGrowth
             struct Entry { const wchar_t* Label; const wchar_t* What; int Zone; float Pull; bool Lit; };
             const Entry keys[] = {{L"W", L"", -1, 20, true},
                                   {L"S", L"CHOOSE", -1, 0, true},
-                                  {L"A", L"", -1, 20, v.AtNest},
-                                  {L"D", L"HER LOOK", -1, 0, v.AtNest},
+                                  {L"A", L"", -1, 20, true},
+                                  {L"D", L"HER LOOK", -1, 0, true},
                                   {Ui::KeyLabel(L"ENTER", VK_RETURN), L"LEVEL UP", -1, 0, v.AtNest},
                                   {Ui::KeyLabel(L"I", 'I'), L"CLOSE", Pointer::CloseKey, 0, true}};
             constexpr int count = static_cast<int>(sizeof keys / sizeof keys[0]);
@@ -315,7 +315,7 @@ namespace CaucasianEagle::AscentGrowth
             float total = -22 * S;
             for (const auto& e : keys) total += width(e);
             const wchar_t* mouse = v.AtNest ? L"or the mouse: LEVEL UP buys a level, a lit mark puts its look on her, CLOSE leaves"
-                                            : L"Levels are bought and looks put on in an Eagle Nest. The mouse: CLOSE leaves";
+                                            : L"Levels are bought in an Eagle Nest. The mouse: a lit mark puts its look on her, CLOSE leaves";
             const float hint = y + h + 5 * S, band = (std::max)(total, ui.Width(mouse, Tiny * S)) + 32 * S;
             ui.Rect(W * .5f - band * .5f, y - 8 * S, band, hint + ui.Height(Tiny * S) + 8 * S - (y - 8 * S), Black.Fade(.5f * a));
             float x = W * .5f - total * .5f;

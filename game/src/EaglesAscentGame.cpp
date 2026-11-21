@@ -743,7 +743,7 @@ namespace CaucasianEagle
             mPtWait = 30;
             return;
         }
-        if (step == 1) { check(session.FreeCursor, "pointer_free_while_open"); check(NestAt(world.MainPlayer.Position) < 0, "not_in_a_nest"); point(Pointer::LevelKey, 0, "level_key_away"); mPtLevel = levels(); mPtCrystals = mGrowth.Crystals; mPtDown = true; return; }
+        if (step == 1) { check(session.FreeCursor, "pointer_free_while_open"); check(NestAt(world.MainPlayer.Position) < 0, "not_in_a_nest"); { float lx = 0, ly = 0; check(Pointer::Centre(Pointer::LookPip, 0 * 16 + 0, lx, ly), "look_marks_lit_away_from_a_nest"); } point(Pointer::LevelKey, 0, "level_key_away"); mPtLevel = levels(); mPtCrystals = mGrowth.Crystals; mPtDown = true; return; }
         if (step == 2) { check(mGrowthRow == 0 && levels() == mPtLevel && mGrowth.Crystals == mPtCrystals, "away_from_a_nest_nothing_bought"); mPtDown = false; return; }
         if (step < Nest)
         {   // in the first nest: each card's LEVEL UP pointed at (its card is chosen), pressed and held (one level bought,
@@ -2278,12 +2278,15 @@ namespace CaucasianEagle
     }
 
     bool EaglesAscentGame::Wear(int item, int level, int station)
-    {
-        if (station <= 0 || item < 0 || item >= AscentGrowth::ItemCount || level < 0 || level > mGrowth.Level[item]) return false;
+    {   // Anywhere (owner, 2026-11-21: "let nyxara change look anywhere, now she only changes her look in nest. but keep
+        // upgrade in nest only"). In a nest it saves there, as a level does; elsewhere only the look goes into her save
+        // (her place, crystals and the beaten stay as last saved), so that a fall does not take it off her again.
+        if (item < 0 || item >= AscentGrowth::ItemCount || level < 0 || level > mGrowth.Level[item]) return false;
         if (mGrowth.Look[item] == level) return true;
         mGrowth.Look[item] = level;
         mGrowthFlash = .6f; mGrowthFlashRow = item; Sound::PlayUi("ui/move", .7f);
-        SaveHere(station, true);
+        if (station > 0) SaveHere(station, true);
+        else if (level <= mSavedGrowth.Level[item]) { mSavedGrowth.Look[item] = level; WriteSave(); }
         return true;
     }
 
