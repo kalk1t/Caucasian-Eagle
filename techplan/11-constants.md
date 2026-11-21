@@ -451,7 +451,7 @@ None of these has been tuned by play.
 | `AscentFlightSeconds` | 10, 15, 20, 30 | s | How long her wings carry her at wing tier 0 to 3 | `GameConstants.h` | code | The owner's numbers; `NyxaraKit::SetFlightSeconds` |
 | Jar groups | every 30 to 50 | m | Along every road (way, caves, rings), 3 to 5 jars a group | `Wayside.cpp` (`JarStepLeast`, `JarStepMore`) | code | |
 | Jar contents | 30 % a crystal or two (7 in 10 one), 8 % a potion | | What a jar holds, from a hash of its id | `Wayside.cpp` (`Lay`) | code | About 1,450 crystals and 300 potions on the mountain |
-| `PlaceCrystals` | 8 | crystals | A hidden place found | `GameConstants.h` | code | Shared with the road's places |
+| `PlaceCrystals` | 8 | crystals | A place beside the road found (the road) | `GameConstants.h` | code | The Ascent's hidden places, which paid it too, were taken away on 2026-11-21 |
 | `BossCrystals` / a creature's `Cost` | 60 / 1 to 10 | crystals | What a beaten creature leaves on the mountain | `GameConstants.h`, `Journey.cpp` (`KindCrystals`) | code | |
 | A potion over five | 1 | crystal | A potion found with five carried | `EaglesAscentGame::Collect` | code | |
 | Grass squares | 12; thick to 34, light to 78 | m | Side of a square of grass; how far the thick field and its light layer reach | `AscentGrass.h` | code | |

@@ -53,8 +53,7 @@ namespace CaucasianEagle
             int PotionHeal = 0;      // what one potion gives now
             float OtherDamage = 1;   // feathers, embers and city gifts, on top of Damage()
             float OtherTaken = 1;    // city gifts and the game's base scale, on top of DamageTaken()
-            bool Ascent = false;     // the Eagle's Ascent (0.5): wings are flight time; jars, places and nests, no gold
-            int Places = 0;          // (the Ascent) hidden places found
+            bool Ascent = false;     // the Eagle's Ascent (0.5): wings are flight time; jars and nests, no gold
         };
         void Draw(Ui& ui, const View& view);
     }

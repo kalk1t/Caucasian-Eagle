@@ -128,14 +128,14 @@ namespace CaucasianEagle
         LoadSave();
         if (mTour)
         {   // the tour begins a new climb, its save beside its evidence (never a player's)
-            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
             if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "tour.sav"; mSaveTest = true; }
             std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         }
         if (mWays)
         {   // (its own save beside its evidence)
-            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
             if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "ways.sav"; mSaveTest = true; }
             std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
@@ -143,7 +143,7 @@ namespace CaucasianEagle
         }
         if (mPointerTest)
         {   // a new climb, its save beside its evidence (it writes none, and never a player's)
-            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
             if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "pointer.sav"; mSaveTest = true; }
         }
         mGrowth = mSavedGrowth; mFormShown = Growth::Form(mGrowth);
@@ -671,7 +671,7 @@ namespace CaucasianEagle
             std::ofstream(table, std::ios::trunc) << "what\tvalues\n";
             row("laid\tjars=" + std::to_string(jars.size()) + "\tgroups=" + std::to_string(groups) + "\tway=" + std::to_string(roads[0]) + "\tcaves=" +
                 std::to_string(roads[1]) + "\trings=" + std::to_string(roads[2]) + "\tcrystals_in_them=" + std::to_string(crystals) + "\tpotions_in_them=" +
-                std::to_string(potions) + "\tplaces=" + std::to_string(mWayside.Places().size()));
+                std::to_string(potions));
             if (jars.size() < 100) { ++mWaysBad; row("FEW_JARS"); }
             // eight groups of the way, from the shore to the top, and two in caves
             std::vector<size_t> starts, caves;
@@ -714,7 +714,7 @@ namespace CaucasianEagle
             return;
         }
         if (mWaysPhase == 2)
-        {   // saved at the first nest; then more jars broken and a place found; then she falls (RollBack): all as saved
+        {   // saved at the first nest; then more jars broken; then she falls (RollBack): all as saved
             const int nest = mMap.Nests.empty() ? 0 : mMap.Nests.front().Station;
             SaveHere(nest);
             const Growth::State saved = mGrowth;
@@ -722,12 +722,11 @@ namespace CaucasianEagle
             int more = 0;
             for (const auto& jar : jars)
                 if (!jar.Broken && more < 12) { Collect(mWayside.Strike(jar.P, 0, .2f, 359.f)); ++more; }
-            if (!mWayside.Places().empty()) Collect(mWayside.Visit(mWayside.Places().front().P));
-            const int gained = mGrowth.Crystals - saved.Crystals; const size_t brokenThen = mWayside.BrokenIds().size(), foundThen = mWayside.FoundIds().size();
+            const int gained = mGrowth.Crystals - saved.Crystals; const size_t brokenThen = mWayside.BrokenIds().size();
             RollBack();
-            const bool back = mGrowth.Crystals == saved.Crystals && mGrowth.Potions == saved.Potions && mWayside.BrokenIds().size() == brokenSaved && mWayside.FoundIds().empty();
+            const bool back = mGrowth.Crystals == saved.Crystals && mGrowth.Potions == saved.Potions && mWayside.BrokenIds().size() == brokenSaved;
             row("rollback\tsaved_crystals=" + std::to_string(saved.Crystals) + "\tgained_after=" + std::to_string(gained) + "\tbroken_saved=" + std::to_string(brokenSaved) +
-                "\tbroken_then=" + std::to_string(brokenThen) + "\tfound_then=" + std::to_string(foundThen) + "\tcrystals_now=" + std::to_string(mGrowth.Crystals) +
+                "\tbroken_then=" + std::to_string(brokenThen) + "\tcrystals_now=" + std::to_string(mGrowth.Crystals) +
                 "\tbroken_now=" + std::to_string(mWayside.BrokenIds().size()) + (back && gained > 0 && brokenThen > brokenSaved ? "" : "\tROLLBACK_FAIL"));
             if (!(back && gained > 0 && brokenThen > brokenSaved)) ++mWaysBad;
             LoadSave();
@@ -1148,14 +1147,14 @@ namespace CaucasianEagle
                 return;
             }
         }
-        // the jars and places along the roads (once the map's ground is up), as the save has them
+        // the jars along the roads (once the map's ground is up), as the save has them
         if (mWaysideOn && !mWayside.Laid() && world.RuntimeScene)
         {
             mWayside.Lay(*world.RuntimeScene, mMap);
-            mWayside.Restore(mSavedJars, mSavedPlaces);
-            char line[160]; std::snprintf(line, sizeof line, "[EAGLES ASCENT] %zu clay jars and %zu hidden places laid.\n", mWayside.Jars().size(), mWayside.Places().size());
+            mWayside.Restore(mSavedJars);
+            char line[160]; std::snprintf(line, sizeof line, "[EAGLES ASCENT] %zu clay jars laid.\n", mWayside.Jars().size());
             OutputDebugStringA(line);
-            if (mTrace) Evidence(world, ("wayside_jars_" + std::to_string(mWayside.Jars().size()) + "_places_" + std::to_string(mWayside.Places().size())).c_str());
+            if (mTrace) Evidence(world, ("wayside_jars_" + std::to_string(mWayside.Jars().size())).c_str());
         }
         // I: her growth (as on the road): W / S or the pointer choose, Enter, Space or a click spends crystals; I, Esc or a
         // click on CLOSE closes. While it is open the pointer shows and the mouse leaves the camera alone. The climb waits.
@@ -1364,11 +1363,7 @@ namespace CaucasianEagle
             Sound::PlayUi("ui/open", .6f);
         }
 
-        if (mWaysideOn && mWayside.Laid())
-        {
-            mWayside.Update(dt);
-            if (alive) Collect(mWayside.Visit(p.Position));
-        }
+        if (mWaysideOn && mWayside.Laid()) mWayside.Update(dt);
 
         // she fell (to the creatures, or the engine's own harm): she lies a moment and wakes at the Eagle Nest she last
         // saved at, whole; all since that save is undone (RollBack)
@@ -1534,9 +1529,6 @@ namespace CaucasianEagle
         }
         for (const auto& n : mMap.Nests)   // the Eagle Nests, the only places she is saved (H)
             mark(n.P, 3.2f, n.Station == mSavedNest ? L"EAGLE NEST  (saved here)" : L"EAGLE NEST  (H here saves)", Palette::Gold);
-        if (mWaysideOn)
-            for (const auto& pl : mWayside.Places())
-                if (!pl.Found) mark(pl.P, 2.6f, L"A HIDDEN PLACE", Palette::GoldLight);
 
         {   // what she carries (0.5): crystals, potions (Z), and her window (I), under where she is
             const float py = 76 * s, kh = 20 * s, icon = 19 * s;
@@ -1590,7 +1582,6 @@ namespace CaucasianEagle
             Growth::View v;
             v.Now = mGrowth; v.Selected = mGrowthRow; v.Fade = mGrowthFade; v.Flash = mGrowthFlash; v.FlashRow = mGrowthFlashRow;
             v.PotionHeal = PotionHeal; v.Ascent = true;
-            for (const auto& pl : mWayside.Places()) v.Places += pl.Found ? 1 : 0;
             Growth::Draw(ui, v);
         }
         DrawMenu(ui);
@@ -1706,7 +1697,7 @@ namespace CaucasianEagle
             mSaveTest = !named.empty();
             mSavePath = mSaveTest ? std::filesystem::path(named) : ResolveDoorwaysSettingsPaths().Player.parent_path() / AscentSaveFileName;
         }
-        mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+        mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
         if (mMap.Nests.empty()) return;
         std::ifstream in(mSavePath);
         std::string word;
@@ -1718,7 +1709,7 @@ namespace CaucasianEagle
             else if (word == "potions") in >> mSavedGrowth.Potions;
             else if (word == "level") { int row = -1, level = 0; if (in >> row >> level && row >= 0 && row < Growth::RowCount) mSavedGrowth.Level[row] = std::clamp(level, 0, Growth::Max(row)); }
             else if (word == "jar") { std::string id; if (in >> id) mSavedJars.push_back(id); }
-            else if (word == "place") { std::string id; if (in >> id) mSavedPlaces.push_back(id); }
+            // (a "place <id>" line, in a save from before 2026-11-21's hidden places were taken away: skipped below)
             else std::getline(in, word);
         }
         mSavedGrowth.Crystals = std::max(0, mSavedGrowth.Crystals); mSavedGrowth.Potions = std::clamp(mSavedGrowth.Potions, 0, MaxPotions);
@@ -1732,13 +1723,12 @@ namespace CaucasianEagle
         std::filesystem::create_directories(mSavePath.parent_path(), ignored);
         std::ofstream out(mSavePath, std::ios::trunc);
         out << "# The Eagle's Ascent (0.5): the Eagle Nest she saved at (H), her growth, the creatures she has beaten, the clay\n";
-        out << "# jars she has broken and the hidden places she has found, as they were when she saved\n";
+        out << "# jars she has broken, as they were when she saved\n";
         out << "nest " << mSavedNest << "\n";
         out << "crystals " << mSavedGrowth.Crystals << "\npotions " << mSavedGrowth.Potions << "\n";
         for (int row = 0; row < Growth::RowCount; ++row) out << "level " << row << " " << mSavedGrowth.Level[row] << "\n";
         for (const auto& id : mSavedBeaten) out << "beaten " << id << "\n";
         for (const auto& id : mSavedJars) out << "jar " << id << "\n";
-        for (const auto& id : mSavedPlaces) out << "place " << id << "\n";
     }
 
     void EaglesAscentGame::SaveHere(int station)
@@ -1746,7 +1736,7 @@ namespace CaucasianEagle
         mSavedNest = station; mMap.Checkpoint = station;
         mSavedGrowth = mGrowth;
         if (mCreaturesOn) mSavedBeaten = mCreatures.MountainBeaten();
-        if (mWayside.Laid()) { mSavedJars = mWayside.BrokenIds(); mSavedPlaces = mWayside.FoundIds(); }
+        if (mWayside.Laid()) mSavedJars = mWayside.BrokenIds();
         WriteSave();
         mSavedMark = 2.5f;
         Notify(L"SAVED", Words(mMap.Stations[static_cast<size_t>(station)].Name) + L". If she falls, she wakes here, as she is now.", 4);
@@ -1757,7 +1747,7 @@ namespace CaucasianEagle
     {
         mGrowth = mSavedGrowth;
         mFormShown = Growth::Form(mGrowth);
-        if (mWayside.Laid()) mWayside.Restore(mSavedJars, mSavedPlaces);
+        if (mWayside.Laid()) mWayside.Restore(mSavedJars);
         if (mCreaturesOn) { mCreatures.SetMountainCreatures(mCreatureList, mSavedBeaten); mBeatenWritten = mCreatures.MountainBeaten().size(); }
         mMap.Checkpoint = mSavedNest;
     }
@@ -1788,12 +1778,7 @@ namespace CaucasianEagle
             kit.Effect(gain.At, {.66f, .36f, 1.f, 1}, 16 + 4 * crystals, 4.f, .22f);
         }
         if (potions > 0) { Sound::Play("world/gift", .7f, 0); kit.Effect(gain.At, {1.f, .35f, .4f, 1}, 24, 3.5f, .24f); }
-        if (!gain.Place.empty())
-        {
-            Notify(L"HIDDEN PLACE FOUND", gain.Place + L". +" + std::to_wstring(gain.Crystals) + L" crystals.", 5);
-            Sound::Play("world/bell", .6f, 0);
-        }
-        else if (potions > 0 || crystals > 0)
+        if (potions > 0 || crystals > 0)
         {
             std::wstring what;
             if (crystals > 0) what = L"+" + std::to_wstring(crystals) + (crystals == 1 ? L" crystal" : L" crystals");
@@ -1806,8 +1791,8 @@ namespace CaucasianEagle
     void EaglesAscentGame::NewClimb(DoorwaysGameHost& host)
     {
         mSavedNest = 0; mSavedBeaten.clear(); mReached = 0;
-        mSavedGrowth = {}; mGrowth = {}; mFormShown = 0; mSavedJars.clear(); mSavedPlaces.clear();
-        if (mWayside.Laid()) mWayside.Restore({}, {});
+        mSavedGrowth = {}; mGrowth = {}; mFormShown = 0; mSavedJars.clear();
+        if (mWayside.Laid()) mWayside.Restore({});
         std::error_code ignored;
         if (!GameSession().Unattended || mSaveTest) std::filesystem::remove(mSavePath, ignored);
         if (mCreaturesOn) mCreatures.SetMountainCreatures(mCreatureList, {});

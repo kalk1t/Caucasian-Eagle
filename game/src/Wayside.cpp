@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cwctype>
 
 namespace CaucasianEagle
 {
@@ -22,7 +21,6 @@ namespace CaucasianEagle
     {
         constexpr float JarStepLeast = 30.f, JarStepMore = 20.f;   // a group every 30 to 50 m along a road (the owner)
         constexpr float JarSeen = 150.f;                            // m: jars are drawn this near
-        constexpr float PlaceReach = 2.4f;                          // m: she finds a place standing this near its cairn
         constexpr float ShardSeconds = 9.f;
 
         // the same number for the same words: what is in a jar, how it stands, are the same every time
@@ -139,7 +137,7 @@ namespace CaucasianEagle
 
     void Wayside::Lay(const DoorwaysRuntimeScene& scene, const EaglesAscent& map)
     {
-        mJars.clear(); mPlaces.clear(); mShards.clear();
+        mJars.clear(); mShards.clear();
         // the ground there, near y: walkable, and level enough for a jar to stand
         const auto ground = [&](float x, float z, float y, float& out) -> bool
         {
@@ -232,44 +230,6 @@ namespace CaucasianEagle
         }
         for (size_t r = 0; r < map.Rings().size(); ++r) road(map.Rings()[r], {}, "r" + std::to_string(r), false, false);
 
-        // the hidden places: a cairn in each long cave's heart (beside its way), and one off the way at each named place
-        for (size_t c = 0; c < map.Caves().size(); ++c)
-        {
-            const auto& line = map.Caves()[c].Line;
-            float length = 0;
-            for (size_t i = 1; i < line.size(); ++i) length += std::hypot(line[i].X - line[i - 1].X, line[i].Z - line[i - 1].Z);
-            if (line.size() < 3 || length < 40) continue;
-            const size_t m = line.size() / 2;
-            const float dx = line[m + 1 < line.size() ? m + 1 : m].X - line[m - 1].X, dz = line[m + 1 < line.size() ? m + 1 : m].Z - line[m - 1].Z;
-            const float run = (std::max)(1e-3f, std::sqrt(dx * dx + dz * dz)), off = (std::max)(.5f, line[m].Half - .7f);
-            Place p; p.Id = "cave" + std::to_string(c);
-            p.Name = std::wstring(L"THE HEART OF ") + (map.Caves()[c].Kind == "tunnel" ? L"THE TUNNEL" : L"THE CAVE");
-            p.P = {line[m].X - dz / run * off, line[m].Y, line[m].Z + dx / run * off};
-            float y = 0;
-            const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(scene, p.P.x, p.P.z, p.P.y - 1.6f, p.P.y + 1.6f);
-            if (hit.Hit) y = hit.GroundY; else y = p.P.y;
-            p.P.y = y;
-            mPlaces.push_back(p);
-        }
-        for (size_t i = 0; i < map.Moments.size(); ++i)
-        {
-            const auto& m = map.Moments[i];
-            Place p; p.Id = "moment" + std::to_string(i);
-            std::wstring name(m.Name.begin(), m.Name.end());
-            if (const size_t cut = name.find(L':'); cut != std::wstring::npos) name = name.substr(0, cut);
-            for (auto& ch : name) ch = static_cast<wchar_t>(std::towupper(ch));
-            p.Name = name;
-            // a few metres off it, where she can stand (or at it, when there is nowhere else)
-            p.P = m.P;
-            for (int k = 0; k < 8; ++k)
-            {
-                const float ang = XM_2PI * (static_cast<float>(k) + Hash(p.Id, 1)) / 8.f;
-                const float x = m.P.x + std::sin(ang) * 5.f, z = m.P.z + std::cos(ang) * 5.f;
-                float y = 0;
-                if (ground(x, z, m.P.y, y)) { p.P = {x, y, z}; break; }
-            }
-            mPlaces.push_back(p);
-        }
         mLaid = true;
     }
 
@@ -301,18 +261,6 @@ namespace CaucasianEagle
                 s.Ground = j.P.y; s.Spin = XM_2PI * Hash(key, 5); s.Size = (.06f + .1f * Hash(key, 6)) * j.Size; s.Tint = j.Tint;
                 mShards.push_back(s);
             }
-        }
-        return gain;
-    }
-
-    Wayside::Gain Wayside::Visit(const XMFLOAT3& her)
-    {
-        Gain gain; gain.At = her;
-        for (auto& p : mPlaces)
-        {
-            if (p.Found || std::hypot(her.x - p.P.x, her.z - p.P.z) > PlaceReach || std::abs(her.y - p.P.y) > 2.5f) continue;
-            p.Found = true;
-            gain.Crystals += PlaceCrystals; gain.Place = p.Name; gain.At = {p.P.x, p.P.y + 1.4f, p.P.z};
         }
         return gain;
     }
@@ -361,24 +309,9 @@ namespace CaucasianEagle
             renderer.DrawBox(XMMatrixScaling(size, size * .35f, size * .8f) * XMMatrixRotationRollPitchYaw(s.Spin * .7f, s.Spin, s.Spin * .4f) *
                              XMMatrixTranslation(s.P.x, s.P.y, s.P.z), viewProjection, clay(s.Tint));
         }
-        // the hidden places' cairns: stones heaped, and a gold light on them until she has found it
-        const Material stone[2] = {Surface(white, {.42f, .40f, .37f, 1}, .02f, false), Surface(white, {.33f, .31f, .29f, 1}, .02f, false)};
+        // the lights asked for this frame (her growth's: Glow)
         std::vector<GlowLight> glows = mGlows;
         mGlows.clear();
-        for (const auto& p : mPlaces)
-        {
-            const float dx = p.P.x - eye.x, dz = p.P.z - eye.z;
-            if (dx * dx + dz * dz > 300.f * 300.f) continue;
-            float y = p.P.y;
-            for (int k = 0; k < 5; ++k)
-            {
-                const float w = .9f - .15f * static_cast<float>(k), h = .22f;
-                renderer.DrawBox(XMMatrixScaling(w, h, w * .85f) * XMMatrixRotationY(.7f * static_cast<float>(k) + Hash(p.Id, 3)) *
-                                 XMMatrixTranslation(p.P.x, y + h * .5f, p.P.z), viewProjection, stone[k % 2]);
-                y += h * .92f;
-            }
-            if (!p.Found) glows.push_back({{p.P.x, y + .35f + .08f * std::sin(mTime * 2.4f), p.P.z}, 1.1f + .15f * std::sin(mTime * 3.1f), {1.f, .78f, .35f, .9f}});
-        }
         if (!glowTexture) return;
         for (const auto& g : glows)
         {
@@ -403,17 +336,9 @@ namespace CaucasianEagle
         return ids;
     }
 
-    std::vector<std::string> Wayside::FoundIds() const
-    {
-        std::vector<std::string> ids;
-        for (const auto& p : mPlaces) if (p.Found) ids.push_back(p.Id);
-        return ids;
-    }
-
-    void Wayside::Restore(const std::vector<std::string>& broken, const std::vector<std::string>& found)
+    void Wayside::Restore(const std::vector<std::string>& broken)
     {
         for (auto& j : mJars) j.Broken = std::find(broken.begin(), broken.end(), j.Id) != broken.end();
-        for (auto& p : mPlaces) p.Found = std::find(found.begin(), found.end(), p.Id) != found.end();
         mShards.clear();
     }
 }

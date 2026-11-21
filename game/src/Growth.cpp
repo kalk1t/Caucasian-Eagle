@@ -180,8 +180,8 @@ namespace CaucasianEagle::Growth
             ui.Icon(HudArt::IconCrystal, x + Pad * S + 13 * S, y + 40 * S, 26 * S, Violet.Fade(a));
             ui.Text(std::to_wstring(s.Crystals), x + Pad * S + 32 * S, y + 26 * S, Name * S, Ink.Fade(a));
             const float from = y + 25 * S, step = ui.Height(Tiny * S) + 2 * S;   // where they come from: two lines beside the count
-            ui.RightAligned(v.Ascent ? L"From creatures, clay jars" : L"Every creature she fells", x + w - Pad * S, from, Tiny * S, Dim.Fade(a));
-            ui.RightAligned(v.Ascent ? L"and hidden places." : L"leaves some.", x + w - Pad * S, from + step, Tiny * S, Dim.Fade(a));
+            ui.RightAligned(v.Ascent ? L"From creatures" : L"Every creature she fells", x + w - Pad * S, from, Tiny * S, Dim.Fade(a));
+            ui.RightAligned(v.Ascent ? L"and clay jars." : L"leaves some.", x + w - Pad * S, from + step, Tiny * S, Dim.Fade(a));
             float cy = y + 62 * S;
             const float cx = x + 8 * S, cw = w - 16 * S;
             cy = card(Power, cx, cy, cw, TrainCard * S, HudArt::IconSlash, L"Level " + std::to_wstring(s.Level[Power]) + L" of " + std::to_wstring(MaxTrainingLevel),
@@ -207,7 +207,6 @@ namespace CaucasianEagle::Growth
             if (v.Ascent)
             {
                 carried(HudArt::IconPotion, Faint, L"Clay jars hold potions", L"break them with your swords");
-                carried(HudArt::IconBook, GoldLight, std::to_wstring(v.Places) + L" hidden places found", L"+" + std::to_wstring(PlaceCrystals) + L" crystals each");
                 carried(HudArt::IconWings, Moon, L"Eagle Nests", L"H saves there");
             }
             else

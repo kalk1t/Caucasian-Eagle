@@ -23,9 +23,9 @@
 // Amiran's court (Journey::UpdateMountain; where they are: art/map/ascent_creatures.py). Nine Eagle Nests are the only
 // places she is saved.
 // 0.5 (the owner, 2026-11-20): she grows as on the road (I: wings, swords, armour, power, defence, for crystals), her
-// wings are her flight (10 s, then 15, 20, 30); crystals come from the creatures, from clay jars beside every road and
-// from hidden places (Wayside); nothing heals her but potions (Z), found in the jars. H at any Eagle Nest saves her, as
-// often as she likes: the nest, her growth, the creatures she has beaten, the jars she has broken, the places found.
+// wings are her flight (10 s, then 15, 20, 30); crystals come from the creatures and from clay jars beside every road
+// (Wayside); nothing heals her but potions (Z), found in the jars. H at any Eagle Nest saves her, as often as she likes:
+// the nest, her growth, the creatures she has beaten, the jars she has broken.
 // When she falls she wakes at the nest she saved at, whole, and all since that save is undone: the creatures she beat
 // since stand on the way again, the jars she broke since are whole.
 namespace CaucasianEagle
@@ -58,7 +58,7 @@ namespace CaucasianEagle
         void WriteSave() const;
         void NewClimb(Doorways::DoorwaysGameHost& host);   // from the shore, the nests and the beaten forgotten
         void SaveHere(int station);                // H at a nest: all she is and has done, saved (WriteSave)
-        void RollBack();                           // back to the save: her growth, the creatures, the jars, the places
+        void RollBack();                           // back to the save: her growth, the creatures, the jars
         int NestAt(const DirectX::XMFLOAT3& p) const;   // the station of the nest she stands in; -1
         void Collect(const Wayside::Gain& gain);   // what a jar or a place gave her
         void DrawNests(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
@@ -70,7 +70,7 @@ namespace CaucasianEagle
         // CAUCASIAN_EAGLE_TOUR_SHOTS); ends CREATURES_PASS or CREATURES_FAIL.
         void Tour(Doorways::DoorwaysGameHost& host, float dt);
         void Put(Doorways::DoorwaysGameHost& host, const DirectX::XMFLOAT3& at, float yaw);
-        // The jars' test (CAUCASIAN_EAGLE_DEMO=4, unattended, 0.5): the jars and places laid; she is stood before groups
+        // The jars' test (CAUCASIAN_EAGLE_DEMO=4, unattended, 0.5): the jars laid; she is stood before groups
         // of jars up the mountain and cuts (her own blows: the kit's test pilot keys), and they must break; then saved at a
         // nest, more broken and crystals gained, and rolled back (as when she falls): all must be as saved; then the save
         // read back. Writes ways.tsv beside the evidence file (pictures into CAUCASIAN_EAGLE_TOUR_SHOTS); WAYS_PASS or WAYS_FAIL.
@@ -105,7 +105,7 @@ namespace CaucasianEagle
         std::vector<std::string> mSavedBeaten;
         size_t mBeatenWritten = 0;                 // the beaten counted (for their crystals)
         Growth::State mGrowth, mSavedGrowth;       // (0.5) her growth now, and as saved
-        std::vector<std::string> mSavedJars, mSavedPlaces;
+        std::vector<std::string> mSavedJars;
         Wayside mWayside; bool mWaysideOn = false;
         AscentGrass mGrass;   // the grass fields (2026-11-20)
         AscentTrees mTrees;   // the trees near the path as 3D models (0.5.2)
