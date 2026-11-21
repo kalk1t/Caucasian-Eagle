@@ -171,7 +171,7 @@ namespace CaucasianEagle::Collection
             key(L"W", L""); x -= 20 * S;
             key(L"S", L"CHOOSE RUNE");
             key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"SET IN AXES");
-            key(Ui::KeyLabel(L"I", 'I'), L"CLOSE");
+            { const float from = x; key(Ui::KeyLabel(L"I", 'I'), L"CLOSE"); Pointer::Add(Pointer::CloseKey, 0, from, y, x - from - 22 * S, h); }
         }
     }
 }

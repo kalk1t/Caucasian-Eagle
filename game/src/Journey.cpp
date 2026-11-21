@@ -3834,6 +3834,7 @@ namespace CaucasianEagle
                 {
                     if (mGrowthPage == 0) point(Pointer::GrowthCard, mGrowthRow); else point(Pointer::RuneCard, mRuneRow);
                     if (click && Pointer::Hit(Pointer::PageKey, mx, my) >= 0) pressed[3] = true;   // the other page, as D
+                    if (click && Pointer::Hit(Pointer::CloseKey, mx, my) >= 0) pressed[12] = true; // CLOSE, as I
                 }
             }
         }

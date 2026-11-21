@@ -130,8 +130,24 @@ namespace CaucasianEagle
         // Her menu (Esc, 2026-11-20, the owner: Esc gave "the testing lab options"): the road's panel, gold and ink, its rows
         // chosen with W / S or the mouse; Settings opens the game's own settings window (Settings.h), as on the road.
         static constexpr int MenuRows = 8;   // continue, Nyxara, the mountain, settings, last nest, new climb, start screen, leave
-        int mMenuRow = 0; float mMenuFade = 0, mMouseX = -1, mMouseY = -1; bool mMouseWas = false, mFocused = true;
+        int mMenuRow = 0; float mMenuFade = 0; bool mFocused = true;
         void DrawMenu(Ui& ui) const;
+        // The pointer, for her menu and her window (I; 2026-11-21, the owner: "lets user use mouse cursor when he/she
+        // opens I- inventory"): where it is in the game's window, its button held, whether that button went down this
+        // frame. Read once a frame (ReadMouse), so that a button already held when a window opens is not a click.
+        struct Mouse { float X = -1, Y = -1; bool Down = false, Click = false, Moved = false; };
+        Mouse ReadMouse(bool inputAllowed) const;
+        Mouse mMouse;
+        bool mHoldBlade = false;   // a window closed (a click may have closed it): no sword blow until the button is let go
+        // The pointer test (CAUCASIAN_EAGLE_DEMO=7, unattended): her window opened; the pointer moved over each card in
+        // turn and pressed (each must be chosen, then grow one step and cost its crystals, once however long the button
+        // is held); a click where there is no card (nothing); CLOSE clicked (the window closes, the pointer is caught
+        // again, her swords wait for the button); then her menu: rows chosen by the pointer, Continue clicked, Nyxara
+        // taken (her window opens, the pointer still free), Esc. pointer.tsv beside the evidence; POINTER_PASS or
+        // POINTER_FAIL. At "picture" it holds 3 s with a card chosen (its runner takes a picture of the window).
+        void PointerTest(Doorways::DoorwaysGameHost& host, float dt);
+        bool mPointerTest = false; int mPtStep = 0, mPtWait = 0, mPtBad = 0, mPtCrystals = 0, mPtLevel = 0, mPtCost = 0;
+        float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0; bool mPtDown = false;
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;
         std::wstring mNoticeTitle, mNoticeLine; float mNotice = 0;

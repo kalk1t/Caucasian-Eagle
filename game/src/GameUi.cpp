@@ -58,6 +58,12 @@ namespace CaucasianEagle
                 if (z.Group == group && x >= z.X && x <= z.X + z.W && y >= z.Y && y <= z.Y + z.H) return z.Index;
             return -1;
         }
+        bool Centre(int group, int index, float& x, float& y)
+        {
+            for (const Zone& z : gZones)
+                if (z.Group == group && z.Index == index) { x = z.X + z.W * .5f; y = z.Y + z.H * .5f; return true; }
+            return false;
+        }
     }
 
     Ui::Ui(const DoorwaysHudRenderContext& context, HudTextRenderer& text) : mContext(context), mText(text)

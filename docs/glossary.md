@@ -103,6 +103,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **Nature test** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=5`): the grass seen at eight spots up the mountain, then runs at 24 trunks; `nature.tsv`, `NATURE_PASS` |
 | **Jars' test** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=4`): jars laid and counted, her cuts at ten groups, a save, more broken, a rollback and the save read back; `ways.tsv`, `WAYS_PASS` |
 | **Creatures' tour** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=3`) that stands her before every group and boss, then in every nest, and checks they wake, see her, come at her, stay beaten and save her |
+| **Pointer test** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=7`) that works her window (I) and her menu (Esc) with a pointer of its own: cards chosen and bought, CLOSE, Continue, Nyxara, Esc; it checks the pointer is free only while a window is open and that a click that closes one is not a sword blow; `pointer.tsv`, `POINTER_PASS` |
 | **Journey** | `Journey`: the code for the road, creatures, arenas, chests, story cards and the ending |
 | **Sandbox** | The engine's own executable, `Doorways.exe`, running with no game |
 | **Asset builder** | The engine tool that compiles glTF into engine formats |

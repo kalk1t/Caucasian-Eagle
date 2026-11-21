@@ -179,7 +179,9 @@ namespace CaucasianEagle::Growth
             ui.Spaced(L"CRYSTALS", x + Pad * S, y + 11 * S, Tiny * S, 3 * S, Gold.Fade(a));
             ui.Icon(HudArt::IconCrystal, x + Pad * S + 13 * S, y + 40 * S, 26 * S, Violet.Fade(a));
             ui.Text(std::to_wstring(s.Crystals), x + Pad * S + 32 * S, y + 26 * S, Name * S, Ink.Fade(a));
-            ui.RightAligned(v.Ascent ? L"From creatures, clay jars, hidden places." : L"Every creature she fells leaves some.", x + w - Pad * S, y + 34 * S, Tiny * S, Dim.Fade(a));
+            const float from = y + 25 * S, step = ui.Height(Tiny * S) + 2 * S;   // where they come from: two lines beside the count
+            ui.RightAligned(v.Ascent ? L"From creatures, clay jars" : L"Every creature she fells", x + w - Pad * S, from, Tiny * S, Dim.Fade(a));
+            ui.RightAligned(v.Ascent ? L"and hidden places." : L"leaves some.", x + w - Pad * S, from + step, Tiny * S, Dim.Fade(a));
             float cy = y + 62 * S;
             const float cx = x + 8 * S, cw = w - 16 * S;
             cy = card(Power, cx, cy, cw, TrainCard * S, HudArt::IconSlash, L"Level " + std::to_wstring(s.Level[Power]) + L" of " + std::to_wstring(MaxTrainingLevel),
@@ -195,6 +197,8 @@ namespace CaucasianEagle::Growth
             {
                 ui.Icon(art, x + Pad * S + icon * .5f, cy + ui.Height(Tiny * S) * .5f, icon, tint.Fade(a));
                 ui.Text(what, x + Pad * S + icon + 6 * S, cy, Tiny * S, Ink.Fade(a));
+                if (!note.empty() && x + w - Pad * S - ui.Width(note, Tiny * S) < x + Pad * S + icon + 6 * S + ui.Width(what, Tiny * S) + 12 * S)
+                    cy += line - 4 * S;   // no room beside it: under it
                 ui.RightAligned(note, x + w - Pad * S, cy, Tiny * S, Dim.Fade(a));
                 cy += line;
             };
@@ -228,20 +232,33 @@ namespace CaucasianEagle::Growth
 
         // ---- keys
         {
+            // the keys, and under them what the mouse does (the pointer shows while this window is open), centred on a
+            // dark band; D and CLOSE can be clicked
             const float y = (Top - 40) * S, h = 24 * S;
-            float x = W * .5f - 250 * S;
-            const auto key = [&](const wchar_t* label, const wchar_t* what)
+            struct Entry { const wchar_t* Label; const wchar_t* What; int Zone; float Pull; };
+            Entry keys[5]; int count = 0;
+            keys[count++] = {L"W", L"", -1, 20};
+            keys[count++] = {L"S", L"CHOOSE", -1, 0};
+            if (!v.Ascent) keys[count++] = {L"D", L"WHAT SHE CARRIES", Pointer::PageKey, 0};
+            keys[count++] = {Ui::KeyLabel(L"ENTER", VK_RETURN), L"SPEND CRYSTALS", -1, 0};
+            keys[count++] = {Ui::KeyLabel(L"I", 'I'), L"CLOSE", Pointer::CloseKey, 0};
+            const auto width = [&](const Entry& e) { return ui.KeyWidth(e.Label, h) + 6 * S + ui.Width(e.What, Tiny * S) + 22 * S - e.Pull * S; };
+            float total = -22 * S;
+            for (int i = 0; i < count; ++i) total += width(keys[i]);
+            const wchar_t* mouse = L"or the mouse: point at a card, click it to spend crystals, click CLOSE to leave";
+            const float hint = y + h + 5 * S, band = (std::max)(total, ui.Width(mouse, Tiny * S)) + 32 * S;
+            ui.Rect(W * .5f - band * .5f, y - 8 * S, band, hint + ui.Height(Tiny * S) + 8 * S - (y - 8 * S), Black.Fade(.5f * a));
+            float x = W * .5f - total * .5f;
+            for (int i = 0; i < count; ++i)
             {
-                const float kw = ui.KeyWidth(label, h);
-                ui.Key(label, x + kw * .5f, y, h, White.Fade(a));
-                ui.Text(what, x + kw + 6 * S, y + (h * .86f - ui.Height(Tiny * S)) * .5f, Tiny * S, Ink.Fade(a));
-                x += kw + 6 * S + ui.Width(what, Tiny * S) + 22 * S;
-            };
-            key(L"W", L""); x -= 20 * S;
-            key(L"S", L"CHOOSE");
-            if (!v.Ascent) { const float from = x; key(L"D", L"WHAT SHE CARRIES"); Pointer::Add(Pointer::PageKey, 0, from, y, x - from - 22 * S, h); }
-            key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"SPEND CRYSTALS");
-            key(Ui::KeyLabel(L"I", 'I'), L"CLOSE");
+                const Entry& e = keys[i];
+                const float from = x, kw = ui.KeyWidth(e.Label, h);
+                ui.Key(e.Label, x + kw * .5f, y, h, White.Fade(a));
+                ui.Text(e.What, x + kw + 6 * S, y + (h * .86f - ui.Height(Tiny * S)) * .5f, Tiny * S, Ink.Fade(a));
+                x += width(e);
+                if (e.Zone >= 0) Pointer::Add(e.Zone, 0, from, y, x - from - 22 * S, h);
+            }
+            ui.Centered(mouse, W * .5f, hint, Tiny * S, Dim.Fade(a));
         }
     }
 }

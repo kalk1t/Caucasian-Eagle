@@ -46,13 +46,15 @@ namespace CaucasianEagle
     }
 
     // Where the pointer can press. Windows add their rows while they draw; the game's update reads them on the
-    // next frame (Journey::UpdateJournal). The list is emptied whenever a Ui is made, that is once a frame.
+    // next frame (Journey::UpdateJournal, EaglesAscentGame::Update). The list is emptied whenever a Ui is made, that is
+    // once a frame.
     namespace Pointer
     {
-        enum Group { PauseRow, GrowthCard, RuneCard, PageKey };
+        enum Group { PauseRow, GrowthCard, RuneCard, PageKey, CloseKey };
         void Clear();
         void Add(int group, int index, float x, float y, float w, float h);
         int Hit(int group, float x, float y);   // the index of the zone under (x, y), or -1
+        bool Centre(int group, int index, float& x, float& y);   // the middle of that zone (the unattended tests point there)
     }
 
     class Ui

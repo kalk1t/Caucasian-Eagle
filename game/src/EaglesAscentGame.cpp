@@ -121,6 +121,7 @@ namespace CaucasianEagle
         mWays = Env(DemoEnvironmentVariable) == "4";    // the jars' test, unattended (Ways)
         mNature = Env(DemoEnvironmentVariable) == "5";  // the grass and the trees, unattended (Nature)
         mGround = Env(DemoEnvironmentVariable) == "6";  // the ground probe, unattended (GroundProbe)
+        mPointerTest = Env(DemoEnvironmentVariable) == "7";   // her window and her menu by the pointer, unattended (PointerTest)
         mLog = Env(AscentLogEnvironmentVariable);
         mTrace = !mLog.empty();
         if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
@@ -140,9 +141,14 @@ namespace CaucasianEagle
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
             GetNyxaraKit().SetAutoKeys(&mWaysKeys);
         }
+        if (mPointerTest)
+        {   // a new climb, its save beside its evidence (it writes none, and never a player's)
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear(); mSavedPlaces.clear();
+            if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "pointer.sav"; mSaveTest = true; }
+        }
         mGrowth = mSavedGrowth; mFormShown = Growth::Form(mGrowth);
         mWaysideOn = !mSmoke && !mClimb && !mTour;   // (the map's and the creatures' tests: no jars)
-        mCreaturesOn = !mMap.Placements.empty() && Env(AscentCreaturesEnvironmentVariable) != "0" && !mSmoke && !mClimb;
+        mCreaturesOn = !mMap.Placements.empty() && Env(AscentCreaturesEnvironmentVariable) != "0" && !mSmoke && !mClimb && !mPointerTest;
         if (mCreaturesOn)
         {
             if (!mCreatures.InitializeMountain(host.Render, error)) { error = "The Eagle's Ascent's creatures: " + error; return false; }
@@ -183,7 +189,7 @@ namespace CaucasianEagle
         // unattended tests keep her own cuts, as they were measured with
         if (!mSmoke && !mClimb && !mTour && !mWays && !mNature) GetNyxaraKit().SetAttackCombo(0);
         if (mNature) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
-        if (mSmoke || mClimb || mTour || mWays || mNature || mGround)
+        if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -537,6 +543,102 @@ namespace CaucasianEagle
             row(mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL\tbad=" + std::to_string(mNatBad));
             Evidence(world, mNatBad == 0 ? "NATURE_PASS" : "NATURE_FAIL");
             mNature = false; PostQuitMessage(mNatBad == 0 ? 0 : 2);
+        }
+    }
+
+    // The pointer in the game's window, for her menu and her window (I): client pixels, -1 where there is none (the
+    // window not in front, an unattended run); the pointer test's own pointer in its place.
+    EaglesAscentGame::Mouse EaglesAscentGame::ReadMouse(bool inputAllowed) const
+    {
+        Mouse m;
+        if (mPointerTest) { m.X = mPtX; m.Y = mPtY; m.Down = mPtDown; }
+        else if (inputAllowed && !GameSession().Unattended)
+        {
+            POINT point{};
+            if (GetCursorPos(&point) && ScreenToClient(GetForegroundWindow(), &point)) { m.X = static_cast<float>(point.x); m.Y = static_cast<float>(point.y); }
+            m.Down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        }
+        m.Click = m.Down && !mMouse.Down;
+        m.Moved = std::abs(m.X - mMouse.X) + std::abs(m.Y - mMouse.Y) > .5f;
+        return m;
+    }
+
+    // The pointer test (CAUCASIAN_EAGLE_DEMO=7, 2026-11-21): her window (I) and her menu (Esc) worked by a pointer this
+    // test moves and presses in the desktop's place (ReadMouse). Each step waits a few frames, so that the windows are
+    // drawn and their cards and rows are where the pointer looks for them.
+    void EaglesAscentGame::PointerTest(DoorwaysGameHost& host, float dt)
+    {
+        auto& session = GameSession(); auto& world = host.World;
+        if (mClock < 4 || !world.RuntimeScene || !world.RuntimeScene->Loaded || mHudW <= 0) return;
+        if (mPtHold > 0) { mPtHold -= dt; return; }
+        if (mPtWait > 0) { --mPtWait; return; }
+        const auto table = std::filesystem::path(mLog).parent_path() / "pointer.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        const auto check = [&](bool ok, const std::string& what) { row(what + (ok ? "\tok" : "\tFAIL")); if (!ok) ++mPtBad; };
+        const auto point = [&](int group, int index, const std::string& what) { check(Pointer::Centre(group, index, mPtX, mPtY), what + "_found"); };
+        const auto levels = [&] { int n = 0; for (int r = 0; r < Growth::RowCount; ++r) n += mGrowth.Level[r]; return n; };
+        constexpr int Cards = Growth::RowCount, Frames = 4;
+        const int step = mPtStep++;
+        mPtWait = Frames;
+        if (step == 0)
+        {   // her window, open, with crystals enough for a step of everything; the last card chosen (the first must be pointed at)
+            std::ofstream(table) << "step\tresult\n";
+            mGrowth.Crystals = 100000; mGrowthRow = Cards - 1; mGrowthOpen = true; Sound::PlayUi("ui/open", .6f);
+            mPtWait = 30;
+            return;
+        }
+        if (step <= 3 * Cards)
+        {   // each card: pointed at (it is chosen), pressed and held (one step bought, its crystals paid), let go
+            const int card = (step - 1) / 3, phase = (step - 1) % 3;
+            const std::string name = "card_" + std::to_string(card);
+            if (phase == 0)
+            {
+                if (card == 0) check(session.FreeCursor, "pointer_free_while_open");
+                point(Pointer::GrowthCard, card, name); mPtDown = false;
+            }
+            else if (phase == 1)
+            {
+                check(mGrowthRow == card, name + "_chosen");
+                mPtCrystals = mGrowth.Crystals; mPtLevel = mGrowth.Level[card]; mPtCost = Growth::Cost(mGrowth, card);
+                mPtDown = true; mPtWait = 4 * Frames;   // held a while: still one step
+            }
+            else
+            {
+                check(mPtCost > 0 && mGrowth.Level[card] == mPtLevel + 1 && mGrowth.Crystals == mPtCrystals - mPtCost,
+                      name + "_bought_once\tlevel=" + std::to_string(mGrowth.Level[card]) + "\tcost=" + std::to_string(mPtCost));
+                mPtDown = false;
+            }
+            return;
+        }
+        switch (step - 3 * Cards)
+        {
+        case 1:   // where there is no card (over her, between the panels)
+            mPtX = mHudW * .5f; mPtY = mHudH * .5f; mPtDown = false; mPtCrystals = mGrowth.Crystals; mPtLevel = levels(); break;
+        case 2: mPtDown = true; break;
+        case 3: check(mGrowthOpen && mGrowth.Crystals == mPtCrystals && levels() == mPtLevel, "click_on_no_card_does_nothing"); mPtDown = false; break;
+        case 4: point(Pointer::GrowthCard, Growth::Swords, "picture_card"); break;   // a card chosen, for the picture
+        case 5: row("picture"); mPtHold = 3; break;
+        case 6: point(Pointer::CloseKey, 0, "close_key"); break;
+        case 7: mPtDown = true; break;   // CLOSE clicked, the button held
+        case 8: check(!mGrowthOpen && !session.FreeCursor && mHoldBlade, "close_clicked_window_closed_pointer_caught_swords_wait"); break;
+        case 9: mPtDown = false; break;
+        case 10: check(!mHoldBlade, "swords_free_once_let_go"); session.EscapePressed = true; break;   // her menu
+        case 11: check(mPaused && session.FreeCursor, "menu_open_pointer_free"); point(Pointer::PauseRow, 3, "menu_row_3"); break;
+        case 12: check(mMenuRow == 3, "menu_row_3_chosen"); point(Pointer::PauseRow, 0, "menu_row_0"); break;
+        case 13: check(mMenuRow == 0, "menu_row_0_chosen"); mPtDown = true; break;   // Continue the climb, clicked
+        case 14: check(!mPaused && !session.FreeCursor && mHoldBlade, "continue_clicked_menu_closed_swords_wait"); mPtDown = false; break;
+        case 15: check(!mHoldBlade, "swords_free_once_let_go_2"); session.EscapePressed = true; break;
+        case 16: point(Pointer::PauseRow, 1, "menu_row_1"); break;
+        case 17: check(mMenuRow == 1, "menu_row_1_chosen"); mPtCrystals = mGrowth.Crystals; mPtDown = true; break;   // Nyxara, clicked
+        case 18: check(mGrowthOpen && !mPaused && session.FreeCursor && mGrowth.Crystals == mPtCrystals, "nyxara_taken_window_open_pointer_free_nothing_bought"); mPtDown = false; break;
+        case 19: session.EscapePressed = true; break;   // Esc closes it
+        case 20:
+            check(!mGrowthOpen && !session.FreeCursor, "esc_closed_window_pointer_caught");
+            row(mPtBad == 0 ? "POINTER_PASS" : "POINTER_FAIL\tbad=" + std::to_string(mPtBad));
+            Evidence(world, mPtBad == 0 ? "POINTER_PASS" : "POINTER_FAIL");
+            mPointerTest = false; PostQuitMessage(mPtBad == 0 ? 0 : 2);
+            break;
+        default: break;
         }
     }
 
@@ -1028,6 +1130,8 @@ namespace CaucasianEagle
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         const bool alive = host.Combat.PlayerActionsAllowed();
         mMap.KeepOutOfRock(p, flying, dt, world.RuntimeScene);
+        if (mPointerTest) PointerTest(host, realDt);
+        mMouse = ReadMouse(inputAllowed);   // (her menu and her window read it)
 
         // Esc: the pause panel (DrawHud); its keys
         // M: the whole mountain from outside, to turn and look over (MountainView.h). The game stands still; M or Esc closes it.
@@ -1053,29 +1157,47 @@ namespace CaucasianEagle
             OutputDebugStringA(line);
             if (mTrace) Evidence(world, ("wayside_jars_" + std::to_string(mWayside.Jars().size()) + "_places_" + std::to_string(mWayside.Places().size())).c_str());
         }
-        // I: her growth (as on the road): W / S choose, Enter or Space spends crystals; I or Esc closes. The climb waits.
+        // I: her growth (as on the road): W / S or the pointer choose, Enter, Space or a click spends crystals; I, Esc or a
+        // click on CLOSE closes. While it is open the pointer shows and the mouse leaves the camera alone. The climb waits.
         mGrowthFade = std::clamp(mGrowthFade + (mGrowthOpen ? 1.f : -1.f) * realDt / .18f, 0.f, 1.f);
         mGrowthFlash = std::max(0.f, mGrowthFlash - realDt * 2.5f);
         mSavedMark = std::max(0.f, mSavedMark - realDt);
         if (!mPaused && !mSmoke && !mClimb && !mTour && alive && Press('I', inputAllowed))
         {
             mGrowthOpen = !mGrowthOpen; Sound::PlayUi(mGrowthOpen ? "ui/open" : "ui/close", .6f);
+            if (!mGrowthOpen) { session.FreeCursor = false; mHoldBlade = true; }
         }
         if (mGrowthOpen)
         {
-            if (session.EscapePressed || !alive) { session.EscapePressed = false; mGrowthOpen = false; Sound::PlayUi("ui/close", .6f); }
-            const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
-            mGrowthRow = (mGrowthRow + move + Growth::RowCount) % Growth::RowCount;
-            if (move != 0) Sound::PlayUi("ui/move", .5f);
-            if (Press(VK_RETURN, inputAllowed) || Press(VK_SPACE, inputAllowed))
-            {
-                const int cost = Growth::Cost(mGrowth, mGrowthRow);
-                if (cost > 0 && mGrowth.Crystals >= cost)
+            session.FreeCursor = true;
+            bool take = Press(VK_RETURN, inputAllowed) || Press(VK_SPACE, inputAllowed), close = session.EscapePressed || !alive;
+            session.EscapePressed = false;
+            if (mMouse.X >= 0 && (mMouse.Moved || mMouse.Click))
+            {   // the pointer: the card it moves over is chosen, a click buys that card's next step; a click on CLOSE closes
+                const int hit = Pointer::Hit(Pointer::GrowthCard, mMouse.X, mMouse.Y);
+                if (hit >= 0)
                 {
-                    mGrowth.Crystals -= cost; ++mGrowth.Level[mGrowthRow];
-                    mGrowthFlash = 1; mGrowthFlashRow = mGrowthRow; Sound::PlayUi("ui/buy", .9f);
+                    if (hit != mGrowthRow) { mGrowthRow = hit; Sound::PlayUi("ui/move", .5f); }
+                    if (mMouse.Click) take = true;
                 }
-                else Sound::PlayUi("ui/deny", .7f);
+                else if (mMouse.Click && Pointer::Hit(Pointer::CloseKey, mMouse.X, mMouse.Y) >= 0) close = true;
+            }
+            if (close) { mGrowthOpen = false; session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); }
+            else
+            {
+                const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
+                mGrowthRow = (mGrowthRow + move + Growth::RowCount) % Growth::RowCount;
+                if (move != 0) Sound::PlayUi("ui/move", .5f);
+                if (take)
+                {
+                    const int cost = Growth::Cost(mGrowth, mGrowthRow);
+                    if (cost > 0 && mGrowth.Crystals >= cost)
+                    {
+                        mGrowth.Crystals -= cost; ++mGrowth.Level[mGrowthRow];
+                        mGrowthFlash = 1; mGrowthFlashRow = mGrowthRow; Sound::PlayUi("ui/buy", .9f);
+                    }
+                    else Sound::PlayUi("ui/deny", .7f);
+                }
             }
             kit.SetInputBlocked(true);
             kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
@@ -1089,7 +1211,7 @@ namespace CaucasianEagle
         {
             session.EscapePressed = false;
             if (settings) Settings::Back();
-            else { mPaused = !mPaused; mMenuRow = 0; Sound::PlayUi(mPaused ? "ui/open" : "ui/close", .7f); }
+            else { mPaused = !mPaused; mMenuRow = 0; mHoldBlade = true; Sound::PlayUi(mPaused ? "ui/open" : "ui/close", .7f); }
         }
         session.FreeCursor = mPaused;   // the pointer shows and the mouse leaves the camera alone
         if (!mPaused && settings) Settings::Close();
@@ -1098,24 +1220,13 @@ namespace CaucasianEagle
             if (!settings)
             {
                 bool take = Press(VK_RETURN, inputAllowed) || Press(VK_SPACE, inputAllowed);
+                if (mMouse.X >= 0 && (mMouse.Moved || mMouse.Click))
                 {   // the pointer: the row it moves over is chosen, a click takes it
-                    float mx = -1, my = -1; bool button = false;
-                    if (inputAllowed)
+                    const int hit = Pointer::Hit(Pointer::PauseRow, mMouse.X, mMouse.Y);
+                    if (hit >= 0)
                     {
-                        POINT point{};
-                        if (GetCursorPos(&point) && ScreenToClient(GetForegroundWindow(), &point)) { mx = static_cast<float>(point.x); my = static_cast<float>(point.y); }
-                        button = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-                    }
-                    const bool click = button && !mMouseWas, moved = std::abs(mx - mMouseX) + std::abs(my - mMouseY) > .5f;
-                    mMouseWas = button; mMouseX = mx; mMouseY = my;
-                    if (mx >= 0 && (moved || click))
-                    {
-                        const int hit = Pointer::Hit(Pointer::PauseRow, mx, my);
-                        if (hit >= 0)
-                        {
-                            if (hit != mMenuRow) { mMenuRow = hit; Sound::PlayUi("ui/move", .5f); }
-                            if (click) take = true;
-                        }
+                        if (hit != mMenuRow) { mMenuRow = hit; Sound::PlayUi("ui/move", .5f); }
+                        if (mMouse.Click) take = true;
                     }
                 }
                 const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
@@ -1134,7 +1245,7 @@ namespace CaucasianEagle
                     case 6: mPaused = false; session.MenuRequest = Request::MainMenu; break;
                     default: session.MenuRequest = Request::Exit; break;
                     }
-                    if (!mPaused) session.FreeCursor = false;
+                    if (!mPaused) { session.FreeCursor = mGrowthOpen; mHoldBlade = true; }   // (Nyxara: her window, the pointer still free)
                 }
             }
             if (mNature) Nature(host, realDt);   // (the nature test pictures her menu: it goes on while she is paused)
@@ -1167,7 +1278,8 @@ namespace CaucasianEagle
         session.FastMultiplier = flying ? WingBoostMultiplier : FootRunSpeed / FootSpeed;
         kit.SetOnFoot(!flying);
         kit.SetHeightOverGround(std::max(0.f, p.Position.y - mMap.Land(p.Position.x, p.Position.z)));
-        kit.SetInputBlocked(mSmoke || mClimb || mTour);
+        if (mHoldBlade && !mMouse.Down) mHoldBlade = false;   // the click that closed a window is no sword blow: they wait for the button to be let go
+        kit.SetInputBlocked(mSmoke || mClimb || mTour || mHoldBlade);
         {   // her growth (0.5): her blades, the blows she takes, how long she flies; her form, taller
             kit.SetDamageScale(Growth::Damage(mGrowth));
             kit.SetFlightSeconds(Growth::FlightSeconds(mGrowth.Level[Growth::Wings]));
@@ -1347,6 +1459,7 @@ namespace CaucasianEagle
         mTourShot.clear();
         if (mSmoke) return true;
         Ui ui(context, text);
+        mHudW = ui.W; mHudH = ui.H;
         const float s = std::clamp(ui.S, .8f, 1.5f);
         if (mView.Open)
         {   // the M view: the nests, the bosses (beaten: dim) and the groups not yet beaten (dots)
