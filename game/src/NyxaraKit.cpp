@@ -5371,7 +5371,7 @@ namespace Doorways
         const Keys k = ReadKeys(inputAllowed);
         const auto pressed = [](bool now, bool before) { return now && !before; };
         const bool clickL = pressed(k.Lmb, mPrev.Lmb), clickR = pressed(k.Rmb, mPrev.Rmb), keyF = pressed(k.K1, mPrev.K1),
-                   keyV = pressed(k.K2, mPrev.K2), keyC = pressed(k.K3, mPrev.K3);
+                   keyV = mSkillsVC && pressed(k.K2, mPrev.K2), keyC = mSkillsVC && pressed(k.K3, mPrev.K3);   // (V and C: SetSkillsVC)
         const bool scriptedSpace = unattended && mRealJump > 0 && s.ScriptedJump;
         const bool space = pressed(k.Space, mPrev.Space) || pressed(scriptedSpace, mScriptedSpaceWas);
         mScriptedSpaceWas = scriptedSpace;
@@ -5767,7 +5767,12 @@ namespace Doorways
         };
         if (b.Queued && free)
         {
-            if (b.Jumping) b.StartAttack(world, "Attack_Jump", b.JumpTime);
+            // (in a jump: her old leaping cut only without a combo. With one, its move, as on the ground: the old cut, and the
+            // old cuts it went on into, came back after every jump; owner, 2026-11-21: "examine combo after jump because i
+            // notice it still continues old skills attacks combo ... fix it with new attacks". The world goes on carrying
+            // her up and down; out of the move still in the air, she falls as off an edge)
+            if (b.Jumping && !styled) b.StartAttack(world, "Attack_Jump", b.JumpTime);
+            else if (b.Jumping) { b.Jumping = false; startMove(b.Queued - 1); }
             else if (b.InMove())
             {   // clicked during a move: kept a moment (StyleBuffer) and begun as soon as the move is free
                 if (!styled || b.Clock - b.QueuedAt > StyleBuffer) b.Queued = 0;
@@ -6078,7 +6083,8 @@ namespace Doorways
                 strike(leap ? JumpReach : SwordReach, SwordArc, leap ? JumpDamage : last ? LastDamage : CutDamage, CutPush);
                 CaucasianEagle::Sound::Play("nyxara/swing", .5f, .15f);
             }
-            if (b.Queued && b.AttackTime >= hit + ChainAfter)
+            if (b.Queued && b.AttackTime >= hit + ChainAfter && styled) b.Attack.clear();   // (with a combo, a click goes on into its move, not her old cuts)
+            else if (b.Queued && b.AttackTime >= hit + ChainAfter)
             {
                 const char* next = b.NextCut(b.Queued);
                 b.Step = b.Attack == "Attack_Jump" ? 0 : b.Step + 1;
@@ -6792,7 +6798,7 @@ namespace Doorways
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
         h.Action = b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH" : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
-        h.Guarding = mGuarding; h.GuardCooldown = mGuarding ? 0.f : mGuardCooldown; h.GuardCooldownMax = ShieldRestSeconds * mCooldownScale;
+        h.SkillsVC = mSkillsVC; h.Guarding = mGuarding; h.GuardCooldown = mGuarding ? 0.f : mGuardCooldown; h.GuardCooldownMax = ShieldRestSeconds * mCooldownScale;
         h.GuardLeft = mGuarding ? (std::max)(0.f, 1 - mGuardHeld / ShieldSeconds) : 0.f; h.Boosting = mBoosting; h.Swapped = false;
         h.Bow = false; h.Aim = 0; h.Shooting = false; h.OnTarget = false; h.HitMark = 0; h.HitKill = false; h.TargetVisible = false;
         h.Slashing = b.Attack.rfind("Attack_L", 0) == 0 || b.Attack == "Attack_Jump" || (b.InMove() && b.MoveButton == 0);

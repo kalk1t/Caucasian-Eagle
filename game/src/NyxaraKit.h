@@ -185,6 +185,7 @@ namespace Doorways
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
+        void SetSkillsVC(bool on) { mSkillsVC = on; }                    // V and C, her skills (off unless asked: the Character Lab)
         void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
@@ -352,6 +353,7 @@ namespace Doorways
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
+        bool mSkillsVC = false;   // V (the thrown swords) and C (the feather storm): off in the game (owner, 2026-11-21: "remove C and V skills from game, so nyxara doesnt have anymore skills yet until i decide to"); the Character Lab keeps them
         bool mGuarding = false, mEWas = false;   // her wing shield is up (E pressed: ShieldSeconds); E was down last frame
         std::array<float, 3> mSkillCooldown{};
         float mNoticeTimer = 0;

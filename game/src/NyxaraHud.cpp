@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <vector>
 
 // Nyxara's part of the HUD. Presentation only: it reads the NyxaraHud() snapshot and the combat
 // vitals text and owns no gameplay state (the little it keeps is for animation: the health trail,
@@ -82,7 +83,10 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         {Ui::KeyLabel(L"C", 'C'), L"STORM", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},   // the feather storm (a leap)
         {Ui::KeyLabel(L"E", 'E'), L"SHIELD", &HudArt::IconGuard, hud.GuardCooldown, hud.GuardCooldownMax, hud.Guarding, false, Moon, 2},
         {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
-    const int count = static_cast<int>(std::size(slots));
+    std::vector<Slot> shown;   // (V and C only when she has them)
+    for (const auto& slot : slots)
+        if (hud.SkillsVC || (std::wcscmp(slot.Name, L"SWORDS") != 0 && std::wcscmp(slot.Name, L"STORM") != 0)) shown.push_back(slot);
+    const int count = static_cast<int>(shown.size());
     const float size = SlotSize * S;
     const float barWidth = (count * SlotSize + (count - 3) * SlotGap + 2 * GroupGap) * S;
     const float vitalsRight = vx + HealthWidth * S + 16 * S;
@@ -91,8 +95,8 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     float x = sx;
     for (int i = 0; i < count; ++i)
     {
-        const auto& slot = slots[i];
-        if (i > 0) x += (slot.Group != slots[i - 1].Group ? GroupGap : SlotGap) * S;
+        const auto& slot = shown[static_cast<size_t>(i)];
+        if (i > 0) x += (slot.Group != shown[static_cast<size_t>(i) - 1].Group ? GroupGap : SlotGap) * S;
         const bool cooling = slot.Cooldown > 0;
         if (lastCooldown[i] > 0 && !cooling) ready[i] = ReadyFlash;
         lastCooldown[i] = slot.Cooldown;
