@@ -211,6 +211,8 @@ namespace Doorways
         // place of what she is doing; "" ends it. At seconds >= 0 it is held there, otherwise it plays round and round.
         // Her feet are not set on the ground and her head does not look about while it shows. (The game never calls it.)
         void SetPreview(const std::string& clip, float seconds = -1) { mPreview = clip; mPreviewTime = seconds; mPreviewClock = 0; }
+        // Her window open (the Eagle's Ascent's I), the game standing still (Update's deltaTime 0): her pose goes on in real time
+        void SetShowcase(bool on) { mShowcase = on; }
         std::vector<std::string> ClipNames() const;   // every clip she has, by name
         const std::string& ShownClip() const;          // the clip she shows now (hers, or the previewed one)
         float ShownTime() const { return mShownTime; } // and the time in it
@@ -346,6 +348,7 @@ namespace Doorways
         StairTread mStairTread;
         float mSpeedScale = 1;
         float mBarrier = 0;                 // 0..1 her shield up (E: her wings closed round her)
+        bool mShowcase = false;             // SetShowcase
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;

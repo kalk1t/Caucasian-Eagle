@@ -330,5 +330,13 @@ namespace CaucasianEagle::AscentGrowth
             }
             ui.Centered(mouse, W * .5f, hint, Tiny * S, Dim.Fade(a));
         }
+
+        // ---- under her (HerShowcase): what the mouse does to the view of her
+        {
+            const wchar_t* turn = L"DRAG: TURN ROUND HER     WHEEL: CLOSER, FURTHER";
+            const float w = ui.SpacedWidth(turn, Tiny * S, 2 * S) + 28 * S, h = ui.Height(Tiny * S) + 12 * S, y = ui.H - 64 * S;
+            ui.Rect(W * .5f - w * .5f, y, w, h, Black.Fade(.45f * a));
+            ui.SpacedCentered(turn, W * .5f, y + 6 * S, Tiny * S, 2 * S, Ink.Fade(a * .9f));
+        }
     }
 }

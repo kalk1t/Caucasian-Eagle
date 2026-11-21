@@ -81,6 +81,8 @@ namespace CaucasianEagle
         void Line(float x0, float y0, float x1, float y1, float thickness, Color color);
         // A whole picture loaded with Renderer::LoadUiTexture ('sourceWidth' x 'sourceHeight' texels).
         void Image(ID3D11ShaderResourceView* texture, float sourceWidth, float sourceHeight, float x, float y, float w, float h, Color color = Palette::White);
+        // A part of such a picture ('source' in texels) into (x, y, w, h).
+        void ImagePart(ID3D11ShaderResourceView* texture, Doorways::DoorwaysUiRect source, float x, float y, float w, float h, Color color = Palette::White);
         // Framed bar. 'trail' >= 'fraction' shows what was just lost.
         void Bar(float x, float y, float w, float h, float fraction, Color fill, float trail = 0, bool thin = false);
         // Key badge with its label centred on (centreX, y .. y + height). Returns its width.

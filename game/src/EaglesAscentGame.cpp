@@ -108,6 +108,10 @@ namespace CaucasianEagle
         auto& camera = host.World.MainCamera;
         camera.FarZ = EaglesAscent::FarPlane; camera.NearZ = .25f;   // the summit must be in view from the shore
         if (!Ui::LoadArt(host.Render, error)) return false;
+        {   // the detailed map (M); without its picture M shows the mountain in 3D, as before
+            std::string why;
+            if (!mChart.Load(host.Render, why)) OutputDebugStringA(("[EAGLES ASCENT] " + why + "\n").c_str());
+        }
         if (!GetNyxaraKit().Initialize(host.Render, host.WorldRender, host.World, error)) { error = "Nyxara combat kit: " + error; return false; }
         if (!mMap.LoadModels(host.Render, error)) { error = "The Eagle's Ascent: " + error; return false; }
         if (!mWayside.Load(host.Render, error)) { error = "The Eagle's Ascent's clay jars: " + error; return false; }
@@ -133,6 +137,8 @@ namespace CaucasianEagle
         mWays = Env(DemoEnvironmentVariable) == "4";    // the jars' test, unattended (Ways)
         mNature = Env(DemoEnvironmentVariable) == "5";  // the grass and the trees, unattended (Nature)
         mGround = Env(DemoEnvironmentVariable) == "6";  // the ground probe, unattended (GroundProbe)
+        mShowTest = Env(DemoEnvironmentVariable) == "9";
+        mMapTest = Env(DemoEnvironmentVariable) == "10";     // the detailed map by the pointer, unattended (MapTest)      // her window showing her, turned round, unattended (ShowTest)
         mPointerTest = Env(DemoEnvironmentVariable) == "7";   // her window and her menu by the pointer, unattended (PointerTest)
         mLedger = Env(DemoEnvironmentVariable) == "8";        // the crystals between the nests, counted, unattended (Ledger)
         mLog = Env(AscentLogEnvironmentVariable);
@@ -203,7 +209,7 @@ namespace CaucasianEagle
         // unattended tests keep her own cuts, as they were measured with
         if (!mSmoke && !mClimb && !mTour && !mWays && !mNature) GetNyxaraKit().SetAttackCombo(0);
         if (mNature) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
-        if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger)
+        if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger || mShowTest || mMapTest)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -237,7 +243,7 @@ namespace CaucasianEagle
 
     float EaglesAscentGame::ScaleFrameTime(float realDeltaTime, bool inputAllowed)
     {
-        return mPaused || mView.Open || mGrowthOpen ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
+        return mPaused || mView.Open || mChart.Open || mGrowthOpen ? 0 : GetNyxaraKit().ScaleFrameTime(realDeltaTime, inputAllowed);
     }
 
     // Unattended (CAUCASIAN_EAGLE_DEMO=1): she is put on every station and must stand on its ground at its height; at
@@ -565,16 +571,147 @@ namespace CaucasianEagle
     EaglesAscentGame::Mouse EaglesAscentGame::ReadMouse(bool inputAllowed) const
     {
         Mouse m;
-        if (mPointerTest) { m.X = mPtX; m.Y = mPtY; m.Down = mPtDown; }
+        if (mPointerTest || mMapTest) { m.X = mPtX; m.Y = mPtY; m.Down = mPtDown; m.Wheel = mPtWheel; }
         else if (inputAllowed && !GameSession().Unattended)
         {
             POINT point{};
             if (GetCursorPos(&point) && ScreenToClient(GetForegroundWindow(), &point)) { m.X = static_cast<float>(point.x); m.Y = static_cast<float>(point.y); }
             m.Down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+            m.Wheel = static_cast<float>(GameSession().PointerWheel) / 120.f;
         }
         m.Click = m.Down && !mMouse.Down;
         m.Moved = std::abs(m.X - mMouse.X) + std::abs(m.Y - mMouse.Y) > .5f;
         return m;
+    }
+
+    void EaglesAscentGame::MapTest(DoorwaysGameHost& host, float realDt)
+    {
+        auto& world = host.World; auto& session = GameSession(); const auto& p = world.MainPlayer;
+        const auto table = std::filesystem::path(mLog.empty() ? std::string("map-evidence.tsv") : mLog).parent_path() / "maptest.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        const auto check = [&](bool ok, const std::string& what)
+        {
+            std::ostringstream l; l << std::fixed << std::setprecision(2) << mMapClock << '\t' << what << '\t' << mChart.CentreX() << '\t' << mChart.CentreZ() << '\t'
+                                    << mChart.Scale() << '\t' << (ok ? "ok" : "FAIL");
+            row(l.str()); if (!ok) ++mMapBad;
+        };
+        mPtWheel = 0;
+        if (mMapStep < 0)
+        {
+            if (mClock < 6 || !world.RuntimeScene || !world.RuntimeScene->Loaded || mHudW <= 0) return;
+            std::ofstream(table) << "seconds\tstep\tcentre_x\tcentre_z\tpx_a_metre\tresult\n";
+            if (!mMap.Nests.empty()) mMap.Visit(host, mMap.Nests[std::min<size_t>(1, mMap.Nests.size() - 1)].Station);   // (her, a little up the way)
+            mMapStep = 0; mMapClock = 0; mPtX = mHudW * .4f; mPtY = mHudH * .5f; mPtDown = false;
+            return;
+        }
+        mMapClock += realDt;
+        constexpr float Each = 2.5f;
+        const int at = static_cast<int>(mMapClock / Each);
+        const float in = std::fmod(mMapClock, Each);
+        const bool first = at != mMapStep;
+        mMapStep = at;
+        const float cx = mHudW * .4f, cy = mHudH * .5f;
+        const auto when = [&](float s) { return in > s && in - realDt <= s; };
+        switch (at)
+        {
+        case 0:
+            if (first) { mPtX = cx; mPtY = cy; }
+            if (when(.3f)) mChart.Show(p.Position);   // (as M does)
+            if (when(.5f) && !mChart.Loaded()) check(false, "picture_loaded");
+            if (when(2.f)) check(mChart.Open && session.FreeCursor && std::hypot(mChart.CentreX() - p.Position.x, mChart.CentreZ() - p.Position.z) < 5, "opened_at_her");
+            break;
+        case 1:
+            if (first) mMapWas[2] = mChart.Scale();
+            if (in < .6f) mPtWheel = -2;
+            if (when(2.f)) check(mChart.Scale() < mMapWas[2] * .5f, "wheel_out_to_the_whole");
+            break;
+        case 2:
+            if (first && !mMap.Nests.empty()) { const auto q = mChart.ScreenOf(mMap.Nests.back().P.x, mMap.Nests.back().P.z); mPtX = q.x; mPtY = q.y; }
+            if (when(2.f)) check(mPtX > 0 && mPtX < mHudW && mPtY > 0 && mPtY < mHudH, "pointer_over_the_last_nest");
+            break;
+        case 3:
+            if (first) { mMapWas[2] = mChart.Scale(); mPtX = mHudW * .3f; mPtY = mHudH * .35f; }
+            if (in < .5f) mPtWheel = .25f;
+            if (when(2.f)) check(mChart.Scale() > mMapWas[2] * 2.f, "wheel_in_about_the_pointer");
+            break;
+        case 4:
+            if (first) { mPtX = cx; mPtY = cy; mPtDown = false; mMapWas[0] = mChart.CentreX(); mMapWas[1] = mChart.CentreZ(); mMapWas[2] = mChart.Scale(); }
+            else if (in < .2f) mPtDown = true;
+            else if (in < .9f) { mPtDown = true; mPtX = cx - 400.f * (in - .2f) / .7f; mPtY = cy + 150.f * (in - .2f) / .7f; }
+            else mPtDown = false;
+            if (when(2.f))   // dragged left and down: the map's middle went east and north
+                check(mChart.CentreX() > mMapWas[0] + 250.f / mMapWas[2] && mChart.CentreZ() > mMapWas[1] + 80.f / mMapWas[2], "drag_moves_the_map");
+            break;
+        case 5:
+            if (when(.2f)) mChart.Update(-1, -1, false, false, 0, 0, 0, 0, true, p.Position, 0, mHudW, mHudH, mHudS);   // (Space)
+            if (when(2.f)) check(std::hypot(mChart.CentreX() - p.Position.x, mChart.CentreZ() - p.Position.z) < 5, "space_back_to_her");
+            break;
+        case 6:
+            if (when(.2f)) { mChart.Hide(); session.FreeCursor = false; mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit); }   // (Tab)
+            if (when(1.2f)) check(mView.Open && !mChart.Open, "tab_the_mountain_in_3d");
+            if (when(1.5f)) { mView.Hide(session, world.MainCamera); mChart.Show(p.Position); }   // (Tab again)
+            if (when(2.2f)) check(mChart.Open && !mView.Open, "tab_back_to_the_map");
+            break;
+        case 7:
+            if (when(.2f)) session.EscapePressed = true;
+            if (when(1.f)) check(!mChart.Open && !session.FreeCursor, "esc_closes_pointer_caught");
+            break;
+        default:
+            row(mMapBad == 0 ? "MAP_PASS" : "MAP_FAIL");
+            mMapTest = false; PostQuitMessage(mMapBad == 0 ? 0 : 2);
+            break;
+        }
+    }
+
+    void EaglesAscentGame::ShowTest(DoorwaysGameHost& host, float realDt)
+    {
+        auto& world = host.World; auto& camera = world.MainCamera; const auto& p = world.MainPlayer;
+        const auto table = std::filesystem::path(mLog.empty() ? std::string("showcase-evidence.tsv") : mLog).parent_path() / "showcase.tsv";
+        const auto row = [&](const std::string& line) { std::ofstream(table, std::ios::app) << line << '\n'; };
+        mShowClock += realDt;
+        if (mShowStep < 0)
+        {   // the map's ground up, then into the first nest with every level, her window opened
+            if (mClock < 6 || mMap.Nests.empty() || !world.RuntimeScene || !world.RuntimeScene->Loaded) return;
+            std::ofstream(table) << "seconds\tview\tturn\ttilt\tdist\tcam_x\tcam_y\tcam_z\ther_x\ther_y\ther_z\tresult\n";
+            mMap.Visit(host, mMap.Nests[0].Station);
+            for (int i = 0; i < AscentGrowth::ItemCount; ++i) { mGrowth.Level[i] = AscentMaxLevel; mGrowth.Look[i] = 0; }
+            mFormShown = AscentGrowth::Form(mGrowth);   // (no burst of her becoming: it would hang in the still air of the window)
+            mShowStep = 0; mShowClock = 0;
+            return;
+        }
+        struct View { const char* Name; float Turn, Tilt, Dist; int Looks[3]; };
+        static const View views[] = {
+            {"front", .35f, -.08f, 3.9f, {0, 0, 0}}, {"front_look_1_3_2", .35f, -.08f, 3.9f, {3, 3, 3}}, {"left", 1.57f, -.08f, 3.9f, {3, 3, 3}},
+            {"back", 3.14f, -.08f, 3.9f, {3, 3, 3}}, {"right", 4.71f, -.08f, 3.9f, {3, 3, 3}}, {"look_moonlit_close", .2f, -.05f, 1.7f, {9, 9, 9}},
+            {"look_fire_far", .6f, -.45f, 6.f, {6, 6, 6}}, {"from_below", .35f, .25f, 2.6f, {9, 6, 3}}};
+        constexpr float Each = 3.f;
+        const int at = static_cast<int>(mShowClock / Each);
+        if (at == 0 && !mGrowthOpen && mShowClock > .5f) { mGrowthOpen = true; mGrowthRow = 0; }
+        if (at >= static_cast<int>(std::size(views)))
+        {
+            row(mShowBad == 0 ? "SHOWCASE_PASS" : "SHOWCASE_FAIL");
+            mShowTest = false; PostQuitMessage(mShowBad == 0 ? 0 : 2);
+            return;
+        }
+        const View& v = views[at];
+        if (at != mShowStep || mShowClock < .6f)
+        {
+            mShow.Turn = v.Turn; mShow.Tilt = v.Tilt; mShow.Dist = v.Dist;
+            for (int i = 0; i < 3; ++i) mGrowth.Look[i] = v.Looks[i];
+        }
+        if (at != mShowStep) { mShowStep = at; }
+        if (std::fmod(mShowClock, Each) > 2.2f && std::fmod(mShowClock - realDt, Each) <= 2.2f)
+        {   // the view settled: the camera before her at its distance, over the ground, looking at her
+            const float dx = camera.Position.x - p.Position.x, dz = camera.Position.z - p.Position.z, dist = std::hypot(dx, camera.Position.y - p.Position.y - 1.2f, dz);
+            const float facing = std::atan2(camera.Position.x - p.Position.x, camera.Position.z - p.Position.z);   // where the camera stands from her
+            const float off = std::remainder(facing - p.Yaw - v.Turn, XM_2PI);
+            const bool ok = mGrowthOpen && mShow.On && GameSession().FreeCursor && dist > .35f && dist < v.Dist * 1.5f && std::abs(off) < .25f &&
+                            camera.Position.y > mMap.Land(camera.Position.x, camera.Position.z);
+            if (!ok) ++mShowBad;
+            std::ostringstream line; line << std::fixed << std::setprecision(2) << mShowClock << '\t' << v.Name << '\t' << v.Turn << '\t' << v.Tilt << '\t' << v.Dist << '\t'
+                << camera.Position.x << '\t' << camera.Position.y << '\t' << camera.Position.z << '\t' << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z << '\t' << (ok ? "ok" : "FAIL");
+            row(line.str());
+        }
     }
 
     // The pointer test (CAUCASIAN_EAGLE_DEMO=7, 2026-11-21; her window of nine levels, 0.5.2): her window (I) and her
@@ -1297,7 +1434,36 @@ namespace CaucasianEagle
         // Esc: the pause panel (DrawHud); its keys
         // M: the whole mountain from outside, to turn and look over (MountainView.h). The game stands still; M or Esc closes it.
         if (MountainView::Tried() && !mView.Open && mClock > 1 && mClock < 1.5f) mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit);
-        if (!mPaused && !mSmoke && !mClimb && !mTour && Press('M', inputAllowed)) mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit);
+        if (mMapTest) MapTest(host, realDt);
+        // M: the detailed map (AscentMap), Tab from it the mountain in 3D and back; M or Esc closes either
+        const bool keyM = !mPaused && !mSmoke && !mClimb && !mTour && !mGrowthOpen && Press('M', inputAllowed);
+        const bool keyTab = (mChart.Open || mView.Open) && Press(VK_TAB, inputAllowed);
+        if (keyM)
+        {
+            if (mChart.Open) { mChart.Hide(); session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); }
+            else if (mView.Open) mView.Hide(session, world.MainCamera);
+            else if (mChart.Loaded()) { mChart.Show(p.Position); Sound::PlayUi("ui/open", .6f); }
+            else mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit);
+        }
+        else if (keyTab && mChart.Open) { mChart.Hide(); session.FreeCursor = false; mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit); }
+        else if (keyTab && mView.Open && mChart.Loaded()) { mView.Hide(session, world.MainCamera); mChart.Show(p.Position); }
+        if (mChart.Open)
+        {
+            if (session.EscapePressed) { session.EscapePressed = false; mChart.Hide(); session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); }
+            else
+            {
+                session.FreeCursor = true;
+                const bool live = inputAllowed && !session.Unattended;
+                const auto held = [&](int a, int b2) { return live && (IsDoorwaysKeyDown(a) || IsDoorwaysKeyDown(b2)); };
+                const float keyX = (held('D', VK_RIGHT) ? 1.f : 0.f) - (held('A', VK_LEFT) ? 1.f : 0.f);
+                const float keyZ = (held('W', VK_UP) ? 1.f : 0.f) - (held('S', VK_DOWN) ? 1.f : 0.f);
+                const float zoom = (held(VK_OEM_PLUS, VK_ADD) || held('E', 'E') ? 1.f : 0.f) - (held(VK_OEM_MINUS, VK_SUBTRACT) || held('Q', 'Q') ? 1.f : 0.f);
+                mChart.Update(mMouse.X, mMouse.Y, mMouse.Down, mMouse.Click, mMouse.Wheel, keyX, keyZ, zoom, Press(VK_SPACE, inputAllowed), p.Position, realDt, mHudW, mHudH, mHudS);
+                kit.SetInputBlocked(true);
+                kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
+                return;
+            }
+        }
         if (mView.Open)
         {
             if (session.EscapePressed) { session.EscapePressed = false; mView.Hide(session, world.MainCamera); }
@@ -1356,6 +1522,13 @@ namespace CaucasianEagle
             mGrowthOpen = !mGrowthOpen; Sound::PlayUi(mGrowthOpen ? "ui/open" : "ui/close", .6f);
             if (!mGrowthOpen) { session.FreeCursor = false; mHoldBlade = true; }
         }
+        if (mShowTest && !mGrowthOpen) ShowTest(host, realDt);
+        // her window shows her (HerShowcase): the camera before her while it is open, given back when it closes
+        if (mGrowthOpen != mShow.On)
+        {
+            if (mGrowthOpen) mShow.Begin(world.MainCamera); else mShow.End(world.MainCamera);
+            kit.SetShowcase(mGrowthOpen);
+        }
         if (mGrowthOpen)
         {
             session.FreeCursor = true;
@@ -1375,8 +1548,11 @@ namespace CaucasianEagle
                     else if (mMouse.Click && key >= 0) take = true;
                 }
                 else if (mMouse.Click && Pointer::Hit(Pointer::CloseKey, mMouse.X, mMouse.Y) >= 0) close = true;
+                else if (mMouse.Click) mShow.Grab(mMouse.X, mMouse.Y);   // (pressed on nothing of the window's: she is turned)
             }
-            if (close) { mGrowthOpen = false; session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); }
+            if (mShow.Dragging) { if (mMouse.Down && mMouse.X >= 0) mShow.Drag(mMouse.X, mMouse.Y, realDt, mHudH); else mShow.Release(); }
+            if (mMouse.Wheel != 0) mShow.Wheel(mMouse.Wheel);
+            if (close) { mGrowthOpen = false; session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); mShow.End(world.MainCamera); kit.SetShowcase(false); }
             else
             {
                 const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
@@ -1393,6 +1569,28 @@ namespace CaucasianEagle
             }
             kit.SetInputBlocked(true);
             kit.Update(world, host.WorldRender, host.Combat, 0, realDt, false);
+            if (mGrowthOpen)
+            {
+                const float tall = 1 + FormScale * static_cast<float>(AscentGrowth::Form(mGrowth));
+                const auto* scene = world.RuntimeScene;
+                mShow.Place(world.MainCamera, p.Position, p.Yaw, tall, realDt, [this](float x, float z) { return mMap.Land(x, z); },
+                            [this, scene](const XMFLOAT3& from, const XMFLOAT3& to)
+                            {   // the scene's collision, as the engine's own follow camera keeps out of it; and the drawn rock,
+                                // which is not all in it (a cliff beside a nest): along the line, the first point under the
+                                // rock's top there (the map's 1 m grid of it, FlightLand), less a margin
+                                float room = -1;
+                                DoorwaysRuntimeCameraObstructionResult hit;
+                                if (scene && scene->Loaded && QueryDoorwaysRuntimeSceneCameraObstruction(*scene, from, to, .25f, .15f, hit) && hit.Hit) room = hit.ResolvedDistance;
+                                const float dx = to.x - from.x, dy = to.y - from.y, dz = to.z - from.z, length = std::sqrt(dx * dx + dy * dy + dz * dz);
+                                for (float t = .3f; t <= length + .3f && length > 1e-3f; t += .1f)
+                                {
+                                    const float u = t / length, x = from.x + dx * u, y = from.y + dy * u, z = from.z + dz * u;
+                                    if (y < mMap.FlightLand(x, z) + .2f) { const float r = (std::max)(0.f, t - .45f); room = room < 0 ? r : (std::min)(room, r); break; }
+                                }
+                                return room;
+                            });
+            }
+            if (mShowTest) ShowTest(host, realDt);   // (its views are judged where the camera has just been put)
             return;
         }
         // Esc: her menu (DrawMenu). Its settings window stands over it and has the keys while it is open.
@@ -1430,7 +1628,7 @@ namespace CaucasianEagle
                     {
                     case 0: mPaused = false; break;
                     case 1: mPaused = false; if (alive) { mGrowthOpen = true; Sound::PlayUi("ui/open", .6f); } break;
-                    case 2: mPaused = false; mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit); break;
+                    case 2: mPaused = false; if (mChart.Loaded()) mChart.Show(world.MainPlayer.Position); else mView.Toggle(session, world.MainCamera, mMap.Trail, mMap.Summit); break;
                     case 3: Settings::Open(); break;   // her menu stays open under it
                     case 4: mPaused = false; mMap.Visit(host, mMap.Checkpoint); Notify(BackTitle(), Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name), 3); break;
                     case 5: if (!mMap.Nests.empty()) { mPaused = false; NewClimb(host); } break;
@@ -1651,8 +1849,73 @@ namespace CaucasianEagle
         mTourShot.clear();
         if (mSmoke) return true;
         Ui ui(context, text);
-        mHudW = ui.W; mHudH = ui.H;
+        mHudW = ui.W; mHudH = ui.H; mHudS = ui.S;
         const float s = std::clamp(ui.S, .8f, 1.5f);
+        if (mChart.Open)
+        {   // M: the detailed map (AscentMap): the way, the rings, the caves, the nests, the bosses, the creatures left, her
+            const auto& p = context.World.MainPlayer;
+            AscentMap::Data d;
+            d.Trail = &mMap.Trail; d.Rings = &mMap.Rings();
+            for (const auto& cave : mMap.Caves())
+            {
+                std::vector<XMFLOAT3> line;
+                for (const auto& q : cave.Line) line.push_back({q.X, q.Y, q.Z});
+                d.Caves.push_back(std::move(line));
+            }
+            const auto height = [](float y) { return std::to_wstring(static_cast<int>(std::lround((std::max)(0.f, y)))) + L" m high"; };
+            for (size_t i = 0; i < mMap.Nests.size(); ++i)
+            {
+                const auto& n = mMap.Nests[i];
+                const bool saved = n.Station == mSavedNest;
+                d.Marks.push_back({n.P, saved ? AscentMap::NestSaved : AscentMap::Nest, L"Eagle Nest " + std::to_wstring(i + 1),
+                                   height(n.P.y) + (saved ? L"  -  her save is here" : L"  -  levels, looks; H saves"), 0});
+            }
+            if (!mMap.Stations.empty())
+            {
+                const auto top = std::max_element(mMap.Stations.begin(), mMap.Stations.end(), [](const auto& a, const auto& b) { return a.P.y < b.P.y; });
+                d.Marks.push_back({top->P, AscentMap::Summit, L"Amiran's summit", height(top->P.y) + L"  -  the end of the way", 0});
+                d.Marks.push_back({mMap.Stations.front().P, AscentMap::Start, L"The shore", L"Where the climb begins", 0});
+            }
+            if (mCreaturesOn)
+            {
+                const auto& beaten = mCreatures.MountainBeaten();
+                std::vector<int> left(mMap.Placements.size(), 0);
+                std::vector<std::vector<std::pair<int, int>>> kinds(mMap.Placements.size());   // (kind, how many) left in each group
+                for (const auto& c : mCreatureList)
+                {
+                    if (c.Group < 0 || c.Group >= static_cast<int>(left.size()) || std::find(beaten.begin(), beaten.end(), c.Id) != beaten.end()) continue;
+                    ++left[static_cast<size_t>(c.Group)];
+                    auto& k = kinds[static_cast<size_t>(c.Group)];
+                    auto found = std::find_if(k.begin(), k.end(), [&](const auto& e) { return e.first == c.Kind; });
+                    if (found == k.end()) k.push_back({c.Kind, 1}); else ++found->second;
+                }
+                for (size_t i = 0; i < mMap.Placements.size(); ++i)
+                {
+                    const auto& pl = mMap.Placements[i];
+                    std::wstring who;
+                    for (const auto& [kind, count] : kinds[i]) who += (who.empty() ? L"" : L", ") + (count > 1 ? std::to_wstring(count) + L" " : L"") + Journey::KindTitle(kind);
+                    if (pl.Boss)
+                        d.Marks.push_back({pl.P, left[i] ? AscentMap::Boss : AscentMap::BossBeaten, std::wstring(Journey::KindTitle(Journey::KindByName(pl.Kinds[0]))),
+                                           left[i] ? height(pl.P.y) + L"  -  a boss" : L"Beaten", left[i]});
+                    else if (left[i])
+                        d.Marks.push_back({pl.P, pl.Cave >= 0 ? AscentMap::CaveGroup : AscentMap::Group, who, height(pl.P.y) + (pl.Cave >= 0 ? L"  -  in a cave" : L""), left[i]});
+                }
+            }
+            d.Her = p.Position; d.HerYaw = p.Yaw; d.LookYaw = context.World.MainCamera.Yaw;
+            d.Flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight; d.Summit = mMap.Summit;
+            d.Land = [this](float x, float z) { return mMap.Land(x, z); };
+            d.ZoneAt = [this](float y)
+            {
+                const auto* zone = mMap.ZoneAt(y);
+                std::wstring place = zone ? Words(zone->Name) : L"";
+                if (const size_t cut = place.find(L' '); cut != std::wstring::npos && place.size() > 5 && place[0] == L'M' && place[1] == L'A') place = place.substr(cut + 1);
+                if (const size_t cut = place.find(L' '); cut != std::wstring::npos && place.size() > 1 && std::iswupper(place[0]) && std::iswupper(place[1])) place = place.substr(cut + 1);
+                return place;
+            };
+            mChart.Draw(ui, d);
+            DrawMenu(ui);
+            return true;
+        }
         if (mView.Open)
         {   // the M view: the nests, the bosses (beaten: dim) and the groups not yet beaten (dots)
             std::vector<MountainView::Mark> marks;
@@ -1674,6 +1937,16 @@ namespace CaucasianEagle
                 }
             }
             mView.DrawHud(ui, context.World.MainCamera, context.World.MainPlayer.Position, mMap.Summit, marks);
+            return true;
+        }
+        if (mGrowthOpen && mGrowthFade > .5f)
+        {   // her window open, she shown in it (HerShowcase): nothing of the climb's HUD over her, only the window
+            AscentGrowth::View v;
+            v.Now = mGrowth; v.Prices = mPrices; v.Selected = mGrowthRow; v.Fade = mGrowthFade; v.Flash = mGrowthFlash; v.FlashRow = mGrowthFlashRow;
+            v.PotionHeal = PotionHeal; v.AtNest = NestAt(context.World.MainPlayer.Position) > 0;
+            AscentGrowth::Draw(ui, v);
+            DrawMenu(ui);
+            Settings::Draw(ui, mFocused, false);
             return true;
         }
         if (NyxaraHud().Valid && context.World.CombatFeedback.MeleeActive) DrawNyxaraHud(ui, context);
@@ -1808,7 +2081,7 @@ namespace CaucasianEagle
         constexpr float Width = 420, Row = 46, Gap = 5, Pad = 16, Head = 96, Foot = 44, Tiny = 1.55f, Small = 2.0f, Name = 2.6f;
         struct Entry { const wchar_t* Label; const wchar_t* Note; };
         const Entry entries[MenuRows] = {
-            {L"Continue the climb", L""}, {L"Nyxara", L"wings, swords, armour"}, {L"The mountain", L"seen from outside"},
+            {L"Continue the climb", L""}, {L"Nyxara", L"wings, swords, armour"}, {L"The map", L"the whole mountain"},
             {L"Settings", L"picture, sound, mouse"}, {L"Back to the last nest", L"her last nest"},
             {L"A new climb", L"forgets the save"}, {L"To the start screen", L"H saves at nests"},
             {L"Leave the game", L"H saves at nests"}};

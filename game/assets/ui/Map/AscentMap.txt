@@ -1,0 +1,3 @@
+# The Eagle's Ascent's detailed map (art/map/build_ascent_map.py): the picture's extent in metres, north (+z) up
+EXTENT -2892.00 2896.00 -314.00 5402.00
+PIXEL 2.00

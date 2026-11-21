@@ -9,6 +9,8 @@
 #include "AscentGrass.h"
 #include "AscentTrees.h"
 #include "MountainView.h"
+#include "HerShowcase.h"
+#include "AscentMap.h"
 
 #include <array>
 #include <filesystem>
@@ -146,7 +148,7 @@ namespace CaucasianEagle
         // The pointer, for her menu and her window (I; 2026-11-21, the owner: "lets user use mouse cursor when he/she
         // opens I- inventory"): where it is in the game's window, its button held, whether that button went down this
         // frame. Read once a frame (ReadMouse), so that a button already held when a window opens is not a click.
-        struct Mouse { float X = -1, Y = -1; bool Down = false, Click = false, Moved = false; };
+        struct Mouse { float X = -1, Y = -1; bool Down = false, Click = false, Moved = false; float Wheel = 0; };   // (Wheel: notches this frame, forward +)
         Mouse ReadMouse(bool inputAllowed) const;
         Mouse mMouse;
         bool mHoldBlade = false;   // a window closed (a click may have closed it): no sword blow until the button is let go
@@ -157,6 +159,16 @@ namespace CaucasianEagle
         // taken (her window opens, the pointer still free), Esc. pointer.tsv beside the evidence; POINTER_PASS or
         // POINTER_FAIL. At "picture" it holds 3 s with a card chosen (its runner takes a picture of the window).
         void PointerTest(Doorways::DoorwaysGameHost& host, float dt);
+        // The showcase test (CAUCASIAN_EAGLE_DEMO=9, unattended): in the first Eagle Nest, every level and three looks, her
+        // window open; the view of her turned round, tilted, closer and further, a few seconds each (its runner pictures the
+        // window). showcase.tsv beside the evidence: each view and where the camera stood; SHOWCASE_PASS or SHOWCASE_FAIL.
+        // The map test (CAUCASIAN_EAGLE_DEMO=10, unattended): M opens the detailed map at her; the wheel takes it out to the
+        // whole mountain; the pointer over a nest; a drag moves the map; the wheel in; Space back to her; Tab to the 3D view
+        // and back; Esc closes it. maptest.tsv beside the evidence; MAP_PASS or MAP_FAIL. Pictures are taken by its runner.
+        bool mMapTest = false; int mMapStep = -1, mMapBad = 0; float mMapClock = 0, mPtWheel = 0, mMapWas[3] = {};
+        void MapTest(Doorways::DoorwaysGameHost& host, float realDt);
+        bool mShowTest = false; int mShowStep = -1, mShowBad = 0; float mShowClock = 0;
+        void ShowTest(Doorways::DoorwaysGameHost& host, float realDt);
         bool mPointerTest = false; int mPtStep = 0, mPtWait = 0, mPtBad = 0, mPtCrystals = 0, mPtLevel = 0, mPtCost = 0, mPtStation = -1;
         // The crystals' ledger (CAUCASIAN_EAGLE_DEMO=8, unattended, 0.5.2): once the map's ground is up and the jars laid
         // and the groups around the way placed, what lies between each two nests is counted: on the way (its groups, its
@@ -165,7 +177,9 @@ namespace CaucasianEagle
         // crystal the map gives laid, every group around the way placed. ledger.tsv; LEDGER_PASS or LEDGER_FAIL.
         void Ledger(Doorways::DoorwaysGameHost& host);
         bool mLedger = false;
-        float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0; bool mPtDown = false;
+        float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0, mHudS = 1; bool mPtDown = false;
+        AscentMap mChart;                          // M: the detailed map, to move over and zoom with the mouse (AscentMap.h)
+        HerShowcase mShow;                         // her window open: the camera before her, turned by the mouse (HerShowcase.h)
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;
         std::wstring mNoticeTitle, mNoticeLine; float mNotice = 0;

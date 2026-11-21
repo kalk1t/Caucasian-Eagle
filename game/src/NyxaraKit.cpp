@@ -812,6 +812,10 @@ namespace Doorways
         std::string Gait = "Move", LastClip, Current = "Idle";
         float GaitRun = 0;                 // her stride ("Move"): the share of Run in it, 0 a walk .. 1 a run
         float StrideScale = 1;             // < 1: her steps shortened (slower than a walk steps she keeps stepping, shorter)
+        // (out of a move that carried her, a skill such as the slide: how she went in its last frame, and whether that was
+        // this frame's last one; owner 2026-11-21: "when nyxara dashes and stands than between the animation and the
+        // continueing walk is a delay and scene cut happens")
+        XMFLOAT2 CarriedGo{0, 0}; bool WasCarried = false, Freed = false;
         float Throttle = 0, FullSpeed = 3.2f, GlideLose = 0; XMFLOAT2 Glide{0, 0}, Went{0, 0};   // gathering speed; carried on after the key (m/s, x and z); how she went a frame ago
         std::vector<XMFLOAT4> ArmTo;       // her arms' turns in the clip she changes to, a frame ago (kept the same way round)
         float LeanYaw = 0, LeanSpeed = 0, TurnRate = 0, Gain = 0, LeanRoll = 0, LeanPitch = 0; bool LeanKnown = false;
@@ -1056,7 +1060,8 @@ namespace Doorways
             const auto& p = world.MainPlayer;
             std::ofstream f(LogPath, std::ios::app);
             f << Clock << '\t' << event << '\t' << Current << '\t' << Speed << '\t' << p.Position.x << '\t' << p.Position.y << '\t' << p.Position.z
-              << '\t' << LiftNow << '\t' << FlyLean << '\t' << FeetDrop << '\t' << FeetRaise[0] << '\t' << FeetRaise[1] << '\t' << SoleGap[0] << '\t' << SoleGap[1] << '\n';
+              << '\t' << LiftNow << '\t' << FlyLean << '\t' << FeetDrop << '\t' << FeetRaise[0] << '\t' << FeetRaise[1] << '\t' << SoleGap[0] << '\t' << SoleGap[1]
+              << '\t' << world.MainCamera.Position.x << '\t' << world.MainCamera.Position.y << '\t' << world.MainCamera.Position.z << '\t' << Throttle << '\t' << p.MoveSpeed << '\n';
         }
 
         // Every frame, as she is drawn: what she plays, where she is, and her joints in the world (for the measurements
@@ -4089,7 +4094,7 @@ namespace Doorways
         if (GetEnvironmentVariableA("CAUCASIAN_EAGLE_NYXARA_LOG", log, sizeof(log)) > 0 && log[0])
         {
             b.LogPath = log;
-            std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\tfeet_drop\tleft_raise\tright_raise\tleft_gap\tright_gap\n";
+            std::ofstream(b.LogPath) << "seconds\tevent\tclip\tspeed\tx\ty\tz\tlift\tlean\tfeet_drop\tleft_raise\tright_raise\tleft_gap\tright_gap\tcam_x\tcam_y\tcam_z\tthrottle\tmove_speed\n";
         }
         if (!b.WindUpsEvened.empty()) b.Log(world, ("cut wind-ups made one move: " + b.WindUpsEvened).c_str());
         if (!b.WindUpsLeft.empty()) b.Log(world, ("cut wind-ups left as they were: " + b.WindUpsLeft).c_str());
@@ -5336,6 +5341,9 @@ namespace Doorways
         auto& p = world.MainPlayer;
         auto& s = GameSession();
         b.Clock += dt;
+        // (shown in her window, the game standing still: her pose alone goes on in real time, standing and breathing)
+        const float poseDt = mShowcase && dt <= 0 ? realDt : dt;
+        if (mShowcase && dt <= 0) b.Clock += realDt;
         if (b.InMove())
         {   // the engine's 60 Hz grid kept in step with the kit's (ScaleFrameTime): how many slices it really moved her by at
             // this frame's start, seen from how far she went at the speed asked (her own move: nothing else moves her), when
@@ -6232,16 +6240,27 @@ namespace Doorways
             // run in 0.25 s and 0.7 m), as a move's impulse carries her: the ground and walls still count.
             constexpr float GatherSeconds = .3f, StartShare = .3f;
             const bool wants = p.IsMoving && !rooted && !flying;
+            // Out of a move that carried her (the slide, a skill, a leap's cut) she goes on at the speed it left her with
+            // (2026-11-21). She was held at no speed of her own all through it, and the frame it ended she stood still: one
+            // frame of standing at ease, her stride begun again at StartShare and full only 0.3 s later, a stop she never
+            // made. Key held, her own speed is taken up from that; key let go, she is carried on by it and loses it.
+            b.Freed = b.WasCarried && !carried && !flying && !b.Dead;
+            b.WasCarried = carried;
+            if (carried && !flying) b.CarriedGo = {s.ImpulseX, s.ImpulseZ};
+            const float carriedHad = b.Freed ? std::hypot(b.CarriedGo.x, b.CarriedGo.y) : 0.f;
             if (flying || rooted) { b.Throttle = flying ? 1.f : 0.f; b.Glide = {0, 0}; }
             else if (wants)
             {
-                const float gliding = std::hypot(b.Glide.x, b.Glide.y) / (std::max)(.5f, b.FullSpeed);
+                const float gliding = (std::max)(std::hypot(b.Glide.x, b.Glide.y), carriedHad) / (std::max)(.5f, b.FullSpeed);
                 b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, gliding}) + dt / GatherSeconds, 0.f, 1.f);
+                // (and this frame, before her own speed reaches the engine, what the move gave her carries her)
+                if (b.Freed) { s.ImpulseX += b.CarriedGo.x; s.ImpulseZ += b.CarriedGo.y; }
                 b.Glide = {0, 0}; b.Went = {p.ActualVelocity.x, p.ActualVelocity.z};
                 if (b.Throttle >= 1 && b.Speed > .5f) b.FullSpeed = b.Speed;
             }
             else
             {
+                if (b.Freed && carriedHad > .3f) { b.Throttle = 1; b.Went = b.CarriedGo; }   // (let go out of a move: carried on as from her own going)
                 if (b.Throttle > 0)
                 {
                     b.Glide = b.Went; b.Went = {0, 0};   // (the engine has stopped her already this frame)
@@ -6280,7 +6299,7 @@ namespace Doorways
         // ---- the clip and her pose
         // (her own going, or carried on after the key: still her stride. Not what a move's last push leaves her for a
         // frame: after every skill she strode for one frame, and her arms and swords set out for her back and returned)
-        const bool moving = (p.IsMoving && b.Speed > .08f) || std::hypot(b.Glide.x, b.Glide.y) > .08f;
+        const bool moving = !(mShowcase && dt <= 0) && ((p.IsMoving && (b.Speed > .08f || b.Freed)) || std::hypot(b.Glide.x, b.Glide.y) > .08f);   // (shown in her window she stands)
         {   // On guard or at ease (2026-11-19). Idle is a fighter's guard, both swords up: she stood so everywhere, and
             // drew both swords every time she stopped walking. Now she stands on guard only while something threatens
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
@@ -6295,7 +6314,7 @@ namespace Doorways
             // "hands are not following the skills and combos properly"). Until this they went to her back with her first
             // step, and were drawn again for every cut and every skill made on the move: in a fight on the move her
             // hands were at her shoulders half the time, and every cut began there instead of at its own wind-up.
-            b.Guard = threat ? GuardSeconds : (std::max)(0.f, b.Guard - dt);
+            b.Guard = threat ? GuardSeconds : (std::max)(0.f, b.Guard - poseDt);
             b.Armed = b.Guard > 0;
         }
         std::string clip = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand";
@@ -6307,10 +6326,10 @@ namespace Doorways
         }
         const bool striding = moving && !b.Dead && !flying;
         {   // how steeply she climbs (rise over ground covered, from her own height), for the stair clip
-            const float rise = dt > 1e-4f && b.LastY > -1e8f ? (p.Position.y - b.LastY) / dt : 0.f;
+            const float rise = poseDt > 1e-4f && b.LastY > -1e8f ? (p.Position.y - b.LastY) / poseDt : 0.f;
             const float grade = b.Speed > .2f && !flying ? rise / b.Speed : 0.f;
-            b.Climb += (grade - b.Climb) * (std::min)(1.f, dt * 6);
-            b.ClimbRate += ((std::max)(0.f, rise) - b.ClimbRate) * (std::min)(1.f, dt * 6);
+            b.Climb += (grade - b.Climb) * (std::min)(1.f, poseDt * 6);
+            b.ClimbRate += ((std::max)(0.f, rise) - b.ClimbRate) * (std::min)(1.f, poseDt * 6);
             b.LastY = p.Position.y;
         }
         if (striding)
@@ -6326,27 +6345,27 @@ namespace Doorways
                 const float u = (p.Position.y - .15f) / NyxaraClips::StairsRise - NyxaraClips::StairsShift;
                 b.Phase = u / 2 - std::floor(u / 2);
             }
-            else b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), b.Back, dt);   // (the frame the key is let go the engine has her at rest; she is carried on from the next)
+            else b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), b.Back, poseDt);   // (the frame the key is let go the engine has her at rest; she is carried on from the next)
         }
         {   // Turning on the spot she steps (2026-11-19: she was turned as a statue on a plate). Her legs are the walk's,
             // stepping in place (her stride drawn in to nothing), her body goes on standing.
             const bool turning = !moving && !b.Dead && !flying && p.IsGrounded && b.Attack.empty() && !b.Cast && !b.Jumping && !carried &&
                                  b.Rise < 0 && b.Touch < 0 && std::abs(b.TurnRate) > .5f;
-            if (turning) { b.Gait = "Move"; b.Stride(0, false, dt); }
-            else if (!striding) b.StrideScale += (1 - b.StrideScale) * (std::min)(1.f, dt * 10);   // (standing: her feet where her clip has them)
-            b.TurnSteps += ((turning ? 1.f : 0.f) - b.TurnSteps) * (std::min)(1.f, dt * (turning ? 10.f : 6.f));
+            if (turning) { b.Gait = "Move"; b.Stride(0, false, poseDt); }
+            else if (!striding) b.StrideScale += (1 - b.StrideScale) * (std::min)(1.f, poseDt * 10);   // (standing: her feet where her clip has them)
+            b.TurnSteps += ((turning ? 1.f : 0.f) - b.TurnSteps) * (std::min)(1.f, poseDt * (turning ? 10.f : 6.f));
         }
         const bool cutting = !b.Attack.empty() && !carried && !b.Dead;
         if (!cutting) b.Legs = 0;
         else if (b.LastClip.rfind("Attack", 0) != 0) b.Legs = striding ? 1.f : 0.f;
-        else b.Legs = std::clamp(b.Legs + (striding ? 1.f : -1.f) * dt / .15f, 0.f, 1.f);
+        else b.Legs = std::clamp(b.Legs + (striding ? 1.f : -1.f) * poseDt / .15f, 0.f, 1.f);
         b.FlyBody = (cutting || (b.Cast >= 1 && b.Cast <= 3)) && flying;   // a cut in the air: her legs, hips and wings go on flying
         if (b.FlyBody) b.Legs = b.Sample("Fly", b.FlyTime, b.LegsPose, nullptr) ? 1.f : 0.f;
         else if (b.Legs > 0 && !b.Sample(b.Gait, b.GaitTime(), b.LegsPose, nullptr)) b.Legs = 0;
         const bool previewing = !mPreview.empty() && b.Duration(mPreview) > 0;   // (the Character Lab's clip viewer)
         if (previewing)
         {
-            clip = mPreview; mPreviewClock += dt;
+            clip = mPreview; mPreviewClock += poseDt;
             time = mPreviewTime >= 0 ? (std::min)(mPreviewTime, b.Duration(clip)) : std::fmod(mPreviewClock, b.Duration(clip));
         }
         else if (b.Dead) { clip = "Death"; time = b.DeathTime; }
@@ -6370,8 +6389,8 @@ namespace Doorways
             // her feet on the drawn ground: on foot and standing on it, not while a move lifts or carries her
             const bool planted = !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
                                  !b.Finish && std::abs(b.LiftNow) < .05f && !previewing;
-            const bool composed = b.Compose(world, clip, time, dt, pose, &error);
-            const float planting = composed ? b.PlantFeet(world, mFootGround, mStairTread, pose, dt, planted) : 0.f;
+            const bool composed = b.Compose(world, clip, time, poseDt, pose, &error);
+            const float planting = composed ? b.PlantFeet(world, mFootGround, mStairTread, pose, poseDt, planted) : 0.f;
             if (composed && !b.BodyMove) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + planting;
             if (!b.BodyMove)
             {   // (her bank turns about her chest, not about her feet: her picture is put back by what the roll moves her chest)
@@ -6391,11 +6410,11 @@ namespace Doorways
                     if (std::abs(a) < LookWide) { nearest = d; toward = a; }
                 }
             }
-            if (composed) b.LookAbout(pose, dt, b.TurnRate, toward, b.Dead || b.Cast || b.Air || b.Finish || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 || previewing ? 0.f : 1.f);
+            if (composed) b.LookAbout(pose, poseDt, b.TurnRate, toward, b.Dead || b.Cast || b.Air || b.Finish || !b.Attack.empty() || b.Rise >= 0 || b.Touch >= 0 || previewing ? 0.f : 1.f);
             {   // Standing at ease for a while she opens her wings, shakes them out and lowers them again (2026-11-19): every
                 // quarter of a minute or so, not by a clock. A blow up on both wings as they open, one down after it.
                 constexpr float StretchSeconds = 1.7f, Shake = .65f;
-                b.AtEase = clip == "Stand" && std::abs(b.TurnRate) < .2f ? b.AtEase + dt : 0.f;
+                b.AtEase = clip == "Stand" && std::abs(b.TurnRate) < .2f ? b.AtEase + poseDt : 0.f;
                 if (b.AtEase <= 0) { b.NextStretch = b.Rand(9, 16); b.Stretch = -1; }
                 else if (b.Stretch < 0 && b.AtEase > b.NextStretch)
                 {
@@ -6404,8 +6423,8 @@ namespace Doorways
                 }
                 else if (b.Stretch >= 0)
                 {
-                    if (b.Stretch < Shake && b.Stretch + dt >= Shake) for (auto& w : b.WingSpring) w.FlapGo -= 1.7f;
-                    if ((b.Stretch += dt) > StretchSeconds) b.Stretch = -1;
+                    if (b.Stretch < Shake && b.Stretch + poseDt >= Shake) for (auto& w : b.WingSpring) w.FlapGo -= 1.7f;
+                    if ((b.Stretch += poseDt) > StretchSeconds) b.Stretch = -1;
                 }
             }
             {   // her wing shield (E): her wings closing round her, as her shield has them
@@ -6419,7 +6438,7 @@ namespace Doorways
                 b.WingCloseTo = shield ? 1.f : 0.f;
             }
             if (composed)
-                b.SwingWings(pose, dt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
+                b.SwingWings(pose, poseDt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
                              b.Dead || b.Cast || b.Air ? 0.f : b.Finish ? .6f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
                              clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
             b.WingLineKnown = false;
@@ -6437,7 +6456,7 @@ namespace Doorways
                 if (mGuarding && mGuardStyle >= 0 && mGuardStyle < static_cast<int>(Guards().size()))
                 {
                     const GuardSpec& gs = Guards()[static_cast<size_t>(mGuardStyle)];
-                    mShieldMotes += dt * gs.Motes * (std::min)(1.f, b.WingClose);
+                    mShieldMotes += poseDt * gs.Motes * (std::min)(1.f, b.WingClose);
                     while (mShieldMotes >= 1)
                     {
                         mShieldMotes -= 1;
@@ -6454,7 +6473,7 @@ namespace Doorways
                 const auto there = [&](XMVECTOR v) { XMFLOAT3 o; XMStoreFloat3(&o, XMVector3TransformCoord(v, place)); return o; };
                 const auto joint = [&](int j) { const auto& m = pose.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 1); };
                 const XMFLOAT3 hips = there(joint(b.Hips));
-                b.StormFeathers += dt * StormRate;
+                b.StormFeathers += poseDt * StormRate;
                 while (b.StormFeathers >= 1)
                 {
                     b.StormFeathers -= 1;
@@ -6482,7 +6501,7 @@ namespace Doorways
             {   // a style's move: each blade's way a moment back, for its trail of light (Draw)
                 for (auto& trail : mTrail)
                 {
-                    for (auto& q : trail) q.Age += dt;
+                    for (auto& q : trail) q.Age += poseDt;
                     while (!trail.empty() && trail.front().Age > StyleTrailSeconds) trail.erase(trail.begin());
                 }
                 if (composed && b.InMove() && b.AttackTime >= 0 && b.SwordJoint[0] >= 0 && b.SwordJoint[1] >= 0)
@@ -6498,7 +6517,7 @@ namespace Doorways
                             const XMVECTOR tip = XMVector3TransformCoord(XMLoadFloat3(&b.SwordTip[k2]), sword);
                             TrailPoint q{};
                             XMStoreFloat3(&q.Base, XMVectorLerp(grip, tip, .35f)); XMStoreFloat3(&q.Tip, tip);
-                            q.Speed = mTrail[k2].empty() || dt <= 0 ? 0.f : Len(Sub(q.Tip, mTrail[k2].back().Tip)) / dt;
+                            q.Speed = mTrail[k2].empty() || poseDt <= 0 ? 0.f : Len(Sub(q.Tip, mTrail[k2].back().Tip)) / poseDt;
                             mTrail[k2].push_back(q);
                         }
                     }
@@ -6513,9 +6532,12 @@ namespace Doorways
                 static int told = 0;
                 if (told++ < 5) OutputDebugStringA(("[FAIL] Nyxara pose: " + error + "\n").c_str());
             }
-            if (composed) b.PoseLog(world, pose, dt, planted);
+            if (composed) b.PoseLog(world, pose, poseDt, planted);
         }
-        if (b.Clock - b.LastLog > .1f) { b.Log(world, "frame"); b.LastLog = b.Clock; }
+        {   // (CAUCASIAN_EAGLE_NYXARA_LOG_EVERY=1: a line every frame, not every tenth of a second)
+            static const bool every = [] { char v[4]{}; size_t n = 0; return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_LOG_EVERY") == 0 && n > 1 && v[0] == '1'; }();
+            if (every || b.Clock - b.LastLog > .1f) { b.Log(world, "frame"); b.LastLog = b.Clock; }
+        }
 
         // ---- the wing boost in flight (Shift): a trail of feathers and light
         const bool boosting = flying && p.IsActuallyMoving && k.Shift;

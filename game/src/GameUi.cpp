@@ -123,6 +123,12 @@ namespace CaucasianEagle
         mContext.Renderer.DrawUiSprite(texture, {x, y, w, h}, {0, 0, sourceWidth, sourceHeight}, {color.R, color.G, color.B, color.A});
     }
 
+    void Ui::ImagePart(ID3D11ShaderResourceView* texture, Doorways::DoorwaysUiRect source, float x, float y, float w, float h, Color color)
+    {
+        if (!texture || w <= 0 || h <= 0 || source.Width <= 0 || source.Height <= 0 || color.A <= 0) return;
+        mContext.Renderer.DrawUiSprite(texture, {x, y, w, h}, source, {color.R, color.G, color.B, color.A});
+    }
+
     void Ui::Nine(const HudArt::Sprite& sprite, float x, float y, float w, float h, Color color)
     {
         if (!gAtlas || w <= 0 || h <= 0 || color.A <= 0) return;

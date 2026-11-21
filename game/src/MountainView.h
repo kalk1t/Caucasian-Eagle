@@ -96,7 +96,7 @@ namespace CaucasianEagle
             const float labelSize = 11 * s / Doorways::DoorwaysUiFontHeight;
             ui.Rect(0, 0, ui.W, 64 * s, {.015f, .025f, .04f, .7f});
             ui.Centered(L"THE MOUNTAIN", ui.W * .5f, 8 * s, big, Palette::Gold);
-            ui.Centered(L"Mouse: turn the mountain   |   Wheel: closer, further   |   M: close",
+            ui.Centered(L"Mouse: turn the mountain   |   Wheel: closer, further   |   Tab: the map   |   M: close",
                         ui.W * .5f, 38 * s, body, Palette::Ink);
             const XMMATRIX view = camera.BuildViewProjectionMatrix(ui.W / ui.H);
             for (const auto& m : marks)
