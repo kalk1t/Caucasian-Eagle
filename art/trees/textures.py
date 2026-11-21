@@ -217,10 +217,10 @@ def birch_bark(seed, size=1024):
     patches and cracks, and its relief."""
     r = np.random.default_rng(seed)
     yy, xx = np.mgrid[0:size, 0:size] / size
-    base = 0.86 + 0.06 * ndimage.gaussian_filter(r.standard_normal((size, size)), 18, mode="wrap")
+    base = 0.66 + 0.06 * ndimage.gaussian_filter(r.standard_normal((size, size)), 18, mode="wrap")   # (a real birch reflects ~0.6: at 0.86 it shone blank white in the game)
     col = np.dstack([base * 0.97, base * 0.96, base * 0.90]); h = np.zeros((size, size), np.float32)
     im = Image.new("L", (size, size), 0); dr = ImageDraw.Draw(im)
-    for _ in range(420):                                # lenticels: short dark dashes across the trunk (u across)
+    for _ in range(620):                                # lenticels: short dark dashes across the trunk (u across)
         x, y = r.uniform(0, size), r.uniform(0, size); ln = r.uniform(8, 70); w = r.uniform(1.5, 4.5)
         for dx in (-size, 0, size):
             dr.line([(x + dx - ln / 2, y), (x + dx + ln / 2, y + r.uniform(-2, 2))], fill=int(r.uniform(150, 255)), width=int(w))

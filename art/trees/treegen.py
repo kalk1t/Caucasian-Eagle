@@ -92,8 +92,8 @@ SPECIES = {
                    l1=dict(mode="whorl", per=5, spacing=0.50, down=(100, 10), length=0.19, up=-0.1, droop=0.65, tipup=0.55, wander=0.06, rr=0.28),
                    l2=dict(mode="plane", density=2.6, start=0.08, down=(60, 12), length=0.36, droop=0.45, wander=0.07, rr=0.45),
                    cards="bough", card_len=0.95, roots=(5, 0.07), stubs=0, flare=1.35),
-    "pine":   dict(conifer=True, height=20.0, base_r=0.028, trunk_wander=0.05, crown_base=0.55, shape="umbrella",
-                   l1=dict(mode="spiral", density=1.6, down=(65, 15), length=0.34, up=0.25, droop=0.0, wander=0.14, rr=0.42, kink=0.08),
+    "pine":   dict(conifer=True, height=20.0, base_r=0.028, trunk_wander=0.05, crown_base=0.58, shape="umbrella",
+                   l1=dict(mode="spiral", density=1.2, down=(84, 10), length=0.46, up=0.10, droop=0.0, wander=0.14, rr=0.45, kink=0.08),
                    l2=dict(mode="spiral", density=2.0, start=0.20, down=(45, 15), length=0.42, up=0.30, wander=0.12, rr=0.5),
                    l3=dict(mode="spiral", density=2.5, start=0.25, down=(40, 15), length=0.40, up=0.25, wander=0.12, rr=0.5),
                    cards="tuft", card_len=1.5, roots=(6, 0.09), stubs=3, flare=1.4),
@@ -102,11 +102,12 @@ SPECIES = {
                    l2=dict(mode="spiral", density=1.5, start=0.15, down=(48, 12), length=0.45, up=0.08, droop=0.18, wander=0.12, rr=0.55),
                    l3=dict(mode="spiral", density=2.4, start=0.20, down=(45, 12), length=0.45, up=0.05, droop=0.12, wander=0.12, rr=0.55),
                    cards="spray", card_len=1.05, roots=(7, 0.09), stubs=0, flare=1.5, leaves="beech"),
-    "oak":    dict(conifer=False, height=20.0, base_r=0.034, trunk_wander=0.05, crown_base=0.28, trunk_top=0.50, shape="hemispherical",
-                   l1=dict(mode="spiral", density=0.8, down=(62, 15), length=0.50, up=0.12, droop=0.10, wander=0.18, rr=0.58, kink=0.10),
+    "oak":    dict(conifer=False, height=20.0, base_r=0.034, trunk_wander=0.05, crown_base=0.22, trunk_top=0.38, shape="hemispherical",
+                   leaders=(3, 6, 0.75, 1.15, 0.85, 0.10),
+                   l1=dict(mode="spiral", density=0.9, down=(70, 12), length=0.58, up=0.12, droop=0.08, wander=0.18, rr=0.6, kink=0.10),
                    l2=dict(mode="spiral", density=1.4, start=0.15, down=(52, 15), length=0.45, up=0.08, droop=0.15, wander=0.18, rr=0.55, kink=0.10),
                    l3=dict(mode="spiral", density=2.8, start=0.20, down=(48, 15), length=0.40, up=0.05, droop=0.1, wander=0.15, rr=0.55),
-                   cards="spray", card_len=1.15, roots=(8, 0.10), stubs=0, flare=1.6, leaves="oak"),
+                   cards="spray", card_len=1.15, roots=(8, 0.10), stubs=0, flare=1.35, leaves="oak"),
     "maple":  dict(conifer=False, height=18.0, base_r=0.026, trunk_wander=0.03, crown_base=0.30, trunk_top=0.55, shape="spherical",
                    l1=dict(mode="opposite", density=0.9, down=(45, 12), length=0.45, up=0.22, droop=0.05, wander=0.10, rr=0.55),
                    l2=dict(mode="opposite", density=1.5, start=0.20, down=(45, 12), length=0.42, up=0.1, droop=0.12, wander=0.12, rr=0.55),
@@ -127,10 +128,11 @@ SPECIES = {
                    l2=dict(mode="spiral", density=2.4, start=0.15, down=(50, 12), length=0.45, up=0.1, droop=0.15, wander=0.15, rr=0.55),
                    l3=dict(mode="spiral", density=3.5, start=0.2, down=(45, 12), length=0.45, droop=0.15, wander=0.15, rr=0.55),
                    cards="spray", card_len=0.75, roots=(5, 0.10), stubs=0, flare=1.4, leaves="apple", fruit=0.6),
-    "shrub":  dict(conifer=False, height=2.0, base_r=0.025, trunk_wander=0.1, crown_base=0.0, trunk_top=0.15, shape="spherical", shrub=7,
+    "shrub":  dict(conifer=False, height=2.0, base_r=0.025, trunk_wander=0.1, crown_base=0.0, trunk_top=0.15, shape="spherical", shrub=11,
                    l1=dict(mode="spiral", density=2.0, down=(35, 15), length=0.55, up=0.1, droop=0.25, wander=0.18, rr=0.6),
-                   l2=dict(mode="spiral", density=3.0, start=0.2, down=(45, 12), length=0.5, droop=0.2, wander=0.15, rr=0.6),
-                   cards="spray", card_len=0.65, roots=(0, 0.0), stubs=0, flare=1.0, leaves="rhodo"),
+                   l2=dict(mode="spiral", density=4.5, start=0.15, down=(50, 12), length=0.55, droop=0.15, wander=0.15, rr=0.6),
+                   l3=dict(mode="spiral", density=5.0, start=0.2, down=(45, 12), length=0.5, droop=0.1, wander=0.15, rr=0.6),
+                   cards="spray", card_len=0.75, roots=(0, 0.0), stubs=0, flare=1.0, leaves="rhodo"),
     "juniper": dict(conifer=True, height=2.4, base_r=0.03, trunk_wander=0.12, crown_base=0.0, trunk_top=0.2, shape="spherical", shrub=6,
                    l1=dict(mode="spiral", density=2.4, down=(40, 15), length=0.6, up=0.15, droop=0.2, wander=0.2, rr=0.6, kink=0.1),
                    l2=dict(mode="spiral", density=3.0, start=0.2, down=(45, 15), length=0.5, droop=0.1, wander=0.15, rr=0.6),
@@ -153,9 +155,10 @@ class Tree:
         if sp.get("shrub"):                                             # a shrub: several stems from the ground
             stems = []
             for k in range(sp["shrub"]):
-                an = r.uniform(0, 6.28); el = math.radians(r.uniform(55, 80))
+                an = 6.2832 * (k + r.uniform(-0.3, 0.3)) / sp["shrub"]; el = math.radians(r.uniform(35, 72))
                 d = np.array((math.cos(an) * math.cos(el), math.sin(el), math.sin(an) * math.cos(el)))
-                pts, rads = grow_line(r, (math.cos(an) * 0.05, -0.1, math.sin(an) * 0.05), d, H * r.uniform(0.55, 0.85), r0 * 0.6, r0 * 0.15, seg=0.25, up=0.05, droop=0.2, wander=0.15)
+                foot = r.uniform(0.04, 0.10) * H / 2.0      # (stems from a spread of the ground, not one pot)
+                pts, rads = grow_line(r, (math.cos(an) * foot, -0.1, math.sin(an) * foot), d, H * r.uniform(0.55, 0.85), r0 * 0.38, r0 * 0.10, seg=0.25, up=0.05, droop=0.2, wander=0.15)
                 b = Branch(pts, rads, 1); self.branches.append(b); stems.append(b)
             for b in stems: self.children(b, sp.get("l2"), 2, b.length, sp)
             return
@@ -175,10 +178,12 @@ class Tree:
         self.children(trunk, sp["l1"], 1, H, sp, crown=True)
         if not sp["conifer"]:                                           # a leaf tree's trunk ends in its leader: limbs going on up
             p, d, rr = trunk.at(1.0)
-            for k in range(int(r.integers(2, 4))):
-                an = r.uniform(0, 6.28); d2 = unit(d + np.array((math.cos(an), 0, math.sin(an))) * r.uniform(0.25, 0.55))
-                L = H * (1 - top) * r.uniform(0.75, 1.05) + H * 0.08
-                pp, rr2 = grow_line(r, p, d2, L, rr * 0.75, rr * 0.08, seg=0.4, up=0.2, wander=0.10)
+            n0, n1, s0, s1, lm, lup = sp.get("leaders", (2, 4, 0.25, 0.55, 1.0, 0.2))   # (count, spread sideways, length, rise)
+            az0 = r.uniform(0, 6.28); nl = int(r.integers(n0, n1))
+            for k in range(nl):
+                an = az0 + 6.2832 * (k + r.uniform(-0.2, 0.2)) / nl; d2 = unit(d + np.array((math.cos(an), 0, math.sin(an))) * r.uniform(s0, s1))
+                L = (H * (1 - top) * r.uniform(0.75, 1.05) + H * 0.08) * lm
+                pp, rr2 = grow_line(r, p, d2, L, rr * 0.75, rr * 0.08, seg=0.4, up=lup, wander=0.10)
                 b = Branch(pp, rr2, 1, 1.0); trunk.kids.append(b); self.branches.append(b)
                 if sp.get("l2"): self.children(b, sp["l2"], 2, L, sp)
         for k in range(sp.get("stubs", 0)):                            # dead stubs on a great tree's bare trunk
