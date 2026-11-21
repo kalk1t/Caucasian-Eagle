@@ -37,7 +37,7 @@ namespace CaucasianEagle
     constexpr float StepLength = 1.7f;        // metres on the ground between two footsteps
     constexpr float StepVolume = .4f;
     constexpr float SoundRepeatSeconds = .07f; // the same sound is not started again sooner than this
-    constexpr const char* GameVersion = "0.5.1";
+    constexpr const char* GameVersion = "0.5.2";
     constexpr const wchar_t* UserDataFolder = L"CaucasianEagle"; // %LOCALAPPDATA%\CaucasianEagle: settings and saves
 
     // ---- content
