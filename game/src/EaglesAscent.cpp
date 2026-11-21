@@ -218,7 +218,7 @@ namespace CaucasianEagle
                 for (const unsigned i : cell->second)
                 {
                     const Trunk& t = mTrunks[i];
-                    if (y < t.Y - 1.5f || y > t.Y + std::max(2.5f, t.H * .75f)) continue;
+                    if (y < t.Y - 1.5f || y > TrunkTop(t)) continue;
                     const float d = std::hypot(x - t.X, z - t.Z) - t.R;
                     if (d < best) { best = d; out = t; found = true; }
                 }
@@ -240,7 +240,7 @@ namespace CaucasianEagle
                     for (const unsigned i : cell->second)
                     {
                         const Trunk& t = mTrunks[i];
-                        if (p.Position.y < t.Y - 1.5f || p.Position.y > t.Y + std::max(2.5f, t.H * .75f)) continue;
+                        if (p.Position.y < t.Y - 1.5f || p.Position.y > TrunkTop(t)) continue;
                         const float keep = t.R + body, dx = p.Position.x - t.X, dz = p.Position.z - t.Z, d2 = dx * dx + dz * dz;
                         if (d2 >= keep * keep) continue;
                         const float d = std::sqrt(d2);

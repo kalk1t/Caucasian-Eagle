@@ -18,6 +18,11 @@
 // anywhere (the far forest used to be baked into the map). The trees within ShadowReach cast the sun's shadow
 // (Renderer::DrawDoorwaysGpuSubmeshShadowInstanced, through the game's shadow hook). Their trunks hold her
 // (<map>.trees, EaglesAscent::HoldOffTrees).
+// The ground's plants are models of the same library (2026-11-21; the owner: "Fallen logs, tomatoes, cucumbers, ferns and
+// flowers are still built into the map - i want also them to be 3D"; art/trees/plants.py): fallen logs, tomatoes on their
+// stakes, cucumbers, ferns, clumps of meadow flowers. They have no picture: trees.txt gives each variant's reach from its
+// foot and its top ("extent"; a log lies, its height there its length), they are 3D until they are a few pixels and
+// then not drawn, and the small ones cast shadows only within PlantShadowReach. The logs and the stakes hold her too.
 // CAUCASIAN_EAGLE_GAME_TREES=0: none drawn (tests, before/after pictures).
 
 #include "Rendering/DoorwaysGpuMesh.h"
@@ -46,6 +51,7 @@ namespace CaucasianEagle
         static constexpr float Picture = 900.f;          // 'seen': level 3 (3D) within it; beyond, the picture (about 25 px tall at 1080 lines)
         static constexpr float BigReach = 14.f;          // a square's trees of a radius over this (clamped, 8..30 m) are its second group
         static constexpr float ShadowReach = 150.f;      // m: trees this near cast shadows
+        static constexpr float PlantShadowReach = 60.f;  // m: a small ground plant (radius under 3 m) casts one this near (further, a texel or two)
         static constexpr int BuildTreesPerFrame = 12000; // trees merged into far meshes a frame (one group at least)
         static constexpr unsigned KeepFrames = 1800;     // a merged mesh not drawn for this many frames is let go
 
@@ -69,10 +75,11 @@ namespace CaucasianEagle
         struct Variant
         {
             float Height = 1;
+            float Spread = 0, Top = 0;                   // a ground plant's (no picture): its reach from its foot and its top, model metres
             std::array<std::array<Part, 2>, 4> Lod;      // [level 0..3][bark, leaves]
             Impostor Far[2];                             // [no snow, snow]
         };
-        struct Model { std::string Name; int Kind = 0; bool Conifer = false, Snow = false; std::vector<Variant> Variants; };
+        struct Model { std::string Name; int Kind = 0; bool Conifer = false, Snow = false, Ground = false; std::vector<Variant> Variants; };   // Ground: a plant (its extent listed)
         struct Kind
         {
             std::string Name;
@@ -91,6 +98,7 @@ namespace CaucasianEagle
             std::vector<unsigned> Trees;
             DirectX::XMFLOAT3 Min{1e9f, 1e9f, 1e9f}, Max{-1e9f, -1e9f, -1e9f};
             float Reach = 8;                           // the largest Reach among its trees
+            bool Pictures = false;                     // any of its trees has a picture (a group of plants only is never merged)
             Doorways::DoorwaysGpuMesh FarMesh; int FarTrees = 0; bool FarBuilt = false; unsigned LastDrawn = 0;
         };
         struct Block { int All = -1; std::vector<int> Parts; };   // Parts: the groups of its squares

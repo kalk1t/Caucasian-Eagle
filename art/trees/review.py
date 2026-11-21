@@ -10,6 +10,7 @@ from mathutils import Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import treegen as tg
+import plants
 
 def args():
     a = sys.argv[sys.argv.index("--") + 1:]
@@ -78,9 +79,18 @@ if __name__ == "__main__":
     species, seed, lod, tex, out, kind = args()
     man = json.load(open(os.path.join(tex, "manifest.json")))
     k = man["kinds"].get(kind, {}); rects = k.get("rects", {"A": [0, .5, .5, 1], "B": [.5, .5, 1, 1], "C": [0, 0, .5, .5]})
-    tree = tg.Tree(species, seed)
     sw = k.get("swatches", [])
-    bark, leaves = tg.build(tree, rects, lod, fruit_uv=sw[:2] if sw else None)
+    if species in plants.SPECIES:                       # (seed: the variant; plants.py's own seed as build_trees.py gives it)
+        import build_trees as bt
+        bark, leaves, info = plants.build(species, bt.seed_of(species, seed), seed, lod, rects, sw)
+        P = np.concatenate([m.arrays()[0] for m in (bark, leaves) if m.arrays() is not None])
+        lying = info.get("size", 0) > 0
+        class T: pass
+        tree = T(); tree.H = float(P[:, 1].max()) if not lying else float(np.ptp(P[:, 0])) * 0.45
+        tree.reach = float(np.hypot(P[:, 0], P[:, 2]).max())
+    else:
+        tree = tg.Tree(species, seed)
+        bark, leaves = tg.build(tree, rects, lod, fruit_uv=sw[:2] if sw else None)
     co = setup(tree.H)
     obj("bark", bark.arrays(), mat("bark", tex, kind, "bark"))
     la = leaves.arrays()
@@ -88,7 +98,15 @@ if __name__ == "__main__":
     H = tree.H; stem = os.path.splitext(out)[0]
     shots = [(0.0, 0.08, 50), (2.1, 0.30, 50), (4.0, 0.62, 50)]
     files = []
+    lying = species in plants.SPECIES and plants.SPECIES[species].get("lying")
     for i, (az, el, lens) in enumerate(shots):
-        f = "%s_%d.png" % (stem, i); shoot(co, (0, 0, H * 0.5), H * 2.1, az, el, lens, f); files.append(f)
-    f = "%s_foot.png" % stem; shoot(co, (0, 0, H * 0.04), max(H * 0.28, 2.5), 0.7, 0.25, 35, f); files.append(f)
+        f = "%s_%d.png" % (stem, i)
+        if lying: shoot(co, (0, 0, 0.6), H * 1.55, (0.75, 2.6, 4.3)[i], (0.22, 0.30, 0.75)[i], lens, f)
+        elif species in plants.SPECIES: shoot(co, (0, 0, H * 0.4), max(H * 2.1, tree.reach * 2.5), az, el + 0.1, lens, f)
+        else: shoot(co, (0, 0, H * 0.5), H * 2.1, az, el, lens, f)
+        files.append(f)
+    f = "%s_foot.png" % stem
+    if lying: shoot(co, (H * 1.1, 0, 0.6), 4.2, 0.45, 0.30, 35, f)
+    else: shoot(co, (0, 0, H * 0.04), max(H * 0.28, 2.5) if H > 3 else H * 0.9, 0.7, 0.25, 35, f)
+    files.append(f)
     print("REVIEW", species, seed, lod, "bark", bark.tris, "leaves", leaves.tris, " ".join(files))

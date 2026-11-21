@@ -92,7 +92,7 @@ All four pictures and `Terrain.bin` are written by `art/world/build_nature.py`. 
 
 #### The Eagle's Ascent's map files (`game/assets/Maps/`)
 
-`tools/map-to-game.ps1` copies them from the Map Lab's last build: `EaglesAscent.txt` (the map's records), `.heights` (the land's grids), `.splat_a.dds` and `.splat_b.dds` (the ground's look; `AscentGrass` reads them too), `.trees` (0.5: every tree's trunk, `x y z radius height`, 261,650 lines, 8.9 MB; `build_mountain.py` writes it from the forest's plants, `TREES_ONLY=1` for the trunks alone) and `EaglesAscent.creatures.txt` (written by `art/map/ascent_creatures.py`).
+`tools/map-to-game.ps1` copies them from the Map Lab's last build: `EaglesAscent.txt` (the map's records), `.heights` (the land's grids), `.splat_a.dds` and `.splat_b.dds` (the ground's look; `AscentGrass` reads them too), `.trees` (every trunk that holds her, `x y z radius height`; `build_mountain.py` writes it from the forest's plants, `TREES_ONLY=1` for the trunks alone. 0.5.2: 306,069 lines: the trees', shrubs' and junipers' trunks, each vine's posts and stem, each fallen log as a chain of short pieces (and a windthrow's root plate), each tomato's stake; `EaglesAscent::TrunkTop`: a trunk under 2 m holds her only to just over its top, so she can jump over it), `.plants` (0.5.2: every tree and ground plant the game draws, `model variant x y z height yaw leanx leanz snow [risex risez]`, 310,185 lines; the models are `game/assets/Trees`, made by `art/trees/build_trees.py`; a log's height is its length; `risex risez`, a ground plant's only: the ground's rise per metre under it, so its foot follows the slope and its stems stay upright) and `EaglesAscent.creatures.txt` (written by `art/map/ascent_creatures.py`).
 
 ## 8.1b `Places.txt`
 

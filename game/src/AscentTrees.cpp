@@ -134,6 +134,13 @@ namespace CaucasianEagle
                     for (int p = 0; p < 2; ++p)
                         if (!part(model.Name + "_" + std::to_string(v) + "_" + std::to_string(lod) + (p ? "_leaves" : "_bark") + ".dmesh", model.Variants[v].Lod[lod][p])) return false;
             }
+            // a ground plant (art/trees/plants.py, no picture): "extent", then each variant's reach from its foot and its top
+            std::string tag;
+            if (in >> tag && tag == "extent")
+            {
+                model.Ground = true;
+                for (int v = 0; v < variants; ++v) in >> model.Variants[v].Spread >> model.Variants[v].Top;
+            }
             mModels.push_back(std::move(model));
         }
         if (mModels.empty()) { error = "trees.txt lists no models"; return false; }
@@ -180,9 +187,9 @@ namespace CaucasianEagle
         for (size_t i = 0; i < mModels.size(); ++i) byName[mModels[i].Name] = static_cast<int>(i);
         std::unordered_map<long long, int> squareGroup[2];          // a square's group of each size
         auto floorDiv = [](int a, int b) { return a >= 0 ? a / b : -((-a + b - 1) / b); };
-        auto add = [](Group& g, unsigned index, float reach, const XMFLOAT3& lo, const XMFLOAT3& hi)
+        auto add = [](Group& g, unsigned index, float reach, const XMFLOAT3& lo, const XMFLOAT3& hi, bool picture)
         {
-            g.Trees.push_back(index); g.Reach = std::max(g.Reach, reach);
+            g.Trees.push_back(index); g.Reach = std::max(g.Reach, reach); g.Pictures = g.Pictures || picture;
             g.Min = {std::min(g.Min.x, lo.x), std::min(g.Min.y, lo.y), std::min(g.Min.z, lo.z)};
             g.Max = {std::max(g.Max.x, hi.x), std::max(g.Max.y, hi.y), std::max(g.Max.z, hi.z)};
         };
@@ -192,6 +199,8 @@ namespace CaucasianEagle
             std::istringstream s(line);
             std::string name; int v = 0, snow = 0; float x = 0, y = 0, z = 0, h = 0, yaw = 0, lx = 0, lz = 0;
             if (!(s >> name >> v >> x >> y >> z >> h >> yaw >> lx >> lz >> snow)) continue;
+            float gx = 0, gz = 0;   // (a ground plant's, optional) the ground's rise per metre east and north under it
+            s >> gx >> gz;
             const auto m = byName.find(name);
             if (m == byName.end() || h <= 0) continue;
             const Model& model = mModels[m->second];
@@ -200,21 +209,27 @@ namespace CaucasianEagle
             t.Model = static_cast<unsigned short>(m->second); t.Variant = static_cast<unsigned char>(v);
             t.Snow = static_cast<unsigned char>(snow && model.Snow ? 1 : 0);
             t.Scale = h / model.Variants[v].Height;
-            // foot at (x, y, z), turned by yaw, leaning out (a tree on a rock face: x += lx per metre up, as the old forest)
+            // foot at (x, y, z), turned by yaw, leaning out (a tree on a rock face: x += lx per metre up, as the old forest);
+            // a ground plant's foot following the ground's slope (y += gx x + gz z: its stems stay upright)
             const XMMATRIX lean(1, 0, 0, 0, lx, 1, lz, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-            const XMMATRIX world = XMMatrixScaling(t.Scale, t.Scale, t.Scale) * XMMatrixRotationY(yaw) * lean * XMMatrixTranslation(x, y, z);
+            const XMMATRIX ground(1, gx, 0, 0, 0, 1, 0, 0, 0, gz, 1, 0, 0, 0, 0, 1);
+            const XMMATRIX world = XMMatrixScaling(t.Scale, t.Scale, t.Scale) * XMMatrixRotationY(yaw) * lean * ground * XMMatrixTranslation(x, y, z);
             XMStoreFloat4x4(&t.World, world);
             XMStoreFloat4x4(&t.WorldInvTranspose, XMMatrixTranspose(XMMatrixInverse(nullptr, world)));
-            const Impostor& farPic = model.Variants[v].Far[0];
-            const float tall = h, wide = farPic.Valid ? farPic.W * t.Scale : h * .6f;
+            const Variant& var = model.Variants[v];
+            const Impostor& farPic = var.Far[0];
+            // its height and width: a tree's from its picture; a ground plant's from its extent (a log lies: its 'h' is its length)
+            const float tall = var.Top > 0 ? var.Top * t.Scale : h;
+            const float wide = farPic.Valid ? farPic.W * t.Scale : var.Spread > 0 ? 2 * var.Spread * t.Scale : h * .6f;
+            const float rise = std::hypot(gx, gz) * wide * .5f;   // (how far its rim rises or falls with the ground)
             t.Centre = {x + lx * tall * .5f, y + tall * .5f, z + lz * tall * .5f};
-            t.Radius = .5f * std::sqrt(tall * tall + wide * wide);
+            t.Radius = .5f * std::sqrt(tall * tall + wide * wide) + rise;
             t.Reach = std::clamp(t.Radius, 8.f, 30.f);
             const unsigned index = static_cast<unsigned>(mTrees.size());
             mTrees.push_back(t);
             // its box: from the foot to the (leaning) top, the crown's width each side
-            const XMFLOAT3 lo{std::min(x, x + lx * tall) - wide, y, std::min(z, z + lz * tall) - wide};
-            const XMFLOAT3 hi{std::max(x, x + lx * tall) + wide, y + tall, std::max(z, z + lz * tall) + wide};
+            const XMFLOAT3 lo{std::min(x, x + lx * tall) - wide, y - rise, std::min(z, z + lz * tall) - wide};
+            const XMFLOAT3 hi{std::max(x, x + lx * tall) + wide, y + tall + rise, std::max(z, z + lz * tall) + wide};
             const int sx = static_cast<int>(std::floor(x / Cell)), sz = static_cast<int>(std::floor(z / Cell));
             Block& block = mBlocks[Key(floorDiv(sx, BlockSquares), floorDiv(sz, BlockSquares))];
             if (block.All < 0) { block.All = static_cast<int>(mGroups.size()); mGroups.emplace_back(); }
@@ -223,8 +238,8 @@ namespace CaucasianEagle
             int g = 0;
             if (found != squareGroup[size].end()) g = found->second;
             else { g = static_cast<int>(mGroups.size()); mGroups.emplace_back(); squareGroup[size][Key(sx, sz)] = g; block.Parts.push_back(g); }
-            add(mGroups[static_cast<size_t>(g)], index, t.Reach, lo, hi);
-            add(mGroups[static_cast<size_t>(block.All)], index, t.Reach, lo, hi);
+            add(mGroups[static_cast<size_t>(g)], index, t.Reach, lo, hi, farPic.Valid);
+            add(mGroups[static_cast<size_t>(block.All)], index, t.Reach, lo, hi, farPic.Valid);
         }
     }
 
@@ -298,23 +313,26 @@ namespace CaucasianEagle
             const float bd = distance(all);
             if ((shadow && bd > ShadowReach) || !sees(all)) continue;
             // every tree of the block a picture (seen from its nearest corner): the block merged
-            if (!shadow && bd * 14.f / all.Reach >= Picture) { mFar.emplace_back(bd, block.All); continue; }
+            // (a block or a square of ground plants only, all beyond their last level: nothing to draw)
+            if (!shadow && bd * 14.f / all.Reach >= Picture) { if (all.Pictures) mFar.emplace_back(bd, block.All); continue; }
             for (const int part : block.Parts)
             {
                 const Group& g = mGroups[static_cast<size_t>(part)];
                 const float gd = distance(g);
                 if ((shadow && gd > ShadowReach) || !sees(g)) continue;
-                if (!shadow && gd * 14.f / g.Reach >= Picture) { mFar.emplace_back(gd, part); continue; }
+                if (!shadow && gd * 14.f / g.Reach >= Picture) { if (g.Pictures) mFar.emplace_back(gd, part); continue; }
                 for (const unsigned i : g.Trees)
                 {
                     const Tree& t = mTrees[i];
                     const float ex = t.Centre.x - eye.x, ey = t.Centre.y - eye.y, ez = t.Centre.z - eye.z;
                     const float d = std::sqrt(ex * ex + ey * ey + ez * ez);
                     if ((shadow && d > ShadowReach + t.Radius) || !frustum.Sees(t.Centre, t.Radius)) continue;
+                    if (shadow && d > PlantShadowReach && t.Radius < 3.f && mModels[t.Model].Ground) continue;
                     // the level by how large it looks: a tall tree keeps its detail further, a shrub loses it sooner
                     const float seen = d * 14.f / t.Reach;
                     int lod = seen < Detail[0] ? 0 : seen < Detail[1] ? 1 : seen < Detail[2] ? 2 : seen < Picture ? 3 : 4;
                     if (shadow) lod = std::clamp(lod, 1, 2);
+                    else if (lod == 4 && !mModels[t.Model].Variants[t.Variant].Far[0].Valid) continue;   // (a plant: no picture)
                     mBuckets[Bucket(t.Model, t.Variant, lod, t.Snow)].push_back(i);
                 }
             }

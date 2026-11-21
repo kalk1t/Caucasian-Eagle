@@ -4,6 +4,9 @@ detail, written for the game (AscentTrees) into game/assets/Trees:
     Models/<model>_<variant>_<lod>_bark.dmesh, ..._leaves.dmesh     (lod 0 near .. 3 far; a bare tree has no leaves)
     Textures/<kind>_bark.png, _bark_n.png, _leaves.png, _leaves_snow.png   (copied from textures.py's output)
     trees.txt   one line a model: "<model> <texture kind> <variants> <conifer 0/1> <snow 0/1> <height of each variant>"
+                and, for the ground's plants (plants.py: logs, tomatoes, cucumbers, ferns, flowers), "extent" and each
+                variant's reach from its foot and its top: they have no far picture to tell the game how wide they are
+                (a log's "height" is its length: the game scales it to each log's length)
 
     python -I art/trees/build_trees.py [only=fir,beech] [textures=build/trees/textures] [out=game/assets/Trees]
 
@@ -11,10 +14,12 @@ textures.py must have run first. The meshes are generated, not kept in Git (.git
 The models are in metres with the trunk's foot at the origin; the game scales each to its tree's height.
 """
 import os, shutil, sys, time, json
+import numpy as np
 from multiprocessing import Pool
 
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import treegen as tg
+import plants
 
 # (model, species in treegen, texture kind, variants)
 MODELS = [
@@ -26,6 +31,9 @@ MODELS = [
     ("shrub", "shrub", "rhodo", 3), ("juniper", "juniper", "juniper", 3), ("snag", "snag", "snag", 3),
     ("beech_great", "beech_great", "beech", 3), ("gold_great", "beech_great", "gold", 2), ("spruce_great", "spruce_great", "spruce", 3),
     ("colossus", "colossus", "beech", 2), ("vine", "vine", "grape", 3),
+    # the ground's plants (2026-11-21, plants.py): 3D models too, no far picture
+    ("log", "log", "log", 3), ("tomato", "tomato", "tomato", 3), ("cucumber", "cucumber", "cucumber", 3),
+    ("fern", "fern", "fern", 4), ("flowers", "flowers", "flowers", 4),
 ]
 
 def one(job):
@@ -33,6 +41,7 @@ def one(job):
     man = json.load(open(os.path.join(tex, "manifest.json")))["kinds"][kind]
     rects = man.get("rects", {"A": [0, .5, .5, 1], "B": [.5, .5, 1, 1], "C": [0, 0, .5, .5]})
     sw = man.get("swatches") or None
+    if species in plants.SPECIES: return one_plant(model, species, v, out, rects, sw or [])
     tree = tg.Tree(species, seed_of(model, v))
     top, tris = 0.0, []
     for lod in range(4):
@@ -47,7 +56,25 @@ def one(job):
             tg.write_dmesh(path, arr); n += mesh.tris
             if lod == 0: top = max(top, float(arr[0][:, 1].max()))
         tris.append(n)
-    return model, v, top, tris
+    return model, v, top, tris, None
+
+def one_plant(model, species, v, out, rects, sw):
+    size, top, reach, tris = 0.0, 0.0, 0.0, []
+    for lod in range(4):
+        bark, leaves, info = plants.build(species, seed_of(model, v), v, lod, rects, sw)
+        n = 0
+        for part, mesh in (("bark", bark), ("leaves", leaves)):
+            arr = mesh.arrays()
+            path = os.path.join(out, "Models", "%s_%d_%d_%s.dmesh" % (model, v, lod, part))
+            if arr is None:
+                if os.path.exists(path): os.remove(path)
+                continue
+            tg.write_dmesh(path, arr); n += mesh.tris
+            if lod == 0:
+                top = max(top, float(arr[0][:, 1].max())); reach = max(reach, float(np.hypot(arr[0][:, 0], arr[0][:, 2]).max()))
+        tris.append(n)
+        if lod == 0: size = info.get("size", 0.0)
+    return model, v, size or top, tris, (reach, top)
 
 COLS, ROWS = 10, 12         # the impostor atlas: 120 slots of 192 x 384 (impostors.py's SLOT_W, SLOT_H)
 
@@ -74,6 +101,7 @@ def impostors(tex, out, only, blender):
     work = os.path.join(os.path.dirname(tex), "impostors"); os.makedirs(work, exist_ok=True)
     jobs = []
     for (m, s, k, n) in MODELS:
+        if s in plants.SPECIES: continue                    # (a plant is its model until it is a few pixels: no picture)
         for v in range(n):
             for snow in ((0, 1) if os.path.exists(os.path.join(tex, "%s_leaves_snow.png" % k)) else (0,)):
                 jobs.append([m, s, k, v, snow, seed_of(m, v)])
@@ -109,9 +137,10 @@ def main():
     jobs = [(m, s, k, v, tex, out) for (m, s, k, n) in MODELS if not only or m in only for v in range(n)]
     t0 = time.time()
     with Pool(max(1, min(8, (os.cpu_count() or 2) - 1))) as pool: done = pool.map(one, jobs)
-    heights = {}
-    for model, v, top, tris in done:
+    heights, extents = {}, {}
+    for model, v, top, tris, ext in done:
         heights.setdefault(model, {})[v] = top
+        if ext: extents.setdefault(model, {})[v] = ext
         print("%-12s %d  height %5.1f  triangles by detail %s" % (model, v, top, " / ".join(str(t) for t in tris)))
     imp = impostors(tex, out, only, args.get("blender", r"C:\Program Files\Blender Foundation\Blender 5.2\blender.exe"))
     kinds = set()
@@ -125,7 +154,8 @@ def main():
         for (m, s, k, n) in MODELS:
             if m in heights:
                 snow = int(os.path.exists(os.path.join(tex, "%s_leaves_snow.png" % k)))
-                f.write("%s %s %d %d %d %s\n" % (m, k, n, int(tg.SPECIES[s]["conifer"]), snow, " ".join("%.2f" % heights[m][v] for v in range(n))))
+                ext = (" extent " + " ".join("%.3f %.3f" % extents[m][v] for v in range(n))) if m in extents else ""
+                f.write("%s %s %d %d %d %s%s\n" % (m, k, n, int(tg.SPECIES[s]["conifer"]) if s in tg.SPECIES else 0, snow, " ".join("%.2f" % heights[m][v] for v in range(n)), ext))
                 kinds.add(k)
             elif m in old: f.write(old[m] + "\n")
         for line in imp: f.write(line + "\n")

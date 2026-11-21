@@ -7,6 +7,7 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <unordered_map>
@@ -142,6 +143,9 @@ namespace CaucasianEagle
         float Rescued = 0;             // seconds left of the "returned to checkpoint" notice
         // The forest's trunks (<map>.trees, written by the Map Lab's build_mountain.py: every tree of the map, ~260 000).
         struct Trunk { float X = 0, Y = 0, Z = 0, R = 0, H = 0; };
+        // how high above a trunk's foot it still holds her: a tree's to well up its trunk; a low one's (under 2 m: a
+        // fallen log's piece, a tomato's stake, a small shrub) to just over its top, so she can jump over it
+        static float TrunkTop(const Trunk& t) { return t.Y + (t.H < 2.f ? t.H + .3f : (std::max)(2.5f, t.H * .75f)); }   // ((std::max): windows.h's max macro)
         size_t TreeCount() const { return mTrunks.size(); }
         bool TreesHold = true;         // false: CAUCASIAN_EAGLE_TREES=0 (a test's baseline)
         // The ground's look record ("terrain x0 z0 width depth snowline sea ..."): false without one.
