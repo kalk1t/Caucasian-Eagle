@@ -5537,6 +5537,9 @@ namespace Doorways
         // ---- a style's move once it is free: given up for a jump, a skill or the barrier pressed now (and for her own way:
         // the travel, below)
         if (b.MoveFree() && (space || keyF || keyV || keyC)) { b.EndMove(world, "move given up"); b.ComboButton = -1; }
+        // (and Space at any moment of one, on foot: she jumps out of her combo; owner, 2026-11-21: "while rmb and lmb combos
+        // if i press jump it doesnt act, so it should jump up even while doing combos")
+        else if (b.InMove() && space && !flying && alive && !busy && !b.Cast) { b.EndMove(world, "move given up for a jump"); b.ComboButton = -1; }
 
         // ---- Space: the jump clip once (a picture of a jump, as in the lab: the engine's jump is off on foot)
         if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && alive)

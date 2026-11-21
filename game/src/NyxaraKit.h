@@ -151,7 +151,7 @@ namespace Doorways
         // fly FlightEnergySeconds on full energy; out of it, gravity brings her down (the Fall clip) and she lands on
         // foot. On the ground it comes back in FlightRefillSeconds. Unattended runs (the tests) are not limited.
         // (FlightHoldSeconds 3 until 2026-11-19; the owner: "reduce flying uptime from 3 seconds to 1.5s")
-        static constexpr float FlightHoldSeconds = 1.5f, FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
+        static constexpr float FlightHoldSeconds = 1.f,   /* (Space held to take off; owner 2026-11-21: 1 s, was 1.5) */ FlightEnergySeconds = 30, FlightRefillSeconds = 20, FlightLeastShare = .1f;
         // The Eagle's Ascent (0.5, owner 2026-11-20): her wings' growth sets how long she flies: 10 s, then 15, 20, 30.
         void SetFlightSeconds(float seconds) { mFlightSeconds = seconds > 0 ? seconds : FlightEnergySeconds; }
         float FlightSeconds() const { return mFlightSeconds; }
