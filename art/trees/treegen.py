@@ -115,9 +115,9 @@ SPECIES = {
                    cards="spray", card_len=0.95, roots=(6, 0.09), stubs=0, flare=1.45, leaves="maple"),
     "hornbeam": dict(conifer=False, height=16.0, base_r=0.028, trunk_wander=0.05, crown_base=0.28, trunk_top=0.55, shape="tend_flame",
                    l1=dict(mode="spiral", density=1.0, down=(40, 12), length=0.42, up=0.28, droop=0.05, wander=0.12, rr=0.52),
-                   l2=dict(mode="spiral", density=1.7, start=0.20, down=(42, 12), length=0.42, up=0.1, droop=0.2, wander=0.12, rr=0.55),
+                   l2=dict(mode="spiral", density=2.3, start=0.15, down=(42, 12), length=0.45, up=0.1, droop=0.2, wander=0.12, rr=0.55),
                    l3=dict(mode="spiral", density=3.0, start=0.25, down=(42, 12), length=0.40, droop=0.15, wander=0.12, rr=0.55),
-                   cards="spray", card_len=1.0, roots=(6, 0.08), stubs=0, flare=1.4, leaves="hornbeam"),
+                   cards="spray", card_len=1.25, roots=(6, 0.08), stubs=0, flare=1.4, leaves="hornbeam"),
     "birch":  dict(conifer=False, height=15.0, base_r=0.018, trunk_wander=0.05, crown_base=0.30, trunk_top=0.92, shape="tend_flame",
                    l1=dict(mode="spiral", density=1.6, down=(38, 10), length=0.30, up=0.15, droop=0.35, wander=0.10, rr=0.45),
                    l2=dict(mode="spiral", density=2.4, start=0.15, down=(40, 12), length=0.45, droop=0.75, wander=0.10, rr=0.5),
@@ -138,7 +138,7 @@ SPECIES = {
                    l2=dict(mode="spiral", density=3.0, start=0.2, down=(45, 15), length=0.5, droop=0.1, wander=0.15, rr=0.6),
                    cards="bough", card_len=0.32, roots=(0, 0.0), stubs=0, flare=1.0),
     "snag":   dict(conifer=True, height=12.0, base_r=0.035, trunk_wander=0.04, crown_base=0.35, shape="conical", snag=True,
-                   l1=dict(mode="spiral", density=0.9, down=(80, 15), length=0.22, up=0.0, droop=0.25, wander=0.12, rr=0.40, kink=0.25),
+                   l1=dict(mode="spiral", density=2.2, down=(78, 15), length=0.20, up=0.0, droop=0.25, wander=0.12, rr=0.55, kink=0.25),
                    cards=None, card_len=0.0, roots=(6, 0.08), stubs=0, flare=1.45),
 }
 
