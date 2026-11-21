@@ -681,14 +681,20 @@ namespace CaucasianEagle
         }
         struct View { const char* Name; float Turn, Tilt, Dist; int Looks[3]; };
         static const View views[] = {
-            {"front", .35f, -.08f, 3.9f, {0, 0, 0}}, {"front_look_1_3_2", .35f, -.08f, 3.9f, {3, 3, 3}}, {"left", 1.57f, -.08f, 3.9f, {3, 3, 3}},
+            {"front", 0.f, -.08f, 3.9f, {0, 0, 0}}, {"front_look_1_3_2", 0.f, -.08f, 3.9f, {3, 3, 3}}, {"left", 1.57f, -.08f, 3.9f, {3, 3, 3}},
             {"back", 3.14f, -.08f, 3.9f, {3, 3, 3}}, {"right", 4.71f, -.08f, 3.9f, {3, 3, 3}}, {"look_moonlit_close", .2f, -.05f, 1.7f, {9, 9, 9}},
             {"look_fire_far", .6f, -.45f, 6.f, {6, 6, 6}}, {"from_below", .35f, .25f, 2.6f, {9, 6, 3}}};
         constexpr float Each = 3.f;
         const int at = static_cast<int>(mShowClock / Each);
         if (at == 0 && !mGrowthOpen && mShowClock > .5f) { mGrowthOpen = true; mGrowthRow = 0; }
         if (at >= static_cast<int>(std::size(views)))
-        {
+        {   // closed: she is back where she stood, in the nest, on the ground
+            if (!mShowClosed) { mShowWas = mStudioFrom.Position; mShowClosed = true; mGrowthOpen = false; return; }
+            if (mStudio) return;   // (put back as the window closes, after this)
+            const bool back = !mStudio && std::hypot(p.Position.x - mShowWas.x, p.Position.y - mShowWas.y, p.Position.z - mShowWas.z) < .01f && NestAt(p.Position) > 0 && p.Position.y < StudioHeight - 100;
+            if (!back) ++mShowBad;
+            std::ostringstream line; line << std::fixed << std::setprecision(2) << mShowClock << "	closed_back_where_she_stood							" << p.Position.x << '	' << p.Position.y << '	' << p.Position.z << '	' << (back ? "ok" : "FAIL");
+            row(line.str());
             row(mShowBad == 0 ? "SHOWCASE_PASS" : "SHOWCASE_FAIL");
             mShowTest = false; PostQuitMessage(mShowBad == 0 ? 0 : 2);
             return;
@@ -1522,11 +1528,12 @@ namespace CaucasianEagle
             mGrowthOpen = !mGrowthOpen; Sound::PlayUi(mGrowthOpen ? "ui/open" : "ui/close", .6f);
             if (!mGrowthOpen) { session.FreeCursor = false; mHoldBlade = true; }
         }
+        StudioKeep(world);
         if (mShowTest && !mGrowthOpen) ShowTest(host, realDt);
         // her window shows her (HerShowcase): the camera before her while it is open, given back when it closes
         if (mGrowthOpen != mShow.On)
         {
-            if (mGrowthOpen) mShow.Begin(world.MainCamera); else mShow.End(world.MainCamera);
+            if (mGrowthOpen) { StudioIn(world); mShow.Begin(world.MainCamera); } else { mShow.End(world.MainCamera); StudioOut(world); }
             kit.SetShowcase(mGrowthOpen);
         }
         if (mGrowthOpen)
@@ -1552,7 +1559,7 @@ namespace CaucasianEagle
             }
             if (mShow.Dragging) { if (mMouse.Down && mMouse.X >= 0) mShow.Drag(mMouse.X, mMouse.Y, realDt, mHudH); else mShow.Release(); }
             if (mMouse.Wheel != 0) mShow.Wheel(mMouse.Wheel);
-            if (close) { mGrowthOpen = false; session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); mShow.End(world.MainCamera); kit.SetShowcase(false); }
+            if (close) { mGrowthOpen = false; session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); mShow.End(world.MainCamera); StudioOut(world); kit.SetShowcase(false); }
             else
             {
                 const int move = (Press('S', inputAllowed) || Press(VK_DOWN, inputAllowed) ? 1 : 0) - (Press('W', inputAllowed) || Press(VK_UP, inputAllowed) ? 1 : 0);
@@ -2299,8 +2306,32 @@ namespace CaucasianEagle
         mMap.Checkpoint = mSavedNest;
     }
 
-    int EaglesAscentGame::NestAt(const XMFLOAT3& p) const
+    void EaglesAscentGame::StudioIn(WorldState& world)
     {
+        if (mStudio) return;
+        auto& p = world.MainPlayer;
+        mStudioFrom = p; mStudio = true;
+        p.Position.y = StudioHeight;   // (over the summit: round her only sky, and the mountain far under her in the haze)
+        p.GroundY = p.TargetGroundY = StudioHeight; p.IsGrounded = true; p.VerticalVelocity = 0;
+    }
+
+    void EaglesAscentGame::StudioKeep(WorldState& world)
+    {
+        if (!mStudio) return;
+        const auto& p = world.MainPlayer;
+        if (std::abs(p.Position.x - mStudioFrom.Position.x) < .001f && std::abs(p.Position.z - mStudioFrom.Position.z) < .001f && std::abs(p.Position.y - StudioHeight) < .001f) return;
+        mStudio = false; StudioIn(world);
+    }
+
+    void EaglesAscentGame::StudioOut(WorldState& world)
+    {
+        if (!mStudio) return;
+        world.MainPlayer = mStudioFrom; mStudio = false;
+    }
+
+    int EaglesAscentGame::NestAt(const XMFLOAT3& at) const
+    {
+        const XMFLOAT3& p = mStudio ? mStudioFrom.Position : at;   // (on her window's stage: where she really stands)
         for (const auto& n : mMap.Nests)
             if (std::hypot(p.x - n.P.x, p.z - n.P.z) < EaglesAscent::NestReach + 1.2f && std::abs(p.y - n.P.y) < 3) return n.Station;
         return -1;

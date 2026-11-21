@@ -167,6 +167,7 @@ namespace CaucasianEagle
         // and back; Esc closes it. maptest.tsv beside the evidence; MAP_PASS or MAP_FAIL. Pictures are taken by its runner.
         bool mMapTest = false; int mMapStep = -1, mMapBad = 0; float mMapClock = 0, mPtWheel = 0, mMapWas[3] = {};
         void MapTest(Doorways::DoorwaysGameHost& host, float realDt);
+        DirectX::XMFLOAT3 mShowWas{}; bool mShowClosed = false;   // (the showcase test: where she stood, and her window closed again)
         bool mShowTest = false; int mShowStep = -1, mShowBad = 0; float mShowClock = 0;
         void ShowTest(Doorways::DoorwaysGameHost& host, float realDt);
         bool mPointerTest = false; int mPtStep = 0, mPtWait = 0, mPtBad = 0, mPtCrystals = 0, mPtLevel = 0, mPtCost = 0, mPtStation = -1;
@@ -179,7 +180,16 @@ namespace CaucasianEagle
         bool mLedger = false;
         float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0, mHudS = 1; bool mPtDown = false;
         AscentMap mChart;                          // M: the detailed map, to move over and zoom with the mouse (AscentMap.h)
-        HerShowcase mShow;                         // her window open: the camera before her, turned by the mouse (HerShowcase.h)
+        HerShowcase mShow;
+        // Her window's stage (owner, 2026-11-21: "when I happens just let nyxara stay where she stands and just bring her
+        // swords in hands pose in front view in front of player to rotate her and choose look"; and behind her a clean
+        // backdrop, nothing of the world): while it is open she is up in the open sky over where she stood (StudioHeight),
+        // and when it closes she is put back as she was, to the last value. Where she really is (a nest) is mStudioFrom.
+        static constexpr float StudioHeight = 5600.f;
+        bool mStudio = false; Player mStudioFrom{};
+        void StudioIn(WorldState& world);
+        void StudioOut(WorldState& world);
+        void StudioKeep(WorldState& world);   // moved while it is open (sent to a nest): that is where she stands now                         // her window open: the camera before her, turned by the mouse (HerShowcase.h)
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;
         std::wstring mNoticeTitle, mNoticeLine; float mNotice = 0;

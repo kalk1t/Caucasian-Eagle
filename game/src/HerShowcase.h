@@ -29,7 +29,7 @@ namespace CaucasianEagle
         {
             On = true; Dragging = false;
             mYaw = camera.Yaw; mPitch = camera.Pitch; mFollow = camera.FollowDistance; mNearZ = camera.NearZ;
-            Turn = .30f; Tilt = -.08f; Dist = HomeDist; TurnGo = 0; mShownTurn = Turn; mShownTilt = Tilt; mShownDist = Dist;
+            Turn = 0; Tilt = -.08f;   /* (straight before her: the owner, "front view") */ Dist = HomeDist; TurnGo = 0; mShownTurn = Turn; mShownTilt = Tilt; mShownDist = Dist;
             mFresh = true; mRoom = -1;
         }
         void End(Camera& camera)

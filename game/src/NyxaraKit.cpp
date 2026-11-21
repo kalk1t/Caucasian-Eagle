@@ -6368,7 +6368,7 @@ namespace Doorways
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
             // stands at ease (Stand), her swords on her back, and walks off without having to put them away.
             constexpr float GuardSeconds = 5.f, GuardNear = 14.f;
-            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0 || mGuarding;
+            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0 || mGuarding || mShowcase;   // (shown in her window: on guard, both swords in her hands)
             if (b.Struck) for (auto& w : b.WingSpring) w.FlapGo += 3.f;
             b.Struck = false;
             for (const auto& w : mWraiths)

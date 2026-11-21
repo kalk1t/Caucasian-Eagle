@@ -190,7 +190,10 @@ namespace CaucasianEagle::AscentGrowth
             ty += mark + 8 * S;
             // the look she wears, and what her level does
             ui.Text(LookName(item, look), tx, ty, Small * S, (look ? colour(look) : Ink).Fade(a));
-            if (look) ui.RightAligned(LookTitle(look), right, ty + 3 * S, Tiny * S, Dim.Fade(a));
+            // (its example's name beside it, when there is room: "Wings of the royal eagle" ran into "THE HIGHLANDS". The
+            // name is in its example's colour, and HER LOOKS on the right says which that is)
+            const bool roomy = !look || tx + ui.Width(LookName(item, look), Small * S) + 14 * S + ui.Width(LookTitle(look), Tiny * S) <= right;
+            if (look && roomy) ui.RightAligned(LookTitle(look), right, ty + 3 * S, Tiny * S, Dim.Fade(a));
             ty += ui.Height(Small * S) + 2 * S;
             ui.Text(Has(item, level), tx, ty, Tiny * S, Dim.Fade(a));
             ty += ui.Height(Tiny * S) + 7 * S;
