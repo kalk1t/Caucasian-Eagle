@@ -120,6 +120,7 @@ namespace CaucasianEagle
         mTourFinish = mTour && Env("CAUCASIAN_EAGLE_TOUR_FINISH") == "1";   // (and her finishing kill of each creature)
         mWays = Env(DemoEnvironmentVariable) == "4";    // the jars' test, unattended (Ways)
         mNature = Env(DemoEnvironmentVariable) == "5";  // the grass and the trees, unattended (Nature)
+        mGround = Env(DemoEnvironmentVariable) == "6";  // the ground probe, unattended (GroundProbe)
         mLog = Env(AscentLogEnvironmentVariable);
         mTrace = !mLog.empty();
         if (mLog.empty()) mLog = ResolveDoorwaysRuntimePath("eagles-ascent-evidence.tsv").string();
@@ -182,7 +183,7 @@ namespace CaucasianEagle
         // unattended tests keep her own cuts, as they were measured with
         if (!mSmoke && !mClimb && !mTour && !mWays && !mNature) GetNyxaraKit().SetAttackCombo(0);
         if (mNature) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
-        if (mSmoke || mClimb || mTour || mWays || mNature)
+        if (mSmoke || mClimb || mTour || mWays || mNature || mGround)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -977,8 +978,51 @@ namespace CaucasianEagle
         }
     }
 
+    void EaglesAscentGame::GroundProbe(DoorwaysGameHost& host)
+    {
+        const DoorwaysRuntimeScene* scene = host.World.RuntimeScene;
+        if (!scene || !scene->Loaded) { if (++mGroundWait > 600) { std::ofstream(std::filesystem::path(mLog).parent_path() / "ground.tsv") << "GROUND_FAIL\tno scene\n"; mGround = false; PostQuitMessage(2); } return; }
+        float x0, z0, x1, z1; mMap.LandExtent(x0, z0, x1, z1);
+        const auto t0 = std::chrono::steady_clock::now();
+        std::ofstream out(std::filesystem::path(mLog).parent_path() / "ground.tsv");
+        out << "x\tz\tland\tground\tresult\n";
+        long long columns = 0, land = 0, held = 0, holes = 0, off = 0, caves = 0, walls = 0;
+        constexpr float Step = 16.f, Near = 8.f;
+        for (float z = z0 + Step * .5f; z < z1; z += Step)
+            for (float x = x0 + Step * .5f; x < x1; x += Step)
+            {
+                ++columns;
+                const float l = mMap.Land(x, z);
+                if (l < 0.5f) continue;                          // the sea, the shore's water, off the heights
+                ++land;
+                if (mMap.InCave({x, l, z}) || mMap.InCave({x, l - 3.f, z})) { ++caves; continue; }
+                const DoorwaysGroundQueryResult g = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, x, z, l - Near, l + Near);
+                if (g.Hit) { ++held; continue; }
+                // too steep to stand on (over ~58 degrees anywhere within 6 m): a wall. The engine's ground is no steeper
+                // than 60 degrees; on such a face she is held by EaglesAscent::KeepOutOfRock from these same heights.
+                float steep = 0;
+                for (float dz = -6.f; dz <= 6.f; dz += 3.f)
+                    for (float dx = -6.f; dx <= 6.f; dx += 3.f)
+                    {
+                        const float gx = (mMap.Land(x + dx + 1.5f, z + dz) - mMap.Land(x + dx - 1.5f, z + dz)) / 3.f;
+                        const float gz = (mMap.Land(x + dx, z + dz + 1.5f) - mMap.Land(x + dx, z + dz - 1.5f)) / 3.f;
+                        steep = std::max(steep, std::sqrt(gx * gx + gz * gz));
+                    }
+                if (steep > 1.6f) { ++walls; continue; }
+                const DoorwaysGroundQueryResult w = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, x, z, l - 400.f, l + 400.f);
+                if (w.Hit) { ++off; out << x << '\t' << z << '\t' << l << '\t' << w.GroundY << "\tfar_off\n"; }
+                else { ++holes; out << x << '\t' << z << '\t' << l << "\t-\thole\n"; }
+            }
+        const double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        out << "columns\t" << columns << "\tover_land\t" << land << "\theld\t" << held << "\tcaves\t" << caves << "\twalls\t" << walls << "\tfar_off\t" << off << "\tholes\t" << holes << "\tseconds\t" << secs << '\n';
+        out << (holes == 0 ? "GROUND_PASS" : "GROUND_FAIL") << "\tholes=" << holes << "\tfar_off=" << off << '\n';
+        out.close();
+        mGround = false; PostQuitMessage(holes == 0 ? 0 : 2);
+    }
+
     void EaglesAscentGame::Update(DoorwaysGameHost& host, float dt, float realDt, bool inputAllowed)
     {
+        if (mGround) { GroundProbe(host); return; }
         mClock += realDt; mNotice = std::max(0.f, mNotice - realDt);
         auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;

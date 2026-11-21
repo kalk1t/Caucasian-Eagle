@@ -24,6 +24,8 @@ MODELS = [
     ("gold", "beech", "gold", 3), ("birch", "birch", "birch", 4),
     ("apple", "fruit", "apple", 2), ("cherry", "fruit", "cherry", 2), ("orange", "fruit", "orange", 2), ("pomegranate", "fruit", "pomegranate", 2),
     ("shrub", "shrub", "rhodo", 3), ("juniper", "juniper", "juniper", 3), ("snag", "snag", "snag", 3),
+    ("beech_great", "beech_great", "beech", 3), ("gold_great", "beech_great", "gold", 2), ("spruce_great", "spruce_great", "spruce", 3),
+    ("colossus", "colossus", "beech", 2), ("vine", "vine", "grape", 3),
 ]
 
 def one(job):
@@ -47,7 +49,7 @@ def one(job):
         tris.append(n)
     return model, v, top, tris
 
-COLS, ROWS = 10, 8          # the impostor atlas: 80 slots of 192 x 384 (impostors.py's SLOT_W, SLOT_H)
+COLS, ROWS = 10, 12         # the impostor atlas: 120 slots of 192 x 384 (impostors.py's SLOT_W, SLOT_H)
 
 def seed_of(model, v):
     return 1000 * (MODELS.index(next(m for m in MODELS if m[0] == model)) + 1) + v

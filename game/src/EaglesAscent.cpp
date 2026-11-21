@@ -435,6 +435,16 @@ namespace CaucasianEagle
         return (r0[0] * (1 - u) + r0[1] * u) * (1 - v) + (r1[0] * (1 - u) + r1[1] * u) * v;
     }
 
+    void EaglesAscent::LandExtent(float& x0, float& z0, float& x1, float& z1) const
+    {
+        x0 = mLandX; z0 = mLandZ; x1 = mLandX + mLandStep * static_cast<float>(std::max(mLandNx - 1, 0)); z1 = mLandZ + mLandStep * static_cast<float>(std::max(mLandNz - 1, 0));
+        if (!mOuter.H.empty())
+        {
+            x0 = std::min(x0, mOuter.X); z0 = std::min(z0, mOuter.Z);
+            x1 = std::max(x1, mOuter.X + mOuter.Step * static_cast<float>(mOuter.Nx - 1)); z1 = std::max(z1, mOuter.Z + mOuter.Step * static_cast<float>(mOuter.Nz - 1));
+        }
+    }
+
     float EaglesAscent::Land(float x, float z) const
     {
         if (mLand.empty()) return -1e9f;

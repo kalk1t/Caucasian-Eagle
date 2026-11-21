@@ -137,6 +137,29 @@ SPECIES = {
                    l1=dict(mode="spiral", density=2.4, down=(40, 15), length=0.6, up=0.15, droop=0.2, wander=0.2, rr=0.6, kink=0.1),
                    l2=dict(mode="spiral", density=3.0, start=0.2, down=(45, 15), length=0.5, droop=0.1, wander=0.15, rr=0.6),
                    cards="bough", card_len=0.32, roots=(0, 0.0), stubs=0, flare=1.0),
+    # tall forms (0.5.2, 2026-11-21): the forest's great trees, 32 to 65 m. The game scales a model to each tree's height:
+    # a 20 m beech drawn 55 m tall had leaves and twigs three times their size. These are grown at their own height.
+    "beech_great": dict(conifer=False, height=44.0, base_r=0.021, trunk_wander=0.02, crown_base=0.40, trunk_top=0.62, shape="spherical",
+                   leaders=(3, 5, 0.30, 0.60, 1.0, 0.2),
+                   l1=dict(mode="spiral", density=0.45, down=(55, 12), length=0.36, up=0.12, droop=0.10, wander=0.10, rr=0.55),
+                   l2=dict(mode="spiral", density=0.9, start=0.15, down=(48, 12), length=0.45, up=0.08, droop=0.18, wander=0.12, rr=0.55),
+                   l3=dict(mode="spiral", density=1.5, start=0.20, down=(45, 12), length=0.42, up=0.05, droop=0.12, wander=0.12, rr=0.55),
+                   cards="spray", card_len=1.7, roots=(8, 0.06), stubs=4, flare=1.55, leaves="beech", leafy=1.7),
+    "spruce_great": dict(conifer=True, height=40.0, base_r=0.019, trunk_wander=0.01, crown_base=0.30, shape="conical",
+                   l1=dict(mode="whorl", per=6, spacing=0.70, down=(102, 10), length=0.16, up=-0.1, droop=0.65, tipup=0.55, wander=0.06, rr=0.28),
+                   l2=dict(mode="plane", density=2.2, start=0.08, down=(60, 12), length=0.36, droop=0.45, wander=0.07, rr=0.45),
+                   cards="bough", card_len=1.15, roots=(7, 0.07), stubs=5, flare=1.5),
+    # the colossi: the oldest trees of the mountain, 72 to 88 m, one in sight of the path every few hundred metres
+    "colossus": dict(conifer=False, height=80.0, base_r=0.028, trunk_wander=0.025, crown_base=0.30, trunk_top=0.45, shape="hemispherical",
+                   leaders=(4, 7, 0.65, 1.05, 0.9, 0.12),
+                   l1=dict(mode="spiral", density=0.32, down=(66, 12), length=0.42, up=0.14, droop=0.08, wander=0.14, rr=0.55, kink=0.08),
+                   l2=dict(mode="spiral", density=0.55, start=0.12, down=(50, 14), length=0.45, up=0.08, droop=0.15, wander=0.15, rr=0.52, kink=0.08),
+                   l3=dict(mode="spiral", density=0.9, start=0.18, down=(46, 14), length=0.42, up=0.05, droop=0.12, wander=0.14, rr=0.52),
+                   cards="spray", card_len=2.6, roots=(11, 0.05), stubs=8, flare=1.5, leaves="beech", leafy=1.5),
+    # a vine on its trellis (the terraces' vineyards): a gnarled stem to the wire, two arms along it, this year's shoots
+    # up and over, bunches of grapes hanging under the arms; two posts and the wires. The model's x is along the row.
+    "vine":   dict(conifer=False, height=2.2, base_r=0.0, trunk_wander=0.0, crown_base=0.0, shape="spherical", vine=True,
+                   cards="spray", card_len=0.42, roots=(0, 0.0), stubs=0, flare=1.0, leaves="grape", leafy=2.2),
     "snag":   dict(conifer=True, height=12.0, base_r=0.035, trunk_wander=0.04, crown_base=0.35, shape="conical", snag=True,
                    l1=dict(mode="spiral", density=2.2, down=(78, 15), length=0.20, up=0.0, droop=0.25, wander=0.12, rr=0.55, kink=0.25),
                    cards=None, card_len=0.0, roots=(6, 0.08), stubs=0, flare=1.45),
@@ -152,6 +175,7 @@ class Tree:
     def grow(self):
         sp, r, H = self.sp, self.r, self.H
         r0 = sp["base_r"] * H + 0.04
+        if sp.get("vine"): self.grow_vine(); return
         if sp.get("shrub"):                                             # a shrub: several stems from the ground
             stems = []
             for k in range(sp["shrub"]):
@@ -233,6 +257,27 @@ class Tree:
                                       droop=lv.get("droop", 0.0), wander=lv.get("wander", 0.08), tipup=lv.get("tipup", 0.0), kink=lv.get("kink", 0.0))
                 b = Branch(pts, rads, level, t); parent.kids.append(b); self.branches.append(b)
                 if sub and sp.get(sub): self.children(b, sp[sub], level + 1, H, sp)
+
+    def grow_vine(self):
+        r = self.r; span = 2.3; wire = 1.25
+        stem, rads = grow_line(r, (0, -0.15, 0), UP, wire + 0.15, 0.065, 0.05, seg=0.12, up=0.3, wander=0.18, kink=0.08)
+        trunk = Branch(stem, rads, 0); self.branches.append(trunk); self.trunk = trunk
+        top = trunk.pts[-1]
+        for side in (-1, 1):                                            # its two arms along the lower wire
+            pts = [top]; q = top.copy()
+            for k in range(1, 13):
+                q = np.array((side * span * 0.47 * k / 12, wire + 0.03 * math.sin(k * 1.7 + side) + r.uniform(-0.02, 0.02), r.uniform(-0.03, 0.03)))
+                pts.append(q)
+            arm = Branch(pts, np.linspace(0.045, 0.02, len(pts)), 1, 1.0); trunk.kids.append(arm); self.branches.append(arm)
+            for k in range(7):                                         # this year's shoots, up past the upper wire and over
+                t = 0.1 + 0.85 * (k + r.uniform(0.1, 0.9)) / 7; p, _, _ = arm.at(t)
+                d = unit(np.array((r.uniform(-0.25, 0.25), 1.0, r.uniform(-0.45, 0.45))))
+                pp, rr = grow_line(r, p, d, r.uniform(0.7, 1.1), 0.014, 0.005, seg=0.1, droop=0.7, wander=0.25)
+                b = Branch(pp, rr, 2, t); arm.kids.append(b); self.branches.append(b)
+        for x in (-span / 2, span / 2):                                # the posts (dead: wood, no leaves)
+            b = Branch([(x, -0.4, 0), (x, 2.05, 0)], [0.055, 0.045], 1); b.dead = True; self.branches.append(b)
+        for y in (wire - 0.02, wire + 0.55):                           # the wires
+            b = Branch([(-span / 2, y, 0), (span / 2, y, 0)], [0.012, 0.012], 1); b.dead = True; self.branches.append(b)
 
     def grow_roots(self, r0):
         n, frac = self.sp["roots"]; r = self.r
@@ -357,7 +402,7 @@ def build(tree, rects, lod, fruit_uv=None):
     bark, leaves = Mesh(), Mesh()
     crown_c = crown_shape(tree)
     if lod == 3: return far(tree, rects, crown_c, rng)
-    maxlevel = {0: 9, 1: 2, 2: 1}[lod]
+    maxlevel = {0: 9, 1: 2, 2: 1}[lod] if not sp.get("vine") else {0: 9, 1: 9, 2: 1}[lod]
     if sp.get("shrub"): maxlevel = {0: 9, 1: 2, 2: 1}[lod]
     r0 = tree.branches[0].rad[0] if tree.branches else 0.1
     lobes = None
@@ -414,7 +459,16 @@ def build(tree, rects, lod, fruit_uv=None):
             for b in ends:
                 if rng.random() > fr: continue
                 p, d, _ = b.at(rng.uniform(0.5, 1.0)); fruit_ball(leaves, p - UP * 0.08, 0.045 * rng.uniform(0.85, 1.15), fruit_uv[int(rng.integers(0, 2))], 6 if lod == 0 else 4)
-        if lod >= 1: inner(leaves, tree, crown_c, C, rng, lod)
+        if sp.get("vine") and fruit_uv and lod < 3:                       # bunches of grapes under the arms
+            for b in [b for b in tree.branches if b.level == 1 and not b.dead]:
+                for k in range(4):
+                    p, _, _ = b.at(0.2 + 0.2 * k + rng.uniform(-0.05, 0.05))
+                    uv = fruit_uv[int(rng.integers(0, 2))]; L = rng.uniform(0.14, 0.22); n = 16 if lod == 0 else 6 if lod == 1 else 3
+                    for j in range(n):                               # a cone of berries, widest at its top
+                        f = j / max(n - 1, 1); rr_ = L * 0.32 * (1 - 0.75 * f)
+                        an = rng.uniform(0, 6.28); q = p + np.array((math.cos(an) * rr_ * rng.uniform(0.3, 1), -0.04 - L * f, math.sin(an) * rr_ * rng.uniform(0.3, 1)))
+                        fruit_ball(leaves, q, (0.011 if lod == 0 else 0.02 if lod == 1 else 0.035) * rng.uniform(0.85, 1.15), uv, 4 if lod == 0 else 3)
+        if lod >= 1 and not sp.get("vine"): inner(leaves, tree, crown_c, C, rng, lod)
     elif kind == "bough":
         hosts = [b for b in tree.branches if not b.dead and (b.level == 1 if not sp.get("shrub") else b.level >= 1)]
         for b in hosts:

@@ -80,6 +80,12 @@ namespace CaucasianEagle
         // tufts drawn, frame time), then she runs at trunks beside the way and must not go into or through any.
         // nature.tsv beside the evidence; NATURE_PASS or NATURE_FAIL.
         void Nature(Doorways::DoorwaysGameHost& host, float dt);
+        // The ground probe (CAUCASIAN_EAGLE_DEMO=6, 2026-11-21, the owner: "whole mountain's grounds or walls should have
+        // collisions"): every 16 m over the near and the outer land, where the land is above the sea, the engine's
+        // collision is asked for ground she can stand on within 8 m of the land drawn there. ground.tsv; GROUND_PASS
+        // when there is no hole.
+        void GroundProbe(Doorways::DoorwaysGameHost& host);
+        bool mGround = false; int mGroundWait = 0;
         void NatureMenu(Doorways::DoorwaysGameHost& host);
         bool mNature = false; int mNatPhase = 0, mNatPick = 0, mNatBad = 0, mNatFrames = 0, mNatThrough = 0, mNatReached = 0;
         float mNatClock = 0, mNatMs = 0, mNatClosest = 0;

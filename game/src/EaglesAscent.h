@@ -83,7 +83,9 @@ namespace CaucasianEagle
         // What flight is kept over: in a fine patch (records "patch", round each stretch only wings cross) the highest
         // drawn rock and land on a 1 m grid; elsewhere Land. 2026-11-18: the 6 m grid let her into a cleft's drawn walls.
         float FlightLand(float x, float z) const;
-        float LandLow(float x, float z) const;   // the lowest corner of the grid cell: a cleft's floor, not its rims averaged in
+        float LandLow(float x, float z) const;
+        // The ground the heights cover (the near grid and the outer land round it): for the ground probe.
+        void LandExtent(float& x0, float& z0, float& x1, float& z1) const;   // the lowest corner of the grid cell: a cleft's floor, not its rims averaged in
         // Caves (records "cave <kind> <n> x y z halfwidth height ...", 2026-11-18): is p inside a tunnel? Then the
         // floor under her, the roof over her, and how far she is to the right of its middle (rightX, rightZ the way).
         struct CaveSpot { float Floor = 0, Roof = 0, Across = 0, Half = 0, RightX = 0, RightZ = 0; };

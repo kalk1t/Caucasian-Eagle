@@ -290,6 +290,10 @@ KINDS = {
                      A=lambda: spray(151, ["LeafSet003"], (0.30, 0.24, 0.16), 0.27, pairs=4, spread=(0.9, 1.5), tint=(0.62, 0.78, 0.62)),
                      B=lambda: spray(152, ["LeafSet003"], (0.30, 0.24, 0.16), 0.25, pairs=5, spread=(0.9, 1.6), dense=1.6, tint=(0.60, 0.76, 0.60)),
                      C=lambda: cluster(153, ["LeafSet003"], (0.30, 0.24, 0.16), 0.22, count=40, tint=(0.58, 0.74, 0.58))),
+    "grape":    dict(bark=("acg", "Bark002", (0.62, 0.52, 0.44), 0.7), swatches=[(0.22, 0.07, 0.20), (0.62, 0.66, 0.26), (0.30, 0.42, 0.12)],
+                     A=lambda: spray(161, ["LeafSet010"], (0.40, 0.30, 0.20), 0.24, pairs=4, spread=(0.8, 1.3), tint=(0.80, 0.95, 0.70)),
+                     B=lambda: spray(162, ["LeafSet010"], (0.40, 0.30, 0.20), 0.22, pairs=5, spread=(0.8, 1.4), dense=1.5, tint=(0.78, 0.93, 0.68)),
+                     C=lambda: cluster(163, ["LeafSet010"], (0.40, 0.30, 0.20), 0.20, count=45, tint=(0.76, 0.92, 0.66))),
     "snag":     dict(bark=("acg", "Bark004", (0.72, 0.72, 0.72), 0.25), bare=True),
 }
 
@@ -312,7 +316,7 @@ def make_kind(name, spec):
     if not spec.get("conifer"):
         sets = {"beech": ["LeafSet014"], "oak": ["LeafSet016"], "maple": ["LeafSet010"], "hornbeam": ["LeafSet001"], "gold": ["LeafSet007"],
                 "birch": ["LeafSet004"], "apple": ["LeafSet009"], "cherry": ["LeafSet022"], "orange": ["LeafSet023"], "pomegranate": ["LeafSet013"],
-                "rhodo": ["LeafSet003"]}[name]
+                "rhodo": ["LeafSet003"], "grape": ["LeafSet010"]}[name]
         sp = [s for n_ in sets for s in leaves_of(n_)]
         for k in range(4):                              # four single leaves, 2 x 2 in the left part (each its own cell)
             cx = (0.375 * S) * (0.5 + (k % 2)) ; cy = S * 0.5 * (k // 2) + S * 0.47
