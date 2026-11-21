@@ -13,6 +13,10 @@ The owner's plan (2026-11-19, "THE MAP PLAN") and their answers:
   - creatures in the caves beside the way too;
   - nine Eagle Nests on the way, the only places she is saved: at the nine stations between the shore and the court;
   - a creature she has beaten stays beaten (the game keeps them with her save).
+And on 2026-11-21: her wings, swords and armour have nine levels, bought only in the nests; between two nests she finds 60
+to 70 % of what a level of all three costs at the next on the way, the rest in the caves and around the way, where groups
+now stand every 150 to 400 m (`level` and `around` lines; the crystals' ledger is printed, and the game checks it:
+CAUCASIAN_EAGLE_DEMO=8).
 
 Everything is worked out from the map's own data (its trail every 4 m, stations, wing stretches and caves), the same every
 time. To move a place or change who is there, add a line to HAND by its id and run this again. The game reads the file
@@ -65,9 +69,41 @@ LEASH = 40.0           # m along the way a creature follows her from its place, 
 PATROL = 20.0          # m to either side of its place a patrol walks
 CAVE_REACH = 40.0      # a cave with a mouth at the foot of the rock this near the way gets a group
 
+# ---- her growth's crystals (the owner, 2026-11-21): her wings, swords and armour have nine levels each now, bought only
+# at an Eagle Nest: "make sure between each nest nyxara earns 60-70% of the enough crystals to level up in nest - so nest
+# saves and lets you level up , then an other 40-30% should be found in caves and around paths , around path didnt have
+# any monsters before and you could add there also (every 150-400 meter)". Asked, they chose: all that lies between two
+# nests pays for one level of all three at the second nest (each at level 9 at the ninth), the way alone about two of
+# the three. So for nest n: the way (its groups, its bosses and the clay jars beside it) holds WAY_SHARE of three times
+# PRICES[n - 1], and the rest lies off it: the groups in the caves, new groups around the way (AROUND_EVERY apart, each
+# off the way on ground she can walk to: the game finds the place), and the clay jars in the caves and on the rings. The
+# jars' crystals are not left to chance any more: this file says how many lie beside the way and how many off it
+# between each two nests, and the game shares them out among the jars there (Wayside::Lay).
+PRICES = [8, 14, 21, 27, 33, 39, 46, 52, 58]   # crystals for level 1 .. 9 of any one of her three things
+WAY_SHARE = 0.65         # of the three levels' price: on the way itself (the owner: 60 to 70 %)
+CRYSTALS = {"chinka": 1, "ali": 2, "kudiani": 2, "ochokochi": 3, "almasty": 4, "kaji": 5, "uaig": 8, "devi": 10}   # Journey's Kinds[].Cost
+BOSS_CRYSTALS = 25       # a boss of the Ascent (GameConstants.h AscentBossCrystals)
+AROUND_EVERY = (150.0, 400.0)   # m between two groups around the way (the owner)
+AROUND_PART = 0.6        # of what the caves leave of the part off the way: the groups around it (the rest: the jars off it)
+AROUND_CLEAR = 60.0      # m round a nest without them
+AROUND_BOSS = 100.0      # m round a boss's place without them
+
 # Hand changes, by id: {"id": {"along": m} to move a group on the way, "kinds": [...], "keep": "fixed"|"patrol",
 # "skip": True}. Example: HAND = {"way-1800": {"kinds": ["kudiani", "chinka"]}}
-HAND = {}
+HAND = {
+    # (groups around the way with no ground beside it to stand on: the game found none within 120 m along the way, on
+    # either side, 9 to 30 m out (2026-11-21, its crystals' ledger, CAUCASIAN_EAGLE_DEMO=8): the way climbs cliffs from
+    # past the Gveleshapi to the third nest, and above the seventh. Their crystals lie in the jars off the way instead.)
+    "around-1258": {"skip": True}, "around-1410": {"skip": True}, "around-1562": {"skip": True}, "around-5550": {"skip": True},
+    # (and two whose only ground beside the way is within 140 m of another's, around-6608's and around-0922's, once the
+    # game keeps each group around the way a fight of its own: 26 m from every other group, the nearest from where its
+    # line leaves the way, and 26 m there from any group further up it: EaglesAscent::PlaceAround, 2026-11-21; of
+    # around-0698 and around-0922 one had to go, and without around-0698 the first gap is 400 m, not 1,126 m on)
+    "around-6852": {"skip": True}, "around-0698": {"skip": True},
+    # (and one whose only ground is within 100 m of cave-14's group, the two more than the three alive at once: it held
+    # the three places as she went into the cave, and the cave's group never woke: the creatures' tour, 2026-11-21)
+    "around-4374": {"skip": True},
+}
 
 # Where each Eagle Nest stands beside the way at its station: station -> (m to the right of the way, m along it, the
 # ground's height there). Measured by the game itself (2026-11-20, the creatures' tour, CAUCASIAN_EAGLE_DEMO=3, its
@@ -279,7 +315,95 @@ def place(m):
     return nests, bosses, groups, caves, way
 
 
-def write(path, nests, bosses, groups, caves):
+def stretch_along(a, nests):
+    """1 on the way to the first nest .. 9 to the ninth, 10 past it"""
+    return 1 + sum(1 for n in nests if n["along"] <= a)
+
+
+def stretch_height(y, nests):
+    """off the way (a cave, a ring): which nest's stretch, by its height against theirs"""
+    return 1 + sum(1 for n in nests if n["y"] <= y)
+
+
+def value(kinds):
+    return sum(CRYSTALS[k] for k in kinds)
+
+
+def economy(m, way, nests, bosses, groups, caves):
+    """The groups around the way, the price of each level and the jars' crystals between each two nests (see PRICES)."""
+    rnd = random.Random(20261121)
+    st = m["stations"]
+    levels, around, ledger = [], [], []
+    last = None   # the last group around the way so far: m along it
+    for k in range(1, len(nests) + 1):
+        price = PRICES[k - 1]
+        total = 3 * price
+        main = int(round(WAY_SHARE * total))
+        way_creatures = sum(value(g["kinds"]) for g in groups if stretch_along(g["along"], nests) == k)
+        way_bosses = sum(BOSS_CRYSTALS for b in bosses if stretch_along(b["along"], nests) == k)
+        way_jars = main - way_creatures - way_bosses
+        if way_jars < 0:
+            raise SystemExit("level %d: the way's creatures and bosses bring %d crystals, more than its %d: raise PRICES[%d]"
+                             % (k, way_creatures + way_bosses, main, k - 1))
+        side = total - main
+        cave_creatures = sum(value(g["kinds"]) for g in caves if stretch_height(g["y"], nests) == k)
+        room = max(0, side - cave_creatures)
+        # the groups around the way: as many as bring about AROUND_PART of the room, AROUND_EVERY apart
+        a0 = (nests[k - 2]["along"] if k > 1 else 0.0) + AROUND_CLEAR
+        a1 = nests[k - 1]["along"] - AROUND_CLEAR
+
+        def refuse(s):
+            return (way.flying(s, 25) or way.near_nest(s, AROUND_CLEAR) or s < 40 or
+                    any(abs(s - b["along"]) < AROUND_BOSS for b in bosses))
+        leg = way.leg((a0 + a1) / 2, st)
+        trial = random.Random(k)
+        mean = sum(value(pick_kinds(trial, ROSTER[leg])) for _ in range(400)) / 400.0
+        length = max(0.0, a1 - a0)
+        least, most = max(1, math.ceil(length / AROUND_EVERY[1])), max(1, math.floor(length / AROUND_EVERY[0]))
+        count = min(most, max(least, int(round(AROUND_PART * room / mean)))) if room > 0 else 0
+        # (each at least AROUND_EVERY[0] past the one before, the last nest's included: where the ground is refused, a
+        # nest's, a boss's or a stretch only wings cross, the gap may be longer than AROUND_EVERY[1])
+        allowed = [a0 + STEP * i for i in range(int(length / STEP) + 1) if not refuse(a0 + STEP * i)]
+        mine = []
+        gap = length / count if count else 0.0
+        for i in range(count):
+            want = a0 + gap * (i + .5) + rnd.uniform(-1, 1) * min(30.0, max(0.0, (gap - AROUND_EVERY[0]) / 2))
+            prev = mine[-1]["along"] if mine else last
+            ok = [q for q in allowed if prev is None or q - prev >= AROUND_EVERY[0]]
+            if not ok:
+                break
+            s = min(ok, key=lambda q: abs(q - want))
+            if prev is not None and s - prev > AROUND_EVERY[1]:   # no more than that far from the last, where there is ground
+                s = min([q for q in ok if q - prev <= AROUND_EVERY[1]] or ok, key=lambda q: abs(q - (prev + AROUND_EVERY[1])))
+            gid = "around-%04d" % int(round(s))
+            hand = HAND.get(gid, {})
+            kinds = hand.get("kinds") or pick_kinds(rnd, ROSTER[way.leg(s, st)])
+            mine.append({"id": gid, "keep": hand.get("keep") or "fixed", "along": s, "side": rnd.choice((1, -1)),
+                         "kinds": kinds, "leg": way.leg(s, st), "stretch": k, "skip": bool(hand.get("skip"))})
+        last = mine[-1]["along"] if mine else last
+        # (a skipped one is left out only now: the others stand where they stood with it)
+        mine = [g for g in mine if not g["skip"]]
+        # never more than the room: the dearest group gives up a creature, or a lighter one comes instead
+        while mine and value(sum((g["kinds"] for g in mine), [])) > room:
+            g = max(mine, key=lambda q: value(q["kinds"]))
+            if len(g["kinds"]) > 1:
+                g["kinds"] = g["kinds"][:-1]
+            else:
+                lighter = sorted(ROSTER[g["leg"]], key=lambda q: CRYSTALS[q])
+                if CRYSTALS[lighter[0]] < CRYSTALS[g["kinds"][0]]:
+                    g["kinds"] = [lighter[0]]
+                else:
+                    mine.remove(g)
+        around_creatures = value(sum((g["kinds"] for g in mine), []))
+        side_jars = room - around_creatures
+        around += mine
+        levels.append({"level": k, "price": price, "way_jars": way_jars, "side_jars": side_jars})
+        ledger.append({"level": k, "price": price, "way_creatures": way_creatures, "bosses": way_bosses, "way_jars": way_jars,
+                       "caves": cave_creatures, "around": around_creatures, "around_groups": len(mine), "side_jars": side_jars})
+    return around, levels, ledger
+
+
+def write(path, nests, bosses, groups, caves, around, levels):
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write("# The Eagle's Ascent: its Eagle Nests, bosses and creatures. Written by art/map/ascent_creatures.py from\n")
         f.write("# Maps/EaglesAscent.txt; do not edit: change the script's HAND table and run it again.\n")
@@ -288,6 +412,12 @@ def write(path, nests, bosses, groups, caves):
         f.write("# group <id> <fixed|patrol> <x> <y> <z> <yaw> <along> <lo> <hi> <roam> <count> <kind>...\n")
         f.write("# cave <id> <fixed|patrol> <x> <y> <z> <yaw> <cave> <at> <lo> <hi> <roam> <count> <kind>...\n")
         f.write("#   (<cave>: its number among the map's cave records; at, lo, hi: m along its line from its first point)\n")
+        f.write("# around <id> <fixed|patrol> <along> <side> <count> <kind>...   (a group around the way, at m along it, off it\n")
+        f.write("#   to its side: 1 its right going up, -1 its left; the game finds its place there on ground she can walk to)\n")
+        f.write("# level <n> <price> <way jars> <side jars>   (her growth: the price of level n of her wings, swords or armour, at an\n")
+        f.write("#   Eagle Nest; and the crystals the clay jars hold on the way to nest n: those beside the way, and those off it)\n")
+        for lv in levels:
+            f.write("level %d %d %d %d\n" % (lv["level"], lv["price"], lv["way_jars"], lv["side_jars"]))
         for n in nests:
             f.write("nest %d %.2f %.2f %.2f %.4f %.1f\n" % (n["station"], n["x"], n["y"], n["z"], n["yaw"], n["along"]))
         for b in bosses:
@@ -301,6 +431,8 @@ def write(path, nests, bosses, groups, caves):
             f.write("cave %s %s %.2f %.2f %.2f %.4f %d %.1f %.1f %.1f %.1f %d %s\n" % (
                 g["id"], g["keep"], g["x"], g["y"], g["z"], g["yaw"], g["cave"], g["at"], g["lo"], g["hi"], g["roam"],
                 len(g["kinds"]), " ".join(g["kinds"])))
+        for g in around:
+            f.write("around %s %s %.1f %d %d %s\n" % (g["id"], g["keep"], g["along"], g["side"], len(g["kinds"]), " ".join(g["kinds"])))
 
 
 COLOURS = {"chinka": (120, 220, 90), "ali": (110, 190, 255), "kudiani": (90, 200, 60), "ochokochi": (240, 130, 70),
@@ -445,10 +577,18 @@ def main():
     a = ap.parse_args()
     m = read_map(a.map)
     nests, bosses, groups, caves, way = place(m)
-    write(a.out, nests, bosses, groups, caves)
-    alive = sum(len(g["kinds"]) for g in groups + caves)
-    print("%d nests, %d bosses, %d groups on the way, %d in caves, %d creatures -> %s" % (
-        len(nests), len(bosses), len(groups), len(caves), alive, a.out))
+    around, levels, ledger = economy(m, way, nests, bosses, groups, caves)
+    write(a.out, nests, bosses, groups, caves, around, levels)
+    alive = sum(len(g["kinds"]) for g in groups + caves + around)
+    print("%d nests, %d bosses, %d groups on the way, %d in caves, %d around the way, %d creatures -> %s" % (
+        len(nests), len(bosses), len(groups), len(caves), len(around), alive, a.out))
+    print("level price | way: creatures bosses jars = main | off it: caves around(groups) jars = side | the way's part")
+    for r in ledger:
+        main = r["way_creatures"] + r["bosses"] + r["way_jars"]
+        side = r["caves"] + r["around"] + r["side_jars"]
+        print("%5d %5d | %9d %7d %4d = %4d | %12d %6d(%d) %5d = %4d | %3.0f %% of %d" % (
+            r["level"], r["price"], r["way_creatures"], r["bosses"], r["way_jars"], main, r["caves"], r["around"],
+            r["around_groups"], r["side_jars"], side, 100.0 * main / max(1, main + side), main + side))
     if a.pictures:
         pictures(a.pictures, m, nests, bosses, groups, caves, way)
         report(a.pictures, m, nests, bosses, groups, caves, way)

@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -299,7 +300,7 @@ namespace CaucasianEagle
     // cave <id> <fixed|patrol> <x> <y> <z> <yaw> <cave> <at> <lo> <hi> <roam> <count> <kind>...
     bool EaglesAscent::LoadCreatures(const std::filesystem::path& path, std::string& error)
     {
-        Nests.clear(); Placements.clear();
+        Nests.clear(); Placements.clear(); Levels.clear();
         std::ifstream in(path);
         if (!in) { error = "Cannot read " + path.string(); return false; }
         std::string line;
@@ -316,6 +317,39 @@ namespace CaucasianEagle
                 Nest n;
                 good = static_cast<bool>(s >> n.Station >> n.P.x >> n.P.y >> n.P.z >> n.Yaw >> n.Along) && n.Station >= 0 && n.Station < static_cast<int>(Stations.size());
                 if (good) Nests.push_back(n);
+            }
+            else if (word == "level")
+            {   // level <n> <price> <way jars> <side jars>
+                int n = 0; Level v;
+                good = static_cast<bool>(s >> n >> v.Price >> v.WayJars >> v.SideJars) && n >= 1 && n <= 99 && v.Price > 0 && v.WayJars >= 0 && v.SideJars >= 0;
+                if (good)
+                {
+                    if (Levels.size() < static_cast<size_t>(n)) Levels.resize(static_cast<size_t>(n));
+                    Levels[static_cast<size_t>(n - 1)] = v;
+                }
+            }
+            else if (word == "around")
+            {   // around <id> <fixed|patrol> <along> <side> <count> <kind>...: its place is found once the ground is up
+                Placed p; p.Around = true;
+                std::string keep, kind; int count = 0;
+                good = static_cast<bool>(s >> p.Id >> keep >> p.At >> p.Side >> count) && count > 0 && count <= 3 && Trail.size() >= 3;
+                for (int k = 0; good && k < count; ++k)
+                {
+                    good = static_cast<bool>(s >> kind);
+                    if (good) p.Kinds.push_back(kind);
+                }
+                if (good)
+                {   // until then: at the way's edge on its side, looking back down the way
+                    p.Patrol = keep == "patrol";
+                    const int i = std::clamp(static_cast<int>(std::lround(p.At / TrailStep)), 1, static_cast<int>(Trail.size()) - 1);
+                    const XMFLOAT3 a = Trail[static_cast<size_t>(i - 1)], b = Trail[static_cast<size_t>(i)];
+                    const float run = (std::max)(1e-3f, std::hypot(b.x - a.x, b.z - a.z)), rx = (b.z - a.z) / run, rz = -(b.x - a.x) / run;
+                    const float side = p.Side >= 0 ? 2.5f : -2.5f;
+                    p.P = {b.x + rx * side, b.y, b.z + rz * side};
+                    p.Yaw = std::atan2(a.x - b.x, a.z - b.z);
+                    p.Lo = (std::max)(0.f, p.At - 30.f); p.Hi = p.At + 30.f;
+                    Placements.push_back(p);
+                }
             }
             else if (word == "boss" || word == "group" || word == "cave")
             {
@@ -343,6 +377,8 @@ namespace CaucasianEagle
             }
             if (!good) { error = path.filename().string() + " line " + std::to_string(number) + ": cannot read \"" + line.substr(0, 60) + "\""; return false; }
         }
+        for (size_t i = 0; i < Levels.size(); ++i)
+            if (Levels[i].Price <= 0) { error = path.filename().string() + ": no \"level " + std::to_string(i + 1) + "\" line"; return false; }
         // the nests are the only checkpoints (the owner, 2026-11-19: "special saved points only"); she begins on the shore
         // (EaglesAscentGame sets it), but going back down to it does not make it the place she wakes at
         if (!Nests.empty())
@@ -369,6 +405,244 @@ namespace CaucasianEagle
             NestModels = true;
         }
         return true;
+    }
+
+    int EaglesAscent::StretchAlong(float along) const
+    {
+        int k = 1;
+        for (const auto& n : Nests) if (n.Along <= along) ++k;
+        return k;
+    }
+
+    int EaglesAscent::StretchHeight(float y) const
+    {
+        int k = 1;
+        for (const auto& n : Nests) if (n.P.y <= y) ++k;
+        return k;
+    }
+
+    // A group around the way: a place near where the placing model put it (up to AroundReach up or down the way, inside
+    // its stretch, clear of the nests and the bosses), out from the way's middle on its side first, where the ground is
+    // walkable and level enough for its group to stand round it, she can walk out to it from the way's edge (no step of a
+    // metre over 1.5 m on the way there), no trunk stands within 2.5 m, it is not in a cave, no other group at all (on the
+    // way, in a cave, a boss) nor a cave's mouth with creatures in it is within OtherClear of it, and where its line leaves
+    // the way no group further up the way or in a cave is within OtherClear, nor any group within WayMargin of as near as
+    // it is, and it is CaveRoom from a cave's group that it and it together are more than three. The way climbs cliffs and crosses gorges: beside it there is often no ground at all, so first every place
+    // each group could have is found; then, up the way, each takes the one nearest its plan that is AroundGap from the
+    // group before it (or at least AroundGap[0] less 10 m), no other group around the way within 25 m, and that leaves the
+    // group after it a place of its own. Its At becomes that place's m along the way.
+    void EaglesAscent::PlaceAround(const DoorwaysRuntimeScene& scene, std::vector<std::string>* report)
+    {
+        constexpr float Edge = 4.5f;                                       // m from the way's middle to just past its edge
+        constexpr float Out[] = {14.f, 18.f, 11.f, 22.f, 9.f, 26.f, 30.f}; // m from the way's middle
+        constexpr float AroundReach = 120.f, AroundGap[2] = {150.f, 400.f}, GapLeast = AroundGap[0] - 10.f, NestClear = 60.f, BossClear = 100.f;
+        // A group around the way is a fight of its own: no other group's place, nor the mouth of a cave with creatures in
+        // it, within OtherClear of its place, and from where its line leaves the way it is nearer than any other group by
+        // WayMargin, so it is the one that wakes as she comes by; nor, within OtherClear of there, a group further up the
+        // way or in a cave, that she has not met yet (those below it she has passed: coming up the way she meets them
+        // first). OtherClear: more than the tallest of the creatures sees (MountainSight and a Devi's 5.2 m), measured
+        // across the ground as they see. Nearer, the two are one fight, and whichever is a little nearer her wakes first
+        // and takes the three places among the living (2026-11-21, the creatures' tour: around-0698 stood 14 m along
+        // from way-0700 and never woke, and way-0700 came at her off the way; way-5800's Devi saw her 22 m off, where
+        // around-5842's line leaves the way below it). (40 m from every other group left half of them no ground at all,
+        // 30 m three; 26 m from every group where the line leaves the way, two.)
+        constexpr float OtherClear = 26.f, WayMargin = 8.f;
+        // And from a cave's group, when the two are more than the three alive at once (Journey::MountainMostAlive):
+        // CaveRoom, so that wherever she fights the one, the other is farther from her than MountainGiveWay (70 m) and,
+        // calm, gives way to it (70 m, more than the tallest creature sees and its group's spread round its place). A cave's
+        // group stands deep off the way: from the way it is farther from her than a group around the way just up it,
+        // which woke first, held the three places as she went into the cave, and the cave's never woke (2026-11-21, the
+        // creatures' tour: around-4374, three, 26 m up the way from where cave-14, two, is visited).
+        constexpr float CaveRoom = 100.f;
+        constexpr size_t MostAlive = 3;
+        const auto ground = [&](float x, float z, float lo, float hi, float flat, float& y)
+        {
+            const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(scene, x, z, lo, hi);
+            if (!hit.Hit || hit.Normal.y < flat) return false;
+            y = hit.GroundY;
+            return true;
+        };
+        const float length = Trail.empty() ? 0.f : static_cast<float>(Trail.size() - 1) * TrailStep;
+        std::vector<float> bosses;
+        for (const auto& q : Placements) if (q.Boss && q.Cave < 0) bosses.push_back(q.At);
+        struct Other { XMFLOAT3 P; float Along; size_t Count; bool InCave; };   // (a group in a cave: Along further up than any)
+        std::vector<Other> groups;                   // (the other groups' places)
+        std::vector<XMFLOAT3> mouths;                // (the mouths of the caves with creatures)
+        std::vector<bool> peopled(mCaves.size(), false);
+        for (const auto& q : Placements)
+        {
+            if (q.Around) continue;
+            groups.push_back({q.P, q.Cave >= 0 ? 1e9f : q.At, q.Kinds.size(), q.Cave >= 0});
+            if (q.Cave >= 0 && q.Cave < static_cast<int>(mCaves.size())) peopled[static_cast<size_t>(q.Cave)] = true;
+        }
+        for (size_t c = 0; c < mCaves.size(); ++c)
+        {
+            const auto& line = mCaves[c].Line;
+            if (!peopled[c] || line.empty()) continue;
+            if (mCaves[c].Open[0]) mouths.push_back({line.front().X, line.front().Y, line.front().Z});
+            if (mCaves[c].Open[1]) mouths.push_back({line.back().X, line.back().Y, line.back().Z});
+        }
+        const auto apart = [](const XMFLOAT3& u, const XMFLOAT3& v) { return std::sqrt((u.x - v.x) * (u.x - v.x) + (u.y - v.y) * (u.y - v.y) + (u.z - v.z) * (u.z - v.z)); };
+        const auto flat = [](const XMFLOAT3& u, const XMFLOAT3& v) { return std::hypot(u.x - v.x, u.z - v.z); };   // (as they see)
+        enum { Wings, NoGround, NotLevel, NoWalk, Tree, Cave, Near, CaveGroup, Gap, Crowded, Reasons };
+        struct Spot { float At = 0, Out = 0, Dy = 0, SpurAt = 0, Yaw = 0; int Side = 1; XMFLOAT3 P{}; std::vector<XMFLOAT3> Spur; };
+        struct Mine { Placed* Group = nullptr; float Hint = 0; std::vector<Spot> Spots; int Why[Reasons] = {}; };
+        std::vector<Mine> mine;
+        for (auto& p : Placements)
+            if (p.Around) { p.Spur.clear(); p.SpurAt = 0; mine.push_back({&p, p.At}); }
+        std::stable_sort(mine.begin(), mine.end(), [](const Mine& u, const Mine& v) { return u.Hint < v.Hint; });
+
+        // ---- every place each could have, nearest its plan first (at each m along the way the first side and distance
+        // out that will do)
+        for (auto& m : mine)
+        {
+            const Placed& p = *m.Group;
+            int* why = m.Why;
+            const float hint = m.Hint;
+            const int k = StretchAlong(hint);
+            const float a0 = (k >= 2 && k - 2 < static_cast<int>(Nests.size()) ? Nests[static_cast<size_t>(k - 2)].Along : 0.f) + NestClear;
+            const float a1 = (k - 1 < static_cast<int>(Nests.size()) ? Nests[static_cast<size_t>(k - 1)].Along : length) - NestClear;
+            const auto open = [&](float s)
+            {
+                if (s < (std::max)(a0, 40.f) || s > (std::min)(a1, length - 8.f)) return false;
+                for (const auto& f : FlyStretches) if (s >= f.From - 25 && s <= f.To + 25) { ++why[Wings]; return false; }
+                for (const float b : bosses) if (std::abs(s - b) < BossClear) return false;
+                return true;
+            };
+            std::vector<float> tries;
+            for (float s = hint; s >= hint - AroundReach; s -= TrailStep) tries.push_back(s);
+            for (float s = hint + TrailStep; s <= hint + AroundReach; s += TrailStep) tries.push_back(s);
+            std::stable_sort(tries.begin(), tries.end(), [&](float u, float v) { return std::abs(u - hint) < std::abs(v - hint); });
+            const int first = p.Side >= 0 ? 1 : -1;
+            for (const float at : tries)
+            {
+                if (!open(at)) continue;
+                const int i = std::clamp(static_cast<int>(std::lround(at / TrailStep)), 1, static_cast<int>(Trail.size()) - 2);
+                const XMFLOAT3 r = Trail[static_cast<size_t>(i)], a = Trail[static_cast<size_t>(i - 1)], b = Trail[static_cast<size_t>(i + 1)];
+                const float run = std::hypot(b.x - a.x, b.z - a.z);
+                if (run < 1e-3f) continue;
+                const float rx = (b.z - a.z) / run, rz = -(b.x - a.x) / run;   // the way's right, going up it
+                bool found = false;
+                for (const int sgn : {first, -first})
+                {
+                    if (found) break;
+                    const float sf = static_cast<float>(sgn);
+                    for (const float out : Out)
+                    {
+                        const float x = r.x + rx * out * sf, z = r.z + rz * out * sf;
+                        float y = 0;
+                        if (!ground(x, z, r.y - 8.f, r.y + 8.f, .8f, y)) { ++why[NoGround]; continue; }
+                        bool level = true;
+                        for (int n = 0; n < 8 && level; ++n)
+                        {
+                            const float angle = XM_PIDIV4 * static_cast<float>(n);
+                            float yy = 0;
+                            level = ground(x + 3.f * std::cos(angle), z + 3.f * std::sin(angle), y - 1.4f, y + 1.4f, .72f, yy);
+                        }
+                        if (!level) { ++why[NotLevel]; continue; }
+                        std::vector<XMFLOAT3> walk{r};
+                        float last = r.y;
+                        bool walkable = true;
+                        for (float d = Edge; d < out - .75f && walkable; d += 1.5f)
+                        {
+                            const float wx = r.x + rx * d * sf, wz = r.z + rz * d * sf;
+                            float yy = 0;
+                            walkable = ground(wx, wz, last - 1.8f, last + 1.8f, .68f, yy) && std::abs(yy - last) < (d == Edge ? 1.6f : 1.f);
+                            if (walkable) { walk.push_back({wx, yy, wz}); last = yy; }
+                        }
+                        if (!walkable || std::abs(y - last) > 1.3f) { ++why[NoWalk]; continue; }
+                        Trunk trunk;
+                        if (NearestTrunk(x, y, z, 2.5f, trunk)) { ++why[Tree]; continue; }
+                        if (InCave({x, y + 1.f, z})) { ++why[Cave]; continue; }
+                        bool closeBy = false;
+                        const XMFLOAT3 here{x, y, z};
+                        const float fromWay = apart(r, here);
+                        for (const auto& q : groups)
+                            if (flat(q.P, here) < OtherClear || apart(q.P, r) < fromWay + WayMargin || (q.Along > at && flat(q.P, r) < OtherClear)) closeBy = true;
+                        for (const auto& q : mouths) if (flat(q, here) < OtherClear) closeBy = true;
+                        if (closeBy) { ++why[Near]; continue; }
+                        for (const auto& q : groups)
+                            if (q.InCave && p.Kinds.size() + q.Count > MostAlive && apart(q.P, here) < CaveRoom) closeBy = true;
+                        if (closeBy) { ++why[CaveGroup]; continue; }
+                        Spot spot;
+                        walk.push_back(here);
+                        for (size_t n = 1; n < walk.size(); ++n) spot.SpurAt += apart(walk[n - 1], walk[n]);
+                        for (float d = 2.f; d <= 6.f; d += 2.f)
+                        {   // and on past it a little: its group stands round its place, not at the end of its line
+                            const float px = x + rx * d * sf, pz = z + rz * d * sf;
+                            float yy = y;
+                            ground(px, pz, y - 1.5f, y + 1.5f, .6f, yy);
+                            walk.push_back({px, yy, pz});
+                        }
+                        spot.At = at; spot.Out = out; spot.Dy = y - r.y; spot.Side = sgn; spot.P = here;
+                        spot.Yaw = std::atan2(r.x - x, r.z - z);   // looking at the way
+                        spot.Spur = std::move(walk);
+                        m.Spots.push_back(std::move(spot));
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // ---- up the way: each the place nearest its plan that keeps its distance from the one before it, and (when it
+        // can) leaves the next one a place of its own
+        std::vector<XMFLOAT3> given;
+        float prev = -1e9f;   // m along the way of the last group placed
+        for (size_t g = 0; g < mine.size(); ++g)
+        {
+            auto& m = mine[g];
+            const auto crowded = [&](const Spot& s)
+            {
+                for (const auto& q : given) if (std::hypot(q.x - s.P.x, q.z - s.P.z) < 25.f && std::abs(q.y - s.P.y) < 8.f) return true;
+                return false;
+            };
+            const auto leaves = [&](const Spot& s)
+            {   // a place for the next group, far enough on from this one
+                if (g + 1 >= mine.size()) return true;
+                for (const auto& t : mine[g + 1].Spots) if (t.At - s.At >= GapLeast) return true;
+                return mine[g + 1].Spots.empty();   // (it has none anyway)
+            };
+            std::vector<const Spot*> order;   // within AroundGap of the one before first, then any not nearer it than GapLeast
+            for (int pass = 0; pass < 2; ++pass)
+                for (const auto& s : m.Spots)
+                {
+                    const float gap = s.At - prev;
+                    const bool fits = pass == 0 ? gap >= AroundGap[0] && gap <= AroundGap[1] : gap >= GapLeast;
+                    if (fits && std::find(order.begin(), order.end(), &s) == order.end()) order.push_back(&s);
+                }
+            for (const auto& s : m.Spots) if (s.At - prev < GapLeast) ++m.Why[Gap];
+            const Spot* chosen = nullptr;
+            for (const Spot* s : order) if (!crowded(*s) && leaves(*s)) { chosen = s; break; }
+            if (!chosen) for (const Spot* s : order) if (!crowded(*s)) { chosen = s; break; }
+            for (const Spot* s : order) if (crowded(*s)) ++m.Why[Crowded];
+            Placed& p = *m.Group;
+            if (!chosen)
+            {
+                if (report)
+                {
+                    char line[280];
+                    std::snprintf(line, sizeof line, "around\t%s\tNOT_PLACED\tplaces=%d\twings=%d\tno_ground=%d\tnot_level=%d\tno_walk=%d\ttree=%d\tcave=%d\tnear_group=%d\tnear_a_cave_group=%d\ttoo_near_the_last=%d\tcrowded=%d",
+                                  p.Id.c_str(), static_cast<int>(m.Spots.size()), m.Why[Wings], m.Why[NoGround], m.Why[NotLevel], m.Why[NoWalk], m.Why[Tree], m.Why[Cave],
+                                  m.Why[Near], m.Why[CaveGroup], m.Why[Gap], m.Why[Crowded]);
+                    report->push_back(line);
+                }
+                continue;
+            }
+            p.Spur = chosen->Spur; p.SpurAt = chosen->SpurAt; p.P = chosen->P; p.Yaw = chosen->Yaw; p.Side = chosen->Side; p.At = chosen->At;
+            given.push_back(p.P);
+            if (report)
+            {
+                float nearest = 1e9f;
+                for (const auto& q : groups) nearest = (std::min)(nearest, flat(q.P, p.P));
+                for (const auto& q : mouths) nearest = (std::min)(nearest, flat(q, p.P));
+                char line[240];
+                std::snprintf(line, sizeof line, "around\t%s\tplaced\tat=%.0f\tmoved=%.0f\tgap=%.0f\tside=%d\tout=%.0f\tdy=%.1f\tnearest_group=%.0f\tplaces=%d", p.Id.c_str(),
+                              p.At, p.At - m.Hint, prev > -1e8f ? p.At - prev : 0.f, p.Side, chosen->Out, chosen->Dy, nearest, static_cast<int>(m.Spots.size()));
+                report->push_back(line);
+            }
+            prev = p.At;
+        }
     }
 
     bool EaglesAscent::LoadModels(Renderer& renderer, std::string& error)

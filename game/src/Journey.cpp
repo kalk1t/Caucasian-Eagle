@@ -660,7 +660,7 @@ namespace CaucasianEagle
         for (auto& c : mCities) if (c.S1 < checkpoint) c.Visited = true;
     }
 
-    float Journey::DamageTaken() const { return Collection::DamageTaken(mCollection, CitiesVisited()) * MonsterDamageScale * (Gift(3) ? StoneDamageScale : 1.f) * Growth::DamageTaken(mGrowth); }
+    float Journey::DamageTaken() const { return Collection::DamageTaken(mCollection, CitiesVisited()) * MonsterDamageScale * (Gift(3) ? StoneDamageScale : 1.f) * Growth::DamageTaken(mGrowth) * mMountainTaken; }
     int Journey::PotionHealth() const { return PotionHeal + (Gift(0) ? WinePotionHeal : 0) + (Gift(2) ? BlessingPotionHeal : 0); }
     unsigned Journey::CityBits() const
     {
@@ -2031,7 +2031,7 @@ namespace CaucasianEagle
     }
 
     float Journey::KindHeight(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Height : 0.f; }
-    int Journey::KindCrystals(int kind) { return kind >= 0 && kind < KindCount ? (Kinds[kind].Boss ? BossCrystals : std::max(1, Kinds[kind].Cost)) : 0; }
+    int Journey::KindCrystals(int kind) { return kind >= 0 && kind < KindCount ? (Kinds[kind].Boss ? AscentBossCrystals : std::max(1, Kinds[kind].Cost)) : 0; }
     const wchar_t* Journey::KindTitle(int kind) { return kind >= 0 && kind < KindCount ? Kinds[kind].Name : L""; }
 
     bool Journey::InitializeMountain(Renderer& renderer, std::string& error)
@@ -2259,6 +2259,18 @@ namespace CaucasianEagle
             {
                 int wanted = 0;
                 for (const int c : mMountainGroups[g]) if (!mMountainStates[c].Beaten) ++wanted;
+                if (awakeNow + wanted > MountainMostAlive)
+                {   // (only when the calm groups that may give way make room enough: else none is put to sleep for nothing,
+                    // to wake again the next moment as the nearest, and so on, every frame, while a fight holds a place:
+                    // the creatures' tour of 2026-11-21 saw cave-14 and way-4500 wake and sleep thirty times a second, and
+                    // 0.5.0's found way-4500 never waking)
+                    const float least = std::max(d, MountainGiveWay);
+                    int could = 0;
+                    for (int h = 0; h < static_cast<int>(mMountainGroups.size()); ++h)
+                        if (calmAt(h) > least)
+                            for (const int c : mMountainGroups[h]) if (mMountainStates[c].Slot >= 0) ++could;
+                    if (awakeNow - could + wanted > MountainMostAlive) continue;
+                }
                 while (awakeNow + wanted > MountainMostAlive)
                 {   // no room: a calm group she has gone past, farther from her than this one and out of her way, gives
                     // way to it (or the group ahead of her would not be there when she comes to it)

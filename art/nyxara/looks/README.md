@@ -8,7 +8,7 @@ the other swords you choose for each example will fit nyxara's animations as wel
 
 This folder makes a copy of her lab bundle, `Lab/Nyxara_Looks_v01`, in which every look's part is in her mesh (hidden
 until a look shows it), with the looks' textures and `Looks.txt`. The Character Lab loads it (`testing/CharacterLab/heroes.tsv`);
-`game/src/NyxaraLooks.cpp` reads `Looks.txt` and shows a look. Not in the game: the owner chooses first.
+`game/src/NyxaraLooks.cpp` reads `Looks.txt` and shows a look. Since 2026-11-21 the game wears them too: the owner, "i like all of them ... make the upgrade 9 times instead of 3 ... the make the list like this 1-3-2". The Eagle's Ascent's nine levels of each thing are the examples in the order of `Looks.txt`'s `levels 1 3 2` line, three tiers each (`NyxaraLooks::ApplyLevels`), and her game bundle `Characters/Nyxara/MixamoV1` carries every look (46 MB before, 103 MB now); the lab's bundle is the same files.
 
 ## The three examples
 
@@ -46,20 +46,21 @@ pauldrons, then a crown. A swords tier shows another pair of swords and hides he
    build/character-lab/runtime/assets/Compiled/Lab/Nyxara_Looks_v01 Idle Walk Stairs_Up Run Death Jump Attack_L1
    Attack_L2 Attack_L3 Attack_L_Step Attack_L_Run Attack_R1 Attack_R2 Attack_R3 Attack_R4 Attack_R_Step Attack_R_Run
    Attack_Jump Skill_Kick Skill_Throw Skill_Slide Skill_Cast BasicAttack Fly Cast_Fly Cast_Pull Fly_Rise Fly_Land Fall
-   Stand Sword_Reach` (the asset builder is in `build/character-lab/tools`).
+   Stand Sword_Reach` (the asset builder is in `build/character-lab/tools`). Import into a new folder (`build/character-lab/looks/bundle_levels` on 2026-11-21) and compare it with the game's bundle: her 31 clips and `Character.dskel` must come out byte for byte the same, and her own textures too.
 4. **Made small**: `python slim_textures.py <bundle>` (the parts' textures 512 x 512).
 5. **Her looks' textures**: `blender --factory-startup -b art/nyxara/blender/Nyxara_mixamo.blend --python
    art/nyxara/looks/bake_maps.py -- build/character-lab/looks/maps` (once: where on her body and on her wings each
    texel is), then `python make_textures.py game/assets/Compiled/Characters/Nyxara/MixamoV1/Textures
    build/character-lab/looks/maps build/character-lab/looks/textures` (the colours are its `ARMOUR` table and
-   `plumage`). Copy `textures/*.png` into the bundle's `Looks/` and `Looks.txt` into the bundle.
+   `plumage`). Save `textures/body_*.png` and `wings_*.png` as JPEG into the bundle's `Looks/` (quality 90, no chroma subsampling: they have no transparency; 17 MB, not 69) and copy `Looks.txt` into the bundle.
+6. **Into the game**: copy the bundle's `Character.dmat`, `Character.dmesh`, `Character.meshbind`, `ImportReport.*`, `Textures/*_Look_*`, `Looks/` and `Looks.txt` into `game/assets/Compiled/Characters/Nyxara/MixamoV1` and into the lab's `Lab/Nyxara_Looks_v01`; rebuild the stage folder (`tools/build.ps1`).
 
 `tools/character-lab.ps1` does not make or delete the bundle: it stays in `build/character-lab/runtime` until made again.
 
 ## Looks.txt
 
 `example <n> <title> | <about>`, then for each item and tier `<wings|swords|armour> <n> <tier> <name> | key=value ...`.
-Keys: `show=` parts shown, `lit=<part>:<0..1>` a part's own light, `tint=<part>:<r>,<g>,<b>`, `body=` (and `bodynormal=`,
+`levels <n> <n> <n>`: the examples the Eagle's Ascent's levels wear, in order, three tiers each (`levels 1 3 2`). The wings' `span=` rises with the levels in that order (1.02 at level 1 to 1.20 at level 9), so a level never makes her wings smaller. Keys: `show=` parts shown, `lit=<part>:<0..1>` a part's own light, `tint=<part>:<r>,<g>,<b>`, `body=` (and `bodynormal=`,
 `bodyrough=`, `bodymetal=`, `bodyglow=`) her armour, `wings=`, `glow=`, `span=` her wings. Tier 0 of each item is her own.
 
 ## Other tools here

@@ -19,6 +19,8 @@ All game code is in `game/src/` (about 3,400 lines). Namespaces: `CaucasianEagle
 | `WorldMap.h/.cpp` | The minimap and the world map (M): drawn from a `WorldMap::View` that `Journey` fills each frame; loads `assets/ui/Map/WorldMap.png` and `Map.txt` |
 | `AmiraniMountain.h/.cpp` | Scenery: the night sky dome and moon, the mountain, chained Amirani, the eagle, the dog, the chains; also the moonlight and haze settings |
 | `Growth.h/.cpp` | How Nyxara grows: the rules of crystals, item evolutions, training and forms (costs, multipliers) and the drawing of her window (I). Owns no state |
+| `AscentGrowth.h/.cpp` | 0.5.2: how Nyxara grows on the Eagle's Ascent (in place of `Growth`'s evolutions and trainings there): nine levels of wings, swords and armour bought in the nests at the map's prices, the look each wears, her forms, and her window (I). Owns no state |
+| `NyxaraLooks.h/.cpp` | Reads her bundle's `Looks.txt` and puts a look on her (parts shown, textures, tints, light, wing span) through `WorldRenderer::SetCharacterMaterialLook`; `ApplyLevels`: each thing's level as the Ascent's looks (`levels 1 3 2`) |
 | `Collection.h/.cpp` | What Nyxara carries: charms, chain links, feathers of her father, keepsakes, runes. The rules (what each is worth) and the drawing of the second page of her window. Owns no state: `Journey` holds a `Collection::State` |
 | `Nature.h/.cpp` | Grass, trees and clouds: reads `Terrain.bin`, plants by rule round the camera, draws. No collision |
 | `CreatureRig.h/.cpp` | Skeletons of the creatures: reads `<Name>.rig`, turns a creature's state (walking, winding up, striking, hit, dying) into joint matrices for the engine's skinned draw |

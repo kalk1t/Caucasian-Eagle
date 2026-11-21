@@ -14,6 +14,7 @@
 // Looks.txt, a line each (# starts a note):
 //   example <n> <title> | <what it is about>
 //   <wings|swords|armour> <n> <tier 1-3> <name> | key=value ...
+//   levels <n> <n> ...   the Eagle's Ascent's levels: these examples in this order, three tiers each
 // keys: show=<material>[,<material>...]  parts of her mesh shown at that tier
 //       lit=<material>:<0..1>            that part's own light
 //       tint=<material>:<r>,<g>,<b>      that part's colour multiplied (the same piece in another metal at a later tier)
@@ -28,6 +29,7 @@ namespace CaucasianEagle::NyxaraLooks
         struct PartLook { std::string Part; float Glow = -1; DirectX::XMFLOAT4 Tint{1, 1, 1, 1}; };
         std::vector<Example> gExamples;
         std::vector<std::vector<PartLook>> gLit;   // per example, item and tier: [((e * ItemCount) + item) * TierCount + tier]
+        std::vector<int> gLevels;                  // the examples (0-based) her levels go through, in order
         std::filesystem::path gRoot;
 
         std::wstring Wide(const std::string& s)
@@ -54,12 +56,12 @@ namespace CaucasianEagle::NyxaraLooks
 
     bool Load(const std::filesystem::path& bundle, std::string& error)
     {
-        gExamples.clear(); gLit.clear(); gRoot = bundle;
+        gExamples.clear(); gLit.clear(); gLevels.clear(); gRoot = bundle;
         std::ifstream in(bundle / "Looks.txt");
         if (!in) return true;
         std::string line;
         int number = 0;
-        const auto fail = [&](const std::string& why) { error = "Looks.txt line " + std::to_string(number) + ": " + why; gExamples.clear(); gLit.clear(); return false; };
+        const auto fail = [&](const std::string& why) { error = "Looks.txt line " + std::to_string(number) + ": " + why; gExamples.clear(); gLit.clear(); gLevels.clear(); return false; };
         while (std::getline(in, line))
         {
             ++number;
@@ -71,6 +73,17 @@ namespace CaucasianEagle::NyxaraLooks
             const std::string tail = bar == std::string::npos ? std::string() : text.substr(bar + 1);
             std::string kind;
             int example = 0;
+            if (text.rfind("levels", 0) == 0)
+            {   // levels 1 3 2
+                head >> kind;
+                for (int n = 0; head >> n;)
+                {
+                    if (n < 1 || n > 9) return fail("levels wants example numbers (1 to 9)");
+                    gLevels.push_back(n - 1);
+                }
+                if (gLevels.empty()) return fail("levels names no example");
+                continue;
+            }
             if (!(head >> kind >> example) || example < 1 || example > 9) return fail("no example number (1 to 9)");
             if (gExamples.size() < static_cast<size_t>(example)) { gExamples.resize(static_cast<size_t>(example)); gLit.resize(gExamples.size() * ItemCount * TierCount); }
             Example& x = gExamples[static_cast<size_t>(example - 1)];
@@ -128,6 +141,8 @@ namespace CaucasianEagle::NyxaraLooks
                 for (int k = 1; k < TierCount; ++k)
                     if (x.Items[i][k].Name.empty()) return fail("an example misses a tier");
         }
+        for (const int e : gLevels)
+            if (e >= Count()) return fail("levels names example " + std::to_string(e + 1) + ", which is not there");
         return true;
     }
 
@@ -141,27 +156,37 @@ namespace CaucasianEagle::NyxaraLooks
 
     bool Apply(Renderer& renderer, WorldRenderer& worldRenderer, int example, const int tiers[ItemCount], std::string& error)
     {
-        if (example < 0 || example >= Count()) { error = "no such example"; return false; }
-        const Example& x = gExamples[static_cast<size_t>(example)];
+        const int examples[ItemCount] = {example, example, example};
+        return Apply(renderer, worldRenderer, examples, tiers, error);
+    }
+
+    bool Apply(Renderer& renderer, WorldRenderer& worldRenderer, const int examples[ItemCount], const int tiers[ItemCount], std::string& error)
+    {
         int t[ItemCount];
-        for (int i = 0; i < ItemCount; ++i) t[i] = std::clamp(tiers[i], 0, TierCount - 1);
+        const Tier* worn[ItemCount];
+        for (int i = 0; i < ItemCount; ++i)
+        {
+            if (examples[i] < 0 || examples[i] >= Count()) { error = "no such example"; return false; }
+            t[i] = std::clamp(tiers[i], 0, TierCount - 1);
+            worn[i] = &gExamples[static_cast<size_t>(examples[i])].Items[i][t[i]];
+        }
         // every look's part hidden, then those of her tiers shown; her own swords only while no others are
         for (const auto& name : worldRenderer.CharacterMaterialNames())
             if (name.rfind("Look_", 0) == 0) worldRenderer.SetCharacterMaterialVisible(name, false);
         for (int i = 0; i < ItemCount; ++i)
-            for (const auto& part : x.Items[i][t[i]].Show) worldRenderer.SetCharacterMaterialVisible(part, true);
-        worldRenderer.SetCharacterMaterialVisible("Sword", x.Items[Swords][t[Swords]].Show.empty());
+            for (const auto& part : worn[i]->Show) worldRenderer.SetCharacterMaterialVisible(part, true);
+        worldRenderer.SetCharacterMaterialVisible("Sword", worn[Swords]->Show.empty());
         // her body and her wings as the tiers have them (from their own textures each time: nothing left of the last)
         worldRenderer.ResetCharacterMaterialLooks();
         bool ok = true;
-        const Tier& wings = x.Items[Wings][t[Wings]];
+        const Tier& wings = *worn[Wings];
         if (!wings.Plumage.empty() || wings.Glow >= 0)
         {
             WorldRenderer::CharacterMaterialLook look;
             look.BaseColor = wings.Plumage; look.EmissiveStrength = wings.Glow;
             ok = worldRenderer.SetCharacterMaterialLook(renderer, "Wings", gRoot, look, error) && ok;
         }
-        const Tier& armour = x.Items[Armour][t[Armour]];
+        const Tier& armour = *worn[Armour];
         if (!armour.Body.empty() || !armour.BodyRough.empty() || !armour.BodyMetal.empty() || armour.BodyGlow >= 0)
         {
             WorldRenderer::CharacterMaterialLook look;
@@ -170,7 +195,7 @@ namespace CaucasianEagle::NyxaraLooks
             ok = worldRenderer.SetCharacterMaterialLook(renderer, "Nyxara", gRoot, look, error) && ok;
         }
         for (int i = 0; i < ItemCount; ++i)
-            for (const auto& part : gLit[LitIndex(example, i, t[i])])
+            for (const auto& part : gLit[LitIndex(examples[i], i, t[i])])
             {
                 WorldRenderer::CharacterMaterialLook look;
                 look.EmissiveStrength = part.Glow; look.Tint = part.Tint;
@@ -179,5 +204,40 @@ namespace CaucasianEagle::NyxaraLooks
         worldRenderer.ReleaseUnusedCharacterLookTextures();   // (a look tried and left: its textures go)
         Doorways::GetNyxaraKit().SetWingScale(wings.Span);
         return ok;
+    }
+
+    int LevelCount() { return static_cast<int>(gLevels.size()) * (TierCount - 1); }
+
+    bool LevelLook(int level, int& example, int& tier)
+    {
+        if (level < 0 || level > LevelCount() || gLevels.empty()) return false;
+        if (level == 0) { example = gLevels[0]; tier = 0; return true; }
+        example = gLevels[static_cast<size_t>((level - 1) / (TierCount - 1))];
+        tier = (level - 1) % (TierCount - 1) + 1;
+        return true;
+    }
+
+    const Tier& LevelTier(int item, int level)
+    {
+        static const Tier none{};
+        int example = 0, tier = 0;
+        if (item < 0 || item >= ItemCount || !LevelLook(level, example, tier)) return none;
+        return gExamples[static_cast<size_t>(example)].Items[item][tier];
+    }
+
+    int LevelGroup(int level) { return level <= 0 || level > LevelCount() ? 0 : (level - 1) / (TierCount - 1) + 1; }
+
+    const Example& LevelExample(int level)
+    {
+        int example = 0, tier = 0;
+        return LevelLook((std::max)(level, 0), example, tier) ? Get(example) : Get(-1);
+    }
+
+    bool ApplyLevels(Renderer& renderer, WorldRenderer& worldRenderer, const int levels[ItemCount], std::string& error)
+    {
+        int examples[ItemCount], tiers[ItemCount];
+        for (int i = 0; i < ItemCount; ++i)
+            if (!LevelLook(std::clamp(levels[i], 0, LevelCount()), examples[i], tiers[i])) { error = "her bundle's looks have no levels"; return false; }
+        return Apply(renderer, worldRenderer, examples, tiers, error);
     }
 }

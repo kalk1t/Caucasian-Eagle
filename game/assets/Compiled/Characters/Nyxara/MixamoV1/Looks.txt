@@ -1,0 +1,46 @@
+# Nyxara's looks (the owner, 2026-11-21): three examples of how she may grow, to be tried in the Character Lab (keys 1, 2,
+# 3; U every item a step up; I each item by the mouse). Read by game/src/NyxaraLooks.cpp from her bundle; made by
+# art/nyxara/looks (README.md there). A line each:
+#   example <n> <title> | <what it is about>
+#   <wings|swords|armour> <n> <tier 1-3> <name> | key=value ...
+# show= parts of her mesh shown (Look_...), lit= a part's own light, tint= a part's colour multiplied,
+# body= her armour's texture, bodyglow= its own light, wings= her plumage, glow= its own light, span= her wings' size.
+#   levels <n> <n> ...   the Eagle's Ascent's levels (game/src/AscentGrowth.h): these examples in this order, three
+#   tiers each. The owner, 2026-11-21: "the make the list like this 1-3-2 / first 1 2 3 is nyxara's level 1 2 3, then
+#   level 4 5 6 will be thirds 1 2 3 and then last level 7 8 9 will be second's 1 2 3". Her wings grow steadily through
+#   the nine (span 1.02 at level 1 to 1.20 at level 9), so a level never makes them smaller.
+
+levels 1 3 2
+
+example 1 THE HIGHLANDS | Georgia's own: a shashka, a khmali, Queen Tamar's sabre; golden eagle, lammergeier and royal eagle; Svan mail, Khevsur silver, Tamar's gold
+wings 1 1 Golden eagle wings | wings=Looks/wings_11.jpg span=1.02
+wings 1 2 Lammergeier wings | wings=Looks/wings_12.jpg span=1.04
+wings 1 3 Wings of the royal eagle | wings=Looks/wings_13.jpg span=1.07 glow=0.10
+swords 1 1 Shashkas of Svaneti | show=Look_S11
+swords 1 2 Khmali broadswords | show=Look_S12
+swords 1 3 Sabres of Queen Tamar | show=Look_S13
+armour 1 1 Svan mail | body=Looks/body_11.jpg
+armour 1 2 Khevsur silver | body=Looks/body_12.jpg show=Look_P1
+armour 1 3 Harness of Queen Tamar | body=Looks/body_13.jpg show=Look_P1,Look_C1 tint=Look_P1:1.35,1.0,0.45
+
+example 2 MOONLIT | silver and night: crescent sabres, moonsteel longswords, star-crystal blades; silver, moonlit and night-sky wings; moon-silver mail, moonplate, the celestial harness
+wings 2 1 Silver wings | wings=Looks/wings_21.jpg span=1.16
+wings 2 2 Moonlit wings | wings=Looks/wings_22.jpg span=1.18 glow=0.25
+wings 2 3 Night-sky wings | wings=Looks/wings_23.jpg span=1.20 glow=0.18
+swords 2 1 Crescent sabres | show=Look_S21b
+swords 2 2 Moonsteel longswords | show=Look_S22b lit=Look_S22b:0.10
+swords 2 3 Star-crystal blades | show=Look_S23,Look_S23_Blade lit=Look_S23_Blade:0.60
+armour 2 1 Moon-silver mail | body=Looks/body_21.jpg
+armour 2 2 Moonplate | body=Looks/body_22.jpg show=Look_P2
+armour 2 3 Celestial harness | body=Looks/body_23.jpg bodyglow=0.06 show=Look_P2,Look_C2 lit=Look_P2:0.15 lit=Look_C2:0.25
+
+example 3 AMIRANI'S FIRE | the fire Amirani stole: Colchian bronze swords, ember blades, phoenix flamberges; russet, ember and phoenix wings; bronze and leather, obsidian and ember, the phoenix harness
+wings 3 1 Russet wings | wings=Looks/wings_31.jpg span=1.09
+wings 3 2 Ember wings | wings=Looks/wings_32.jpg span=1.11 glow=0.40
+wings 3 3 Phoenix wings | wings=Looks/wings_33.jpg span=1.13 glow=0.55
+swords 3 1 Colchian bronze swords | show=Look_S31b tint=Look_S31b:1.20,0.80,0.45
+swords 3 2 Ember blades | show=Look_S32,Look_S32_Blade lit=Look_S32_Blade:0.60 tint=Look_S32_Blade:1.25,0.80,0.60
+swords 3 3 Phoenix flamberges | show=Look_S33,Look_S33_Blade lit=Look_S33_Blade:0.70
+armour 3 1 Bronze and leather | body=Looks/body_31.jpg
+armour 3 2 Obsidian and ember | body=Looks/body_32.jpg bodyglow=0.12 show=Look_P3 lit=Look_P3:0.50
+armour 3 3 Phoenix harness | body=Looks/body_33.jpg bodyglow=0.10 show=Look_P3,Look_C3 lit=Look_P3:0.50 lit=Look_C3:0.35 tint=Look_P3:1.30,0.80,0.50

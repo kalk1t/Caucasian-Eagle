@@ -97,6 +97,21 @@ All on the development PC, which has Visual Studio and has run the game before.
 - [not verified] **Frame rate** beyond "the pilot's log showed the 60 fps cap in a 1280 x 720 window on the development PC".
 - [not verified] A clean clone, a second machine, an installed copy (unchanged from v0.1.0).
 
+## 11.2f What was verified for 0.5.2's nine levels at the nests (2026-11-21, not released)
+
+| Check | Result |
+|---|---|
+| The crystals' ledger, `CAUCASIAN_EAGLE_DEMO=8` (`ledger.tsv`) | Every stretch holds at least three times its level's price (25 for 24, then just 42, 63, 81, 99, 117, 138, 156, 174 crystals), 64 to 65 % of it on the way; the jars hold the map's crystals to the last (175 beside the way, 132 off it), none past the last nest, none left unlaid; 17 of 17 groups around the way placed, none closer than 140 m to the one before (148 m the least), six gaps over 400 m, each 26 m or more across the ground from any other group, the nearest from where its path leaves the way (by 8 m the least), no group further up the way within 26 m of there, and 100 m or more from a cave's group when the two are more than three (115 m the least); `LEDGER_PASS` |
+| The pointer test, `CAUCASIAN_EAGLE_DEMO=7` | Away from a nest LEVEL UP buys nothing; in the first nest each card's LEVEL UP buys one level (8 crystals), worn and saved (`rules 2`, `level`, `look`); mark 0 puts her own look on, a mark not reached is not there; then CLOSE, the menu and Esc as before; `POINTER_PASS`, with the looks loaded from her game bundle (a picture of the window: golden eagle wings, shashkas of Svaneti, Svan mail) |
+| The jars' test, `CAUCASIAN_EAGLE_DEMO=4` | 3,710 jars in 936 groups; 307 crystals in them; a save, a rollback and the save read back in the new form; `WAYS_PASS` |
+| The Ascent smoke (`DEMO=1`) | `ASCENT_PASS` (a player's old save is read, migrated in memory and never written by an unattended run) |
+| The creatures' tour, `CAUCASIAN_EAGLE_DEMO=3` | Run four times as the rules for the groups around the way were found (the first `bad=8`: groups 10 to 26 m apart one fight; the second `bad=3`: a Devi above seeing her where a path leaves the way, and cave-14 waking and sleeping every frame; the third `bad=5`: around-4374 holding the three places beside cave-14, and way-4500's three). The last: all 95 stops; every group around the way woke on its ground, came at her and was beaten, and so did cave-14; 158 beaten and saved, none awake again after the reload; four groups gave way to a nearer one, each once (six creatures), and all were beaten later; `CREATURES_FAIL bad=3`, all three way-4500's (off its ground by 3.1 m, never roused, never came: the Kaji 0.5.0's tour found placed off its ground and never waking; known, not fixed) |
+| Character Lab `-NyxaraCheck` (on the new bundle) | `CHECK_PASS`; the pauldrons filmed at armour tier 3 of each example, standing, running and cutting, from her left and her right |
+| Map Lab | `tools/map-lab.ps1 -Build -Smoke`: built with the new map code (`PlaceAround`); its smoke PASS (ground at every station at its height, a walk up the trail, a take-off) |
+| The placing model | Run again: the same `EaglesAscent.creatures.txt` byte for byte |
+| Her bundle | Imported again with the looks: her 31 clips, her skeleton and her own textures byte for byte the same; 46 MB to 103 MB |
+| **Not tested** | A climb from the shore to a nest by hand, buying with crystals found on the way; the keys A and D in the window (the pointer test clicks the marks); the window and the looks seen by a person on another screen size |
+
 ## 11.2e What was verified for v0.5.1 (2026-11-20)
 
 The Windows trust audit, with its evidence: [`docs/release-audits/v0.5-to-v0.5.1/REPORT.md`](../docs/release-audits/v0.5-to-v0.5.1/REPORT.md).
@@ -128,6 +143,7 @@ The Windows trust audit, with its evidence: [`docs/release-audits/v0.5-to-v0.5.1
 
 1. Start screen appears: the rendered picture behind, the game's own panel at the left titled CAUCASIAN EAGLE with five rows, the makers' line along the bottom ("A GAME BY GIORGI SAMKHARADZE", "Built in Doorways, a custom engine founded by Giorgi Samkharadze in February 2026"); W / S and the mouse move the selection; Guide and Credits open the guide; Settings opens the engine's settings and Back returns; window title reads "Caucasian Eagle"; the first row enters Moonlit Sanctuary; four prologue cards show.
 1a. Growth: fell creatures and see the crystal count rise; press I, buy a level and an evolution, see the count fall and the numbers under All together change; evolve all three items once and see the NYXARA EVOLVES banner; break a chest and drink the potion with Z after taking damage.
+1b. The Ascent's levels (0.5.2): away from a nest press I and see LEVEL UP dim (*in a nest only*); in a nest with crystals enough see *LEVEL UP: n READY* beside I, buy a level of each thing and see her wings, swords and armour change; put her own look back on with A / D and a click on a mark; leave and fall: she wakes in that nest with what she bought.
 1b. Cage: in a fight, walk to each wall; she stops without jumping; with the camera turned so the wall is between it and her, the blocks in the way sink.
 2. On foot WASD moves her at a jog, back low, wings half open; Shift runs and Ctrl stalks; standing she looks about and shakes her wings.
 3. Space jumps and never flies. R on the ground: she rises for 3 s and flies; W goes where the camera looks; Space held climbs straight up (to the ceiling), X held sinks. R in the air, low: she lands in 3 s and walks; high: "too high to land". Fighting or touching the ground in flight does not end it.

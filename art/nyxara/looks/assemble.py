@@ -18,8 +18,9 @@ are measured there). Its grip is then made as thick as hers where her fingers cl
 guard and a short blade drawn out where a model asks for it. Each sword is carried, like hers, wholly by SwordLeft or
 SwordRight: on her back, thrown and caught they go where hers go.
 
-Pauldrons are laid over her own (her mesh has layered plates on each shoulder), outside every point of her shoulder and
-upper arm, and carried as the nearest points of her own shoulder are (weights copied, then smoothed). Crowns sit round her
+Pauldrons are fitted as she stands (her arms down): over her own (her mesh has layered plates on each shoulder), their
+top above her shoulder joint, outside every point of her shoulder and upper arm, carried as the nearest points of her own
+shoulder are (weights copied, then smoothed), then put back into her rest pose by undoing that carrying. Crowns sit round her
 head at the line of her brow, as wide as her head and hair are there, carried by her Head bone.
 """
 import bpy, bmesh, sys, os, math
@@ -49,11 +50,14 @@ SWORDS = {
     "S33": dict(pommel="bottom", grip=(0.08, 0.20), blade=0.24, lit=True),
 }
 SWORD_FACES = 10000
-# pauldrons: the model's way out of the shoulder and down the arm
+# pauldrons: the model's way out of the shoulder and down the arm; top: how far its top stands above her shoulder joint,
+# more: how much wider than her shoulder, long: the most it may run down her arm (m)
 PAULDRONS = {
     "P1": dict(out=(0, -1, 0), down=(0, 0, -1)),
     "P2": dict(out=(0, -1, 0), down=(1, 0, 0)),
-    "P3": dict(out=(0, -1, 0), down=(1, 0, 0), allow=0.03),   # (a strap block inside it may sink into her own plate)
+    # (P3 lies on a slant in its model: its face looks out and up, its length runs down and out; its spike up. A strap
+    # block inside it may sink into her own plate)
+    "P3": dict(out=(0, -1, 1), down=(0, -1, -1), allow=0.03),
 }
 PIECE_FACES = 12000
 # crowns: a ring lying level in the model, its front at -Y; 'band' is the height of its band's middle, as a part of its height
@@ -286,21 +290,169 @@ for name, s in SWORDS.items():
           (name, kind, L * k * f2.max() / f.max(), 100 * (g1 - g0), (g1 - g0) * L * k, r * k, r * k * ratio, F["r"]))
 
 
-# ---- the pauldrons
-def region(side, low=-0.03, high=0.16):
-    """Her shoulder and upper arm on that side: the points carried mostly by its shoulder and arm bones."""
-    a, b = REST[side + "Arm"]
-    d = unit(b - a)
-    out = []
+# ---- the pauldrons (fitted again 2026-11-21: the owner, "some of the armor has additional parts on arm and those need
+# to be adjusted right , it seems uncorrect now"). They were fitted in her rest pose (arms out level), so standing they
+# hung on the side of her upper arm, below her shoulder, and stood 9 to 14 cm off it. Now each is fitted as she stands
+# (FIT_CLIP: her arms down, as she is seen most): its top over her shoulder joint, its face out of her shoulder and a
+# little up, as wide as her shoulder and a hand more, pushed out only until her shoulder and upper arm are under it
+# (not her collar's fur); carried as her own nearest points there are; then put back into her rest pose by undoing that
+# carrying (each point's blend of its bones' moves, inverted), so that standing she wears it exactly as fitted and
+# moving it goes with her shoulder. The right one is the left one mirrored, fitted to her right shoulder.
+FIT_CLIP, FIT_FRAME = "Stand", 0
+PAULDRON_TILT = 20   # degrees its face looks up from straight out of her shoulder
+TRACKS_MUTED = None
+
+
+def clip_pose(clip, frame_):
+    """Her pose at that frame of that clip (her NLA tracks muted meanwhile); clip None: her rest pose again."""
+    global TRACKS_MUTED
+    ad = arm.animation_data
+    if TRACKS_MUTED is None:
+        TRACKS_MUTED = {t_.name: t_.mute for t_ in ad.nla_tracks}
+    for t_ in ad.nla_tracks:
+        t_.mute = True if clip is not None else TRACKS_MUTED[t_.name]
+    if clip is None:
+        ad.action = None
+        for pb in arm.pose.bones:
+            pb.matrix_basis = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        return
+    act = {t_.name: t_ for t_ in ad.nla_tracks}[clip].strips[0].action
+    ad.action = act
+    try:
+        ad.action_slot = act.slots[0]
+    except Exception:
+        pass
+    bpy.context.scene.frame_set(int(act.frame_range[0]) + frame_)
+    bpy.context.view_layer.update()
+
+
+def posed_points(o):
+    dg = bpy.context.evaluated_depsgraph_get()
+    ev = o.evaluated_get(dg)
+    me = ev.to_mesh()
+    w = np.empty(len(me.vertices) * 3, "f4")
+    me.vertices.foreach_get("co", w)
+    ev.to_mesh_clear()
+    return w.reshape(-1, 3).astype("f8")
+
+
+def skin_mats():
+    """Each bone's move from her rest pose to this one, in her mesh's own space."""
+    T = np.array(arm.matrix_world.inverted() @ body.matrix_world)
+    Ti = np.linalg.inv(T)
+    return {pb.name: Ti @ np.array(pb.matrix) @ np.linalg.inv(np.array(pb.bone.matrix_local)) @ T for pb in arm.pose.bones}, Ti
+
+
+def carried(p, per, S, inverse=False):
+    """Points p carried by their bones' blend (per: {bone: weight} each); inverse: where they were in her rest pose."""
+    out = np.empty_like(p)
+    for k, (v, gw) in enumerate(zip(p, per)):
+        M = sum(wt * S[n_] for n_, wt in gw.items())
+        h = np.append(v, 1.0)
+        out[k] = (np.linalg.solve(M, h) if inverse else M @ h)[:3]
+    return out
+
+
+def shoulder(side, PB, S, Ti):
+    """Her shoulder as she stands: the joint, down the upper arm, out of it (a little up), across it; and her points of
+    the shoulder and upper arm, near the arm's line (not the collar's fur round her neck)."""
+    pb = arm.pose.bones[side + "Arm"]
+    J = (Ti @ np.append(np.array(pb.head), 1.0))[:3]
+    a = unit((Ti @ np.append(np.array(pb.tail), 1.0))[:3] - J)
+    lat = np.array([1.0 if side == "Left" else -1.0, 0, 0])
+    lat = unit(lat - a * (lat @ a))
+    out_t = unit(lat * math.cos(math.radians(PAULDRON_TILT)) - a * math.sin(math.radians(PAULDRON_TILT)))
+    down_t = unit(a - out_t * (a @ out_t))
+    side_t = np.cross(down_t, out_t) * (1.0 if side == "Left" else -1.0)   # (mirrored on the right)
+    idx = []
     for i in range(nv):
-        if vmat[i] != MAT["Nyxara"]:
+        if vmat[i] != MAT["Nyxara"] or weight(i, (side + "Arm", side + "Shoulder")) < 0.5:
             continue
-        if weight(i, (side + "Arm", side + "Shoulder")) < 0.5:
-            continue
-        s_ = (B[i] - a) @ d
-        if low <= s_ <= high:
-            out.append(i)
-    return np.array(out), a, d
+        r = PB[i] - J
+        s_ = r @ a
+        if -0.07 <= s_ <= 0.20 and np.linalg.norm(r - a * s_) < 0.10:
+            idx.append(i)
+    return J, a, out_t, down_t, side_t, np.array(idx)
+
+
+def fit_pauldron(o, name, s, side, PB, S, Ti):
+    J, a, out_t, down_t, side_t, idx = shoulder(side, PB, S, Ti)
+    w0 = points(o)
+    c0 = (w0.min(0) + w0.max(0)) / 2
+    om, dm = unit(s["out"]), unit(s["down"])
+    sm = np.cross(dm, om)
+    R = np.stack([out_t, down_t, side_t], 1) @ np.stack([om, dm, sm], 1).T
+    mirrored = np.linalg.det(R) < 0
+    if mirrored:
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+        bm.to_mesh(o.data); bm.free()
+    reg = PB[idx]
+    near_joint = reg[np.abs((reg - J) @ a - 0.02) < 0.07]
+    across = np.ptp(near_joint @ side_t)
+    w = (w0 - c0) @ R.T
+    k = min((across + s.get("more", 0.05)) / np.ptp(w @ side_t), s.get("long", 0.21) / np.ptp(w @ down_t))
+    w = w * k
+    # its top that far above her shoulder joint, its middle on her arm's line, then out until her shoulder is under it
+    centre = J + down_t * (-s.get("top", 0.06) - (w @ down_t).min())
+    faces = [list(q.vertices) for q in o.data.polygons]
+    allow = max(3, int(len(reg) * s.get("allow", 0.0025)))
+    best = None
+    for step in range(80):
+        push = 0.003 * step
+        p = w + centre + out_t * push
+        n = hits_inward(BVHTree.FromPolygons([Vector(v) for v in p], faces), reg, J, a)
+        if n <= allow:
+            best = (push, p, n)
+            break
+    if best is None:
+        best = (push, p, n)
+    push, p, n = best
+    p = p + out_t * 0.006
+    # carried as her nearest points of the shoulder and upper arm are (only those bones: not her neck or forearm)
+    bones = (side + "Arm", side + "Shoulder", "Spine2", "Spine1")
+    centre_now = p.mean(0)
+    near = [i for i in range(nv) if vmat[i] == MAT["Nyxara"] and weight(i, bones) > 0.6 and np.linalg.norm(PB[i] - centre_now) < 0.35]
+    kd = KDTree(len(near))
+    for j, i in enumerate(near):
+        kd.insert(Vector(PB[i]), j)
+    kd.balance()
+    names = list(bones)
+    col = {n_: j for j, n_ in enumerate(names)}
+    W = np.zeros((len(p), len(names)))
+    for vi, v in enumerate(p):
+        for (_, j, dist) in kd.find_n(Vector(v), 6):
+            wt = 1.0 / (dist + 0.005)
+            for n_, x in weights[near[j]].items():
+                if n_ in col:
+                    W[vi, col[n_]] += wt * x
+    W /= W.sum(1, keepdims=True)
+    edges = np.array([e.vertices[:] for e in o.data.edges])
+    for _ in range(25):
+        acc = np.zeros_like(W)
+        cnt = np.zeros(len(W))
+        np.add.at(acc, edges[:, 0], W[edges[:, 1]]); np.add.at(acc, edges[:, 1], W[edges[:, 0]])
+        np.add.at(cnt, edges[:, 0], 1); np.add.at(cnt, edges[:, 1], 1)
+        W = 0.5 * W + 0.5 * acc / np.maximum(cnt, 1)[:, None]
+    per = []
+    for row in W:
+        top = np.argsort(row)[::-1][:4]
+        tw = row[top]
+        tw = tw / tw.sum()
+        per.append({names[j]: float(x) for j, x in zip(top, tw) if x > 0.01})
+    for gw in per:   # (normalised again after the smallest are dropped)
+        t_ = sum(gw.values())
+        for n_ in gw:
+            gw[n_] /= t_
+    rest = carried(p, per, S, inverse=True)
+    back = carried(rest, per, S)
+    set_points(o, rest)
+    carried_by(o, per)
+    shade(o)
+    print("PAULDRON %s %s: %.3f m across, %.3f m down her arm, pushed out %.3f m, %d of %d of her points through it, "
+          "standing again within %.5f m%s" % (name, side, np.ptp(p @ side_t), np.ptp(p @ down_t), push, n, len(reg),
+                                               np.abs(back - p).max(), ", mirrored" if mirrored else ""))
 
 
 def hits_inward(bvh, p, a, d):
@@ -319,98 +471,30 @@ def hits_inward(bvh, p, a, d):
     return n
 
 
-for name, s in PAULDRONS.items():
-    o = import_model(name, PIECE_FACES)
-    w0 = points(o)
-    c0 = (w0.min(0) + w0.max(0)) / 2
-    side = "Left"
-    idx, a, d_arm = region(side)
-    down_t = unit(0.75 * d_arm + 0.25 * np.array([0, 0, -1.0]))
-    out_t = unit(np.array([1.0, 0, 0]) - down_t * down_t[0])
-    side_t = np.cross(down_t, out_t)
-    om, dm = unit(s["out"]), unit(s["down"])
-    sm = np.cross(dm, om)
-    R = np.stack([out_t, down_t, side_t], 1) @ np.stack([om, dm, sm], 1).T
-    reg = B[idx]
-    across = np.ptp(reg @ side_t)
-    w = (w0 - c0) @ R.T
-    k = min(1.2 * across / np.ptp(w @ side_t), 0.22 / np.ptp(w @ down_t))   # (no longer than 22 cm down her arm)
-    w = w * k
-    centre = a + d_arm * 0.05
-    bvh_faces = [list(p.vertices) for p in o.data.polygons]
-    best = None
-    for step in range(60):
-        push = 0.004 * step
-        p = w + centre + out_t * push
-        bvh = BVHTree.FromPolygons([Vector(v) for v in p], bvh_faces)
-        n = hits_inward(bvh, reg, a, d_arm)
-        if n <= max(3, int(len(reg) * s.get("allow", 0.0025))):
-            best = (push, p, n)
-            break
-    if best is None:
-        best = (push, p, n)
-    push, p, n = best
-    p = p + out_t * 0.006
-    set_points(o, p)
-    shade(o)
-    # carried as the nearest points of her own shoulder are, smoothed over the piece
-    near = [i for i in range(nv) if vmat[i] == MAT["Nyxara"] and weight(i, (side + "Arm", side + "Shoulder", "Spine2", "Neck")) > 0.3
-            and np.linalg.norm(B[i] - centre) < 0.35]
-    kd = KDTree(len(near))
-    for j, i in enumerate(near):
-        kd.insert(Vector(B[i]), j)
-    kd.balance()
-    names = sorted({n_ for i in near for n_ in weights[i]})
-    col = {n_: j for j, n_ in enumerate(names)}
-    W = np.zeros((len(p), len(names)))
-    for vi, v in enumerate(p):
-        for (_, j, dist) in kd.find_n(Vector(v), 6):
-            wt = 1.0 / (dist + 0.005)
-            for n_, x in weights[near[j]].items():
-                W[vi, col[n_]] += wt * x
-    W /= W.sum(1, keepdims=True)
-    edges = np.array([e.vertices[:] for e in o.data.edges])
-    for _ in range(25):
-        acc = np.zeros_like(W)
-        cnt = np.zeros(len(W))
-        np.add.at(acc, edges[:, 0], W[edges[:, 1]]); np.add.at(acc, edges[:, 1], W[edges[:, 0]])
-        np.add.at(cnt, edges[:, 0], 1); np.add.at(cnt, edges[:, 1], 1)
-        W = 0.5 * W + 0.5 * acc / np.maximum(cnt, 1)[:, None]
-    per = []
-    for row in W:
-        top = np.argsort(row)[::-1][:4]
-        tw = row[top]
-        tw = tw / tw.sum()
-        per.append({names[j]: float(x) for j, x in zip(top, tw) if x > 0.01})
-    carried_by(o, per)
-    LOOKS.append((o, "pauldron", name, side))
-    print("PAULDRON %s: %.3f m across, pushed out %.3f m, %d of %d of her points still through it" % (name, np.ptp(p @ side_t), push, n, len(reg)))
-    # the right one: the left one mirrored, then pushed out of her right shoulder if it goes in
-    x = o.copy()
-    x.data = o.data.copy()
-    bpy.context.scene.collection.objects.link(x)
-    x.name = "Look_%s_R" % name
-    pr = p * np.array([-1.0, 1, 1])
-    bm = bmesh.new(); bm.from_mesh(x.data)
-    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
-    bm.to_mesh(x.data); bm.free()
-    idx_r, a_r, d_r = region("Right")
-    out_r = out_t * np.array([-1.0, 1, 1])
-    faces_r = [list(q.vertices) for q in x.data.polygons]
-    for step in range(30):
-        q = pr + out_r * 0.004 * step
-        n = hits_inward(BVHTree.FromPolygons([Vector(v) for v in q], faces_r), B[idx_r], a_r, d_r)
-        if n <= max(3, int(len(idx_r) * s.get("allow", 0.0025))):
-            break
-    set_points(x, q)
-    flip = {}
-    for vg in o.vertex_groups:
-        flip[vg.name] = vg.name.replace("Left", "Right")
-    per_r = [{flip.get(n_, n_): wt for n_, wt in gw.items()} for gw in per]
-    carried_by(x, per_r)
-    shade(x)
-    LOOKS.append((x, "pauldron", name, "Right"))
-    print("PAULDRON %s right: pushed out a further %.3f m, %d of %d through" % (name, 0.004 * step, n, len(idx_r)))
+if PAULDRONS:
+    clip_pose(FIT_CLIP, FIT_FRAME)
+    PB = posed_points(body)
+    S, Ti = skin_mats()
+    # (her own points carried by these moves must come out where Blender puts them: else the sums are wrong)
+    some = [i for i in range(0, nv, 97) if any(n_ in S for n_ in weights[i])]
+    per_some = []
+    for i in some:
+        gw = {n_: x for n_, x in weights[i].items() if n_ in S}
+        t_ = sum(gw.values())
+        per_some.append({n_: x / t_ for n_, x in gw.items()})
+    check = carried(B[some], per_some, S)
+    print("POSE %s %d: her points carried by hand within %.5f m of Blender's" % (FIT_CLIP, FIT_FRAME, np.abs(check - PB[some]).max()))
+    for name, s in PAULDRONS.items():
+        o = import_model(name, PIECE_FACES)
+        x = o.copy()
+        x.data = o.data.copy()
+        bpy.context.scene.collection.objects.link(x)
+        x.name = "Look_%s_R" % name
+        fit_pauldron(o, name, s, "Left", PB, S, Ti)
+        fit_pauldron(x, name, s, "Right", PB, S, Ti)
+        LOOKS.append((o, "pauldron", name, "Left"))
+        LOOKS.append((x, "pauldron", name, "Right"))
+    clip_pose(None, 0)
 
 # ---- the crowns
 head_idx = np.array([i for i in range(nv) if vmat[i] == MAT["Nyxara"] and weights[i].get("Head", 0) > 0.6])
@@ -556,6 +640,12 @@ if PICS:
         shoot(os.path.join(PICS, "ex%s_back.png" % e), (0, -1, 0), (0, 0, 1.0), 2.6)
         shoot(os.path.join(PICS, "ex%s_head.png" % e), (0.5, 1, -0.15), at("Head"), 0.55, (600, 600))
         shoot(os.path.join(PICS, "ex%s_shoulder.png" % e), (-0.8, 1, -0.3), at("LeftArm"), 0.6, (600, 600))
+        for clip, fr in (("Stand", 0), ("Run", 6), ("Attack_L2", 14), ("Fly", 10), ("Skill_Cast", 20)):
+            if clip in tracks and any(n_.startswith("P") for n_ in names):
+                pose(clip, fr)
+                shoot(os.path.join(PICS, "ex%s_pl_%s.png" % (e, clip)), (-0.8, 1, -0.3), at("LeftArm"), 0.6, (500, 500))
+                shoot(os.path.join(PICS, "ex%s_pr_%s.png" % (e, clip)), (0.8, 1, -0.3), at("RightArm"), 0.6, (500, 500))
+                shoot(os.path.join(PICS, "ex%s_pk_%s.png" % (e, clip)), (0, -1, -0.2), at("Spine2"), 0.9, (500, 500))
         pose("Walk", 0)
         shoot(os.path.join(PICS, "ex%s_walk_back.png" % e), (0, -1, 0), (0, 0, 1.0), 2.6)
         if "Attack_L2" in tracks:

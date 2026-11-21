@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AscentGrowth.h"
 #include "DoorwaysGame.h"
 #include "EaglesAscent.h"
 #include "Growth.h"
@@ -57,7 +58,11 @@ namespace CaucasianEagle
         void LoadSave();                           // the last nest and the beaten (AscentSaveFileName)
         void WriteSave() const;
         void NewClimb(Doorways::DoorwaysGameHost& host);   // from the shore, the nests and the beaten forgotten
-        void SaveHere(int station);                // H at a nest: all she is and has done, saved (WriteSave)
+        void SaveHere(int station, bool quiet = false);   // H at a nest: all she is and has done, saved (WriteSave); quiet: a level bought, a look put on
+        // I in a nest: the next level of that item bought (its crystals paid, its look put on, saved there); false when
+        // she cannot (not in a nest, at the top, crystals too few)
+        bool LevelUp(int item, int station);
+        bool Wear(int item, int level, int station);   // that look of it put on (0 .. its level), in a nest
         void RollBack();                           // back to the save: her growth, the creatures, the jars
         int NestAt(const DirectX::XMFLOAT3& p) const;   // the station of the nest she stands in; -1
         void Collect(const Wayside::Gain& gain);   // what a jar or a place gave her
@@ -104,7 +109,13 @@ namespace CaucasianEagle
         int mSavedNest = 0;                        // the station of the last Eagle Nest she rested at (0: the shore)
         std::vector<std::string> mSavedBeaten;
         size_t mBeatenWritten = 0;                 // the beaten counted (for their crystals)
-        Growth::State mGrowth, mSavedGrowth;       // (0.5) her growth now, and as saved
+        Growth::State mGrowth, mSavedGrowth;       // her growth now, and as saved (0.5.2: AscentGrowth's rules)
+        std::vector<int> mPrices;                  // the price of each level (the map's: EaglesAscent::Levels)
+        bool mMigrated = false;                    // her save was from before the nine levels: told once, at the start
+        // her looks (NyxaraLooks, from her bundle's Looks.txt): the levels worn now, as last put on (-1: not yet)
+        bool mLooksOn = false; int mLookShown[3] = {-1, -1, -1};
+        bool mAroundPlaced = false;                // the groups around the way found their places (EaglesAscent::PlaceAround)
+        std::vector<std::string> mAroundReport;    // where each was placed, or why not (the ledger writes it)
         std::vector<std::string> mSavedJars;
         Wayside mWayside; bool mWaysideOn = false;
         AscentGrass mGrass;   // the grass fields (2026-11-20)
@@ -146,7 +157,14 @@ namespace CaucasianEagle
         // taken (her window opens, the pointer still free), Esc. pointer.tsv beside the evidence; POINTER_PASS or
         // POINTER_FAIL. At "picture" it holds 3 s with a card chosen (its runner takes a picture of the window).
         void PointerTest(Doorways::DoorwaysGameHost& host, float dt);
-        bool mPointerTest = false; int mPtStep = 0, mPtWait = 0, mPtBad = 0, mPtCrystals = 0, mPtLevel = 0, mPtCost = 0;
+        bool mPointerTest = false; int mPtStep = 0, mPtWait = 0, mPtBad = 0, mPtCrystals = 0, mPtLevel = 0, mPtCost = 0, mPtStation = -1;
+        // The crystals' ledger (CAUCASIAN_EAGLE_DEMO=8, unattended, 0.5.2): once the map's ground is up and the jars laid
+        // and the groups around the way placed, what lies between each two nests is counted: on the way (its groups, its
+        // bosses, the jars beside it) and off it (the caves' groups, the groups around the way, the jars in the caves and
+        // on the rings). Each nest's must pay for a level of all three, the way's part 60 to 70 % of it, every jar
+        // crystal the map gives laid, every group around the way placed. ledger.tsv; LEDGER_PASS or LEDGER_FAIL.
+        void Ledger(Doorways::DoorwaysGameHost& host);
+        bool mLedger = false;
         float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0; bool mPtDown = false;
         MountainView mView;                        // M: the whole mountain from outside (MountainView.h)
         float mDeadFor = 0, mRespawnAsk = 0, mClock = 0;

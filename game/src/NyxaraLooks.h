@@ -50,4 +50,18 @@ namespace CaucasianEagle::NyxaraLooks
     // Her look: tiers[Wings], tiers[Swords], tiers[Armour] of that example (0 to 3 each). False with 'error' when a
     // texture does not load (she is then as far as it got).
     bool Apply(Renderer& renderer, WorldRenderer& worldRenderer, int example, const int tiers[ItemCount], std::string& error);
+    // The same, each item from an example of its own: examples[i] (0-based) at tiers[i].
+    bool Apply(Renderer& renderer, WorldRenderer& worldRenderer, const int examples[ItemCount], const int tiers[ItemCount], std::string& error);
+
+    // Her levels in the Eagle's Ascent (the owner, 2026-11-21: "make the upgrade 9 times instead of 3 ... the make the list
+    // like this 1-3-2 / first 1 2 3 is nyxara's level 1 2 3, then level 4 5 6 will be thirds 1 2 3 and then last level 7 8
+    // 9 will be second's 1 2 3"): Looks.txt's line "levels 1 3 2" gives the examples in that order, three tiers each.
+    // Level 0 is her own; level L (1 ..) is tier (L - 1) % 3 + 1 of the example it falls in. No such line: no levels.
+    int LevelCount();                                       // 9 with "levels 1 3 2"; 0 without the line
+    bool LevelLook(int level, int& example, int& tier);     // false past LevelCount()
+    const Tier& LevelTier(int item, int level);             // its name, what it shows
+    int LevelGroup(int level);                              // 0 her own, then 1, 2, 3: the example's place in that order
+    const Example& LevelExample(int level);                 // the example a level is of (level 0: the first's)
+    // Her look with each item at a level (0 .. LevelCount()), as the Ascent has her wear it
+    bool ApplyLevels(Renderer& renderer, WorldRenderer& worldRenderer, const int levels[ItemCount], std::string& error);
 }

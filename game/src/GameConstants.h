@@ -284,6 +284,16 @@ namespace CaucasianEagle
     constexpr float FormDamage = 0.10f;          // each form of Nyxara herself: more damage...
     constexpr float FormTaken = 0.08f;           // ...less damage taken...
     constexpr float FormScale = 0.03f;           // ...and she stands this much taller
+    // The Eagle's Ascent's growth (0.5.2, the owner 2026-11-21: "make nest only place where she can upgrade, make the
+    // upgrade 9 times instead of 3"; the trainings removed, their strength in the levels): AscentGrowth.h. Each level's
+    // price is the map's (EaglesAscent::Levels). At level 9 she is as strong as 0.5's three evolutions and eight levels of
+    // power and defence made her: damage x 2.49 (x 3.23 with her form), damage taken x 0.39 (x 0.30).
+    constexpr int AscentMaxLevel = 9;
+    constexpr float AscentLevelFlightSeconds[AscentMaxLevel + 1] = {10, 12, 14, 17, 19, 21, 23, 26, 28, 30};   // her wings: 10 s to 30 s, as before
+    constexpr float AscentSwordLevelDamage = 0.165f;   // more damage per level of her swords
+    constexpr float AscentArmourLevelTaken = 0.068f;   // less damage taken per level of her armour
+    constexpr int AscentBossCrystals = 25;       // crystals from a boss of the Ascent (art/map/ascent_creatures.py BOSS_CRYSTALS)
+    constexpr int AscentDefaultPrices[AscentMaxLevel] = {8, 14, 21, 27, 33, 39, 46, 52, 58};   // when the map gives none (ascent_creatures.py PRICES)
     constexpr int MaxPotions = 5;                // potions she can carry
     constexpr int PotionHeal = 35;               // health from one potion
     constexpr int PotionKey = 'Z';               // drinks one

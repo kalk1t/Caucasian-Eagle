@@ -27,6 +27,9 @@ namespace CaucasianEagle
             int Crystals = 0;
             int Potions = 0;
             int Level[RowCount] = {};   // tier of the three items, level of the two kinds of training
+            // the Eagle's Ascent (AscentGrowth.h): Level[Wings .. Armour] is the item's level there (0..9, no training),
+            // and Look[] the level whose look she wears (0..Level); the road does not use them
+            int Look[3] = {};
         };
 
         int Max(int row);                           // 3 for items, 8 for training

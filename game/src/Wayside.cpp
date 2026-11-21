@@ -212,6 +212,8 @@ namespace CaucasianEagle
                                 const float inside = Hash(j.Id, 11);
                                 if (inside < .08f) j.Potion = true;
                                 else if (inside < .38f) j.Crystals = Hash(j.Id, 12) < .7f ? 1 : 2;
+                                j.Way = trail;
+                                j.Stretch = trail ? map.StretchAlong(here) : map.StretchHeight(j.P.y);
                                 group.push_back(j);
                             }
                             if (group.size() >= 3) break;
@@ -229,6 +231,30 @@ namespace CaucasianEagle
             road(line, halves, "c" + std::to_string(c), true, false);
         }
         for (size_t r = 0; r < map.Rings().size(); ++r) road(map.Rings()[r], {}, "r" + std::to_string(r), false, false);
+
+        // the crystals in them (0.5.2): as many as the map gives each stretch beside the way and off it, shared out
+        // among its jars that hold no potion, one or two each, in the order their own numbers give (the same every
+        // time); past the last nest, none
+        Unplaced = 0;
+        if (!map.Levels.empty())
+        {
+            for (auto& j : mJars) j.Crystals = 0;
+            for (int k = 1; k <= static_cast<int>(map.Levels.size()); ++k)
+                for (const bool way : {true, false})
+                {
+                    int budget = way ? map.Levels[static_cast<size_t>(k - 1)].WayJars : map.Levels[static_cast<size_t>(k - 1)].SideJars;
+                    std::vector<Jar*> mine;
+                    for (auto& j : mJars)
+                        if (j.Stretch == k && j.Way == way && !j.Potion) mine.push_back(&j);
+                    if (mine.empty()) { Unplaced += budget; continue; }
+                    std::sort(mine.begin(), mine.end(), [](const Jar* a, const Jar* b) { return Hash(a->Id, 11) < Hash(b->Id, 11); });
+                    for (size_t i = 0; budget > 0; i = (i + 1) % mine.size())
+                    {
+                        const int give = (std::min)(budget, Hash(mine[i]->Id, 12) < .7f ? 1 : 2);
+                        mine[i]->Crystals += give; budget -= give;
+                    }
+                }
+        }
 
         mLaid = true;
     }

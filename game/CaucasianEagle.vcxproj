@@ -95,6 +95,7 @@
     <ClCompile Include="src\Collection.cpp" />
     <ClCompile Include="src\Nature.cpp" />
     <ClCompile Include="src\Growth.cpp" />
+    <ClCompile Include="src\AscentGrowth.cpp" />
     <ClCompile Include="src\Guide.cpp" />
     <ClCompile Include="src\Settings.cpp" />
     <ClCompile Include="src\StartScreen.cpp" />
@@ -121,6 +122,7 @@
     <ClInclude Include="src\Collection.h" />
     <ClInclude Include="src\Nature.h" />
     <ClInclude Include="src\Growth.h" />
+    <ClInclude Include="src\AscentGrowth.h" />
     <ClInclude Include="src\Sound.h" />
     <ClInclude Include="src\Guide.h" />
     <ClInclude Include="src\Settings.h" />

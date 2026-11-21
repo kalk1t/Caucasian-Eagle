@@ -15,6 +15,7 @@
 
 class Renderer;
 struct EnvironmentSettings;
+struct DoorwaysRuntimeScene;
 namespace Doorways { struct DoorwaysGameHost; }
 
 // A mountain map played on foot and in flight: Map A, "The Eagle's Ascent" (sea level to Amiran's court at 4,200 m), and
@@ -119,9 +120,25 @@ namespace CaucasianEagle
             DirectX::XMFLOAT3 P{}; float Yaw = 0;
             int Cave = -1;                     // -1 on the way; else its cave (Caves())
             float At = 0, Lo = 0, Hi = 0, Roam = 0;   // m along the way (or the cave's line): its place and the stretch it keeps to
+            // A group around the way (record "around", 2026-11-21: the owner, "around path didnt have any monsters before
+            // and you could add there also (every 150-400 meter)"): off the way at m At along it, to its Side (1 its right
+            // going up, -1 its left). PlaceAround finds its place on ground she can walk to from the way, and Spur: its line
+            // from the way's middle out to the place and 6 m past it. No spur: no place was found; it stands at the way's edge.
+            bool Around = false; int Side = 1;
+            std::vector<DirectX::XMFLOAT3> Spur;
+            float SpurAt = 0;                  // m along its spur to its place
         };
         std::vector<Nest> Nests;
         std::vector<Placed> Placements;
+        // Her growth's crystals (records "level", 2026-11-21): the price of each level of her wings, swords or armour (bought
+        // at an Eagle Nest), and the crystals the clay jars hold on the way to each nest, beside the way and off it (in the
+        // caves and on the rings: Wayside::Lay shares them out). What lies between two nests pays for one level of all three.
+        struct Level { int Price = 0, WayJars = 0, SideJars = 0; };
+        std::vector<Level> Levels;             // [0]: level 1, on the way to the first nest
+        int StretchAlong(float along) const;   // 1 on the way to the first nest .. Nests.size() + 1 past the last
+        int StretchHeight(float y) const;      // the same off the way (a cave, a ring): by its height against the nests'
+        // Every group around the way given its place, once the map's ground is up; 'report' gets a line each
+        void PlaceAround(const DoorwaysRuntimeScene& scene, std::vector<std::string>* report = nullptr);
         // Before LoadModels: the nests are game models too (NestModel, when it has been compiled; NestModels then).
         bool LoadCreatures(const std::filesystem::path& file, std::string& error);
         static constexpr const char* NestModel = "Landmarks/EagleNest/EagleNest";

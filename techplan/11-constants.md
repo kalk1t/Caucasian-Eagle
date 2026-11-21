@@ -448,12 +448,28 @@ None of these has been tuned by play.
 
 | Name | Value | Unit | What it does | Def | Kind | Note |
 |---|---|---|---|---|---|---|
-| `AscentFlightSeconds` | 10, 15, 20, 30 | s | How long her wings carry her at wing tier 0 to 3 | `GameConstants.h` | code | The owner's numbers; `NyxaraKit::SetFlightSeconds` |
+| `AscentFlightSeconds` | 10, 15, 20, 30 | s | How long her wings carried her at wing tier 0 to 3 (0.5 to 0.5.1; since 0.5.2 `AscentLevelFlightSeconds`) | `GameConstants.h` | code | The owner's numbers; `NyxaraKit::SetFlightSeconds` |
 | Jar groups | every 30 to 50 | m | Along every road (way, caves, rings), 3 to 5 jars a group | `Wayside.cpp` (`JarStepLeast`, `JarStepMore`) | code | |
-| Jar contents | 30 % a crystal or two (7 in 10 one), 8 % a potion | | What a jar holds, from a hash of its id | `Wayside.cpp` (`Lay`) | code | About 1,450 crystals and 300 potions on the mountain |
+| Jar contents | 8 % a potion; crystals: each stretch's share (the map's `level` lines), one or two a jar | | What a jar holds, from a hash of its id | `Wayside.cpp` (`Lay`) | code | 0.5 to 0.5.1: 30 % a crystal or two, about 1,450; since 0.5.2 307 crystals (175 beside the way, 132 off it) and about 300 potions |
 | `PlaceCrystals` | 8 | crystals | A place beside the road found (the road) | `GameConstants.h` | code | The Ascent's hidden places, which paid it too, were taken away on 2026-11-21 |
-| `BossCrystals` / a creature's `Cost` | 60 / 1 to 10 | crystals | What a beaten creature leaves on the mountain | `GameConstants.h`, `Journey.cpp` (`KindCrystals`) | code | |
+| `AscentBossCrystals` / a creature's `Cost` | 25 / 1 to 10 | crystals | What a beaten creature leaves on the mountain | `GameConstants.h`, `Journey.cpp` (`KindCrystals`) | code | 60 (`BossCrystals`, still the road's) until 0.5.2 |
 | A potion over five | 1 | crystal | A potion found with five carried | `EaglesAscentGame::Collect` | code | |
+
+## The Eagle's Ascent 0.5.2: nine levels bought in the nests (2026-11-21)
+
+| Name | Value | Unit | What it does | Def | Kind | Note |
+|---|---|---|---|---|---|---|
+| `AscentMaxLevel` | 9 | levels | Of her wings, swords and armour each | `GameConstants.h` | code | The owner: "make the upgrade 9 times instead of 3" |
+| `AscentDefaultPrices`, the map's `level` lines | 8, 14, 21, 27, 33, 39, 46, 52, 58 | crystals | A level 1 to 9 of any one thing | `GameConstants.h`, `EaglesAscent.creatures.txt` | data | The map's prices are read; these only stand in when it has none (`PRICES` in `ascent_creatures.py`) |
+| `AscentLevelFlightSeconds` | 10, 12, 14, 17, 19, 21, 23, 26, 28, 30 | s | Her flight at wing level 0 to 9 | `GameConstants.h` | code | Ends at the owner's 30 s |
+| `AscentSwordLevelDamage` | 0.165 | per level | Her blows: x (1 + 0.165 a level), x 2.49 at 9 | `GameConstants.h` | code | With her forms (`FormDamage` 0.10 each) |
+| `AscentArmourLevelTaken` | 0.068 | per level | Blows taken: x (1 - 0.068 a level), x 0.39 at 9 | `GameConstants.h` | code | With her forms (`FormTaken` 0.08 each) |
+| `WAY_SHARE` | 0.65 | share | Of a stretch's three levels' price, on the way itself | `ascent_creatures.py` | data | The owner: 60 to 70 %; the ledger finds 64 to 65 % |
+| `AROUND_EVERY` | 150, 400 | m | Between two groups around the way | `ascent_creatures.py`, `EaglesAscent::PlaceAround` (`AroundGap`) | data, code | The owner's; the game allows 140 m where no ground is farther |
+| `AroundReach`, `Out`, `Edge` | 120; 9 to 30; 4.5 | m | How far along the way a group's place may move; how far out from the way's middle it stands; where the walk out begins | `EaglesAscent.cpp` (`PlaceAround`) | code | |
+| `AROUND_CLEAR`, `AROUND_BOSS` | 60, 100 | m | No group around the way that near a nest or a boss | `ascent_creatures.py`, `EaglesAscent.cpp` | data, code | |
+| `OtherClear`, `WayMargin` | 26, 8 | m | A group around the way: no other group's place nor a peopled cave's mouth within 26 m of its place across the ground; from where its path leaves the way it is nearer than any other group by 8 m, and no group further up the way (or in a cave) is within 26 m of there | `EaglesAscent.cpp` (`PlaceAround`); checked by the crystals' ledger | code | So it is a fight of its own and wakes first (the creatures' tours, 2026-11-21); 26 m: more than the tallest creature sees, `MountainSight` and a Devi's 5.2 m. 40 m left 10 of 20 placed, 30 m 17; 26 m where its path leaves the way from every group, below it too, 17 of 19 |
+| `CaveRoom` | 100 | m | A group around the way and a cave's group that are more than the three alive at once (`MountainMostAlive`) together: their places this far apart | `EaglesAscent.cpp` (`PlaceAround`); checked by the crystals' ledger | code | `MountainGiveWay` (70 m), more than the tallest creature sees and a group's spread: wherever she fights the one, the other is calm farther than 70 m from her and gives way. Nearer, the one awake first holds the three places and the other never wakes (the creatures' tour, 2026-11-21: around-4374, three, beside cave-14, two) |
 | Grass squares | 12; thick to 34, light to 78 | m | Side of a square of grass; how far the thick field and its light layer reach | `AscentGrass.h` | code | |
 | Grass density | 13 | places per m² | Tried where the ground is all meadow; the patches keep about half to nine tenths | `AscentGrass.h` (`Density`) | code | |
 | Grass slope | 0.78 | rise per m | No grass steeper (the terrain shader draws rock there) | `AscentGrass.cpp` | code | |

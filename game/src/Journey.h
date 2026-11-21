@@ -97,9 +97,9 @@ namespace CaucasianEagle
         static constexpr int MountainMostAlive = 3;   // the owner (2026-11-19): "at the same time you may only spawn 3 monsters"
         static int KindByName(const std::string& name);                    // "chinka" .. "devi", "gveleshapi", "giant", "devi_lord", "eagle"; -1
         static float KindHeight(int kind);
-        static int KindCrystals(int kind);   // what one leaves her (the Eagle's Ascent, 0.5): a boss BossCrystals, else its Cost
-        // the Eagle's Ascent (0.5): her growth there (its armour and defence: the blows she takes)
-        void SetMountainGrowth(const Growth::State& growth) { mGrowth = growth; }
+        static int KindCrystals(int kind);   // what one leaves her (the Eagle's Ascent): a boss AscentBossCrystals, else its Cost
+        // the Eagle's Ascent: her growth there, what it does to the blows she takes (AscentGrowth::DamageTaken)
+        void SetMountainTaken(float taken) { mMountainTaken = taken; }
         static const wchar_t* KindTitle(int kind);   // "THE GIANT"
         bool InitializeMountain(Renderer& renderer, std::string& error);    // the creatures' bodies and joints
         // Each line: its points (a few metres apart), how far each is to its sides from its middle, and m along it.
@@ -150,6 +150,7 @@ namespace CaucasianEagle
         std::vector<MountainNews> mMountainNews;
         const DoorwaysRuntimeScene* mMountainScene = nullptr;              // the scene whose walkable ground they stand on
         int mMountainRoused = -1;                                         // the boss she fights (its creature), -1 none
+        float mMountainTaken = 1;                                         // the Eagle's Ascent: her growth on the blows she takes
         int MountainSample(int creature, float metres) const;              // its line's sample that far along it
         int NearestOn(float x, float z, int first, int last) const;        // the nearest sample of first..last
         float MountainGroundAt(float x, float z, float nearY) const;       // the walkable ground there, near nearY

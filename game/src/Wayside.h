@@ -10,6 +10,9 @@
 // "i want those hidden places to be removed fully".)
 // Every jar has an id that is the same every time the map is laid out (its road and its place along it): the Eagle's
 // Ascent's save keeps the broken ones.
+// What they hold (0.5.2, the owner 2026-11-21: between two nests 60-70 % of what a level costs on the way, the rest in
+// the caves and around the way): the map says how many crystals lie in the jars beside the way and off it between each
+// two nests (EaglesAscent::Levels), and they are shared out among the jars there, the same way every time.
 
 #include "Rendering/DoorwaysGpuMesh.h"
 
@@ -39,6 +42,8 @@ namespace CaucasianEagle
             int Crystals = 0;         // what is in it
             bool Potion = false;
             bool Broken = false;
+            bool Way = false;         // beside the way (else in a cave or on a ring round the mountain)
+            int Stretch = 0;          // on the way to nest n (EaglesAscent::StretchAlong, StretchHeight off the way)
         };
         struct Gain
         {
@@ -60,6 +65,7 @@ namespace CaucasianEagle
         std::vector<std::string> BrokenIds() const;
         void Restore(const std::vector<std::string>& broken);   // as the save has them
         const std::vector<Jar>& Jars() const { return mJars; }
+        int Unplaced = 0;             // crystals the map gave a stretch with no jar to hold them (Lay)
 
     private:
         struct Shard { DirectX::XMFLOAT3 P{}, V{}; float Ground = 0, Spin = 0, Size = .1f, Life = 0, Tint = 0; bool Resting = false; };
