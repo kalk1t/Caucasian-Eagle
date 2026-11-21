@@ -155,6 +155,9 @@ namespace Doorways
         // The Eagle's Ascent (0.5, owner 2026-11-20): her wings' growth sets how long she flies: 10 s, then 15, 20, 30.
         void SetFlightSeconds(float seconds) { mFlightSeconds = seconds > 0 ? seconds : FlightEnergySeconds; }
         float FlightSeconds() const { return mFlightSeconds; }
+        // Her looks (NyxaraLooks, 2026-11-21): her wings drawn this many times their size (scaled about their roots).
+        void SetWingScale(float scale) { mWingScale = scale > .2f && scale < 4 ? scale : 1.f; }
+        float WingScale() const { return mWingScale; }
         // Every blow she strikes (her cuts, her styles' blows; not a finisher): from where, her facing, how far it
         // reaches and its whole arc in degrees (the Eagle's Ascent breaks clay jars with them: Wayside).
         void SetBlowListener(std::function<void(const DirectX::XMFLOAT3&, float, float, float)> listener) { mBlowListener = std::move(listener); }
@@ -337,6 +340,7 @@ namespace Doorways
         float mHeightOverGround = -1;
         float mFlightEnergy = 1, mFlightHold = 0; bool mFalling = false;
         float mFlightSeconds = FlightEnergySeconds;
+        float mWingScale = 1;
         std::function<void(const DirectX::XMFLOAT3&, float, float, float)> mBlowListener;
         FootGround mFootGround;
         StairTread mStairTread;

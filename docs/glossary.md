@@ -50,6 +50,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **Twin Talons, Rising Eagle, Tempest Triple, Whirlwind Talons, Soul Weave, Moonfall Dive** | The six combos |
 | **Doomed** | A creature of the road brought down by what would have been her killing blow: dazed, a violet ring under it, waiting (3 s) for her finishing kill |
 | **Finishing kills: Reaper's Wheel, Mountain Breaker, Tempest Flurry, Headsman** | The four ways she kills a doomed creature (since 2026-11-20 every creature, the bosses too), one at random each time (never the same twice running), chosen by the owner of ten made (`NyxaraKit`: `Kept`). The other six (Talon Cross, Eagle's Plunge, Gale Slide, Heartpierce, Moonlit Flash, Rising Talon) are kept for the Character Lab |
+| **Looks** | Since 2026-11-21, in the Character Lab only: three examples of how Nyxara may grow (THE HIGHLANDS, MOONLIT, AMIRANI'S FIRE), each with tiers 1 to 3 of wings, swords and armour (tier 0 her own); `Looks.txt` in her lab bundle, `art/nyxara/looks` |
 | **Cocoon** | The E guard since 2026-11-20 (the Sword Barrier before it): her wings wrapped round her, blue lights along them; blocks blows and orbs from the front |
 | **Wing boost** | Faster travel on Shift |
 | **Soul bar** | The blue bar under health (the engine's energy value) |
@@ -106,5 +107,7 @@ Names used in the story, the code and the assets. One name per thing.
 | **Pointer test** | An unattended run of the Eagle's Ascent (`CAUCASIAN_EAGLE_DEMO=7`) that works her window (I) and her menu (Esc) with a pointer of its own: cards chosen and bought, CLOSE, Continue, Nyxara, Esc; it checks the pointer is free only while a window is open and that a click that closes one is not a sword blow; `pointer.tsv`, `POINTER_PASS` |
 | **Journey** | `Journey`: the code for the road, creatures, arenas, chests, story cards and the ending |
 | **Sandbox** | The engine's own executable, `Doorways.exe`, running with no game |
+| **NyxaraLooks** | `game/src/NyxaraLooks`: reads a bundle's `Looks.txt` and shows a look (parts shown, textures, tints, light, wing span) through `WorldRenderer::SetCharacterMaterialLook` |
 | **Asset builder** | The engine tool that compiles glTF into engine formats |
+| **Hyper3D Rodin** | The service used for the looks' swords, pauldrons and crowns (2026-11-21; `art/nyxara/looks/GENERATIONS.tsv`) |
 | **Meshy** | The service used to generate the hero, the mountain figures, the creatures and some scenery |

@@ -4037,6 +4037,11 @@ namespace Doorways
         DoorwaysAnimatedCharacterAsset asset;
         if (!LoadDoorwaysAnimatedCharacterAsset(desc, asset, &error)) return false;
         if (!worldRenderer.InitializeSkinnedMaterials(renderer, bundle, bundle / "Character.dmat", asset.Skeleton.Name, error)) return false;
+        // a bundle with her looks (the Character Lab's: NyxaraLooks) carries their parts as materials named Look_...:
+        // hidden until a look shows them, so she is as she set out
+        for (const auto& name : worldRenderer.CharacterMaterialNames())
+            if (name.rfind("Look_", 0) == 0) worldRenderer.SetCharacterMaterialVisible(name, false);
+        mWingScale = 1;
         auto& character = world.ImportedAnimatedCharacter;
         if (!character.InitializeFromAsset(asset, &error)) return false;
         worldRenderer.InvalidateCharacterMeshForAssetChange();
@@ -6499,6 +6504,10 @@ namespace Doorways
                     }
                 }
             }
+            if (composed && mWingScale != 1.f)   // her looks: bigger wings (their roots scaled; the rest of each wing follows)
+                for (int side = 0; side < 2; ++side)
+                    if (const int j = b.WingJoint[side][0]; j >= 0 && j < static_cast<int>(pose.LocalJoints.size()))
+                        pose.LocalJoints[static_cast<size_t>(j)].Scale = {mWingScale, mWingScale, mWingScale};
             if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
             {
                 static int told = 0;

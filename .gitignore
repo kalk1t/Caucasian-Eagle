@@ -23,6 +23,7 @@ art/nyxara/meshy/task_log.jsonl
 art/nyxara/blender/*.blend
 art/nyxara/blender/*.blend1
 art/nyxara/blender/*.glb
+art/nyxara/looks/rodin/
 art/mountain/meshy/out/
 art/mountain/export/*.glb
 art/mountain/export/*.png
