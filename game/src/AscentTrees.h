@@ -1,18 +1,23 @@
 #pragma once
 
 // The Eagle's Ascent's trees as real 3D models (0.5.2, 2026-11-20; the owner: "improve trees, create its real 3D models,
-// refine them, their branches and leaves, their roots").
+// refine them, their branches and leaves, their roots"; 2026-11-21: "i want all trees to be 3D models ... i dont need
+// trees which are not 3D").
 //
-// The map builder lists the trees near the path in <map>.plants (testing/MapLab/build_mountain.py, GAME_TREES: about
-// 48 000, one line each: "model variant x y z height yaw leanx leanz snow"); the far forest stays baked into the map.
-// The models are art/trees/build_trees.py's (game/assets/Trees: trees.txt, Models/<model>_<variant>_<lod>_{bark,leaves}
-// .dmesh, Textures/): grown branch by branch with roots, bark and sprays of leaves, at four levels of detail.
+// The map builder lists every tree of the map in <map>.plants (testing/MapLab/build_mountain.py, GAME_TREES: about
+// 300 000, one line each: "model variant x y z height yaw leanx leanz snow"). The models are art/trees/build_trees.py's
+// (game/assets/Trees: trees.txt, Models/<model>_<variant>_<lod>_{bark,leaves}.dmesh, Textures/): grown branch by branch
+// with roots, bark and sprays of leaves, at four levels of detail, all four 3D.
 //
-// Drawn by distance from the camera: level 0 (every twig and spray) close, 1 and 2 further, and beyond Detail[2] a
-// picture of the tree (an impostor: three crossed quads, art/trees/impostors.py). Every model, variant and level is one
-// instanced draw; the far trees of a square are merged into one mesh, built once, one draw. The trees within
-// ShadowReach cast the sun's shadow (Renderer::DrawDoorwaysGpuSubmeshShadowInstanced, through the game's shadow hook).
-// Their trunks hold her as before (<map>.trees, EaglesAscent::HoldOffTrees).
+// Drawn by how large a tree looks ('seen': its distance over its radius): level 0 (every twig and spray) close, 1, 2 and
+// 3 (the trunk, its limbs, a few clusters) further, every one a 3D model, until the tree is about 25 pixels tall
+// (Picture); only beyond that is it its picture (an impostor: crossed quads, art/trees/impostors.py). Every model,
+// variant and level is one instanced draw. The trees of a square are in two groups by size, and those of a block
+// (4 x 4 squares) in one: a group whose every tree is a picture is merged into one mesh, built once (nearest first, a
+// few thousand trees a frame), one draw; a block of pictures the same. So the whole mountain's forest is drawn from
+// anywhere (the far forest used to be baked into the map). The trees within ShadowReach cast the sun's shadow
+// (Renderer::DrawDoorwaysGpuSubmeshShadowInstanced, through the game's shadow hook). Their trunks hold her
+// (<map>.trees, EaglesAscent::HoldOffTrees).
 // CAUCASIAN_EAGLE_GAME_TREES=0: none drawn (tests, before/after pictures).
 
 #include "Rendering/DoorwaysGpuMesh.h"
@@ -36,10 +41,13 @@ namespace CaucasianEagle
     {
     public:
         static constexpr float Cell = 192.f;             // m, side of a square of trees
-        static constexpr float Detail[3] = {30.f, 85.f, 230.f};   // m: level 0 within the first, 1 within the second, 2 within the third
-        static constexpr float FarReach = 3200.f;        // m: the impostors this far
+        static constexpr int BlockSquares = 4;            // a block: 4 x 4 squares, merged whole when all its trees are pictures
+        static constexpr float Detail[3] = {30.f, 85.f, 230.f};   // 'seen': level 0 within the first, 1 within the second, 2 within the third
+        static constexpr float Picture = 900.f;          // 'seen': level 3 (3D) within it; beyond, the picture (about 25 px tall at 1080 lines)
+        static constexpr float BigReach = 14.f;          // a square's trees of a radius over this (clamped, 8..30 m) are its second group
         static constexpr float ShadowReach = 150.f;      // m: trees this near cast shadows
-        static constexpr int BuildsPerFrame = 2;          // far squares merged per frame
+        static constexpr int BuildTreesPerFrame = 12000; // trees merged into far meshes a frame (one group at least)
+        static constexpr unsigned KeepFrames = 1800;     // a merged mesh not drawn for this many frames is let go
 
         // dataFile: the map's data file (<map>.txt); its .plants beside it. No .plants or no library: no trees, and true.
         // False only when the library is there but broken.
@@ -48,8 +56,11 @@ namespace CaucasianEagle
         void DrawShadows(Renderer& renderer, const DirectX::XMFLOAT3& eye, const DirectX::XMMATRIX& lightViewProjection);
         bool On() const { return mReady && !mTrees.empty(); }
         size_t Count() const { return mTrees.size(); }
-        // last frame: trees drawn at each level (3: impostors, near and merged), instanced draws, far squares drawn
-        int Drawn[4] = {}, Draws = 0, FarSquares = 0, Shadowed = 0;
+        // last frame: trees drawn at each level (0..3: 3D; 4: pictures, single and merged), instanced draws, merged
+        // groups drawn, trees in merged meshes held now
+        int Drawn[5] = {}, Draws = 0, FarGroups = 0, Shadowed = 0;
+        long long Merged = 0;
+        double GatherMs = 0, NearMs = 0, FarMs = 0; int Built = 0;   // last frame: where the CPU's time went, trees merged
         std::string Report() const;
 
     private:
@@ -58,7 +69,7 @@ namespace CaucasianEagle
         struct Variant
         {
             float Height = 1;
-            std::array<std::array<Part, 2>, 3> Lod;      // [level 0..2][bark, leaves]
+            std::array<std::array<Part, 2>, 4> Lod;      // [level 0..3][bark, leaves]
             Impostor Far[2];                             // [no snow, snow]
         };
         struct Model { std::string Name; int Kind = 0; bool Conifer = false, Snow = false; std::vector<Variant> Variants; };
@@ -71,31 +82,36 @@ namespace CaucasianEagle
         {
             DirectX::XMFLOAT4X4 World, WorldInvTranspose;
             DirectX::XMFLOAT3 Centre;   // of its crown, for culling and distance
-            float Radius = 1, Scale = 1;
+            float Radius = 1, Scale = 1, Reach = 8;   // Reach: the radius clamped to 8..30 m, by which it is 'seen'
             unsigned short Model = 0; unsigned char Variant = 0, Snow = 0;
         };
-        struct Square
+        // trees drawn or merged together: one group of a square, or all of a block
+        struct Group
         {
             std::vector<unsigned> Trees;
             DirectX::XMFLOAT3 Min{1e9f, 1e9f, 1e9f}, Max{-1e9f, -1e9f, -1e9f};
-            Doorways::DoorwaysGpuMesh FarMesh; int FarTrees = 0; bool FarBuilt = false;
+            float Reach = 8;                           // the largest Reach among its trees
+            Doorways::DoorwaysGpuMesh FarMesh; int FarTrees = 0; bool FarBuilt = false; unsigned LastDrawn = 0;
         };
+        struct Block { int All = -1; std::vector<int> Parts; };   // Parts: the groups of its squares
         bool LoadLibrary(Renderer& renderer, const std::filesystem::path& folder, std::string& error);
         void LoadPlants(const std::filesystem::path& file);
         bool BuildImpostor(Renderer& renderer, Impostor& imp);
-        void BuildFar(Renderer& renderer, Square& square);
-        // which bucket: model, variant, level (0..2 a model's level, 3 its impostor), snow
-        size_t Bucket(int model, int variant, int lod, int snow) const { return ((static_cast<size_t>(model) * 4 + variant) * 4 + lod) * 2 + snow; }
-        void Gather(const DirectX::XMFLOAT3& eye, const DirectX::XMMATRIX& viewProjection, float reach, bool shadow);
+        void BuildFar(Renderer& renderer, Group& group);
+        // which bucket: model, variant, level (0..3 a model's level, 4 its picture), snow
+        size_t Bucket(int model, int variant, int lod, int snow) const { return ((static_cast<size_t>(model) * 4 + variant) * 5 + lod) * 2 + snow; }
+        void Gather(const DirectX::XMFLOAT3& eye, const DirectX::XMMATRIX& viewProjection, bool shadow);
 
         bool mReady = false;
         std::vector<Kind> mKinds;
         std::vector<Model> mModels;
         std::vector<Tree> mTrees;
-        std::unordered_map<long long, Square> mSquares;
+        std::vector<Group> mGroups;
+        std::unordered_map<long long, Block> mBlocks;
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mImpostors;
         std::vector<std::vector<unsigned>> mBuckets;                // tree indices by bucket, this frame
         std::vector<DoorwaysDMeshInstanceGpuData> mInstances;
-        std::vector<long long> mFarSquares;                         // squares drawn merged this frame
+        std::vector<std::pair<float, int>> mFar;                   // groups drawn merged this frame, by distance
+        unsigned mFrame = 0;
     };
 }

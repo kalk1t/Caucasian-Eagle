@@ -187,13 +187,16 @@ def bough(seed, cols_tint, twig_col, sprig_len=0.30, pairs=6, dense=1.0):
     tx, ty = pts[-1]; stamp(c, sprigs[int(r.integers(len(sprigs)))], tx, ty + S * 0.06, S * sprig_len * 0.9, 0.0, tint=cols_tint)
     return c
 
-def snowed(img, seed, amount=0.55):
-    """Snow on the top of what lies flat: drifts in patches (noise), on the leaves only."""
+def snowed(img, seed, amount=0.20):
+    """Snow on the top of what lies flat: lumps in patches (noise), on the leaves only. (2026-11-21: was 0.55 of the
+    sheet in soft drifts, a third of every spray white: from any distance a snow fir read pale blue-white, frosted, not
+    a dark green tree carrying snow: a mip of the sheet averages in linear light, where white outweighs the needles
+    six to one. Now about a seventh, in firmer lumps, the snow a little less than white.)"""
     r = np.random.default_rng(seed); H, W = img.shape[:2]
-    n = ndimage.gaussian_filter(r.standard_normal((H, W)), 14) ; n2 = ndimage.gaussian_filter(r.standard_normal((H, W)), 4)
+    n = ndimage.gaussian_filter(r.standard_normal((H, W)), 11) ; n2 = ndimage.gaussian_filter(r.standard_normal((H, W)), 3)
     f = (n - n.mean()) / n.std() * 0.8 + (n2 - n2.mean()) / n2.std() * 0.35
-    lie = np.clip((f - np.percentile(f, 100 * (1 - amount))) * 1.6, 0, 1) * 0.92
-    out = img.copy(); white = np.array((0.88, 0.91, 0.96), np.float32)
+    lie = np.clip((f - np.percentile(f, 100 * (1 - amount))) * 2.6, 0, 1) * 0.95
+    out = img.copy(); white = np.array((0.80, 0.83, 0.88), np.float32)
     out[:, :, :3] = img[:, :, :3] * (1 - lie[:, :, None]) + white[None, None, :] * lie[:, :, None]
     return out
 
@@ -234,6 +237,33 @@ def birch_bark(seed, size=1024):
     n = np.dstack([-gx * 6, gy * 6, np.ones_like(h)]); n /= np.linalg.norm(n, axis=2, keepdims=True)
     return np.clip(col, 0, 1), n * 0.5 + 0.5
 
+def beech_bark(seed, tint, sat, size=1024):
+    """A beech's bark: smooth and grey (ambientCG Bark010), mottled with paler lichen and darker green-grey patches of
+    algae and damp, and the faint dark dashes of its lenticels across it. (2026-11-21: on Bark011 alone, nearly one
+    flat grey, the great beeches along the rings stood like smooth pale columns, concrete more than wood.)"""
+    col, nor = bark_from(zread("Bark010", "_Color.jpg"), zread("Bark010", "_NormalGL.jpg"), size=size, tint=tint, sat=sat)
+    r = np.random.default_rng(seed)
+    def blobs(sigma, keep):                              # soft patches over 'keep' of the bark, seamless
+        n = ndimage.gaussian_filter(r.standard_normal((size, size)), sigma, mode="wrap")
+        n2 = ndimage.gaussian_filter(r.standard_normal((size, size)), sigma / 4, mode="wrap")
+        f = n / n.std() + 0.45 * n2 / n2.std()
+        return np.clip((f - np.percentile(f, 100 * (1 - keep))) * 1.7, 0, 1)
+    pale = blobs(16, 0.22) * 0.32                        # crustose lichen: paler, a little blue
+    dark = blobs(40, 0.30) * 0.30                        # algae and damp: darker and greener
+    col = col * (1 - pale[:, :, None]) + np.array((0.60, 0.62, 0.61))[None, None, :] * pale[:, :, None]
+    col = col * (1 - dark[:, :, None]) + np.array((0.22, 0.25, 0.19))[None, None, :] * dark[:, :, None]
+    im = Image.new("L", (size, size), 0); dr = ImageDraw.Draw(im)
+    for _ in range(170):                                 # lenticels: short dark dashes across the trunk (u across)
+        x, y = r.uniform(0, size), r.uniform(0, size); ln = r.uniform(12, 60); w = r.uniform(1.5, 3.5)
+        for dx in (-size, 0, size):
+            for dy in (-size, 0, size):
+                dr.line([(x + dx - ln / 2, y + dy), (x + dx + ln / 2, y + dy + r.uniform(-1.5, 1.5))], fill=int(r.uniform(120, 220)), width=max(1, int(w)))
+    len_ = ndimage.gaussian_filter(np.asarray(im, np.float32) / 255.0, 0.9, mode="wrap") * 0.75
+    col = col * (1 - len_[:, :, None]) + np.array((0.16, 0.16, 0.15))[None, None, :] * len_[:, :, None]
+    gy, gx = np.gradient(ndimage.gaussian_filter(-len_, 1.0, mode="wrap"))   # the dashes a little sunk
+    n = nor * 2 - 1; n[:, :, 0] += -gx * 3; n[:, :, 1] += gy * 3; n /= np.linalg.norm(n, axis=2, keepdims=True)
+    return np.clip(col, 0, 1), n * 0.5 + 0.5
+
 # ------------------------------------------------------------------------------------------------------------ kinds
 BARK_BROWN = (0.30, 0.22, 0.15)
 KINDS = {
@@ -253,7 +283,7 @@ KINDS = {
                      A=lambda: bough(41, (0.50, 0.62, 0.64), (0.35, 0.25, 0.18), sprig_len=0.40, pairs=4, dense=2),
                      B=lambda: bough(42, (0.46, 0.58, 0.62), (0.35, 0.25, 0.18), sprig_len=0.44, pairs=5, dense=2),
                      C=lambda: bough(43, (0.44, 0.56, 0.60), (0.33, 0.24, 0.17), sprig_len=0.46, pairs=4, dense=2)),
-    "beech":    dict(bark=("acg", "Bark011", (0.76, 0.73, 0.68), 0.55),
+    "beech":    dict(bark=("beech", (0.80, 0.80, 0.78), 0.60),
                      A=lambda: spray(51, ["LeafSet014"], BARK_BROWN, 0.27, pairs=9, dense=1.4), B=lambda: spray(52, ["LeafSet014"], BARK_BROWN, 0.25, pairs=10, dense=1.8),
                      C=lambda: cluster(53, ["LeafSet014"], BARK_BROWN, 0.17, count=70)),
     "oak":      dict(bark=("ph", "jolcham_oak_bark_01", (1.0, 1.0, 1.0), 0.9),
@@ -265,7 +295,7 @@ KINDS = {
     "hornbeam": dict(bark=("acg", "Bark010", (0.74, 0.74, 0.76), 0.7),
                      A=lambda: spray(81, ["LeafSet001"], BARK_BROWN, 0.19, pairs=9), B=lambda: spray(82, ["LeafSet001"], BARK_BROWN, 0.18, pairs=10, dense=1.5),
                      C=lambda: cluster(83, ["LeafSet001"], BARK_BROWN, 0.16, count=75)),
-    "gold":     dict(bark=("acg", "Bark011", (0.72, 0.70, 0.68), 0.7),
+    "gold":     dict(bark=("beech", (0.76, 0.75, 0.72), 0.65),
                      A=lambda: spray(91, ["LeafSet007"], BARK_BROWN, 0.21, pairs=8), B=lambda: spray(92, ["LeafSet027"], (0.42, 0.28, 0.18), 0.25, pairs=4, opposite=True),
                      C=lambda: cluster(93, ["LeafSet007", "LeafSet027"], BARK_BROWN, 0.18, count=65)),
     "birch":    dict(bark=("birch",),
@@ -302,6 +332,7 @@ def make_kind(name, spec):
     b = spec["bark"]
     if b[0] == "acg": col, nor = bark_from(zread(b[1], "_Color.jpg"), zread(b[1], "_NormalGL.jpg"), tint=b[2], sat=b[3])
     elif b[0] == "ph": col, nor = bark_from(phread(b[1], "Diffuse"), phread(b[1], "nor_gl"), tint=b[2], sat=b[3])
+    elif b[0] == "beech": col, nor = beech_bark(11, b[1], b[2])
     else: col, nor = birch_bark(7)
     Image.fromarray((col * 255).astype(np.uint8)).save(os.path.join(OUT, name + "_bark.png"))
     Image.fromarray((np.clip(nor, 0, 1) * 255).astype(np.uint8)).save(os.path.join(OUT, name + "_bark_n.png"))
