@@ -367,6 +367,12 @@ def build(tree, rects, lod, fruit_uv=None):
         if sp["conifer"] and b.level >= 2 and sp.get("cards") == "bough": continue   # a fir's side shoots: inside its boughs
         if sp["conifer"] and b.level == 1 and lod >= 1 and not sp.get("shrub"):            # its limbs, from afar: only the stoutest, low ones
             if lod == 2 or b.rad[0] < 0.05: continue
+        if b.level == 0 and lod == 2 and sp["conifer"] and sp.get("cards") == "bough" and not sp.get("snag"):
+            # from afar a fir's few bough cards leave gaps: its trunk up through the crown showed as a pale stripe. Here it
+            # stops halfway up the crown, where the boughs hide it (2026-11-20).
+            stop = tree.H * (sp["crown_base"] + 0.5 * (1 - sp["crown_base"]))
+            keep = int((b.pts[:, 1] <= stop).sum())       # (the trunk rises: its points below 'stop' come first)
+            if keep >= 2: b = Branch(b.pts[:keep], b.rad[:keep], 0)
         if b.level == 0: tube(bark, b, max(sd, 22 if lod == 0 else 10 if lod == 1 else 6), flare=flare, lobes=lobes, rings_every=1 if lod == 0 else 2)
         else: tube(bark, b, sd, rings_every=(1 if b.level == 1 else 3) if lod == 0 else 3)
     if lod < 2:

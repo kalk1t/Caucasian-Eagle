@@ -237,11 +237,12 @@ def birch_bark(seed, size=1024):
 # ------------------------------------------------------------------------------------------------------------ kinds
 BARK_BROWN = (0.30, 0.22, 0.15)
 KINDS = {
-    # kind: bark, leaves (A, B, C), swatches
-    "fir":      dict(bark=("acg", "Bark004", (0.92, 0.90, 0.92), 0.8), conifer=True,
+    # kind: bark, leaves (A, B, C), swatches. (Bark tints bring each bark near a real bark's brightness, a mean of
+    # about 0.3; at 0.5-0.6 the firs' and beeches' trunks shone white in the game's sun, 2026-11-20.)
+    "fir":      dict(bark=("acg", "Bark004", (0.60, 0.58, 0.60), 0.8), conifer=True,
                      A=lambda: bough(11, (0.62, 0.78, 0.66), (0.33, 0.24, 0.17), sprig_len=0.40, pairs=7, dense=2), B=lambda: bough(12, (0.58, 0.74, 0.64), (0.33, 0.24, 0.17), sprig_len=0.42, pairs=8, dense=2),
                      C=lambda: bough(13, (0.52, 0.68, 0.60), (0.30, 0.22, 0.16), sprig_len=0.36, pairs=5, dense=2)),
-    "spruce":   dict(bark=("acg", "Bark004", (0.92, 0.82, 0.76), 0.9), conifer=True,
+    "spruce":   dict(bark=("acg", "Bark004", (0.60, 0.53, 0.49), 0.9), conifer=True,
                      A=lambda: bough(21, (0.50, 0.66, 0.62), (0.36, 0.22, 0.14), sprig_len=0.40, pairs=8, dense=2), B=lambda: bough(22, (0.48, 0.64, 0.62), (0.36, 0.22, 0.14), sprig_len=0.42, pairs=9, dense=2),
                      C=lambda: bough(23, (0.44, 0.60, 0.58), (0.33, 0.21, 0.14), sprig_len=0.36, pairs=5, dense=2)),
     "pine":     dict(bark=("ph", "pine_bark", (1.0, 1.0, 1.0), 1.0), conifer=True,
@@ -252,19 +253,19 @@ KINDS = {
                      A=lambda: bough(41, (0.50, 0.62, 0.64), (0.35, 0.25, 0.18), sprig_len=0.40, pairs=4, dense=2),
                      B=lambda: bough(42, (0.46, 0.58, 0.62), (0.35, 0.25, 0.18), sprig_len=0.44, pairs=5, dense=2),
                      C=lambda: bough(43, (0.44, 0.56, 0.60), (0.33, 0.24, 0.17), sprig_len=0.46, pairs=4, dense=2)),
-    "beech":    dict(bark=("acg", "Bark011", (1.0, 0.94, 0.86), 0.55),
+    "beech":    dict(bark=("acg", "Bark011", (0.76, 0.73, 0.68), 0.55),
                      A=lambda: spray(51, ["LeafSet014"], BARK_BROWN, 0.27, pairs=9, dense=1.4), B=lambda: spray(52, ["LeafSet014"], BARK_BROWN, 0.25, pairs=10, dense=1.8),
                      C=lambda: cluster(53, ["LeafSet014"], BARK_BROWN, 0.17, count=70)),
     "oak":      dict(bark=("ph", "jolcham_oak_bark_01", (1.0, 1.0, 1.0), 0.9),
                      A=lambda: spray(61, ["LeafSet016"], BARK_BROWN, 0.23, pairs=6, spread=(0.5, 1.0)), B=lambda: spray(62, ["LeafSet016"], BARK_BROWN, 0.21, pairs=7, dense=1.5),
                      C=lambda: cluster(63, ["LeafSet016"], BARK_BROWN, 0.19, count=60)),
-    "maple":    dict(bark=("acg", "Bark002", (0.95, 0.92, 0.88), 0.8),
+    "maple":    dict(bark=("acg", "Bark002", (0.80, 0.77, 0.73), 0.8),
                      A=lambda: spray(71, ["LeafSet010"], (0.42, 0.28, 0.18), 0.26, pairs=4, opposite=True), B=lambda: spray(72, ["LeafSet010"], (0.42, 0.28, 0.18), 0.24, pairs=5, opposite=True),
                      C=lambda: cluster(73, ["LeafSet010"], (0.42, 0.28, 0.18), 0.21, count=45)),
-    "hornbeam": dict(bark=("acg", "Bark010", (0.92, 0.92, 0.94), 0.7),
+    "hornbeam": dict(bark=("acg", "Bark010", (0.74, 0.74, 0.76), 0.7),
                      A=lambda: spray(81, ["LeafSet001"], BARK_BROWN, 0.19, pairs=9), B=lambda: spray(82, ["LeafSet001"], BARK_BROWN, 0.18, pairs=10, dense=1.5),
                      C=lambda: cluster(83, ["LeafSet001"], BARK_BROWN, 0.16, count=75)),
-    "gold":     dict(bark=("acg", "Bark011", (0.95, 0.95, 0.95), 0.7),
+    "gold":     dict(bark=("acg", "Bark011", (0.72, 0.70, 0.68), 0.7),
                      A=lambda: spray(91, ["LeafSet007"], BARK_BROWN, 0.21, pairs=8), B=lambda: spray(92, ["LeafSet027"], (0.42, 0.28, 0.18), 0.25, pairs=4, opposite=True),
                      C=lambda: cluster(93, ["LeafSet007", "LeafSet027"], BARK_BROWN, 0.18, count=65)),
     "birch":    dict(bark=("birch",),
@@ -289,7 +290,7 @@ KINDS = {
                      A=lambda: spray(151, ["LeafSet003"], (0.30, 0.24, 0.16), 0.27, pairs=4, spread=(0.9, 1.5), tint=(0.62, 0.78, 0.62)),
                      B=lambda: spray(152, ["LeafSet003"], (0.30, 0.24, 0.16), 0.25, pairs=5, spread=(0.9, 1.6), dense=1.6, tint=(0.60, 0.76, 0.60)),
                      C=lambda: cluster(153, ["LeafSet003"], (0.30, 0.24, 0.16), 0.22, count=40, tint=(0.58, 0.74, 0.58))),
-    "snag":     dict(bark=("acg", "Bark004", (0.80, 0.80, 0.80), 0.25), bare=True),
+    "snag":     dict(bark=("acg", "Bark004", (0.72, 0.72, 0.72), 0.25), bare=True),
 }
 
 def make_kind(name, spec):

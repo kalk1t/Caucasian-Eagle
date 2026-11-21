@@ -25,6 +25,7 @@
 #include "WorldRenderer.h"
 #include "WorldState.h"
 
+#include <chrono>
 #include <Windows.h>
 
 #include <algorithm>
@@ -390,6 +391,16 @@ namespace CaucasianEagle
         host.World.MainCamera.Yaw = yaw; host.World.MainCamera.Pitch = -.12f;
     }
 
+    namespace
+    {
+        float WallMs()   // milliseconds since the last call: a frame's real length in an unattended run
+        {
+            static auto last = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            const float ms = std::chrono::duration<float, std::milli>(now - last).count(); last = now; return ms;
+        }
+    }
+
     void EaglesAscentGame::Nature(DoorwaysGameHost& host, float dt)
     {
         auto& world = host.World; auto& session = GameSession(); auto& p = world.MainPlayer;
@@ -449,7 +460,7 @@ namespace CaucasianEagle
             const float yaw = std::atan2(b.x - at.x, b.z - at.z);
             if (mNatClock < dt * 1.5f) Put(host, at, yaw);
             world.MainCamera.Yaw = mNatClock < 4.5f ? yaw : yaw + 1.3f; world.MainCamera.Pitch = -.18f;
-            if (mNatClock > 2.5f && mNatClock < 4.f) { mNatMs += dt * 1000.f; ++mNatFrames; }
+            if (mNatClock > 2.5f && mNatClock < 4.f) { mNatMs += WallMs(); ++mNatFrames; } else WallMs();   // (wall-clock: unattended runs step a fixed dt)
             if (mNatClock > 4.f && mNatClock - dt <= 4.f)
             {
                 mTourShot = L"grass_" + std::to_wstring(mNatPick) + L"_along";
