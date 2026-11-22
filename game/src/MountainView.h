@@ -9,6 +9,13 @@
 // The engine's own camera goes on reading the mouse (yaw, pitch) and the wheel (follow distance); this takes what it
 // added each frame and sets the camera itself, far out. Used by The Eagle's Ascent (EaglesAscentGame.cpp) and the Map
 // Lab (testing/MapLab). A test: CAUCASIAN_EAGLE_MOUNTAIN_VIEW=1 opens it at the start and turns it by itself.
+// The Eagle's Ascent goes over it with the pointer instead (Explore; owner, 2026-11-21: "3D mountain is good but can we
+// keep the controls? to look over all map around"): the controls of the detailed map, in 3D.
+//   left drag              the land goes with the pointer: anywhere over the whole mountain
+//   right drag             turns round and tilts
+//   wheel, + and -         closer (down to 40 m off the ground) and further (the whole mountain)
+//   W A S D, arrows        go over it; Q and E turn round
+//   Space                  to her
 
 #include <algorithm>
 #include <cmath>
@@ -27,8 +34,10 @@ namespace CaucasianEagle
     struct MountainView
     {
         bool Open = false;
+        bool Explored = false;   // gone over with the pointer (Explore): its words say so
         float Yaw = 0, Pitch = -.45f, Dist = 0;
         DirectX::XMFLOAT3 Focus{};
+        DirectX::XMFLOAT3 Eye{};   // where Explore last put the camera (the engine's own camera moves it back each frame before)
 
         static bool Tried()
         {
@@ -77,6 +86,59 @@ namespace CaucasianEagle
             mSetYaw = Yaw; mSetPitch = Pitch;
         }
 
+        // Each frame while it is open, for the Eagle's Ascent: the pointer free (x < 0: none), its buttons held, the wheel
+        // (notches), the keys held, Space pressed; 'land' the ground's height under a place. Sets the camera.
+        struct Input { float X = -1, Y = -1; bool Left = false, Right = false; float Wheel = 0, KeyX = 0, KeyZ = 0, Turn = 0, Zoom = 0; bool Home = false; };
+        template <class Land>
+        void Explore(Camera& camera, const Input& in, const DirectX::XMFLOAT3& her, float realDt, float screenH, const Land& land)
+        {
+            const float dt = (std::min)(realDt, .1f), h = (std::max)(screenH, 100.f);
+            const float perPixel = 2 * Dist * std::tan(camera.FieldOfViewY * .5f) / h;   // metres a pixel at the point looked at
+            const float fx = std::sin(Yaw), fz = std::cos(Yaw);                        // forward over the ground; right is (fz, -fx)
+            const bool over = in.X >= 0;
+            if (over && (in.Left || in.Right) && mHeld)
+            {
+                const float dx = in.X - mLastX, dy = in.Y - mLastY;
+                if (in.Left)
+                {   // the land under the pointer goes with it (seen from above, a step up the screen is a longer way on the ground)
+                    const float deep = perPixel / (std::max)(.35f, std::sin(-Pitch));
+                    Focus.x += -fz * dx * perPixel + fx * dy * deep;
+                    Focus.z += fx * dx * perPixel + fz * dy * deep;
+                }
+                else { Yaw += dx * 3.4f / h; Pitch = std::clamp(Pitch - dy * 2.2f / h, -1.5f, -.08f); }
+            }
+            mHeld = over && (in.Left || in.Right); mLastX = in.X; mLastY = in.Y;
+            const float notches = in.Wheel + in.Zoom * dt * 4;
+            if (notches != 0) Dist *= std::pow(.85f, notches);
+            if (in.KeyX != 0 || in.KeyZ != 0)
+            {
+                const float speed = Dist * .9f * dt;
+                Focus.x += (fz * in.KeyX + fx * in.KeyZ) * speed; Focus.z += (-fx * in.KeyX + fz * in.KeyZ) * speed;
+            }
+            Yaw += in.Turn * 1.4f * dt;
+            if (in.Home) { Focus.x = her.x; Focus.z = her.z; Dist = (std::min)(Dist, 260.f); }
+            Dist = std::clamp(Dist, 40.f, Home() * 2.5f);
+            // (the point looked at stays over the mountain and its sea; its height: the land there when close, the
+            // mountain's middle when the whole of it is in view)
+            const float ox = Focus.x - mCentre.x, oz = Focus.z - mCentre.z, off = std::hypot(ox, oz), most = mRadius * 1.3f;
+            if (off > most) { Focus.x = mCentre.x + ox * most / off; Focus.z = mCentre.z + oz * most / off; }
+            const float close = std::clamp((Home() - Dist) / (Home() - 40.f), 0.f, 1.f);
+            const float want = (std::max)(0.f, static_cast<float>(land(Focus.x, Focus.z))) * close + (mCentre.y + mSummit * .42f) * (1 - close);
+            Focus.y += (want - Focus.y) * (std::min)(1.f, dt * 6);
+            const float c = std::cos(Pitch), sn = std::sin(Pitch);
+            DirectX::XMFLOAT3 at{Focus.x - std::sin(Yaw) * c * Dist, Focus.y - sn * Dist, Focus.z - std::cos(Yaw) * c * Dist};
+            const float ground = static_cast<float>(land(at.x, at.z)) + 6;
+            float pitch = Pitch;
+            if (at.y < ground)
+            {   // never in the rock: up over it, still looking at the point
+                at.y = ground;
+                pitch = -std::atan2(at.y - Focus.y, std::hypot(Focus.x - at.x, Focus.z - at.z));
+            }
+            camera.Position = at; camera.Yaw = Yaw; camera.Pitch = pitch; Eye = at;
+            camera.FarZ = (std::max)(mFarZ, Dist + mRadius * 4);
+            mSetYaw = Yaw; mSetPitch = pitch;
+        }
+
         // Opens it over a trail (the mountain's middle and reach are the trail's), or closes it.
         void Toggle(Doorways::DoorwaysGameSession& session, Camera& camera, const std::vector<DirectX::XMFLOAT3>& trail, float summit)
         {
@@ -96,7 +158,8 @@ namespace CaucasianEagle
             const float labelSize = 11 * s / Doorways::DoorwaysUiFontHeight;
             ui.Rect(0, 0, ui.W, 64 * s, {.015f, .025f, .04f, .7f});
             ui.Centered(L"THE MOUNTAIN", ui.W * .5f, 8 * s, big, Palette::Gold);
-            ui.Centered(L"Mouse: turn the mountain   |   Wheel: closer, further   |   Tab: the map   |   M: close",
+            ui.Centered(Explored ? L"Drag: go over it   |   Right drag: turn   |   Wheel: closer, further   |   WASD: move, Q E: turn   |   Space: to her   |   M: close"
+                                 : L"Mouse: turn the mountain   |   Wheel: closer, further   |   M: close",
                         ui.W * .5f, 38 * s, body, Palette::Ink);
             const XMMATRIX view = camera.BuildViewProjectionMatrix(ui.W / ui.H);
             for (const auto& m : marks)
@@ -120,6 +183,7 @@ namespace CaucasianEagle
     private:
         float Home() const { return (std::max)(mRadius * 2.5f, mSummit * 2.2f); }   // all of it in view
         DirectX::XMFLOAT3 mCentre{};
+        bool mHeld = false; float mLastX = 0, mLastY = 0;
         float mRadius = 0, mSummit = 0, mMinPitch = 0, mMaxPitch = 0, mFarZ = 0, mFollow = 0, mYaw = 0, mPitch = 0, mSetYaw = 0, mSetPitch = 0, mWheel = 0;
     };
 }

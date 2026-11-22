@@ -52,6 +52,16 @@ foreach ($folder in 'shaders', 'ui', 'textures', 'models', 'Compiled') {
     Sync (Join-Path $repo "engine\assets\$folder") (Join-Path $out "assets\$folder")
 }
 Sync (Join-Path $repo 'game\assets') (Join-Path $out 'assets')
+# 0.5.2: what the game never loads stays out of the zip and the installer (about 1.1 GB; the owner, 2026-11-21: "does
+# installer include files are not needed?"). Nyxara's bodies before MixamoV1 (EagleV1, the way back by
+# CAUCASIAN_EAGLE_HERO, and V2, V3, RodinV1), her old weapons (no code loads Equipment), the engine's own demo scenes'
+# textures and its test characters. Checked: the Ascent's climb, her window, the map and the pointer tests pass without them.
+foreach ($unused in 'Compiled\Characters\Nyxara\EagleV1', 'Compiled\Characters\Nyxara\EagleV2', 'Compiled\Characters\Nyxara\EagleV3',
+                    'Compiled\Characters\Nyxara\RodinV1', 'Compiled\Characters\Nyxara\Equipment', 'Compiled\Textures\MainScene',
+                    'Compiled\Characters\R301EmberProofV1', 'Compiled\Characters\R301EmberProofV2', 'Compiled\Characters\R301EmberProofV3') {
+    $path = Join-Path $out "assets\$unused"
+    if (Test-Path $path) { Remove-Item -Recurse -Force $path }
+}
 Copy-Item $Exe (Join-Path $out 'CaucasianEagle.exe')
 # 0.5: CaucasianEagle.exe starts the Eagle's Ascent; the road of 0.4, for whoever unpacks the zip
 Set-Content -LiteralPath (Join-Path $out 'Play-TheRoad.cmd') -Encoding Ascii -Value @(

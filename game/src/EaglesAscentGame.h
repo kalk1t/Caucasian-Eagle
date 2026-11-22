@@ -148,7 +148,7 @@ namespace CaucasianEagle
         // The pointer, for her menu and her window (I; 2026-11-21, the owner: "lets user use mouse cursor when he/she
         // opens I- inventory"): where it is in the game's window, its button held, whether that button went down this
         // frame. Read once a frame (ReadMouse), so that a button already held when a window opens is not a click.
-        struct Mouse { float X = -1, Y = -1; bool Down = false, Click = false, Moved = false; float Wheel = 0; };   // (Wheel: notches this frame, forward +)
+        struct Mouse { float X = -1, Y = -1; bool Down = false, Click = false, Moved = false, Right = false; float Wheel = 0; };   // (Wheel: notches this frame, forward +)
         Mouse ReadMouse(bool inputAllowed) const;
         Mouse mMouse;
         bool mHoldBlade = false;   // a window closed (a click may have closed it): no sword blow until the button is let go
@@ -178,7 +178,7 @@ namespace CaucasianEagle
         // crystal the map gives laid, every group around the way placed. ledger.tsv; LEDGER_PASS or LEDGER_FAIL.
         void Ledger(Doorways::DoorwaysGameHost& host);
         bool mLedger = false;
-        float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0, mHudS = 1; bool mPtDown = false;
+        float mPtX = -1, mPtY = -1, mPtHold = 0, mHudW = 0, mHudH = 0, mHudS = 1; bool mPtDown = false, mPtRight = false, mViewHome = false;
         AscentMap mChart;                          // M: the detailed map, to move over and zoom with the mouse (AscentMap.h)
         HerShowcase mShow;
         // Her window's stage (owner, 2026-11-21: "when I happens just let nyxara stay where she stands and just bring her
