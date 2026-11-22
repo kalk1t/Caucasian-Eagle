@@ -46,12 +46,13 @@ Names used in the story, the code and the assets. One name per thing.
 | **Talonshade** | The dark-green sword (0.92 m); starts in the left hand |
 | **Left Talon / Right Talon** | The two alternating sword slashes on left click |
 | **Charged Slash** | The right-click heavy attack |
-| **The slide, the thrown swords, the feather storm** | The three skills (F, V, C); in flight F is the twisted dash (the finishing throw at a broken creature was taken out on 2026-11-19) |
+| **The slide, the thrown swords, the feather storm** | The three skills (F, V, C); in flight F is the twisted dash (the finishing throw at a broken creature was taken out on 2026-11-19). Since 0.5.2 only F is in the game: V and C stay in the Character Lab (`NyxaraKit::SetSkillsVC`) |
 | **Twin Talons, Rising Eagle, Tempest Triple, Whirlwind Talons, Soul Weave, Moonfall Dive** | The six combos |
 | **Doomed** | A creature of the road brought down by what would have been her killing blow: dazed, a violet ring under it, waiting (3 s) for her finishing kill |
 | **Finishing kills: Reaper's Wheel, Mountain Breaker, Tempest Flurry, Headsman** | The four ways she kills a doomed creature (since 2026-11-20 every creature, the bosses too), one at random each time (never the same twice running), chosen by the owner of ten made (`NyxaraKit`: `Kept`). The other six (Talon Cross, Eagle's Plunge, Gale Slide, Heartpierce, Moonlit Flash, Rising Talon) are kept for the Character Lab |
 | **Looks** | Three examples of how Nyxara grows (THE HIGHLANDS, MOONLIT, AMIRANI'S FIRE), each with tiers 1 to 3 of wings, swords and armour (tier 0 her own). Since 2026-11-21 her nine levels on the Eagle's Ascent wear them in the owner's order 1-3-2 (levels 1 to 3 THE HIGHLANDS, 4 to 6 AMIRANI'S FIRE, 7 to 9 MOONLIT; `levels 1 3 2` in `Looks.txt`); in the Character Lab keys 1 to 3 choose one. Her game bundle `MixamoV1` carries them; `art/nyxara/looks` |
-| **Cocoon** | The E guard since 2026-11-20 (the Sword Barrier before it): her wings wrapped round her, blue lights along them; blocks blows and orbs from the front |
+| **Cocoon**, **wing shield** | The E guard since 2026-11-20 (the Sword Barrier before it): her wings wrapped round her, blue lights along them. Since 0.5.2 the wing shield: one press, 3 seconds, blows and orbs from every side stopped while she goes on fighting, then 7 seconds' rest |
+| **The mountain (M)**, **the detailed map (Tab)** | M: the whole mountain in 3D, gone over with the mouse (`MountainView::Explore`); Tab from it: the map from above, drawn from the map's data (`AscentMap`, `assets/ui/Map/AscentMap.jpg`) |
 | **Wing boost** | Faster travel on Shift |
 | **Soul bar** | The blue bar under health (the engine's energy value) |
 | **Hit-stop** | The brief freeze when a blow lands |

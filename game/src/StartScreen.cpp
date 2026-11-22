@@ -146,7 +146,9 @@ namespace CaucasianEagle::StartScreen
             ui.Icon(HudArt::Diamond, cx + 20 * S, cy + ch * .5f, (selected ? 13 : 9) * S, (selected ? GoldLight : Faint));
             const Color ink = i == Rows - 1 ? (selected ? Red : Dim) : (selected ? Ink : Dim);
             ui.Text(entries[i].Label, cx + 40 * S, cy + (ch - ui.Height(Small * S)) * .5f, Small * S, ink);
-            ui.RightAligned(entries[i].Note, cx + cw - 14 * S, cy + (ch - ui.Height(Tiny * S)) * .5f, Tiny * S, selected ? Dim : Faint);
+            // (the note only where it fits beside the label: "Climb the Eagle's Ascent" ran into its note)
+            if (cx + 40 * S + ui.Width(entries[i].Label, Small * S) + 16 * S + ui.Width(entries[i].Note, Tiny * S) <= cx + cw - 14 * S)
+                ui.RightAligned(entries[i].Note, cx + cw - 14 * S, cy + (ch - ui.Height(Tiny * S)) * .5f, Tiny * S, selected ? Dim : Faint);
             cy += (Row + Gap) * S;
         }
         ui.Centered(L"W  S  or the mouse      ENTER  take", x + w * .5f, cy + 12 * S, Tiny * S, Dim);
