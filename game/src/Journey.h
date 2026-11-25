@@ -100,6 +100,10 @@ namespace CaucasianEagle
         static int KindCrystals(int kind);   // what one leaves her (the Eagle's Ascent): a boss AscentBossCrystals, else its Cost
         // the Eagle's Ascent: her growth there, what it does to the blows she takes (AscentGrowth::DamageTaken)
         void SetMountainTaken(float taken) { mMountainTaken = taken; }
+        // the Eagle's court (the Eagle's Ascent): its middle and how far it reaches, and what it keeps off (Amirani,
+        // chained in it: his place and how far round him it does not fly)
+        void SetEagleCourt(const DirectX::XMFLOAT3& middle, float radius, const DirectX::XMFLOAT3& keepOff, float keepOffRadius)
+        { mEagleCentre = middle; mEagleRadius = radius; mEagleKeepOff = keepOff; mEagleKeepOffRadius = keepOffRadius; }
         static const wchar_t* KindTitle(int kind);   // "THE GIANT"
         bool InitializeMountain(Renderer& renderer, std::string& error);    // the creatures' bodies and joints
         // Each line: its points (a few metres apart), how far each is to its sides from its middle, and m along it.
@@ -151,6 +155,7 @@ namespace CaucasianEagle
         const DoorwaysRuntimeScene* mMountainScene = nullptr;              // the scene whose walkable ground they stand on
         int mMountainRoused = -1;                                         // the boss she fights (its creature), -1 none
         float mMountainTaken = 1;                                         // the Eagle's Ascent: her growth on the blows she takes
+        DirectX::XMFLOAT3 mEagleCentre{}, mEagleKeepOff{}; float mEagleRadius = 0, mEagleKeepOffRadius = 0;   // (SetEagleCourt)
         int MountainSample(int creature, float metres) const;              // its line's sample that far along it
         int NearestOn(float x, float z, int first, int last) const;        // the nearest sample of first..last
         float MountainGroundAt(float x, float z, float nearY) const;       // the walkable ground there, near nearY
@@ -235,6 +240,15 @@ namespace CaucasianEagle
             float Stride = 0, Ready = 0, Turning = 0, LastYaw = 0, Heading = 0;
             // The Eagle's dive: where it set out from (it rises, and comes down on its mark: UpdateMonsters, LookOf).
             DirectX::XMFLOAT3 DiveFrom{};
+            // The Eagle's own fight (UpdateEagle, 2026-11-23): what it is doing (EagleFlight) and for how long, what
+            // comes next (-1: it chooses), the dives or swoops left in a row; the court it fights over (its middle, and
+            // the height of its ground); where its feet are (world height) and where it is on its circle round her and
+            // which way it goes round; how far it is down on the ground (0 flying .. 1 down, its wings folded); how much
+            // of its hover is drawn (low through a swoop); where a swoop ends; the storm's marks; whether it was told she may
+            // strike it; a move's one blow still to come (a swoop's), or its wings beaten once while down.
+            int Flight = 0, FlightNext = -1, Chain = 0, MarkCount = 0; bool CourtSet = false, DiveLands = false, ToldDown = false, Once = false;
+            float FlightT = 0, FlightFull = 1, FlyY = 0, Angle = 0, Way = 1, Perch = 0, HoverShare = 1;
+            DirectX::XMFLOAT3 Court{}, SwoopEnd{}, Marks[6]{};
             // Creature stations (the Character Lab): how far its moves have carried it from where it stands (it is drawn
             // there, and walks back); the lab's show (CAUCASIAN_EAGLE_LAB_CREATURE_MOVES): the next of it, the pause
             // before it, and a walk or run on the spot under way.
@@ -271,6 +285,8 @@ namespace CaucasianEagle
         void ClearArena(WorldState& world, CombatSystem& combat);
         void UpdateMonsters(WorldState& world, CombatSystem& combat, float dt);
         void UpdateBoss(int slot, WorldState& world, CombatSystem& combat, float dt, float distance, DirectX::XMFLOAT3 toPlayer);
+        void UpdateEagle(int slot, WorldState& world, CombatSystem& combat, float dt, float damageScale, bool alive);   // (its own fight)
+        float EagleFloor(float x, float z, float level, int index) const;   // the ground under it in flight
         // How each kind fights and goes (2026-11-20; Journey.cpp): one of its blows chosen; a move begun (its wind-up and
         // its ring); what a move does as its wind-up ends; a dodge begun (way: 0 aside either way, 1 back, 2 its right, 3
         // its left) and its step this frame; how fast its legs step at a speed, and its legs' length; how it is drawn

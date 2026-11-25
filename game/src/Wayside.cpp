@@ -273,6 +273,7 @@ namespace CaucasianEagle
             if (d > r + .3f && arcDegrees < 359.f && (dx * ax + dz * az) / d < cosArc) continue;
             j.Broken = true;
             gain.Crystals += j.Crystals; gain.Potions += j.Potion ? 1 : 0; ++gain.Jars;
+            if (j.Crystals > 0) gain.Stretches.emplace_back(j.Stretch, j.Crystals);
             gain.At = {j.P.x, j.P.y + .5f * j.Size, j.P.z};
             // its sherds: they fly from where it stood, fall to the ground and lie there a while
             const float height = (j.Shape == 0 ? 1.1f : j.Shape == 1 ? .92f : .6f) * j.Size;

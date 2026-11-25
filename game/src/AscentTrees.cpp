@@ -66,6 +66,7 @@ namespace CaucasianEagle
         if (!LoadLibrary(renderer, folder, error)) { error = "trees: " + error; return false; }
         LoadPlants(plants);
         mBuckets.assign(Bucket(static_cast<int>(mModels.size()), 0, 0, 0), {});
+        mDoorBuckets.assign(mBuckets.size(), {});
         mReady = true;
         return true;
     }
@@ -225,6 +226,7 @@ namespace CaucasianEagle
             t.Centre = {x + lx * tall * .5f, y + tall * .5f, z + lz * tall * .5f};
             t.Radius = .5f * std::sqrt(tall * tall + wide * wide) + rise;
             t.Reach = std::clamp(t.Radius, 8.f, 30.f);
+            t.Foot = {x, y, z}; t.Tall = tall; t.Wide = wide; t.LeanX = lx; t.LeanZ = lz;
             const unsigned index = static_cast<unsigned>(mTrees.size());
             mTrees.push_back(t);
             // its box: from the foot to the (leaning) top, the crown's width each side
@@ -293,6 +295,8 @@ namespace CaucasianEagle
         // sorts the trees to draw one by one into their buckets (model, variant, level, snow); the groups wholly of
         // pictures into mFar (not for the shadows: only trees within ShadowReach cast one, each by its 3D model)
         for (auto& b : mBuckets) b.clear();
+        for (auto& b : mDoorBuckets) b.clear();
+        if (!shadow) SeeThrough = 0;
         mFar.clear();
         const Frustum frustum(viewProjection);
         auto distance = [&](const Group& g)   // from the eye to the group's box
@@ -333,10 +337,36 @@ namespace CaucasianEagle
                     int lod = seen < Detail[0] ? 0 : seen < Detail[1] ? 1 : seen < Detail[2] ? 2 : seen < Picture ? 3 : 4;
                     if (shadow) lod = std::clamp(lod, 1, 2);
                     else if (lod == 4 && !mModels[t.Model].Variants[t.Variant].Far[0].Valid) continue;   // (a plant: no picture)
-                    mBuckets[Bucket(t.Model, t.Variant, lod, t.Snow)].push_back(i);
+                    if (!shadow && mFocusOn && lod < 4 && d < 40.f + t.Radius && Hides(i, eye, mFocus, .7f))
+                    { (SeeThroughOff ? mBuckets : mDoorBuckets)[Bucket(t.Model, t.Variant, lod, t.Snow)].push_back(i); ++SeeThrough; }
+                    else mBuckets[Bucket(t.Model, t.Variant, lod, t.Snow)].push_back(i);
                 }
             }
         }
+    }
+
+    bool AscentTrees::Hides(unsigned index, const XMFLOAT3& eye, const XMFLOAT3& to, float shortOf) const
+    {
+        // the line from the eye to short of 'to', against the tree's trunk line from its foot to its (leaning) top:
+        // nearer than its trunk's half-width below a third of its height, or its crown's (a little under half its
+        // width) above, and it is in the way
+        const Tree& t = mTrees[index];
+        const XMVECTOR e = XMLoadFloat3(&eye), target = XMLoadFloat3(&to);
+        const float whole = XMVectorGetX(XMVector3Length(target - e));
+        if (whole < .01f) return false;
+        const XMVECTOR u = (target - e) * ((std::max)(0.f, whole - shortOf) / whole);   // the line, eye -> short of her
+        const XMVECTOR foot = XMLoadFloat3(&t.Foot), v = XMVectorSet(t.LeanX * t.Tall, t.Tall, t.LeanZ * t.Tall, 0);
+        // the nearest points of the two segments (eye + a u, foot + b v)
+        const XMVECTOR w = e - foot;
+        const float uu = XMVectorGetX(XMVector3Dot(u, u)), uv = XMVectorGetX(XMVector3Dot(u, v)), vv = XMVectorGetX(XMVector3Dot(v, v));
+        const float uw = XMVectorGetX(XMVector3Dot(u, w)), vw = XMVectorGetX(XMVector3Dot(v, w));
+        const float den = uu * vv - uv * uv;
+        float a = den > 1e-6f ? std::clamp((uv * vw - vv * uw) / den, 0.f, 1.f) : 0.f;
+        float b = vv > 1e-6f ? std::clamp((uv * a + vw) / vv, 0.f, 1.f) : 0.f;
+        a = uu > 1e-6f ? std::clamp((uv * b - uw) / uu, 0.f, 1.f) : 0.f;
+        const float gap = XMVectorGetX(XMVector3Length(e + u * a - (foot + v * b)));
+        const float trunk = (std::max)(.35f, .045f * t.Tall), crown = .42f * t.Wide;
+        return gap < (b < .3f ? trunk : (std::max)(trunk, crown)) + .25f;
     }
 
     void AscentTrees::Draw(Renderer& renderer, const XMFLOAT3& eye, const XMMATRIX& viewProjection)
@@ -360,9 +390,11 @@ namespace CaucasianEagle
             for (size_t v = 0; v < model.Variants.size(); ++v)
                 for (int lod = 0; lod < 5; ++lod)
                     for (int snow = 0; snow < 2; ++snow)
+                    for (int door = 0; door < 2; ++door)
                     {
-                        const auto& ids = mBuckets[Bucket(static_cast<int>(m), static_cast<int>(v), lod, snow)];
+                        const auto& ids = (door ? mDoorBuckets : mBuckets)[Bucket(static_cast<int>(m), static_cast<int>(v), lod, snow)];
                         if (ids.empty()) continue;
+                        bark.ScreenDoor = leaves.ScreenDoor = farPic.ScreenDoor = door ? SeeThroughDoor : 0.f;
                         mInstances.clear(); mInstances.reserve(ids.size());
                         for (const unsigned i : ids)
                         {
@@ -394,6 +426,7 @@ namespace CaucasianEagle
                         Drawn[lod] += static_cast<int>(ids.size());
                     }
         }
+        bark.ScreenDoor = leaves.ScreenDoor = farPic.ScreenDoor = 0.f;
         const auto t2 = Clock::now();
         // the groups of pictures, nearest first: one draw each; those not merged yet, merged a few thousand trees a frame
         std::sort(mFar.begin(), mFar.end());

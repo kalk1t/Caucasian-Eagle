@@ -87,7 +87,7 @@ namespace CaucasianEagle
                 const float ground = land(at.x, at.z);
                 if (ground > -1e8f && at.y < ground + .35f) at.y = ground + .35f;   // (never under the ground)
             }
-            camera.Position = at;
+            camera.Position = at; camera.ViewPitchOffset = 0;   // (the follow camera's lift over a slope is not this view's)
             camera.Yaw = yaw;
             camera.Pitch = std::atan2(focus.y - at.y, std::hypot(focus.x - at.x, focus.z - at.z));
             camera.NearZ = (std::min)(mNearZ, .05f);

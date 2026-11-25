@@ -86,6 +86,28 @@ namespace CaucasianEagle
                     if (bin.read(reinterpret_cast<char*>(q.H.data()), static_cast<std::streamsize>(q.H.size() * sizeof(float)))) mPatches.push_back(std::move(q));
                 }
             }
+            else if (word == "tops")
+            {   // the drawn top round rock and steep land (2026-11-22), in <map>.heights at a float offset: the cells' indices,
+                // then each cell's per x per points
+                long long cells = 0, offset = 0; int per = 0; in >> cells >> offset >> per;
+                auto file2 = path; file2.replace_extension(".heights");
+                std::ifstream bin(file2, std::ios::binary);
+                if (cells > 0 && per > 0 && mLandNx >= 2 && mLandNz >= 2 && bin && bin.seekg(offset * static_cast<long long>(sizeof(float))))
+                {
+                    std::vector<float> index(static_cast<size_t>(cells)); mTops.resize(static_cast<size_t>(cells) * per * per);
+                    if (bin.read(reinterpret_cast<char*>(index.data()), static_cast<std::streamsize>(index.size() * sizeof(float)))
+                        && bin.read(reinterpret_cast<char*>(mTops.data()), static_cast<std::streamsize>(mTops.size() * sizeof(float))))
+                    {
+                        mTopCell.assign(static_cast<size_t>(mLandNx - 1) * static_cast<size_t>(mLandNz - 1), -1); mTopsPer = per;
+                        for (size_t k = 0; k < index.size(); ++k)
+                        {
+                            const long long c = static_cast<long long>(index[k]);
+                            if (c >= 0 && c < static_cast<long long>(mTopCell.size())) mTopCell[static_cast<size_t>(c)] = static_cast<int>(k);
+                        }
+                    }
+                    else { mTops.clear(); mTopCell.clear(); }
+                }
+            }
             else if (word == "outer")
             {   // the rest of the mountain's heights (2026-11-18), in <map>.heights at a float offset: Land() off the near grid
                 Patch q; long long offset = 0; in >> q.X >> q.Z >> q.Step >> q.Nx >> q.Nz >> offset;
@@ -744,6 +766,26 @@ namespace CaucasianEagle
         return Land(x, z);
     }
 
+    float EaglesAscent::DrawnTop(float x, float z) const
+    {
+        constexpr float none = std::numeric_limits<float>::quiet_NaN();
+        if (mTopCell.empty() || mTopsPer <= 0) return none;
+        const float step = mLandStep / static_cast<float>(mTopsPer);
+        const float sx = (x - mLandX) / step - .5f, sz = (z - mLandZ) / step - .5f;     // (the points are at their squares' middles)
+        if (sx < 0 || sz < 0) return none;
+        const int gx = static_cast<int>(sx), gz = static_cast<int>(sz);
+        const auto at = [&](int ax, int az)
+        {
+            const int cj = ax / mTopsPer, ci = az / mTopsPer;
+            if (cj >= mLandNx - 1 || ci >= mLandNz - 1) return none;
+            const int b = mTopCell[static_cast<size_t>(ci) * static_cast<size_t>(mLandNx - 1) + static_cast<size_t>(cj)];
+            if (b < 0) return none;
+            return mTops[(static_cast<size_t>(b) * mTopsPer + static_cast<size_t>(az % mTopsPer)) * mTopsPer + static_cast<size_t>(ax % mTopsPer)];
+        };
+        const float u = sx - static_cast<float>(gx), v = sz - static_cast<float>(gz);
+        return (at(gx, gz) * (1 - u) + at(gx + 1, gz) * u) * (1 - v) + (at(gx, gz + 1) * (1 - u) + at(gx + 1, gz + 1) * u) * v;
+    }
+
     float EaglesAscent::LandLow(float x, float z) const
     {
         if (mLand.empty()) return -1e9f;
@@ -839,6 +881,8 @@ namespace CaucasianEagle
     void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt, const DoorwaysRuntimeScene* scene)
     {
         Sliding = false;
+        if (p.IsGrounded || flying) { mAir = 0; mJumped = false; }       // (how long she has been off the ground on foot, and
+        else { if (mAir <= 0 && p.VerticalVelocity > .5f) mJumped = true; mAir += dt; }   //  whether she left it by a jump)
         if (!flying) HoldInCave(p);
         HoldOffTrees(p, flying);
         CaveSpot cave;
@@ -858,7 +902,64 @@ namespace CaucasianEagle
             else if (p.Position.y < cave.Floor - .3f) { p.Position.y = cave.Floor; p.VerticalVelocity = std::max(p.VerticalVelocity, 0.f); }
             mSlideStill = 0; mSlidAgo = 1;
             mFlown = p.Position; mHasFlown = true;
+            if (p.IsGrounded) { mStood = p.Position; mHasStood = true; }
             return;
+        }
+        // On foot a rock face or a bank is a wall where it is drawn (2026-11-22, the owner: "i want whole mountain to be
+        // walkable beside the paths we have"). The engine stands her on ground under 60 degrees and stops her at nothing
+        // steeper; the land's 6 m cells (two flat triangles, one under the face) and the rough ground reach on under rock
+        // as drawn. At a cliff's foot she walked into the face, her body in the rock, until that ground ended and she fell
+        // inside the mountain (the off-the-way test, CAUCASIAN_EAGLE_DEMO=14: 14 of its first 61 runs). Now where the drawn
+        // top WallAhead m ahead of her (her front) would be more than IntoRock over her feet she is held where she was,
+        // sliding along the face where one way is free. Not if she is in it already (she walks out), nor near the way.
+        if (RockRules && !flying && mHasFlown && !mTopCell.empty() && !NearTheWay(p.Position) && !(DrawnTop(mFlown.x, mFlown.z) > mFlown.y + IntoRock))
+        {
+            const auto wall = [&](float x, float z)
+            {
+                const float dx = x - mFlown.x, dz = z - mFlown.z, d = std::hypot(dx, dz);
+                if (d < 1e-5f) return false;
+                return DrawnTop(x + dx / d * WallAhead, z + dz / d * WallAhead) > p.Position.y + IntoRock;   // (NaN: none known, no wall)
+            };
+            if (wall(p.Position.x, p.Position.z))
+            {
+                if (!wall(p.Position.x, mFlown.z)) p.Position.z = mFlown.z;
+                else if (!wall(mFlown.x, p.Position.z)) p.Position.x = mFlown.x;
+                else { p.Position.x = mFlown.x; p.Position.z = mFlown.z; }
+                ++WallHolds;
+            }
+        }
+        // Nor does she walk into the mountain where it is steeper than she can stand on (2026-11-22). The engine neither
+        // stands her on such a face nor stops her at it: at a cliff's foot she walked on into the rock, on the ground
+        // that reaches in under it, until that ended and she fell inside the mountain (the off-the-way test's film at
+        // 340 m: along the cliff's foot, 2 m under the land, then down 9 m in the rock). A step on foot that leaves
+        // the ground (no jump: within half a second of leaving it on foot, and not rising; the engine lets go of her a few
+        // frames before the ground under her ends) to where there is no ground she can stand on within 6 m under her
+        // feet, and the land's lowest there is not 1.5 m under them (no air under her: the mountain's inside), is not
+        // taken: she stays where she was, or slides along the face where one way is free, and is put back on her feet.
+        // Off a real edge (air under it, or ground to land on) she walks off as before.
+        if (RockRules && !flying && mHasFlown && mHasStood && !p.IsGrounded && !mJumped && mAir < .5f && p.VerticalVelocity <= .5f && scene)
+        {
+            const float y = p.Position.y;
+            const auto into = [&](float x, float z)
+            {   // air under her there: the drawn top under her feet where it is known (the 6 m grid's lowest corner can lie
+                // 7 m under her in a cell that is all rock face over her: at 380 m she fell into the mountain so)
+                const float top = DrawnTop(x, z);
+                if (std::isfinite(top) ? top < y - .5f : LandLow(x, z) < y - 1.5f) return false;
+                return !Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, x, z, y - 6.f, y + .6f).Hit;
+            };
+            if (into(p.Position.x, p.Position.z))
+            {
+                if (!into(p.Position.x, mFlown.z)) p.Position.z = mFlown.z;
+                else if (!into(mFlown.x, p.Position.z)) p.Position.x = mFlown.x;
+                else { p.Position.x = mFlown.x; p.Position.z = mFlown.z; }
+                const auto under = Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, p.Position.x, p.Position.z, y - 6.f, y + .6f);
+                if (under.Hit && under.GroundY > y - .6f) p.Position.y = under.GroundY;   // on her feet there (along the face, or back)
+                else p.Position = mStood;                                                 // or where she last stood
+                p.IsGrounded = true; p.VerticalVelocity = 0; mAir = 0;
+                p.GroundState = Doorways::DoorwaysPhysicsGroundState::Grounded; p.MissingAuthoritativeGround = false;
+                p.GroundY = p.TargetGroundY = p.Position.y;
+                ++IntoHolds;
+            }
         }
         if (flying)
         {
@@ -949,6 +1050,28 @@ namespace CaucasianEagle
         }
         else { mSlideStill = 0; mSlidAgo = 1; }
         mFlown = p.Position; mHasFlown = true;
+        if (p.IsGrounded && !Sliding) { mStood = p.Position; mHasStood = true; }
+    }
+
+    bool EaglesAscent::NearTheWay(const XMFLOAT3& p) const
+    {
+        if (std::isfinite(TreadTop(p.x, p.z, p.y))) return true;
+        for (const auto& c : mCaves)
+            for (int end = 0; end < 2; ++end)
+            {
+                if (!c.Open[end] || c.Line.empty()) continue;
+                const auto& q = end == 0 ? c.Line.front() : c.Line.back();
+                if (std::abs(p.y - q.Y) < 8.f && std::hypot(p.x - q.X, p.z - q.Z) < 12.f) return true;
+            }
+        for (size_t i = 0; i + 1 < Trail.size(); ++i)
+        {   // the way's line, piece by piece: within WayReach of it across, at about its height
+            const XMFLOAT3& a = Trail[i]; const XMFLOAT3& b = Trail[i + 1];
+            if (std::abs(p.x - a.x) > 12.f || std::abs(p.z - a.z) > 12.f) continue;
+            const float dx = b.x - a.x, dz = b.z - a.z, ll = std::max(dx * dx + dz * dz, 1e-6f);
+            const float t = std::clamp(((p.x - a.x) * dx + (p.z - a.z) * dz) / ll, 0.f, 1.f);
+            if (std::hypot(p.x - a.x - t * dx, p.z - a.z - t * dz) < WayReach && std::abs(p.y - (a.y + t * (b.y - a.y))) < 5.f) return true;
+        }
+        return false;
     }
 
     void EaglesAscent::Locate(const XMFLOAT3& p)
@@ -1071,6 +1194,19 @@ namespace CaucasianEagle
             prop.Hidden = hidden; ++count;
         }
         return count;
+    }
+
+    bool EaglesAscent::FindModel(const std::string& name, const XMFLOAT3& p, float radius, XMFLOAT3& at, float& height) const
+    {
+        float best = radius * radius;
+        bool found = false;
+        for (const auto& prop : mProps)
+        {
+            const float dx = prop.P.x - p.x, dy = prop.P.y - p.y, dz = prop.P.z - p.z, d = dx * dx + dy * dy + dz * dz;
+            if (mPropNames[static_cast<size_t>(prop.Model)] != name || d > best) continue;
+            best = d; at = prop.P; height = prop.Height; found = true;
+        }
+        return found;
     }
 
     void EaglesAscent::StyleEnvironment(EnvironmentSettings& e, int light, int fog)

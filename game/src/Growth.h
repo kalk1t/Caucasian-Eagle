@@ -22,6 +22,8 @@ namespace CaucasianEagle
     {
         enum Row { Wings, Swords, Armour, Power, Defence, RowCount };
 
+        constexpr int MaxQuests = 24;   // (the Eagle's Ascent's quests: 18)
+
         struct State
         {
             int Crystals = 0;
@@ -30,6 +32,10 @@ namespace CaucasianEagle
             // the Eagle's Ascent (AscentGrowth.h): Level[Wings .. Armour] is the item's level there (0..9, no training),
             // and Look[] the level whose look she wears (0..Level); the road does not use them
             int Look[3] = {};
+            int Gear = 0;               // the Eagle's Ascent (0.5.3): her gear, 0 her own .. 3 (AscentGrowth.h)
+            int AscentCrystals[3] = {}; // the Eagle's Ascent (0.5.3): her wind, fire and ice crystals (AscentGrowth::CrystalKind); Crystals is the road's
+            int QuestState[MaxQuests] = {};   // the Eagle's Ascent (0.5.3): each of her quests (AscentQuests): offered, taken, done
+            int QuestCount[MaxQuests] = {};   // how much of it is done (creatures beaten, jars broken since she took it)
         };
 
         int Max(int row);                           // 3 for items, 8 for training

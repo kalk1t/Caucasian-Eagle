@@ -346,7 +346,7 @@ namespace CaucasianEagle
             legend(nullptr, WayGold, L"The way up", 1);
             legend(nullptr, RingLine, L"The rings round the mountain", 1);
             legend(nullptr, CaveLine, L"Caves, under the rock", 2);
-            legend(&HudArt::IconWings, Gold, L"Eagle Nest: levels, looks, H saves", 0);
+            legend(&HudArt::IconWings, Gold, L"Eagle Nest: H saves", 0);
             legend(&HudArt::IconSkull, Red, L"A boss", 0);
             legend(nullptr, GroupRed, L"Creatures waiting", 3);
             legend(nullptr, CaveOrange, L"Creatures in a cave", 3);

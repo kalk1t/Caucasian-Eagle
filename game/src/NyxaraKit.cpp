@@ -642,6 +642,29 @@ namespace Doorways
             return all;
         }
         const StyleMove& RefMove(MoveRef r) { return Styles()[static_cast<size_t>(r.Style)].Move[r.Button]; }
+        // A trial FLASH STEP, for the Character Lab only (SetHiggsfieldTrial; owner, 2026-11-22: "use this animation now as
+        // a reference and improve our nyxara version's combos ... only in character lab yet"), after Higgsfield's test video
+        // (art/nyxara/higgsfield_nyxara/flash_step_kling_test1.mp4): the sword raised high behind her before she goes, the
+        // cut as she arrives, then down into a low crouch, swords out wide and wings open, before she rises into her guard;
+        // a streak of blue light where she went and a burst where the blade bites (Update). Its blow, reach, lunge and the
+        // moment it may be followed are FLASH STEP's; only its end is longer (0.9 s, the crouch held), and its blow stops the
+        // moment longer and shakes the view more (owner, 2026-11-22: "i didnt see any different").
+        constexpr XMFLOAT4 TrialBlue{.3f, .62f, 1.f, 1};
+        // (and every attack, move and skill of hers there plays at half pace, SetHiggsfieldTrial's: owner, 2026-11-22, "slow
+        // down each skill at least twice"; the game's own pace is untouched)
+        const StyleMove& FlashStepTrial()
+        {
+            static const StyleMove m = []
+            {
+                StyleMove t = RefMove(FlashStep);
+                t.Clip = "Attack_S2_R_HF"; t.Seconds = .9f;
+                t.Tracks = {{"Attack_R_Run", {{0, .38f}, {.03f, .44f}, {.07f, .55f}, {.1f, .62f}, {.13f, .68f}, {.17f, .74f}}},
+                            {"Attack_Jump", {{.13f, 1.44f}, {.18f, 1.5f}, {.5f, 1.62f}, {.62f, 1.8f}, {.74f, 1.95f}}},
+                            {"Idle", {{.66f, 0}, {.9f, .24f}}}};
+                return t;
+            }();
+            return m;
+        }
 
         // Her wing shield for E (owner, 2026-11-20: of ten made to try, "0 is good - keep it only": COCOON. "lets make different skill for her E - lets make E close her wings around
         // her and wings protect her, remove the effect now E has and it's effect should be blue bright lights around her
@@ -836,6 +859,7 @@ namespace Doorways
         std::string Attack;                // the cut or skill being played, empty: none
         int Begun = 0;                     // cuts and skills begun (NyxaraKit::AttacksBegun)
         float AttackTime = 0, SkillStrike = 0, SkillReach = 1;
+        float Pace = 1;   // how fast her attacks and skills play (the Character Lab's trial: half; NyxaraKit::Update sets it)
         // a style's move (StartMove): which, by which button (0 left, 1 right), the creature it was aimed at, its next blow,
         // how far it carries her in, how far it has turned her; where it means her to be now and how fast it carries her
         // there (the world's x and z; m/s: the travel)
@@ -2226,6 +2250,8 @@ namespace Doorways
                 for (const auto& m : st.Move)
                     if (!MakeSpliced(m.Clip, m.Seconds, m.Tracks))
                         OutputDebugStringA((std::string("[WARN] Nyxara: the move ") + m.Clip + " could not be made\n").c_str());
+            if (const auto& m = FlashStepTrial(); !MakeSpliced(m.Clip, m.Seconds, m.Tracks))
+                OutputDebugStringA("[WARN] Nyxara: the trial FLASH STEP could not be made\n");
             // her guards: each a loop of Breath s, out from its moment and back (slow away, slow in at each end), so that it
             // goes round without a seam
             for (int g = 0; g < static_cast<int>(Guards().size()); ++g)
@@ -2812,7 +2838,7 @@ namespace Doorways
             if (found == NyxaraClips::Attacks.end() || found->second.Forward.size() < 2) return 0;
             const auto& path = found->second.Forward;
             const size_t i = (std::min)(static_cast<size_t>((std::max)(0.f, AttackTime) * 30), path.size() - 2);
-            return (path[i + 1] - path[i]) * 30 * AttackRate * (Skill() ? SkillReach : 1.f);
+            return (path[i + 1] - path[i]) * 30 * AttackRate * Pace * (Skill() ? SkillReach : 1.f);
         }
 
         // She looks where she turns (2026-11-19): her head and neck lead a turn, as far as she turns fast, and come
@@ -4290,7 +4316,13 @@ namespace Doorways
             mBody->FlinchGo -= Guards()[static_cast<size_t>(mGuardStyle)].Jolt * 30.f;   // (her guard knocked back: her picture tips back and comes up)
         const XMFLOAT3 at = Add(world.MainPlayer.Position, Add(Mul(facing, 1.2f), {0, 1.2f, 0}));
         const XMFLOAT4 shine = styled ? Guards()[static_cast<size_t>(mGuardStyle)].Color : XMFLOAT4{.45f, .75f, 1.f, 1};
-        Burst(at, shine, 16, 4.f, .22f); Burst(at, MoonWhite, 6, 3.f, .16f);
+        if (!mHiggsfieldTrial) { Burst(at, shine, 16, 4.f, .22f); Burst(at, MoonWhite, 6, 3.f, .16f); }
+        else
+        {   // (the trial: lines of her shield's light shot out where it was struck, and sparks)
+            for (int i = 0; i < 12; ++i)
+                Ray(at, {Random() - .5f, Random() - .3f, Random() - .5f}, .6f + .7f * Random(), .05f, i % 3 ? shine : MoonWhite, .2f + .1f * Random(), true);
+            Embers(at, facing, 10, shine, 4.f);
+        }
         mNotice = L"BLOCKED"; mNoticeTimer = .5f;
         mBody->Log(world, "blocked");
         return true;
@@ -4467,6 +4499,195 @@ namespace Doorways
             const float a = Random() * 2 * Pi, up = Random() * 1.4f - .3f, s = speed * (.4f + .6f * Random());
             f.Vel = Mul(Norm({std::sin(a), up, std::cos(a)}), s);
             f.Life = .35f + .45f * Random(); f.Size = size * (.6f + .7f * Random());
+            mFx.push_back(f);
+        }
+    }
+
+    void NyxaraKit::Ray(const XMFLOAT3& at, const XMFLOAT3& way, float length, float width, XMFLOAT4 color, float life, bool outward)
+    {
+        Fx f; f.Kind = FxKind::Ray; f.Pos = at; f.Vel = Norm(way); f.Size = length; f.Roll = width; f.Color = color;
+        f.Life = life; f.Mirror = outward;
+        mFx.push_back(f);
+    }
+    void NyxaraKit::Embers(const XMFLOAT3& at, const XMFLOAT3& forward, int count, XMFLOAT4 color, float speed)
+    {   // hot sparks thrown on (forward) and out, falling
+        for (int i = 0; i < count; ++i)
+        {
+            Fx f; f.Kind = FxKind::Ember; f.Pos = at; f.Color = color;
+            const float a = Random() * 2 * Pi, out = .35f + .9f * Random();
+            const XMFLOAT3 side = Norm(Cross(forward, {0, 1, 0}));
+            const XMFLOAT3 way = Norm(Add(Add(forward, Mul(side, std::cos(a) * out)), {0, std::sin(a) * out + .25f, 0}));
+            f.Vel = Mul(way, speed * (.5f + .7f * Random()));
+            f.Life = .22f + .3f * Random(); f.Size = .025f + .03f * Random();
+            mFx.push_back(f);
+        }
+    }
+    // The trial FLASH STEP's light (Character Lab), after Higgsfield's video: not balls of light but lines. Along her way in,
+    // speed lines of blue light laid back along it at the height of her body, a white core in some, fading in a third of a
+    // second; where she set off, a flash.
+    void NyxaraKit::TrialDashLight(const XMFLOAT3& from, const XMFLOAT3& to)
+    {
+        const XMFLOAT3 d = Sub(to, from);
+        const float len = Len(d);
+        if (len < .05f) return;
+        const XMFLOAT3 way = Mul(d, 1 / len), back = Mul(way, -1), side = Norm(Cross(way, {0, 1, 0}));
+        const int pieces = (std::max)(1, static_cast<int>(len / .16f));
+        for (int i = 1; i <= pieces; ++i)
+        {
+            const XMFLOAT3 q = Add(from, Mul(d, static_cast<float>(i) / pieces));
+            for (int k = 0; k < 2; ++k)
+            {
+                const XMFLOAT3 at = Add(Add(q, Mul(side, (Random() - .5f) * .5f)), {0, (Random() - .5f) * 1.3f, 0});
+                Ray(at, back, .7f + .8f * Random(), .03f + .05f * Random(), Alpha(ThemeMain(), .75f), .2f + .14f * Random(), false);
+            }
+            if (i % 3 == 0)
+                Ray(Add(q, {0, (Random() - .5f) * .6f, 0}), back, 1.4f + .8f * Random(), .025f, ThemeCore(), .18f + .1f * Random(), false);
+            if (mTrialTheme == 0 && mTrialLevel > 0 && i % 2 == 0) Gusts(q, Mul(back, -1), mTrialLevel, 7.f, .6f);   // (wind drawn on with her)
+            if (mTrialTheme == 1 && i % 2 == 0) Shards(Add(q, {0, (Random() - .5f) * .8f, 0}), back, 1, 1.5f);   // (frost shed as she goes)
+            if (mTrialTheme == 2 && i % 2 == 0) Flames({q.x, q.y - .9f, q.z}, 1, .25f, .5f + .4f * Random());       // (fire left in her wake)
+        }
+    }
+    // ... and where its blade bites: a white flash in a blue one, rays of light shot out round it across her way, and hot
+    // sparks thrown on; on a creature twice as much, and the moment held and the view shaken (Update)
+    void NyxaraKit::TrialBiteLight(const XMFLOAT3& at, const XMFLOAT3& forward, bool struck)
+    {
+        const float k = struck ? 1.f : .5f;
+        Fx flash; flash.Kind = FxKind::Spark; flash.Pos = at; flash.Color = Alpha(ThemeMain(), .9f); flash.Life = .14f; flash.Size = 1.5f * k;
+        mFx.push_back(flash);
+        flash.Color = ThemeCore(); flash.Life = .1f; flash.Size = .7f * k;
+        mFx.push_back(flash);
+        const XMFLOAT3 side = Norm(Cross(forward, {0, 1, 0}));
+        const int rays = struck ? 18 : 9;
+        for (int i = 0; i < rays; ++i)
+        {   // (across her way, as a wheel facing her, tipped a little on)
+            const float a = XM_2PI * (static_cast<float>(i) + Random() * .7f) / rays;
+            const XMFLOAT3 way = Add(Add(Mul(side, std::cos(a)), {0, std::sin(a), 0}), Mul(forward, .25f + .3f * Random()));
+            Ray(at, way, (1.f + 1.4f * Random()) * (.6f + .4f * k), .05f + .05f * Random(), i % 3 ? ThemeMain() : ThemeCore(), .2f + .12f * Random(), true);
+        }
+        Embers(at, forward, struck ? 28 : 12, ThemeCore(), 7.f);
+        Embers(at, forward, struck ? 14 : 6, ThemeMain(), 5.f);
+        if (mTrialTheme == 0 && mTrialLevel > 0) Gusts(Sub(at, Mul(forward, .6f)), forward, (struck ? 5 : 3) * mTrialLevel, 9.f, .35f + .1f * mTrialLevel);
+        if (mTrialTheme == 1) Shards(at, forward, struck ? 14 : 7, 6.f);
+        if (mTrialTheme == 2) { Flames(Add(at, {0, -.3f, 0}), struck ? 14 : 7, .45f, .55f); Embers(at, {0, 1, 0}, struck ? 16 : 8, ThemeDeep(), 3.f); }
+    }
+
+    // ... the ground struck: lines of light shot out along it all round, spikes of it up, and hot sparks
+    void NyxaraKit::TrialGroundLight(const XMFLOAT3& at, float ring, bool struck)
+    {
+        Fx flash; flash.Kind = FxKind::Spark; flash.Pos = Add(at, {0, .3f, 0}); flash.Color = Alpha(ThemeMain(), .85f); flash.Life = .16f; flash.Size = 1.6f;
+        mFx.push_back(flash);
+        const int rays = struck ? 22 : 16;
+        for (int i = 0; i < rays; ++i)
+        {
+            const float a = XM_2PI * (static_cast<float>(i) + Random() * .6f) / rays;
+            const XMFLOAT3 way{std::sin(a), .06f + .1f * Random(), std::cos(a)};
+            Ray(at, way, ring * (.45f + .35f * Random()), .06f + .05f * Random(), i % 4 ? ThemeMain() : ThemeCore(), .3f + .15f * Random(), true);
+        }
+        for (int i = 0; i < 7; ++i)
+        {
+            const float a = XM_2PI * Random(), d = .3f + .9f * Random();
+            Ray({at.x + std::sin(a) * d, at.y, at.z + std::cos(a) * d}, {(Random() - .5f) * .4f, 1, (Random() - .5f) * .4f},
+                .9f + 1.2f * Random(), .06f, i % 2 ? ThemeMain() : ThemeCore(), .3f + .12f * Random(), true);
+        }
+        Embers(at, {0, 1, 0}, struck ? 30 : 18, ThemeCore(), 6.f);
+        Embers(at, {0, 1, 0}, 12, ThemeMain(), 4.f);
+        if (mTrialTheme == 0 && mTrialLevel > 0)
+            for (int i = 0; i < 6 * mTrialLevel; ++i)
+            {   // (wind blown out over the ground all round)
+                const float a = XM_2PI * Random();
+                Gusts(Add(at, {std::sin(a) * .5f, .25f + .3f * Random(), std::cos(a) * .5f}), {std::sin(a), .05f, std::cos(a)}, 1, 8.f + 2.f * mTrialLevel, .1f);
+            }
+        if (mTrialTheme == 1) { IceSpikes(at, ring * .55f, struck ? 16 : 12); Shards(Add(at, {0, .2f, 0}), {0, 1, 0}, 14, 5.f); }
+        if (mTrialTheme == 2) { for (int i = 0; i < 18; ++i) { const float a = XM_2PI * i / 18.f, d = ring * (.2f + .3f * Random()); Flames({at.x + std::sin(a) * d, at.y, at.z + std::cos(a) * d}, 1, .1f, .8f + .6f * Random()); } Flames(at, 8, .4f, 1.3f); }
+    }
+    // ... a turn with her blades out: short lines of light along the way her blades go, either side of her, each a moment
+    void NyxaraKit::TrialWhirlLight(const XMFLOAT3& middle, float yaw, bool right)
+    {
+        const XMFLOAT3 fwd = Forward(yaw), side = Norm(Cross(fwd, {0, 1, 0}));
+        for (int k = -1; k <= 1; k += 2)
+        {
+            const XMFLOAT3 at = Add(middle, Add(Mul(side, 1.1f * static_cast<float>(k)), {0, (Random() - .5f) * .25f, 0}));
+            const XMFLOAT3 way = Mul(fwd, static_cast<float>(k) * (right ? 1.f : -1.f));
+            Ray(Sub(at, Mul(way, .35f)), way, .7f, .05f, k > 0 ? ThemeCore() : ThemeMain(), .2f, false);
+            if (mTrialTheme == 0 && mTrialLevel > 0) Gusts(at, way, mTrialLevel, 7.f, .2f);
+            if (mTrialTheme == 1 && Random() < .35f) Shards(at, way, 1, 2.f);
+            if (mTrialTheme == 2 && Random() < .5f) Flames(at, 1, .05f, .35f);
+        }
+    }
+    // ... and its blow: lines of light shot out level all round her, and hot sparks
+    void NyxaraKit::TrialWhirlBite(const XMFLOAT3& middle, bool struck)
+    {
+        const int rays = struck ? 20 : 14;
+        for (int i = 0; i < rays; ++i)
+        {
+            const float a = XM_2PI * (static_cast<float>(i) + Random() * .6f) / rays;
+            const XMFLOAT3 way{std::sin(a), (Random() - .5f) * .15f, std::cos(a)};
+            Ray(Add(middle, Mul(way, .5f)), way, 1.f + 1.f * Random(), .05f + .04f * Random(), i % 3 ? ThemeMain() : ThemeCore(), .22f + .1f * Random(), true);
+        }
+        for (int i = 0; i < 4; ++i)
+        {
+            const float a = XM_2PI * Random();
+            Embers(Add(middle, {std::sin(a) * 1.1f, 0, std::cos(a) * 1.1f}), {std::sin(a), 0, std::cos(a)}, struck ? 7 : 4, ThemeCore(), 6.f);
+            if (mTrialTheme == 0 && mTrialLevel > 0) Gusts(Add(middle, {std::sin(a) * 1.1f, 0, std::cos(a) * 1.1f}), {std::cos(a), 0, -std::sin(a)}, 2 * mTrialLevel, 8.f, .25f);
+            if (mTrialTheme == 1) Shards(Add(middle, {std::sin(a) * 1.1f, 0, std::cos(a) * 1.1f}), {std::sin(a), .2f, std::cos(a)}, 4, 6.f);
+            if (mTrialTheme == 2) Flames(Add(middle, {std::sin(a) * 1.1f, -.2f, std::cos(a) * 1.1f}), 3, .2f, .5f);
+        }
+    }
+
+    int NyxaraKit::ThemeMore(int count) const { return static_cast<int>(static_cast<float>(count) * (1.f + .5f * mTrialLevel) + .5f); }
+    float NyxaraKit::Bigger() const { return 1.f + .15f * mTrialLevel; }
+    void NyxaraKit::Gusts(const XMFLOAT3& at, const XMFLOAT3& way, int count, float speed, float spread)
+    {   // lines of wind blown along way, spread about at, pale; more and longer as her gear grows
+        const XMFLOAT3 w = Len(way) < 1e-3f ? XMFLOAT3{0, 0, 1} : Norm(way);
+        for (int i = 0; i < count; ++i)
+        {
+            Fx f; f.Kind = FxKind::Gust; f.Color = Random() < .5f ? XMFLOAT4{.62f, .85f, 1.f, 1} : XMFLOAT4{.4f, .7f, 1.f, 1};
+            f.Pos = Add(at, {(Random() - .5f) * 2 * spread, (Random() - .5f) * 2 * spread, (Random() - .5f) * 2 * spread});
+            const XMFLOAT3 bent = Norm(Add(w, {(Random() - .5f) * .35f, (Random() - .5f) * .25f, (Random() - .5f) * .35f}));
+            f.Vel = Mul(bent, speed * (.7f + .6f * Random()));
+            f.Size = (.8f + .9f * Random()) * (.7f + .2f * mTrialLevel); f.Roll = .02f + .025f * Random(); f.Life = .3f + .25f * Random();
+            mFx.push_back(f);
+        }
+    }
+    XMFLOAT4 NyxaraKit::ThemeMain() const { return mTrialTheme == 1 ? XMFLOAT4{.55f, .9f, 1.f, 1} : mTrialTheme == 2 ? XMFLOAT4{1.f, .45f, .08f, 1} : TrialBlue; }
+    XMFLOAT4 NyxaraKit::ThemeCore() const { return mTrialTheme == 1 ? XMFLOAT4{.93f, .99f, 1.f, 1} : mTrialTheme == 2 ? XMFLOAT4{1.f, .78f, .35f, 1} : MoonWhite; }
+    XMFLOAT4 NyxaraKit::ThemeDeep() const { return mTrialTheme == 1 ? XMFLOAT4{.3f, .6f, 1.f, 1} : mTrialTheme == 2 ? XMFLOAT4{.95f, .18f, .04f, 1} : TrialBlue; }
+    void NyxaraKit::Shards(const XMFLOAT3& at, const XMFLOAT3& forward, int count, float speed)
+    {   // crystals of ice thrown on and out, turning as they fall
+        const XMFLOAT3 side = Norm(Cross(Len(Cross(forward, {0, 1, 0})) < 1e-3f ? XMFLOAT3{1, 0, 0} : forward, {0, 1, 0}));
+        count = ThemeMore(count);
+        for (int i = 0; i < count; ++i)
+        {
+            Fx f; f.Kind = FxKind::Shard; f.Pos = at; f.Color = Random() < .5f ? ThemeMain() : ThemeDeep();
+            const float a = Random() * 2 * Pi, out = .4f + .8f * Random();
+            const XMFLOAT3 way = Norm(Add(Add(forward, Mul(side, std::cos(a) * out)), {0, std::sin(a) * out + .3f, 0}));
+            f.Vel = Mul(way, speed * (.4f + .7f * Random()));
+            f.Life = .45f + .4f * Random(); f.Size = (.12f + .16f * Random()) * Bigger(); f.Roll = Random() * XM_2PI; f.Yaw = (Random() - .5f) * 14.f;
+            mFx.push_back(f);
+        }
+    }
+    void NyxaraKit::IceSpikes(const XMFLOAT3& at, float reach, int count)
+    {   // crystals of ice up out of the ground round where it was struck, leaning out, standing a moment and melting away
+        count = ThemeMore(count); reach *= Bigger();
+        for (int i = 0; i < count; ++i)
+        {
+            const float a = XM_2PI * (static_cast<float>(i) + Random() * .7f) / count, d = reach * (.35f + .65f * Random());
+            Fx f; f.Kind = FxKind::Shard; f.Stuck = true; f.Color = Random() < .5f ? ThemeMain() : ThemeDeep();
+            f.Pos = {at.x + std::sin(a) * d, at.y, at.z + std::cos(a) * d};
+            f.Vel = Norm(XMFLOAT3{std::sin(a) * .45f, 1, std::cos(a) * .45f});
+            f.Size = (.35f + .55f * Random()) * (1.2f - .5f * d / (std::max)(.1f, reach)) * Bigger(); f.Life = .9f + .5f * Random();
+            mFx.push_back(f);
+        }
+    }
+    void NyxaraKit::Flames(const XMFLOAT3& at, int count, float spread, float size)
+    {   // tongues of fire rising, flickering, yellow at their birth and red as they go
+        count = ThemeMore(count); size *= Bigger(); spread *= Bigger();
+        for (int i = 0; i < count; ++i)
+        {
+            Fx f; f.Kind = FxKind::Flame;
+            f.Pos = Add(at, {(Random() - .5f) * 2 * spread, Random() * .2f, (Random() - .5f) * 2 * spread});
+            f.Vel = {(Random() - .5f) * .8f, .8f + 1.4f * Random(), (Random() - .5f) * .8f};
+            f.Life = .35f + .35f * Random(); f.Size = size * (.7f + .6f * Random()); f.Roll = Random() * 100.f;
             mFx.push_back(f);
         }
     }
@@ -5242,6 +5463,7 @@ namespace Doorways
                     way = Len(way) > 1e-4f ? Norm(way) : Norm(Sub(r, up));
                     slash(at, way, length, m.Show == 3 ? .35f : .9f);
                     b.Spray(at, Add(Mul(way, .6f), Mul(u, .4f)), last ? 30 : 12, last ? 4.5f : 3.5f, F.y);
+                    if (mHiggsfieldTrial) TrialBiteLight(at, u, true);
                     if (b.FinishMarks < 4) { b.FinishMark[b.FinishMarks] = at; b.FinishMarkWay[b.FinishMarks] = way; ++b.FinishMarks; }
                 }
                 w.Flash = .16f;
@@ -5286,6 +5508,7 @@ namespace Doorways
                     RingEffect(at, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), {.62f, .56f, .48f, 1}, .5f);
                     RingEffect(at, std::clamp(R + 1.f, 1.2f, 3.5f), MoonWhite, .35f);
                     Burst(at, {.55f, .5f, .45f, 1}, 26, 4.f, .3f);
+                    if (mHiggsfieldTrial) TrialGroundLight({at.x, at.y + .05f, at.z}, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), true);
                     mShake = (std::max)(mShake, .45f);
                     CaucasianEagle::Sound::Play("combat/blow", 1.f, .06f);
                 }
@@ -5385,6 +5608,7 @@ namespace Doorways
         (void)worldRenderer;
         if (!mReady) return;
         auto& b = *mBody;
+        b.Pace = mHiggsfieldTrial ? mTrialPace : 1.f;
         auto& p = world.MainPlayer;
         auto& s = GameSession();
         b.Clock += dt;
@@ -5789,9 +6013,10 @@ namespace Doorways
             {
                 const auto& string = Combos()[static_cast<size_t>(mCombo)].String[button];
                 const bool goesOn = b.ComboButton == button && b.ComboStep + 1 < static_cast<int>(string.size()) &&
-                                    (b.InMove() || b.Clock - b.ComboEndedAt <= ComboWindow);
+                                    (b.InMove() || b.Clock - b.ComboEndedAt <= ComboWindow / b.Pace);
                 b.ComboStep = goesOn ? b.ComboStep + 1 : 0; b.ComboButton = button;
                 chosen = &RefMove(string[static_cast<size_t>(b.ComboStep)]);
+                if (mHiggsfieldTrial && chosen == &RefMove(FlashStep) && b.Clips.count(FlashStepTrial().Clip)) chosen = &FlashStepTrial();
             }
             const StyleMove& m = *chosen;
             int target = -1; float best = 1e9f, away = -1;
@@ -5818,7 +6043,7 @@ namespace Doorways
             else if (b.Jumping) { b.Jumping = false; startMove(b.Queued - 1); }
             else if (b.InMove())
             {   // clicked during a move: kept a moment (StyleBuffer) and begun as soon as the move is free
-                if (!styled || b.Clock - b.QueuedAt > StyleBuffer) b.Queued = 0;
+                if (!styled || b.Clock - b.QueuedAt > StyleBuffer / b.Pace) b.Queued = 0;   // (slower in the trial, as its moves are)
                 else if (b.MoveFree()) startMove(b.Queued - 1);
             }
             else if (b.Attack.empty())
@@ -5985,7 +6210,7 @@ namespace Doorways
         {   // ---- a style's move: turned onto its creature as it begins, carried in to it (or back), its blows as they come
             const StyleMove& m = *b.MoveOf;
             const float was = b.AttackTime;
-            b.AttackTime += dt;
+            b.AttackTime += dt * b.Pace;
             const float t = b.AttackTime;
             if (b.MoveTarget >= static_cast<int>(mWraiths.size()) || (b.MoveTarget >= 0 && !mWraiths[b.MoveTarget].Alive)) b.MoveTarget = -1;
             if (b.MoveTarget >= 0 && was < m.TrackTo)
@@ -6021,6 +6246,35 @@ namespace Doorways
                 b.MoveVel = going ? XMFLOAT2{owex * 60, owez * 60} : XMFLOAT2{0, 0};   // (asked of one slice, if nothing asks again)
                 b.MoveOwe = going ? XMFLOAT2{owex, owez} : XMFLOAT2{0, 0};
             }
+            const bool lit = mHiggsfieldTrial;
+            if (lit)
+            {   // (the Character Lab's trial, after Higgsfield's video: every move's light is lines, not balls) speed lines
+                // left along her way while a move carries her in or back, a flash where she set off; while she turns, a
+                // ring of lines round her at her blades' height
+                if (was <= 0) mTrialDashing = false;
+                const bool dashing = (m.Lunge > .8f && t >= m.LungeFrom && was < m.LungeTo + .03f) ||
+                                     (m.Back > .6f && t >= m.BackFrom && was < m.BackTo + .03f);
+                const XMFLOAT3 at{p.Position.x, p.Position.y + 1.f, p.Position.z};
+                if (dashing)
+                {
+                    if (!mTrialDashing || Len(Sub(at, mTrialFrom)) > 4.f)
+                    {
+                        mTrialFrom = at;
+                        Fx flash; flash.Kind = FxKind::Spark; flash.Pos = at; flash.Color = Alpha(ThemeMain(), .7f); flash.Life = .12f; flash.Size = 1.1f;
+                        mFx.push_back(flash);
+                    }
+                    TrialDashLight(mTrialFrom, at);
+                    mTrialFrom = at;
+                }
+                mTrialDashing = dashing;
+                if (m.Spin != 0 && t >= m.SpinFrom && was < m.SpinTo) TrialWhirlLight({p.Position.x, p.Position.y + 1.05f, p.Position.z}, p.Yaw, m.Spin > 0);
+                if (mTrialTheme == 0 && mTrialLevel > 0 && Random() < .25f * mTrialLevel)
+                {   // (her wind, as her gear grows: lines of it going round her all through the move)
+                    const float a = XM_2PI * Random(), r = .9f + .5f * Random();
+                    Gusts({p.Position.x + std::sin(a) * r, p.Position.y + .3f + 1.4f * Random(), p.Position.z + std::cos(a) * r},
+                          {std::cos(a), .15f, -std::sin(a)}, 1, 5.f + 1.5f * mTrialLevel, .05f);
+                }
+            }
             for (; b.MoveHitNext < static_cast<int>(m.Hits.size()) && t >= m.Hits[static_cast<size_t>(b.MoveHitNext)].At; ++b.MoveHitNext)
             {
                 const StyleHit& h = m.Hits[static_cast<size_t>(b.MoveHitNext)];
@@ -6049,11 +6303,24 @@ namespace Doorways
                 if (struck && h.Stop > 0) mHitStop = (std::max)(mHitStop, h.Stop);
                 if ((struck || h.Ring > 0) && h.Shake > 0) mShake = (std::max)(mShake, h.Shake);
                 if (h.Ring > 0)
-                {   // the ground struck: a ring out over it, and sparks
+                {   // the ground struck: a ring out over it, and sparks (the trial: lines of light out along the ground and up)
                     const XMFLOAT3 at = Add(p.Position, Mul(Forward(p.Yaw), .9f));
-                    RingEffect({at.x, at.y + .05f, at.z}, h.Ring, MoonWhite, .45f);
-                    Burst({at.x, at.y + .15f, at.z}, MoonWhite, 18, 4.f, .22f);
+                    RingEffect({at.x, at.y + .05f, at.z}, h.Ring, lit ? ThemeMain() : MoonWhite, .45f);
+                    if (lit) TrialGroundLight({at.x, at.y + .08f, at.z}, h.Ring, struck > 0);
+                    else Burst({at.x, at.y + .15f, at.z}, MoonWhite, 18, 4.f, .22f);
                 }
+                else if (lit)
+                {   // (the trial: light where the blade bites; a turning blow's all round her; a rising one's thrown up)
+                    const XMFLOAT3 fwd = Forward(p.Yaw);
+                    if (m.Spin != 0 && h.Arc >= 150.f) TrialWhirlBite({p.Position.x, p.Position.y + 1.05f, p.Position.z}, struck > 0);
+                    else
+                    {
+                        const float out = std::clamp(h.Shape == 1 ? 1.2f : h.Reach * .55f, .9f, 1.4f);
+                        const XMFLOAT3 way = m.Hop > .05f ? Norm(Add(fwd, {0, .8f, 0})) : fwd;
+                        TrialBiteLight(Add(Add(p.Position, Mul(fwd, out)), {0, 1.1f, 0}), way, struck > 0);
+                    }
+                }
+                if (lit && struck) { mHitStop = (std::max)(mHitStop, .09f); mShake = (std::max)(mShake, .18f); }
                 if (struck) b.Log(world, ("move blow " + std::to_string(struck)).c_str());
             }
             if (t >= m.Seconds) b.EndMove(world, "move over");
@@ -6061,7 +6328,7 @@ namespace Doorways
         else if (b.Skill())
         {
             const float was = b.AttackTime;
-            b.AttackTime += dt * AttackRate;
+            b.AttackTime += dt * AttackRate * b.Pace;
             const bool storm = b.Attack == "Skill_Storm";
             if (storm && was < StormLeave && b.AttackTime >= StormLeave)
             {   // off the ground: her wings beat down
@@ -6117,7 +6384,7 @@ namespace Doorways
         else if (!b.Attack.empty())
         {
             const float was = b.AttackTime;
-            b.AttackTime += dt * AttackRate;
+            b.AttackTime += dt * AttackRate * b.Pace;
             const float hit = Body::Hit(b.Attack);
             if (was < hit && b.AttackTime >= hit)
             {   // the blow lands: every creature in reach before her is struck
@@ -6145,7 +6412,15 @@ namespace Doorways
             for (; b.WaveSparks * .5f <= reached; ++b.WaveSparks)
             {
                 const float d = b.WaveSparks * .5f;
-                Burst(Add(b.WaveFrom, {b.WaveWay.x * d, .12f, b.WaveWay.z * d}), MoonWhite, 4, 2.5f, .18f);
+                const XMFLOAT3 at = Add(b.WaveFrom, {b.WaveWay.x * d, .12f, b.WaveWay.z * d});
+                if (mHiggsfieldTrial)
+                {   // (the trial: a spike of light up out of the ground, and hot sparks)
+                    Ray(at, {(Random() - .5f) * .3f, 1, (Random() - .5f) * .3f}, .8f + .7f * Random(), .07f, ThemeMain(), .28f, true);
+                    Embers(at, {0, 1, 0}, 4, ThemeCore(), 4.f);
+                    if (mTrialTheme == 1) IceSpikes(at, .4f, 3);
+                    if (mTrialTheme == 2) Flames(at, 3, .2f, .9f);
+                }
+                else Burst(at, MoonWhite, 4, 2.5f, .18f);
             }
             if (b.WaveTime >= StyleWaveSeconds) b.WaveTime = -1;
         }
@@ -6707,7 +6982,8 @@ namespace Doorways
             if (mBarrier > .5f && distance < 2.2f && front)
             {
                 o.Life = 0; mBlockFlash = .25f;
-                Burst(o.Pos, MoonWhite, 14, 4.f, .2f); Burst(o.Pos, SoulGreen, 8, 3.f, .18f);
+                if (mHiggsfieldTrial) TrialBiteLight(o.Pos, Mul(Norm(o.Vel), -1), false);   // (the trial: lines, not balls)
+                else { Burst(o.Pos, MoonWhite, 14, 4.f, .2f); Burst(o.Pos, SoulGreen, 8, 3.f, .18f); }
                 mNotice = L"BLOCKED"; mNoticeTimer = .5f;
                 mBody->Log(world, "blocked");
             }
@@ -6715,7 +6991,13 @@ namespace Doorways
             {
                 const XMFLOAT3 came{o.Pos.x - o.Vel.x * .1f, o.Pos.y, o.Pos.z - o.Vel.z * .1f};   // (a little back along its way)
                 o.Life = 0; Hurt(world, combat, o.Damage, &came);
-                Burst(o.Pos, o.Color, 16, 3.f, .22f);
+                if (!mHiggsfieldTrial) Burst(o.Pos, o.Color, 16, 3.f, .22f);
+                else
+                {   // (the trial: lines of its light shot out where it struck her, and hot sparks)
+                    for (int i = 0; i < 10; ++i)
+                        Ray(o.Pos, {Random() - .5f, Random() - .3f, Random() - .5f}, .5f + .6f * Random(), .05f, o.Color, .2f + .1f * Random(), true);
+                    Embers(o.Pos, Norm(o.Vel), 10, o.Color, 4.f);
+                }
             }
         }
         mOrbs.erase(std::remove_if(mOrbs.begin(), mOrbs.end(), [](const Orb& o) { return o.Life <= 0; }), mOrbs.end());
@@ -6765,6 +7047,19 @@ namespace Doorways
             {
             case FxKind::Spark:
                 f.Pos = Add(f.Pos, Mul(f.Vel, dt)); f.Vel.y -= 4.f * dt; f.Vel = Mul(f.Vel, std::exp(-1.5f * dt)); break;
+            case FxKind::Ember:
+                f.Pos = Add(f.Pos, Mul(f.Vel, dt));
+                f.Vel.y -= 6.f * dt; f.Vel = Mul(f.Vel, std::exp(-3.f * dt)); break;
+            case FxKind::Ray:
+                break;
+            case FxKind::Shard:
+                if (f.Stuck) break;
+                f.Pos = Add(f.Pos, Mul(f.Vel, dt));
+                f.Vel.y -= 7.f * dt; f.Vel = Mul(f.Vel, std::exp(-1.8f * dt)); f.Roll += f.Yaw * dt; break;
+            case FxKind::Gust:
+                f.Pos = Add(f.Pos, Mul(f.Vel, dt)); f.Vel = Mul(f.Vel, std::exp(-2.5f * dt)); break;
+            case FxKind::Flame:
+                f.Pos = Add(f.Pos, Mul(f.Vel, dt)); f.Vel.y += 2.5f * dt; f.Vel.x *= std::exp(-3.f * dt); f.Vel.z *= std::exp(-3.f * dt); break;
             case FxKind::Feather:
                 if (f.Target == -3)
                 {   // one of the feather storm's daggers: straight on, falling a little, until the ground takes it; there it
@@ -7102,6 +7397,68 @@ namespace Doorways
             case FxKind::Spark:
                 billboard(f.Pos, f.Size * (1 - .5f * t), Alpha(f.Color, fade), mGlowTex.Get());
                 break;
+            case FxKind::Ray:
+            {   // a line of light: soft blue about a thin white heart; shot out (Mirror) it runs out and thins as it goes
+                const float g = f.Mirror ? Smooth(0, 1, t / .4f) : 0.f;
+                const XMFLOAT3 from = f.Mirror ? Add(f.Pos, Mul(f.Vel, f.Size * .45f * g)) : f.Pos;
+                const float len = f.Size * (f.Mirror ? .3f + .7f * g : 1.f), wide = f.Roll * (f.Mirror ? 1 - .7f * t : 1 - .5f * t), shown = 1 - Smooth(.35f, 1.f, t);
+                streak(mFeatherMesh, from, f.Vel, len, wide * 2.2f, Alpha(f.Color, .55f * shown * f.Color.w), mGlowTex.Get(), 1.6f);
+                streak(mFeatherMesh, Add(from, Mul(f.Vel, len * .12f)), f.Vel, len * .76f, wide * .55f, Alpha(MoonWhite, .95f * shown), mGlowTex.Get(), 2.f);
+                break;
+            }
+            case FxKind::Shard:
+            {   // a crystal: a long diamond along its way (upright, stuck), turning about it, a bright heart in it
+                const XMFLOAT3 axis = f.Stuck ? Norm(f.Vel) : (Len(f.Vel) > .05f ? Norm(f.Vel) : XMFLOAT3{0, 1, 0});
+                const float grow = f.Stuck ? Smooth(0, .12f, f.T) : 1.f, shown = f.Stuck ? 1 - Smooth(f.Life * .6f, f.Life, f.T) : fade;
+                const float len = f.Size * grow, wide = f.Size * (f.Stuck ? .2f : .26f);
+                XMFLOAT3 across = Cross(axis, Norm(Sub(eye, f.Pos)));
+                across = Len(across) < 1e-3f ? XMFLOAT3{1, 0, 0} : Norm(across);
+                const XMFLOAT3 turned = Norm(Add(Mul(across, std::cos(f.Roll)), Mul(Norm(Cross(axis, across)), std::sin(f.Roll) * .5f)));
+                const XMFLOAT3 base = f.Stuck ? f.Pos : Sub(f.Pos, Mul(axis, len * .5f)), tip = Add(base, Mul(axis, len));
+                const XMFLOAT3 mid = Add(base, Mul(axis, len * .35f));
+                const auto diamond = [&](float w, XMFLOAT4 c, float glow)
+                {
+                    const XMFLOAT3 l = Sub(mid, Mul(turned, w)), r = Add(mid, Mul(turned, w));
+                    const Material mat = material(c, nullptr, glow, true);
+                    for (const auto& t3 : {std::array<XMFLOAT3, 3>{base, r, tip}, std::array<XMFLOAT3, 3>{base, tip, l}})
+                    {
+                        const XMFLOAT3 x = Sub(t3[1], t3[0]), y = Sub(t3[2], t3[0]), n = Cross(x, y);
+                        if (Len(n) > 1e-6f) translucent(mTriMesh, Basis(x, y, Norm(n), t3[0]), mat);
+                    }
+                };
+                // (clear ice: a pale blue body you see through, a thin bright heart down its length)
+                diamond(wide, Alpha(f.Color, .42f * shown), 1.2f);
+                diamond(wide * .25f, Alpha(ThemeCore(), .85f * shown), 2.f);
+                break;
+            }
+            case FxKind::Gust:
+            {   // a line of wind: thin and pale, its tail behind it, coming in and going
+                const float speed = Len(f.Vel);
+                if (speed < .05f) break;
+                const float shown = Smooth(0, .2f, t) * (1 - Smooth(.5f, 1.f, t));
+                streak(mFeatherMesh, f.Pos, Mul(f.Vel, -1), f.Size * (.6f + .4f * t), f.Roll * 2.6f, Alpha(f.Color, .7f * shown), mGlowTex.Get(), 1.5f);
+                streak(mFeatherMesh, f.Pos, Mul(f.Vel, -1), f.Size * .55f, f.Roll * .7f, Alpha(XMFLOAT4{1, 1, 1, 1}, .8f * shown), mGlowTex.Get(), 1.8f);
+                break;
+            }
+            case FxKind::Flame:
+            {   // a tongue of fire: tall and thin, flickering, yellow-white at its birth, orange, red and gone
+                const XMFLOAT4 hot{1.f, .72f, .22f, 1}, mid{1.f, .36f, .04f, 1}, cool{.75f, .08f, .02f, 1};
+                const float a = Smooth(0, .45f, t), c2 = Smooth(.45f, 1.f, t);
+                const XMFLOAT4 col{hot.x + (mid.x - hot.x) * a + (cool.x - mid.x) * c2, hot.y + (mid.y - hot.y) * a + (cool.y - mid.y) * c2,
+                                   hot.z + (mid.z - hot.z) * a + (cool.z - mid.z) * c2, 1};
+                const float flick = .75f + .25f * std::sin(f.T * 38.f + f.Roll), rise = Smooth(0, .15f, t) * (1 - .4f * t);
+                const XMFLOAT3 up = Norm(Add({0, 1, 0}, Mul(f.Vel, .15f)));
+                streak(mFeatherMesh, f.Pos, up, f.Size * rise * flick, f.Size * .26f * (1 - .6f * t), Alpha(col, .85f * fade), mGlowTex.Get(), 1.5f);
+                streak(mFeatherMesh, f.Pos, up, f.Size * .45f * rise, f.Size * .08f, Alpha(XMFLOAT4{1.f, .85f, .4f, 1}, .7f * fade * (1 - t)), mGlowTex.Get(), 2.f);
+                break;
+            }
+            case FxKind::Ember:
+            {
+                const float speed = Len(f.Vel);
+                if (speed < .05f) break;
+                streak(mFeatherMesh, f.Pos, Mul(f.Vel, -1), std::clamp(speed * .045f, .06f, .4f), f.Size * 2.f, Alpha(f.Color, fade), mGlowTex.Get(), 2.f);
+                break;
+            }
             }
         }
 
@@ -7110,7 +7467,8 @@ namespace Doorways
             // white; brightest where it is new and where the blade went fast; on a curve through its places, Catmull-Rom)
             const auto& tr = mTrail[k];
             if (tr.size() < 2) continue;
-            const XMFLOAT4 color = k == 0 ? SoulGreen : MoonWhite;
+            const bool lit = mHiggsfieldTrial;   // (the trial: a thin bright slash at her blade's outer part, a white edge in a blue one)
+            const XMFLOAT4 color = lit ? ThemeMain() : k == 0 ? SoulGreen : MoonWhite;
             const auto curve = [](const XMFLOAT3& a, const XMFLOAT3& b2, const XMFLOAT3& c, const XMFLOAT3& d, float u)
             {
                 const auto one = [u](float p0, float p1, float p2, float p3)
@@ -7129,15 +7487,23 @@ namespace Doorways
                 const auto& p0 = tr[i == 0 ? 0 : i - 1]; const auto& p1 = tr[i]; const auto& p2 = tr[i + 1]; const auto& p3 = tr[(std::min)(i + 2, tr.size() - 1)];
                 const float fast = std::clamp((p2.Speed - 6.f) / 12.f, 0.f, 1.f), shade = .55f * fast * (1 - p2.Age / StyleTrailSeconds);
                 if (shade < .02f) continue;
-                const Material mat = material(Alpha(color, shade), nullptr, 1.6f, true);
-                XMFLOAT3 baseWas = p1.Base, tipWas = p1.Tip;
-                for (int step = 1; step <= Steps; ++step)
+                const auto band = [&](float inner, const Material& mat)
                 {
-                    const float u = static_cast<float>(step) / Steps;
-                    const XMFLOAT3 base = curve(p0.Base, p1.Base, p2.Base, p3.Base, u), tip = curve(p0.Tip, p1.Tip, p2.Tip, p3.Tip, u);
-                    tri(baseWas, tipWas, tip, mat);
-                    tri(baseWas, tip, base, mat);
-                    baseWas = base; tipWas = tip;
+                    XMFLOAT3 baseWas = Lerp(p1.Base, p1.Tip, inner), tipWas = p1.Tip;
+                    for (int step = 1; step <= Steps; ++step)
+                    {
+                        const float u = static_cast<float>(step) / Steps;
+                        const XMFLOAT3 tip = curve(p0.Tip, p1.Tip, p2.Tip, p3.Tip, u), base = Lerp(curve(p0.Base, p1.Base, p2.Base, p3.Base, u), tip, inner);
+                        tri(baseWas, tipWas, tip, mat);
+                        tri(baseWas, tip, base, mat);
+                        baseWas = base; tipWas = tip;
+                    }
+                };
+                if (!lit) band(0, material(Alpha(color, shade), nullptr, 1.6f, true));
+                else
+                {
+                    band(.45f, material(Alpha(color, .8f * shade), nullptr, 1.8f, true));
+                    band(.85f, material(Alpha(ThemeCore(), (std::min)(1.f, 1.6f * shade)), nullptr, 2.2f, true));
                 }
             }
         }

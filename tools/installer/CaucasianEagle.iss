@@ -4,7 +4,7 @@
 ; %LOCALAPPDATA%\CaucasianEagle and are left in place on uninstall.
 
 #ifndef AppVersion
-  #define AppVersion "0.5.2"
+  #define AppVersion "0.5.3"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\..\dist\CaucasianEagle-" + AppVersion + "-win64"

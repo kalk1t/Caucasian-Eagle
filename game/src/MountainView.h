@@ -81,7 +81,7 @@ namespace CaucasianEagle
             const float fx = std::sin(Yaw), fz = std::cos(Yaw);
             const float c = std::cos(Pitch), sn = std::sin(Pitch);
             camera.Position = {Focus.x - fx * c * Dist, Focus.y - sn * Dist, Focus.z - fz * c * Dist};
-            camera.Yaw = Yaw; camera.Pitch = Pitch;
+            camera.Yaw = Yaw; camera.Pitch = Pitch; camera.ViewPitchOffset = 0;
             camera.FarZ = (std::max)(mFarZ, Dist + mRadius * 4);
             mSetYaw = Yaw; mSetPitch = Pitch;
         }
@@ -134,7 +134,7 @@ namespace CaucasianEagle
                 at.y = ground;
                 pitch = -std::atan2(at.y - Focus.y, std::hypot(Focus.x - at.x, Focus.z - at.z));
             }
-            camera.Position = at; camera.Yaw = Yaw; camera.Pitch = pitch; Eye = at;
+            camera.Position = at; camera.Yaw = Yaw; camera.Pitch = pitch; camera.ViewPitchOffset = 0; Eye = at;
             camera.FarZ = (std::max)(mFarZ, Dist + mRadius * 4);
             mSetYaw = Yaw; mSetPitch = pitch;
         }

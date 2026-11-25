@@ -37,7 +37,7 @@ namespace CaucasianEagle
     constexpr float StepLength = 1.7f;        // metres on the ground between two footsteps
     constexpr float StepVolume = .4f;
     constexpr float SoundRepeatSeconds = .07f; // the same sound is not started again sooner than this
-    constexpr const char* GameVersion = "0.5.2";
+    constexpr const char* GameVersion = "0.5.3";
     constexpr const wchar_t* UserDataFolder = L"CaucasianEagle"; // %LOCALAPPDATA%\CaucasianEagle: settings and saves
 
     // ---- content
@@ -284,16 +284,21 @@ namespace CaucasianEagle
     constexpr float FormDamage = 0.10f;          // each form of Nyxara herself: more damage...
     constexpr float FormTaken = 0.08f;           // ...less damage taken...
     constexpr float FormScale = 0.03f;           // ...and she stands this much taller
-    // The Eagle's Ascent's growth (0.5.2, the owner 2026-11-21: "make nest only place where she can upgrade, make the
-    // upgrade 9 times instead of 3"; the trainings removed, their strength in the levels): AscentGrowth.h. Each level's
-    // price is the map's (EaglesAscent::Levels). At level 9 she is as strong as 0.5's three evolutions and eight levels of
-    // power and defence made her: damage x 2.49 (x 3.23 with her form), damage taken x 0.39 (x 0.30).
+    // The Eagle's Ascent's nine nests (0.5.2 sold a level of her growth at each; 0.5.3 has her gears instead, below): the
+    // crystals' ledger (EaglesAscentGame::Ledger, DEMO=8) still counts the crystals between them.
     constexpr int AscentMaxLevel = 9;
-    constexpr float AscentLevelFlightSeconds[AscentMaxLevel + 1] = {10, 12, 14, 17, 19, 21, 23, 26, 28, 30};   // her wings: 10 s to 30 s, as before
-    constexpr float AscentSwordLevelDamage = 0.165f;   // more damage per level of her swords
-    constexpr float AscentArmourLevelTaken = 0.068f;   // less damage taken per level of her armour
+    // Her gears (0.5.3, the owner 2026-11-22: three gears, each earned with a set of quests, the nine levels gone; docs/
+    // plan-three-gears-masters.md): her own, THE HIGHLANDS, AMIRANI'S FIRE, MOONLIT. The last is as strong as level 9 was.
+    constexpr float GearFlightSeconds[4] = {10, 15, 22, 30};    // how long she flies
+    constexpr float GearDamage[4] = {1.f, 1.6f, 2.3f, 3.2f};     // the damage of her blows
+    constexpr float GearTaken[4] = {1.f, .8f, .6f, .3f};         // the damage she takes
+    // Her crystals' kinds by the stretch of the way (0.5.3): wind on the way up to the third Eagle Nest (22 % of the way),
+    // fire from there up to the sixth (60 %), ice beyond (AscentGrowth::CrystalKindOf). Her first set of quests is bought
+    // with wind, the second with fire, the third with ice (AscentQuests). (First chosen as the spirits' places, which the
+    // owner took out the same day: "we dont need masters anymore".)
+    constexpr int CrystalNests[2] = {3, 6};
+    constexpr float GearAttackPace = .5f;                         // her attacks and skills play at half speed (the owner: "effects and half speed")
     constexpr int AscentBossCrystals = 25;       // crystals from a boss of the Ascent (art/map/ascent_creatures.py BOSS_CRYSTALS)
-    constexpr int AscentDefaultPrices[AscentMaxLevel] = {8, 14, 21, 27, 33, 39, 46, 52, 58};   // when the map gives none (ascent_creatures.py PRICES)
     constexpr int MaxPotions = 5;                // potions she can carry
     constexpr int PotionHeal = 35;               // health from one potion
     constexpr int PotionKey = 'Z';               // drinks one
@@ -385,7 +390,14 @@ namespace CaucasianEagle
     constexpr float BowPoseSeconds = 0.45f;    // s she keeps the bow up after an arrow
     constexpr float BowClipEnd = 0.2f;         // s, the BowShot clip: loosed at 0, drawn again at the end
     constexpr float CameraMinPitch = -1.2f;    // rad, steepest look-down
-    constexpr float CameraMaxPitch = 0.45f;    // rad, highest look-up
+    constexpr float CameraMaxPitch = 1.05f;    // rad, highest look-up: the view's top edge near straight up (owner 2026-11-22: "look up all up")
+    // Looking up, the camera swings down behind her and in close (owner 2026-11-22: "it should bring camera to nyxara
+    // closer"): her chest stays CameraLookUpKeep under the view's middle until the camera is CameraLookUpClear over her
+    // feet and CameraLookUpNear from her chest; looking further up she sinks to the view's bottom, head and shoulders last.
+    constexpr float CameraLookUpNear = 1.7f, CameraLookUpKeep = 0.2f, CameraLookUpClear = 0.35f;
+    constexpr float CameraLookUpSide = 0.6f;   // m, close in, the camera is over her right shoulder: her wings off the view's middle
+    constexpr float CameraPivotSmoothing = 0.12f; // s, the camera follows her height smoothly: on stairs it glides, not jumps
+    constexpr float CameraLiftUnder = 3.5f;       // m, a slope or wall behind her bringing the camera nearer than this: it rises over it
     constexpr float VistaPitch = 0.24f;        // rad, capture mode (CAUCASIAN_EAGLE_VISTA=1): look up at the mountain
 
     // ---- night sky (art/sky/make_sky_textures.py; drawn by AmiraniMountain, paths relative to the game folder)

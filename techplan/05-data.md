@@ -126,7 +126,7 @@ Copied from the engine submodule by `tools/stage.ps1`: `assets/shaders`, `assets
 
 ## 8.4 Saved state
 
-**`eagles-ascent.sav`** (the Eagle's Ascent, 0.5), written only when she saves with H in a nest: `#` comment lines, then `nest <station>`, `crystals <n>`, `potions <n>`, `level <row> <n>` for the five rows (wings, swords, armour, power, defence), and one line per id: `beaten <creature>`, `jar <jar>`, `place <place>` (ids: `Wayside`, the placing model). Unknown words are skipped; a save from before 0.5 (nest and beaten only) loads with no growth. Unattended runs never touch a player's save (the tours write `tour.sav`, the jars' test `ways.sav`, beside their evidence).
+**`eagles-ascent.sav`** (the Eagle's Ascent, 0.5), written only when she saves with H in a nest (and when a set of her quests gives her a gear). Since 0.5.3: `#` comment lines, then `rules 3`, `nest <station>`, `crystals <wind> <fire> <ice>`, `potions <n>`, `gear <0..3>`, `quest <id> <state> <count>` for each quest she has taken, and one line per id: `beaten <creature>`, `jar <jar>` (ids: `Wayside`, the placing model). Unknown words are skipped (a `place` line from 0.5.1 too). A save with an older `rules` (0.5.2's nine levels, or older) is not read as progress: she starts the climb again from the shore (the owner, 2026-11-22). Unattended runs never touch a player's save (the tours write `tour.sav`, the jars' test `ways.sav`, beside their evidence).
 
 Under `%LOCALAPPDATA%\CaucasianEagle\` the engine stores its files and the game stores one:
 

@@ -185,7 +185,11 @@ namespace Doorways
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
-        void SetSkillsVC(bool on) { mSkillsVC = on; }                    // V and C, her skills (off unless asked: the Character Lab)
+        void SetSkillsVC(bool on) { mSkillsVC = on; }                    // V and C, her skills (off unless asked: the Character Lab); pace: of her attacks and skills
+        void SetHiggsfieldTrial(bool on, float pace = .5f) { mHiggsfieldTrial = on; mTrialPace = pace; }
+        // the trial's light as her gear has it (the Character Lab): theme, the look's example (0 her blue, with wind as her
+        // gear grows; 1 ice and crystal; 2 fire); level, her gear's highest tier (0 to 3), each a step more of it
+        void SetTrialTheme(int theme, int level) { mTrialTheme = theme; mTrialLevel = level; }   // her moves reworked after Higgsfield's videos (off unless asked: the Character Lab); pace: of her attacks and skills
         void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
@@ -276,7 +280,12 @@ namespace Doorways
         std::string mPreview; float mPreviewTime = -1, mPreviewClock = 0, mShownTime = 0;
         bool mInputBlocked = false;
         float mRealJump = 0; bool mScriptedSpaceWas = false;
-        enum class FxKind { Ring, Spark, Feather };
+        // Ray: a line of light (Size long, Roll wide) along Vel's way from Pos, still; Mirror: shot out from Pos and thinning
+        // (a blow's rays). Ember: a hot spark drawn stretched along its flight (Size wide).
+        // Shard: a crystal of ice (Size long), flying and falling, or Stuck upright in the ground. Flame: a tongue of fire
+        // rising (Size tall), yellow to red as it goes.
+        // Gust: a line of wind, pale, flying along Vel and slowing, its tail behind it (Size long).
+        enum class FxKind { Ring, Spark, Feather, Ray, Ember, Shard, Flame, Gust };
         struct Fx
         {
             FxKind Kind = FxKind::Spark;
@@ -335,6 +344,22 @@ namespace Doorways
         DirectX::XMFLOAT3 mHerPlace{}; bool mHerAfoot = false;   // where she is this frame and whether on foot (a blow dooms near her only)
         float mSlow = 0, mSlowFull = 0, mSlowRate = 1;           // slow motion: real seconds left of it, in all, and how slow at its slowest
         void Burst(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size);
+        void Ray(const DirectX::XMFLOAT3& at, const DirectX::XMFLOAT3& way, float length, float width, DirectX::XMFLOAT4 color, float life, bool outward);
+        void Embers(const DirectX::XMFLOAT3& at, const DirectX::XMFLOAT3& forward, int count, DirectX::XMFLOAT4 color, float speed);
+        void TrialDashLight(const DirectX::XMFLOAT3& from, const DirectX::XMFLOAT3& to);   // the trial FLASH STEP's light, along her way
+        void TrialBiteLight(const DirectX::XMFLOAT3& at, const DirectX::XMFLOAT3& forward, bool struck);   // and where its blade bites
+        void TrialGroundLight(const DirectX::XMFLOAT3& at, float ring, bool struck);   // (every move's, in the trial) the ground struck
+        void TrialWhirlLight(const DirectX::XMFLOAT3& middle, float yaw, bool right);   // a turn with her blades out
+        void TrialWhirlBite(const DirectX::XMFLOAT3& middle, bool struck);              // and its blow, all round her
+        DirectX::XMFLOAT4 ThemeMain() const;   // the trial theme's colours: its light, its heart, a deeper one
+        DirectX::XMFLOAT4 ThemeCore() const;
+        DirectX::XMFLOAT4 ThemeDeep() const;
+        void Shards(const DirectX::XMFLOAT3& at, const DirectX::XMFLOAT3& forward, int count, float speed);   // (ice) crystals thrown
+        void IceSpikes(const DirectX::XMFLOAT3& at, float reach, int count);                                 // (ice) crystals up out of the ground
+        void Flames(const DirectX::XMFLOAT3& at, int count, float spread, float size);                       // (fire) tongues rising
+        void Gusts(const DirectX::XMFLOAT3& at, const DirectX::XMFLOAT3& way, int count, float speed, float spread);   // (wind) lines of it blown
+        int ThemeMore(int count) const;     // a theme's count and size, as her gear has grown (mTrialLevel)
+        float Bigger() const;
         void PublishHud(WorldState& world) const;
 
         bool mReady = false;
@@ -354,6 +379,11 @@ namespace Doorways
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
         bool mSkillsVC = false;   // V (the thrown swords) and C (the feather storm): off in the game (owner, 2026-11-21: "remove C and V skills from game, so nyxara doesnt have anymore skills yet until i decide to"); the Character Lab keeps them
+        bool mHiggsfieldTrial = false;      // SetHiggsfieldTrial (owner, 2026-11-22: "only in character lab yet")
+        float mTrialPace = .5f;
+        int mTrialTheme = 0, mTrialLevel = 0;
+        bool mTrialDashing = false;         // (a move carrying her, last frame)
+        DirectX::XMFLOAT3 mTrialFrom{};     // the trial FLASH STEP's streak: where its last piece was left
         bool mGuarding = false, mEWas = false;   // her wing shield is up (E pressed: ShieldSeconds); E was down last frame
         std::array<float, 3> mSkillCooldown{};
         float mNoticeTimer = 0;

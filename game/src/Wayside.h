@@ -49,6 +49,7 @@ namespace CaucasianEagle
         {
             int Crystals = 0, Potions = 0, Jars = 0;
             DirectX::XMFLOAT3 At{};
+            std::vector<std::pair<int, int>> Stretches;   // (its stretch, its crystals) of each jar broken that held some
         };
 
         bool Load(Renderer& renderer, std::string& error);      // the jars' meshes

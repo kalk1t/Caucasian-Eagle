@@ -50,6 +50,10 @@ The whole contract between the game and the engine is one engine header, `engine
 | `ImpulseX`, `ImpulseZ` | Dash and dive velocity | `NyxaraKit::Update` | Movement: added before collision resolution |
 | `OrbitCamera` and `Camera*` | Orbit rig, see [11-constants.md](11-constants.md) | `Prepare` | Camera |
 | `CameraShake` | Decaying amplitude | `NyxaraKit::Update` | Camera |
+| `CameraLookUpNear`, `CameraLookUpKeep`, `CameraLookUpClear`, `CameraLookUpSide` | 1.7 m, 0.2 rad, 0.35 m, 0.6 m (0.5.3) | `Prepare` | Camera: looking up, the orbit swings down behind the player and in toward them, over the right shoulder; 0 (`CameraLookUpNear`) keeps the old rig |
+| `CameraPivotSmoothing` | 0.12 s (0.5.3) | `Prepare` | Camera: the pivot follows the player's height smoothly (stairs glide; four times as fast in the air; a jump over 3 m at once) |
+| `CameraLiftUnder` | 3.5 m (0.5.3) | `Prepare` | Camera: when ground or a wall behind would bring the camera nearer than this, it rises over it on its orbit and looks down by as much (`Camera::ViewPitchOffset`) |
+| `SteepGroundBlocks` | `true` on the Eagle's Ascent (0.5.3; `CAUCASIAN_EAGLE_STEEP_WALLS=0` off) | `EaglesAscentGame` | Movement: faces of walkable collision steeper than normal.y 0.5 are walls between step height and the top of her body (`ResolveDoorwaysRuntimeSceneSteepGround`; found at load by `PrepareDoorwaysRuntimeSceneSteepGround`); creatures' moves leave it off |
 
 ## 9.4 Engine objects the game drives (`DoorwaysGameHost`)
 

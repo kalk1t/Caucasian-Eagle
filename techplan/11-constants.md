@@ -455,7 +455,21 @@ None of these has been tuned by play.
 | `AscentBossCrystals` / a creature's `Cost` | 25 / 1 to 10 | crystals | What a beaten creature leaves on the mountain | `GameConstants.h`, `Journey.cpp` (`KindCrystals`) | code | 60 (`BossCrystals`, still the road's) until 0.5.2 |
 | A potion over five | 1 | crystal | A potion found with five carried | `EaglesAscentGame::Collect` | code | |
 
-## The Eagle's Ascent 0.5.2: nine levels bought in the nests (2026-11-21)
+## The Eagle's Ascent 0.5.3: her gears and quests (2026-11-22)
+
+| Name | Value | Unit | What it sets | Where | Kind | Why |
+|---|---|---|---|---|---|---|
+| `GearFlightSeconds` | 10, 15, 22, 30 | s | Her flight in her own gear and in gears 1 to 3 | `GameConstants.h` | code | The owner's 10 s at first and 30 s at the end kept |
+| `GearDamage` | 1, 1.6, 2.3, 3.2 | x | Her blows | `GameConstants.h` | code | The last as strong as 0.5.2's level 9 with her form |
+| `GearTaken` | 1, 0.8, 0.6, 0.3 | x | Blows she takes | `GameConstants.h` | code | The same |
+| `GearAttackPace` | 0.5 | x | Her attacks and skills in the game (the Character Lab's trial pace) | `GameConstants.h` | code | The owner: "effects and half speed" |
+| `CrystalNests` | 3, 6 | nest | Where wind crystals end and fire end (ice beyond) | `GameConstants.h` | code | Ledger: wind 130, fire 297, ice 545 |
+| Quests | 3, 6, 9; prices 38, 131, 182 crystals a set | | Her quests, a set a time | `AscentQuests.cpp` | code | A first set, to be chosen again with the owner |
+| `CameraMaxPitch` | 1.05 | rad | Highest look-up (was 0.45) | `GameConstants.h` | code | The owner: "look up all up" |
+| `CameraLookUpNear`, `CameraLookUpKeep`, `CameraLookUpClear`, `CameraLookUpSide` | 1.7, 0.2, 0.35, 0.6 | m, rad, m, m | The camera coming in close and low as she looks up | `GameConstants.h` | code | The owner: "it should bring camera to nyxara closer" |
+| `CameraPivotSmoothing`, `CameraLiftUnder` | 0.12, 3.5 | s, m | Stairs glide; the camera rises over ground behind her | `GameConstants.h` | code | |
+
+## The Eagle's Ascent 0.5.2: nine levels bought in the nests (2026-11-21; replaced by the gears in 0.5.3)
 
 | Name | Value | Unit | What it does | Def | Kind | Note |
 |---|---|---|---|---|---|---|

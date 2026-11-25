@@ -1658,6 +1658,7 @@ namespace CaucasianEagle
         m.Phase = Random() * 6; m.Strafe = Random() < .5f ? -1.f : 1.f; m.Hover = def.Hover;
         m.Index = Nearest(at.x, at.z, -1, 0);
         m.Ground = at.y;
+        if (kind == Eagle) { m.Perch = 1; m.FlyY = at.y; m.Way = m.Strafe; }   // (it sits on its court until roused: UpdateEagle)
         mMonsters[slot] = m;
         NyxaraKit::Wraith w;
         w.Alive = true; w.MaxHealth = w.Health = std::max(1, static_cast<int>(static_cast<float>(def.Health) * healthScale));
@@ -2116,7 +2117,11 @@ namespace CaucasianEagle
         // is not its ground); none there: it stays at that height
         if (!mMountainScene) return nearY;
         const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*mMountainScene, x, z, nearY - 2.5f, nearY + 1.2f);
-        return hit.Hit ? hit.GroundY : nearY;
+        if (hit.Hit) return hit.GroundY;
+        // none there: it may stand under a step up (2026-11-22: the Eagle came down from its dive onto the court, 1.95 m
+        // over the slope it had stood on, and kept the slope's height: it was drawn 2 m into the court)
+        const auto up = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*mMountainScene, x, z, nearY + 1.2f, nearY + 4.f);
+        return up.Hit ? up.GroundY : nearY;
     }
 
     void Journey::WakeMountain(int c)
@@ -2365,6 +2370,10 @@ namespace CaucasianEagle
                 if (m.Lost > MountainLoseAfter && e.Doom <= 0 && !e.Pinned && e.Hold <= 0)
                 {
                     m.Calm = 2; m.Lost = 0; m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Leap = 0; m.Rush = 0; m.Emit = 0; m.Evade = 0; m.EvadeIn = -1; m.Stage = m.Stage >= 100 ? m.Stage - 100 : m.Stage;
+                    if (m.Kind == Eagle && m.CourtSet)
+                    {   // (down onto its court, walking home with its wings folded; roused again, it rises first)
+                        m.Air = std::max(0.f, m.FlyY - m.Court.y); m.Ground = m.Court.y; m.Perch = 1; m.Flight = 0; m.FlightT = 0; m.FlightNext = -1; m.Chain = 0;
+                    }
                     Trace("lost_her", c);
                     if (mMountainRoused == c) mMountainRoused = -1;
                 }
@@ -2707,6 +2716,491 @@ namespace CaucasianEagle
         (void)distance; (void)toPlayer; (void)chest;
     }
 
+    // ================================================================ the Eagle's own fight (2026-11-23)
+    // The owner, 2026-11-22: "main Eagle's combat is very poor and it also was fighting half way in the ground". It
+    // fought as the others do, hovering in one place over its ground, 9 m from her, with a dive now and then (and the
+    // dive onto higher ground left its ground under the court: MountainGroundAt). Now it flies, and its height is its
+    // own (Air over the ground under it), so her blows reach it only when it is low:
+    //   - it rises off its court with a ring of feathers, and circles her high over it, out of her swords' reach,
+    //     throwing feathers at her;
+    //   - it swoops down through where she stands and up beyond her (low through her, she can strike it; her guard
+    //     throws it down onto the court);
+    //   - it marks her place, rises and dives onto it, and is down there, winded, its wings folded: her moment; it
+    //     strikes with its talons and, hurt, beats its wings in a ring of feathers, then rises again;
+    //   - it hangs before her and throws a fan of feathers;
+    //   - hurt (two thirds of its health) it calls a storm of feathers down on marks round her, and swoops twice in a
+    //     row; in its fury (one third) it dives three times in a row and is down longer after it.
+    // It keeps over its court (SetEagleCourt), and off Amirani.
+    namespace
+    {
+        enum EagleFlight { EagleRise, EagleCircle, EagleSwoop, EagleDive, EagleDown, EagleStorm, EagleFan };
+        constexpr float EagleCircleAir = 3.8f;     // m over its court it circles at (its body drawn 2 m over that: in sight)
+        constexpr float EagleCircleRadius = 11.f;  // m from her (in its fury 9)
+        constexpr float EagleCircleSpeed = 9.f;    // m/s round her (in its fury 11)
+        constexpr float EagleSwoopSpeed = 20.f;    // m/s through a swoop
+        constexpr float EagleDiveHigh = 10.f;      // m over her place it dives from
+        constexpr float EagleDownSeconds = 3.6f;   // down after a dive (after three in a row: 5.2)
+    }
+
+    float Journey::EagleFloor(float x, float z, float level, int index) const
+    {   // the ground under it in flight: the highest walkable ground from a little over its court down 10 m (none, over a
+        // drop: 10 m under its court)
+        if (!mMountain || !mMountainScene) return GroundAt(x, z, index);
+        const auto hit = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*mMountainScene, x, z, level - 10.f, level + 2.5f);
+        return hit.Hit ? hit.GroundY : level - 10.f;
+    }
+
+    void Journey::UpdateEagle(int slot, WorldState& world, CombatSystem& combat, float dt, float damageScale, bool alive)
+    {
+        auto& kit = GetNyxaraKit();
+        Monster& m = mMonsters[slot];
+        auto& e = kit.Enemies()[slot];
+        const KindDef& def = Kinds[m.Kind];
+        const XMFLOAT3 her = world.MainPlayer.Position, chest = Add(her, {0, 1.2f, 0});
+        const float health = static_cast<float>(e.Health) / static_cast<float>(std::max(1, e.MaxHealth));
+        const XMFLOAT4 red{1.f, .35f, .25f, 1}, yellow{1.f, .72f, .15f, 1}, white{.92f, .95f, 1.f, 1};
+        const int blow = std::max(1, static_cast<int>(static_cast<float>(def.Damage) * damageScale));
+        if (!m.CourtSet)
+        {   // its court: as the game set it, or where it rose
+            m.Court = mEagleRadius > 0 ? mEagleCentre : XMFLOAT3{e.Pos.x, m.Ground, e.Pos.z};
+            m.CourtSet = true; m.FlyY = m.Ground + m.Air; m.Flight = EagleRise; m.FlightT = 0; m.FlightFull = 1.6f;
+        }
+        const float level = m.Court.y, reach = mEagleRadius > 0 ? mEagleRadius : 16.f;
+        m.Special = 99;   // (no boss's brace of the road's: LookOf)
+        if (m.Flight == EagleRise && m.FlightT == 0) m.FlyY = m.Ground + m.Air;   // (roused: from where it sits)
+        m.FlightT += dt;
+
+        // its fury: 1 from two thirds of its health, 2 from one third; each told once, and what it does next
+        const int fury = health < .34f ? 2 : health < .67f ? 1 : 0;
+        if (fury > m.Stage && m.Stage < 100)
+        {
+            m.Stage = fury;
+            m.FlightNext = fury == 1 ? EagleStorm : EagleDive;
+            kit.Notice(fury == 1 ? L"HE CALLS THE WIND DOWN ON YOU" : L"IN HIS FURY HE DIVES AGAIN AND AGAIN", 2.4f);
+            Sound::Play("creatures/boss_roar", 1.f, .05f);
+        }
+
+        const auto begin = [&](int flight, float seconds)
+        {
+            m.Flight = flight; m.FlightT = 0; m.FlightFull = seconds;
+            m.Windup = -1; m.Rush = 0; m.RushHit = false;
+        };
+        const auto circle = [&]()
+        {   // back up onto its circle round her, from where it is
+            begin(EagleCircle, fury == 2 ? 2.6f + 1.2f * Random() : 3.6f + 2.f * Random());
+            m.Angle = std::atan2(e.Pos.x - her.x, e.Pos.z - her.z);
+            if (Random() < .3f) m.Way = -m.Way;
+            m.Shoot = .8f + .6f * Random();
+        };
+        const auto keepOff = [&](XMFLOAT3& p)
+        {   // over its court, and off Amirani
+            XMFLOAT3 out = Sub(p, m.Court); out.y = 0;
+            const float outward = LenXZ(out);
+            if (outward > reach) { p.x = m.Court.x + out.x * reach / outward; p.z = m.Court.z + out.z * reach / outward; }
+            if (mEagleKeepOffRadius > 0)
+            {
+                XMFLOAT3 off = Sub(p, mEagleKeepOff); off.y = 0;
+                const float d = LenXZ(off);
+                if (d < mEagleKeepOffRadius)
+                {
+                    const XMFLOAT3 way = d > .01f ? Mul(off, 1 / d) : Norm(Sub(m.Court, mEagleKeepOff));
+                    p.x = mEagleKeepOff.x + way.x * mEagleKeepOffRadius; p.z = mEagleKeepOff.z + way.z * mEagleKeepOffRadius;
+                }
+            }
+        };
+        XMFLOAT3 at{e.Pos.x, 0, e.Pos.z};
+        const XMFLOAT3 was = at;
+        const auto flyTo = [&](XMFLOAT3 goal, float y, float speed, float climb)
+        {   // toward a place in the air (its feet at height y), as fast as it flies
+            keepOff(goal);
+            XMFLOAT3 step = Sub(goal, at); step.y = 0;
+            const float left = LenXZ(step), move = std::min(left, speed * dt);
+            if (left > 1e-3f) at = Add(at, Mul(step, move / left));
+            m.FlyY += std::clamp(y - m.FlyY, -climb * dt, climb * dt);
+        };
+        const auto face = [&](XMFLOAT3 toward, float rate)
+        {
+            if (LenXZ(toward) > 1e-3f) e.Yaw = AngleTo(e.Yaw, std::atan2(toward.x, toward.z), rate * dt);
+        };
+        const auto shoot = [&](XMFLOAT3 from, float angle, float speed, float fall, float life)
+        { kit.SpawnOrb(from, {std::sin(angle) * speed, fall * speed, std::cos(angle) * speed}, mShowHarmless ? 0 : std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage) * damageScale)), white, life); };
+        const auto feathersRound = [&](int count, float speed, float up)
+        {   // a ring of feathers out from it, low
+            const XMFLOAT3 from{e.Pos.x, m.FlyY + up, e.Pos.z};
+            for (int k = 0; k < count; ++k)
+            {
+                const float a = 2 * Pi * (static_cast<float>(k) + .5f * Random()) / static_cast<float>(count);
+                kit.SpawnOrb(Add(from, {std::sin(a) * def.Radius, 0, std::cos(a) * def.Radius}), {std::sin(a) * speed, 0, std::cos(a) * speed},
+                             mShowHarmless ? 0 : std::max(1, static_cast<int>(static_cast<float>(def.OrbDamage) * damageScale)), white, 2.6f);
+            }
+            kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2.6f, white, .6f);
+            Sound::Play("nyxara/wing", 1.f, .1f);
+        };
+        const auto body = [&]() { return XMFLOAT3{e.Pos.x, m.FlyY + def.Hover * (1 - m.Perch) * m.HoverShare + def.Height * .35f, e.Pos.z}; };
+        const auto herGround = [&]()
+        {   // the ground she stands over (in the air: the ground under her, if it is near)
+            if (!kit.Airborne()) return her.y;
+            const float g = mMountain ? MountainGroundAt(her.x, her.z, her.y) : her.y;
+            return her.y - g < 3.f ? g : her.y;
+        };
+        const auto markHer = [&](float lead)
+        {   // where she will be
+            XMFLOAT3 mark{her.x + mPlayerVelocity.x * lead, herGround(), her.z + mPlayerVelocity.z * lead};
+            keepOff(mark);
+            if (mMountain) { const float g = MountainGroundAt(mark.x, mark.z, mark.y); m.DiveLands = std::abs(g - mark.y) < 1.5f; mark.y = g; }
+            else m.DiveLands = !kit.Airborne();
+            return mark;
+        };
+        const auto next = [&]()
+        {   // what it does now it is up again
+            if (m.FlightNext >= 0) { const int n = m.FlightNext; m.FlightNext = -1; return n; }
+            const float r = Random();
+            if (fury == 0) return r < .48f ? static_cast<int>(EagleSwoop) : r < .84f ? static_cast<int>(EagleDive) : static_cast<int>(EagleFan);
+            if (fury == 1) return r < .34f ? static_cast<int>(EagleSwoop) : r < .64f ? static_cast<int>(EagleDive) : r < .84f ? static_cast<int>(EagleStorm) : static_cast<int>(EagleFan);
+            return r < .3f ? static_cast<int>(EagleSwoop) : r < .72f ? static_cast<int>(EagleDive) : static_cast<int>(EagleStorm);
+        };
+        const auto start = [&](int flight)
+        {
+            switch (flight)
+            {
+            case EagleSwoop:
+                m.Chain = m.Chain > 0 ? m.Chain : (fury >= 1 ? 2 : 1);
+                begin(EagleSwoop, fury == 2 ? .7f : .9f);
+                m.Look = Looks(Pose::Swoop); m.Mirror = false; m.Windup = m.WindupFull = m.FlightFull;
+                kit.RingEffect({her.x, herGround() + .05f, her.z}, 2.6f, yellow, m.FlightFull);
+                Sound::Play("creatures/attack", .9f, .1f);
+                break;
+            case EagleDive:
+                m.Chain = m.Chain > 0 ? m.Chain : (fury == 2 ? 3 : 1);
+                begin(EagleDive, 0);
+                m.Aim = markHer(.35f); m.DiveFrom = {e.Pos.x, m.FlyY, e.Pos.z};
+                {
+                    const float rise = m.Chain > 1 || fury == 2 ? .6f : .9f;
+                    m.FlightFull = rise + .25f + .35f;   // up, hanging over it, down
+                    kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, 4.2f, red, m.FlightFull);
+                }
+                m.Look = Looks(Pose::Swoop); m.Mirror = false;
+                kit.Notice(L"HE DIVES", .9f);
+                Sound::Play("nyxara/wing", 1.f, .1f);
+                break;
+            case EagleStorm:
+                begin(EagleStorm, fury == 2 ? 4.4f : 2.6f);
+                m.MarkCount = 0;
+                m.Look = Looks(Pose::Gust); m.Mirror = false; m.Windup = m.WindupFull = 1.2f;
+                Sound::Play("creatures/boss_roar", .8f, .1f);
+                break;
+            case EagleFan:
+                begin(EagleFan, fury >= 1 ? 1.9f : 1.3f);
+                m.Look = Looks(Pose::Gust); m.Mirror = false; m.Windup = m.WindupFull = .7f;
+                kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, def.Radius * 2 + .6f, def.Color, .7f);
+                break;
+            default: circle(); break;
+            }
+        };
+        const auto down = [&](float seconds)
+        {   // down on the ground, winded: her moment
+            begin(EagleDown, seconds); m.Chain = 0; m.Cooldown = .9f; m.Once = false;
+            if (!m.ToldDown) { m.ToldDown = true; kit.Notice(L"HE IS DOWN: STRIKE NOW", 1.8f); }
+        };
+        const float distance = LenXZ(Sub(her, e.Pos));
+
+        switch (m.Flight)
+        {
+        case EagleRise:
+        {   // off its court: its wings thrown out, a ring of feathers, and up
+            const float t = m.FlightT;
+            m.HoverShare = 1;
+            if (t < .6f) { m.Look = Looks(Pose::Gust); m.Mirror = false; m.Windup = .6f - t; m.WindupFull = .6f; }
+            else if (m.Windup >= 0) { m.Windup = -1; m.Strikes(.35f); feathersRound(fury >= 1 ? 12 : 9, 8.f, .8f); }
+            if (t > .6f)
+            {
+                m.Perch = std::max(0.f, m.Perch - 2.5f * dt);
+                flyTo(at, level + EagleCircleAir, 0, 7.f);
+            }
+            face(Sub(her, e.Pos), MonsterTurnRate);
+            if (t > m.FlightFull) circle();
+            break;
+        }
+        case EagleCircle:
+        {   // round her, high over its court, throwing feathers at her
+            m.Perch = std::max(0.f, m.Perch - 2.5f * dt); m.HoverShare += (1 - m.HoverShare) * std::min(1.f, dt * 3);
+            XMFLOAT3 mid{her.x, 0, her.z};
+            {
+                XMFLOAT3 out = Sub(mid, m.Court); out.y = 0;
+                const float outward = LenXZ(out), keep = reach * .55f;
+                if (outward > keep) { mid.x = m.Court.x + out.x * keep / outward; mid.z = m.Court.z + out.z * keep / outward; }
+            }
+            const float radius = fury == 2 ? 9.f : EagleCircleRadius, speed = fury == 2 ? 11.f : EagleCircleSpeed;
+            m.Angle += m.Way * speed / radius * dt;
+            const XMFLOAT3 goal{mid.x + std::sin(m.Angle) * radius, 0, mid.z + std::cos(m.Angle) * radius};
+            flyTo(goal, level + EagleCircleAir + .5f * std::sin(m.Phase * 1.3f), speed * 1.4f, 6.f);
+            const XMFLOAT3 going = Sub(at, was);
+            face(LenXZ(going) > 1e-3f ? Add(Norm(XMFLOAT3{going.x, 0, going.z}), Mul(Norm(Sub(her, e.Pos)), .6f)) : Sub(her, e.Pos), MonsterTurnRate);
+            m.Shoot -= dt;
+            if (m.Shoot <= 0 && alive && distance < def.Range)
+            {   // feathers, at where she will be
+                const XMFLOAT3 from = body();
+                const float flight = LenXZ(Sub(chest, from)) / 13.f;
+                const XMFLOAT3 mark = Add(chest, Mul(mPlayerVelocity, std::min(flight, 1.2f) * .8f));
+                const float base = std::atan2(mark.x - from.x, mark.z - from.z), along = std::max(1.f, LenXZ(Sub(mark, from)));
+                const int volley = fury == 0 ? 3 : 5;
+                for (int v = 0; v < volley; ++v) shoot(from, base + (static_cast<float>(v) - static_cast<float>(volley - 1) * .5f) * .16f, 13.f, (mark.y - from.y) / along, 2.4f);
+                m.Look = Looks(Pose::Gust); m.Mirror = false; m.Strikes(.3f);
+                Sound::Play("nyxara/wing", .7f, .1f);
+                m.Shoot = (fury == 0 ? 2.3f : fury == 1 ? 1.8f : 1.4f) * (.85f + .3f * Random());
+            }
+            if (m.FlightT > m.FlightFull && alive) start(next());
+            break;
+        }
+        case EagleSwoop:
+        {
+            if (m.Rush <= 0 && m.FlightT < m.FlightFull)
+            {   // it draws back, its wings swept: a little up, still over where it was
+                m.Windup = m.FlightFull - m.FlightT;
+                flyTo(at, m.FlyY + 1.5f, 0, 2.f);
+                face(Sub(her, e.Pos), MonsterTurnRate * 1.5f);
+                break;
+            }
+            if (m.Rush <= 0 && !m.RushHit)
+            {   // through where she will be and on 10 m beyond her
+                m.Windup = -1;
+                m.DiveFrom = {e.Pos.x, m.FlyY, e.Pos.z};
+                m.Aim = {her.x + mPlayerVelocity.x * .3f, herGround(), her.z + mPlayerVelocity.z * .3f};
+                XMFLOAT3 way = Sub(m.Aim, m.DiveFrom); way.y = 0;
+                const float toHer = std::max(2.f, LenXZ(way));
+                way = Mul(way, 1 / toHer);
+                m.SwoopEnd = {m.Aim.x + way.x * 10.f, level + 4.5f, m.Aim.z + way.z * 10.f};
+                keepOff(m.SwoopEnd);
+                m.Rush = m.RushFull = (toHer + LenXZ(Sub(m.SwoopEnd, m.Aim))) / EagleSwoopSpeed;
+                m.RushHit = true;   // (set out: it strikes her at most once, below)
+                m.Lunge = 0; m.Struck = Looks(Pose::Swoop);
+                m.FlightFull = 1e9f;   // (it ends with its rush)
+                m.Once = true;         // (it strikes her at most once)
+                Sound::Play("nyxara/wing", 1.f, .1f); Sound::Play("creatures/attack", 1.f, .1f);
+            }
+            if (m.Rush > 0)
+            {   // low through her, and up again
+                m.Rush -= dt;
+                const float u = 1 - std::max(0.f, m.Rush) / std::max(m.RushFull, 1e-3f);
+                const float first = LenXZ(Sub(m.Aim, m.DiveFrom)), second = LenXZ(Sub(m.SwoopEnd, m.Aim)), s = u * (first + second);
+                float y;
+                if (s < first)
+                {
+                    const float f = s / std::max(first, 1e-3f);
+                    at = {m.DiveFrom.x + (m.Aim.x - m.DiveFrom.x) * f, 0, m.DiveFrom.z + (m.Aim.z - m.DiveFrom.z) * f};
+                    y = m.Aim.y + .2f + (m.DiveFrom.y - m.Aim.y - .2f) * (1 - f) * (1 - f);
+                }
+                else
+                {
+                    const float f = (s - first) / std::max(second, 1e-3f);
+                    at = {m.Aim.x + (m.SwoopEnd.x - m.Aim.x) * f, 0, m.Aim.z + (m.SwoopEnd.z - m.Aim.z) * f};
+                    y = m.Aim.y + .2f + (m.SwoopEnd.y - m.Aim.y - .2f) * f * f;
+                }
+                m.FlyY = y;
+                m.HoverShare = .25f + .75f * std::min(1.f, std::abs(s - first) / 5.f);
+                face(Sub(m.SwoopEnd, m.DiveFrom), MonsterTurnRate * 2);
+                const float feet = m.FlyY, low = std::abs(her.y + .9f - (feet + def.Hover * m.HoverShare + 1.2f));
+                if (m.Once && alive && LenXZ(Sub(her, XMFLOAT3{at.x, 0, at.z})) < def.Radius + 1.3f && low < 2.6f)
+                {
+                    m.Once = false;
+                    if (kit.Blocks(world, e.Pos))
+                    {   // her guard throws it down
+                        kit.Effect(chest, white, 30, 6.f, .3f); kit.Shake(.35f); Sound::Play("combat/blow", 1.f, .1f);
+                        kit.Notice(L"YOUR GUARD THROWS HIM DOWN", 1.6f);
+                        m.Rush = 0; m.FlyY = std::max(m.FlyY, m.Aim.y);
+                        down(3.f);
+                        break;
+                    }
+                    kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(blow) * 1.4f)), &e.Pos);
+                    kit.Effect(chest, red, 20, 3.5f, .22f); kit.Shake(.25f);
+                    m.Lunge = .25f; m.LungeFull = .25f;
+                }
+                if (m.Rush <= 0)
+                {
+                    m.Rush = 0; m.RushHit = false;
+                    if (m.Chain > 1) { --m.Chain; begin(EagleSwoop, .55f); m.Look = Looks(Pose::Swoop); m.Windup = m.WindupFull = .55f; kit.RingEffect({her.x, herGround() + .05f, her.z}, 2.6f, yellow, .55f); }
+                    else { m.Chain = 0; circle(); }
+                }
+            }
+            break;
+        }
+        case EagleDive:
+        {   // up over its mark, a moment there, and down onto it
+            const float fall = .35f, hang = .25f, rise = m.FlightFull - fall - hang, t = m.FlightT;
+            m.HoverShare = 1 - .75f * Smooth(t, rise, m.FlightFull);
+            XMFLOAT3 back = Sub(m.DiveFrom, m.Aim); back.y = 0;
+            back = LenXZ(back) > .5f ? Mul(Norm(back), 5.f) : XMFLOAT3{0, 0, 5.f};
+            const XMFLOAT3 over{m.Aim.x + back.x, m.Aim.y + EagleDiveHigh, m.Aim.z + back.z};
+            if (t < rise)
+            {
+                const float f = Smooth(t, 0, rise);
+                at = {m.DiveFrom.x + (over.x - m.DiveFrom.x) * f, 0, m.DiveFrom.z + (over.z - m.DiveFrom.z) * f};
+                m.FlyY = m.DiveFrom.y + (over.y - m.DiveFrom.y) * f;
+                m.Perch = std::max(0.f, m.Perch - 4 * dt);
+                m.Windup = rise + hang - t; m.WindupFull = rise + hang;
+            }
+            else if (t < rise + hang) { at = {over.x, 0, over.z}; m.FlyY = over.y; m.Windup = rise + hang - t; }
+            else
+            {
+                const float f = std::min(1.f, (t - rise - hang) / fall);
+                at = {over.x + (m.Aim.x - over.x) * f, 0, over.z + (m.Aim.z - over.z) * f};
+                m.FlyY = over.y + (m.Aim.y - over.y) * f * f;
+                m.Windup = -1; m.Rush = m.RushFull = .01f;   // (wings swept back through its fall: LookOf)
+            }
+            face(t < rise ? Sub(her, e.Pos) : Sub(m.Aim, XMFLOAT3{over.x, 0, over.z}), MonsterTurnRate * 2);
+            if (t >= m.FlightFull)
+            {   // it strikes the ground
+                m.Rush = 0; at = {m.Aim.x, 0, m.Aim.z}; m.FlyY = m.Aim.y;
+                const XMFLOAT3 there{m.Aim.x, m.Aim.y + .5f, m.Aim.z};
+                kit.RingEffect({m.Aim.x, m.Aim.y + .05f, m.Aim.z}, 4.6f, white, .5f);
+                kit.Effect(there, def.Color, 50, 9.f, .35f); kit.Shake(.4f);
+                Sound::Play("combat/blow", 1.f, .1f);
+                if (alive && LenXZ(Sub(her, m.Aim)) < 3.6f && her.y < m.Aim.y + 2.5f && !kit.Blocks(world, there))
+                    kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(blow) * 1.4f)), &there);
+                m.Look = Looks(Pose::Swoop); m.Strikes(.4f);
+                m.Ground = m.Aim.y; m.HoverShare = 0;
+                if (fury >= 1 && m.DiveLands) feathersRound(10, 8.f, .7f);
+                const bool chained = m.Chain > 1;
+                if (chained) { --m.Chain; start(EagleDive); }
+                else if (m.DiveLands) { m.Perch = 1; down(fury == 2 ? 5.2f : EagleDownSeconds); }
+                else { m.Chain = 0; circle(); }
+            }
+            break;
+        }
+        case EagleDown:
+        {   // down on the ground, winded, its wings folded: it hops at her and strikes with its talons
+            m.Perch = std::min(1.f, m.Perch + 4 * dt); m.HoverShare = 0;
+            const float floor = mMountain ? MountainGroundAt(at.x, at.z, m.FlyY) : GroundAt(at.x, at.z, m.Index);
+            m.FlyY += std::clamp(floor - m.FlyY, -9.f * dt, 6.f * dt);
+            const float strike = def.Reach + def.Radius;
+            if (m.Windup >= 0)
+            {
+                m.Windup -= dt;
+                if (m.Windup < 0)
+                {
+                    if (m.Look == Looks(Pose::Gust)) feathersRound(12, 7.5f, .8f);   // its wings beaten
+                    else if (alive && distance < strike + .4f && !kit.Blocks(world, e.Pos))
+                    {
+                        kit.Hurt(world, combat, blow, &e.Pos);
+                        kit.Effect(chest, red, 16, 3.f, .2f);
+                    }
+                    m.Strikes(.3f); m.Cooldown = 1.1f + .5f * Random();
+                }
+            }
+            else
+            {
+                if (distance > strike - .5f && alive)
+                {   // a few hops at her
+                    XMFLOAT3 step = Sub(her, e.Pos); step.y = 0;
+                    const float move = std::min(distance - (strike - .8f), 2.4f * dt);
+                    if (move > 0) at = Add(at, Mul(Norm(step), move));
+                }
+                m.Cooldown -= dt;
+                if (m.Cooldown <= 0 && alive && m.FlightT < m.FlightFull - .8f)
+                {
+                    const bool wings = fury >= 1 && !m.Once && m.FlightT > m.FlightFull * .4f;
+                    if (wings || distance < strike)
+                    {
+                        if (wings) m.Once = true;   // (its wings once while down)
+                        m.Look = Looks(wings ? Pose::Gust : Pose::Swing); m.Mirror = Random() < .5f;
+                        m.Windup = m.WindupFull = wings ? .7f : .75f;
+                        kit.RingEffect({e.Pos.x, m.Ground + .05f, e.Pos.z}, wings ? def.Radius * 2.6f : strike, wings ? yellow : red, m.Windup);
+                        Sound::Play("creatures/attack", .8f, .15f);
+                    }
+                }
+            }
+            face(Sub(her, e.Pos), MonsterTurnRate * .8f);
+            if (m.FlightT > m.FlightFull && m.Windup < 0) { begin(EagleRise, 1.6f); }
+            break;
+        }
+        case EagleStorm:
+        {   // high over her: marks round her, and feathers come down on them (in its fury, twice)
+            m.Perch = std::max(0.f, m.Perch - 2.5f * dt); m.HoverShare = 1;
+            flyTo(at, level + EagleCircleAir + 2.f, 0, 5.f);
+            face(Sub(her, e.Pos), MonsterTurnRate);
+            if (m.Windup >= 0) { m.Windup -= dt; if (m.Windup < 0) m.Strikes(.4f); }
+            for (int wave = 0; wave < (fury == 2 ? 2 : 1); ++wave)
+            {
+                const float marked = .4f + 1.8f * static_cast<float>(wave), falls = marked + 1.4f;
+                const int count = fury == 2 ? 6 : 4;
+                if (m.FlightT >= marked && m.FlightT - dt < marked)
+                {
+                    m.MarkCount = count;
+                    for (int k = 0; k < count; ++k)
+                    {
+                        XMFLOAT3 mark{her.x + mPlayerVelocity.x * .5f, herGround(), her.z + mPlayerVelocity.z * .5f};
+                        if (k > 0)
+                        {
+                            const float a = 2 * Pi * (static_cast<float>(k) / static_cast<float>(count - 1) + .2f * Random()), r = 3.f + 4.f * Random();
+                            mark.x += std::sin(a) * r; mark.z += std::cos(a) * r;
+                            if (mMountain) mark.y = MountainGroundAt(mark.x, mark.z, mark.y);
+                        }
+                        m.Marks[k] = mark;
+                        kit.RingEffect({mark.x, mark.y + .05f, mark.z}, 2.4f, red, falls - marked);
+                    }
+                }
+                if (m.FlightT >= falls - .45f && m.FlightT - dt < falls - .45f)
+                    for (int k = 0; k < m.MarkCount; ++k) kit.Effect(Add(m.Marks[k], {0, 6.f, 0}), white, 14, 2.f, .3f);   // (they come down)
+                if (m.FlightT >= falls && m.FlightT - dt < falls)
+                {
+                    bool struck = false;
+                    for (int k = 0; k < m.MarkCount; ++k)
+                    {
+                        const XMFLOAT3 mark = m.Marks[k];
+                        kit.Effect(Add(mark, {0, .5f, 0}), white, 26, 6.f, .3f);
+                        kit.RingEffect({mark.x, mark.y + .05f, mark.z}, 2.8f, white, .4f);
+                        if (!struck && alive && LenXZ(Sub(her, mark)) < 2.5f && her.y < mark.y + 3.f && !kit.Blocks(world, Add(mark, {0, 6.f, 0})))
+                        {
+                            struck = true;
+                            kit.Hurt(world, combat, std::max(1, static_cast<int>(static_cast<float>(blow) * .9f)), &mark);
+                        }
+                    }
+                    kit.Shake(.3f); Sound::Play("combat/blow", .9f, .15f);
+                }
+            }
+            if (m.FlightT > m.FlightFull) { m.MarkCount = 0; circle(); }
+            break;
+        }
+        case EagleFan:
+        {   // it hangs before her and throws its wings forward: a wide fan of feathers (hurt, two)
+            m.Perch = std::max(0.f, m.Perch - 2.5f * dt); m.HoverShare = 1;
+            flyTo(at, level + EagleCircleAir - 1.f, 0, 4.f);
+            face(Sub(her, e.Pos), MonsterTurnRate * 1.5f);
+            const auto fan = [&]()
+            {
+                const XMFLOAT3 from = body();
+                const float base = std::atan2(chest.x - from.x, chest.z - from.z), along = std::max(1.f, LenXZ(Sub(chest, from)));
+                for (int k = 0; k < 9; ++k) shoot(from, base + static_cast<float>(k - 4) * .22f, 12.f, (chest.y - from.y) / along, 2.4f);
+                m.Strikes(.35f); Sound::Play("nyxara/wing", 1.f, .1f);
+            };
+            if (m.Windup >= 0) { m.Windup -= dt; if (m.Windup < 0) fan(); }
+            if (fury >= 1 && m.FlightT >= 1.2f && m.FlightT - dt < 1.2f) fan();
+            if (m.FlightT > m.FlightFull) circle();
+            break;
+        }
+        default: circle(); break;
+        }
+
+        // where it is now: its ground (in flight, the ground under it; down, the ground it stands on) and its height
+        keepOff(at);
+        if (m.Flight == EagleDown || m.Perch > .5f)
+        {
+            m.Ground = mMountain ? MountainGroundAt(at.x, at.z, std::max(m.Ground, m.FlyY - .5f)) : GroundAt(at.x, at.z, m.Index);
+            m.FlyY = std::max(m.FlyY, m.Ground);
+        }
+        else
+        {
+            m.Ground = EagleFloor(at.x, at.z, level, m.Index);
+            m.FlyY = std::max(m.FlyY, m.Ground + (m.Flight == EagleSwoop || m.Flight == EagleDive ? 0.f : 1.5f));
+        }
+        m.Air = m.FlyY - m.Ground;
+        m.Moving = LenXZ(Sub(at, was)) / std::max(dt, 1e-4f);
+        Head(m.Heading, Sub(at, was), e.Yaw, dt);
+        if (!mMountain) m.Index = Nearest(at.x, at.z, m.Index, 30);
+        e.Pos = {at.x, m.FlyY + 1.3f, at.z};
+        e.Push = {}; e.Lift = 0; e.LiftVel = 0;
+    }
+
     // ================================================================ how the creatures fight and go (2026-11-20)
     float Journey::LegLength(int kind) const
     {   // m from its hips to its soles (two-legged: from its rig; the rest: a share of its height)
@@ -3038,6 +3532,15 @@ namespace CaucasianEagle
         const auto type = m.Kind < static_cast<int>(mModels.size()) ? mModels[m.Kind].Rig.Kind : CreatureRig::Type::None;
         if (type == CreatureRig::Type::Winged) look.Roll += std::clamp(-m.Turning * .10f, -.35f, .35f);   // it banks into its turns
         if (type == CreatureRig::Type::Serpent) look.Yaw = .10f * walk * std::sin(m.Stride);                // it winds as it goes
+        if (m.Kind == Eagle && !m.Dying)
+        {   // its own fight (UpdateEagle): down on the ground, its wings folded; in flight its hover drawn, less of it low
+            // through a swoop or onto its mark; through a swoop and a dive its wings swept back
+            pose.Perch = m.Perch; pose.Air = 1 - m.Perch;
+            look.Hover = (1 - m.Perch) * m.HoverShare; look.Rise = 0;
+            if (m.Perch > .5f && m.Moving > .2f) look.Lift = .35f * std::abs(std::sin(m.Phase * 7.f));   // (it hops along)
+            if (m.Flight == EagleSwoop || m.Flight == EagleDive) look.Pitch += m.Rush > 0 ? .35f : 0.f;                   // (head down, through)
+            return look;
+        }
         if (m.Move == MoveSwoop && !m.Dying && m.Stage < 100)
         {   // low through where she is (and up again after it, as after its dive)
             const float low = m.Windup >= 0 ? pose.Windup : m.Rush > 0 ? 1.f : pose.Strike;
@@ -3106,12 +3609,21 @@ namespace CaucasianEagle
                 m.Windup = -1; m.Lunge = 0; m.Slam = 0; m.Moving = 0;
                 m.Rush = 0; m.Emit = 0; m.Evade = 0; m.EvadeIn = -1; if (m.Leap > 0) { m.Leap = 0; m.Air = 0; }
                 m.Cooldown = std::max(m.Cooldown, .8f); m.Shoot = std::max(m.Shoot, .8f); m.Special = std::max(m.Special, .8f);
+                if (m.Kind == Eagle && m.CourtSet)
+                {   // (the Eagle: it comes down where it is, and is down when it is let go)
+                    const float floor = mMountain ? MountainGroundAt(e.Pos.x, e.Pos.z, std::max(m.Ground, m.Court.y)) : m.Ground;
+                    m.Ground = floor; m.FlyY = std::max(floor, m.FlyY - 9.f * dt); m.Air = m.FlyY - floor;
+                    m.Perch = std::min(1.f, m.Perch + 3 * dt); m.HoverShare = 0;
+                    e.Pos.y = m.FlyY + 1.3f;
+                    if (m.Flight != EagleDown) { m.Flight = EagleDown; m.FlightT = 0; m.FlightFull = 2.5f; m.Chain = 0; }
+                }
                 continue;
             }
 
             XMFLOAT3 to = Sub(player.Position, e.Pos); to.y = 0;
             const float distance = LenXZ(to);
             const XMFLOAT3 dir = Norm(to);
+            if (m.Kind == Eagle) { UpdateEagle(i, world, combat, dt, damageScale, alive); continue; }   // (it flies: its own fight)
             e.Yaw = AngleTo(e.Yaw, std::atan2(dir.x, dir.z), MonsterTurnRate * dt);
             if (def.Boss) UpdateBoss(i, world, combat, dt, distance, to);
             if (m.Stage >= 100)

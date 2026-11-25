@@ -15,6 +15,7 @@
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -63,11 +64,26 @@ namespace CaucasianEagle
         void SaveHere(int station, bool quiet = false);   // H at a nest: all she is and has done, saved (WriteSave); quiet: a level bought, a look put on
         // I in a nest: the next level of that item bought (its crystals paid, its look put on, saved there); false when
         // she cannot (not in a nest, at the top, crystals too few)
-        bool LevelUp(int item, int station);
-        bool Wear(int item, int level, int station);   // that look of it put on (0 .. its level), in a nest
         void RollBack();                           // back to the save: her growth, the creatures, the jars
         int NestAt(const DirectX::XMFLOAT3& p) const;   // the station of the nest she stands in; -1
         void Collect(const Wayside::Gain& gain);   // what a jar or a place gave her
+        void GiveCrystals(int kind, int count);    // (AscentGrowth::CrystalKind)
+        // her quests (0.5.3, AscentQuests): Q shows them, anywhere; a set of them done, its gear
+        void QuestsOpen();                                   // the panel (Q), on the first quest she can take
+        bool TakeQuest(int quest);                           // bought with crystals of its set's kind
+        void CountQuests(int kind, int count);               // (AscentQuests::QuestKind) creatures beaten, jars broken
+        void ReachNest(int station);                         // she stands in that nest (a quest's nest, or one above it, reached)
+        void QuestDone(int quest);
+        void GearIfEarned();                                 // her set all done: its gear at once, saved (she wakes at her last nest)
+        bool Pressed(int key, bool allowed);                 // Press, or the quests' test's key (mTestKey)
+        // The quests' test (CAUCASIAN_EAGLE_DEMO=11; quests.tsv beside the evidence, and a "picture" row where it holds for one
+        // with the HUD, tools\quest-test.ps1): Q opens her quests anywhere, the first three offered; bought (Enter, a click, S
+        // then Enter), too few crystals refused, counted only once taken; all three done: THE HIGHLANDS at once, and saved;
+        // the save read back; the next six offered, a nest above the one asked counted; a quest taken after the save rolled
+        // back with her.
+        void QuestTest(Doorways::DoorwaysGameHost& host, float dt);
+        int GroupStretch(int group) const;         // the stretch a group of creatures stands in (its placement's)
+        int HereKind(const DirectX::XMFLOAT3& at) const;   // the kind of crystal where she is (mMap.Locate'd there)
         void DrawNests(Renderer& renderer, const WorldState& world, const DirectX::XMMATRIX& viewProjection);
         std::wstring BackTitle() const;            // "BACK AT THE EAGLE NEST" (or the shore, or a checkpoint: no nests)
         // The creatures' tour (CAUCASIAN_EAGLE_DEMO=3, unattended): she is put on the way before every group and boss in
@@ -76,13 +92,51 @@ namespace CaucasianEagle
         // nothing she beat may wake again. Writes tour.tsv beside the evidence file (and pictures into
         // CAUCASIAN_EAGLE_TOUR_SHOTS); ends CREATURES_PASS or CREATURES_FAIL.
         void Tour(Doorways::DoorwaysGameHost& host, float dt);
+        // A boss filmed (CAUCASIAN_EAGLE_DEMO=12, unattended): she is put on the way before one boss
+        // (CAUCASIAN_EAGLE_BOSS=<its id>, boss-eagle if none), kept whole, and it fights her for
+        // CAUCASIAN_EAGLE_BOSS_SECONDS (40); CAUCASIAN_EAGLE_BOSS_FIGHT=1: she cuts back when it is close. Every 0.1 s
+        // boss.tsv (beside the evidence) has its place, the ground it stands on, the highest walkable floor under it and
+        // her place; a frame every CAUCASIAN_EAGLE_BOSS_EVERY s (0.5) into CAUCASIAN_EAGLE_TOUR_SHOTS. Ends BOSS_DONE.
+        void BossFilm(Doorways::DoorwaysGameHost& host, float dt);
+        bool mBossFilm = false, mBossFight = false; std::string mBossId; float mBossFor = 40, mBossEvery = .5f, mBossClock = 0, mBossLog = 0, mBossShot = 0;
+        int mBossPhase = 0, mBossShots = 0; Doorways::NyxaraKit::Keys mBossKeys;
+        // The camera swept (CAUCASIAN_EAGLE_DEMO=13, unattended): she stands on the way every CAUCASIAN_EAGLE_CAMERA_EVERY m
+        // (600) facing up it, and the camera's pitch goes from its lowest to its highest in steps; at each, camera.tsv
+        // (beside the evidence) has the pitch and the camera's distance and height from her, and a picture is taken.
+        void CameraTest(Doorways::DoorwaysGameHost& host, float dt);
+        bool mCameraTest = false; float mCamEvery = 600, mCamClock = 0, mCamAlong = 0; int mCamStep = -1;
+        // CAUCASIAN_EAGLE_CAMERA_WALK="a:b,c:d": instead, she walks up the way from a to b m and back down, for each; every
+        // frame camera-walk.tsv has her height and the camera's (its jumps on stairs, its distance from her) and where she
+        // is in its view, a picture every 0.5 s
+        std::vector<std::pair<float, float>> mCamWalks; int mCamWalk = 0, mCamWay = 0; float mCamShot = 0, mCamLastY = 0;
+        // Off the way (CAUCASIAN_EAGLE_DEMO=14, unattended, 0.5.3; the owner: "i want whole mountain to be walkable beside
+        // the paths we have"): every CAUCASIAN_EAGLE_SIDE_EVERY m (40) of the way, from CAUCASIAN_EAGLE_SIDE_FROM to _TO, she
+        // is stood on it and runs straight off it, to its left and then to its right (going up), until she is 30 m off it, is
+        // stopped, falls under the land, or 8 s pass. side.tsv (beside the evidence) has each run: how far she got, how far
+        // she dropped, and why she stopped: free (30 m off), steep (ground too steep to stand on ahead), tree, water,
+        // step (ground ahead more than a step over her), BLOCKED (stopped where the ground ahead is walkable: something
+        // unseen holds her), FELL_THROUGH (under the land); a picture of each BLOCKED, FELL_THROUGH and timeout.
+        void SideWalk(Doorways::DoorwaysGameHost& host, float dt);
+        bool mSideWalk = false; int mSideSide = 0, mSideBad = 0; float mSideEvery = 40, mSideFrom = 20, mSideTo = 1e9f, mSideAlong = -1;
+        float mSideClock = -1, mSideStill = 0, mSideUnder = 0, mSideLow = 0, mSideYaw = 0; DirectX::XMFLOAT3 mSideStart{}, mSideLast{};
+        std::map<std::string, int> mSideCount;
+        // CAUCASIAN_EAGLE_SIDE_FILM=1: every frame of each run in side-trace.tsv (where she is, grounded, the land's height
+        // and its lowest, the walkable ground under her and over her), and a picture every 0.25 s
+        bool mSideFilm = false; float mSideShot = 0; int mSideInto = 0, mSideWall = 0;
+        unsigned long long mSideSteep = 0, mSideSteepLast = 0;   // (the engine's steep walls' held moves, at the run's start and last frame)
         void Put(Doorways::DoorwaysGameHost& host, const DirectX::XMFLOAT3& at, float yaw);
         // The jars' test (CAUCASIAN_EAGLE_DEMO=4, unattended, 0.5): the jars laid; she is stood before groups
         // of jars up the mountain and cuts (her own blows: the kit's test pilot keys), and they must break; then saved at a
         // nest, more broken and crystals gained, and rolled back (as when she falls): all must be as saved; then the save
         // read back. Writes ways.tsv beside the evidence file (pictures into CAUCASIAN_EAGLE_TOUR_SHOTS); WAYS_PASS or WAYS_FAIL.
         void Ways(Doorways::DoorwaysGameHost& host, float dt);
-        bool mWays = false; int mWaysPhase = 0, mWaysPick = 0, mWaysBad = 0; float mWaysClock = 0;
+        bool mWays = false; int mWaysPhase = 0, mWaysPick = 0, mWaysBad = 0; float mWaysClock = 0; int mWaysHad[3] = {}, mWaysKinds[3] = {};
+        int mHereKind = 0;                         // the kind of crystal where she stands (kept while her window's stage holds her)
+        float mCrystalFlash[3] = {};               // 1 a crystal of that kind just gained .. 0 (the HUD's count lights)
+        bool mQuestsOpen = false;                  // her quests' panel (Q)
+        int mQuestRow = 0, mQuestFlashRow = -1;
+        float mQuestsFade = 0, mQuestFlash = 0;
+        bool mQuestTest = false; int mTestKey = 0; // (DEMO=11; a key it presses)
         // The nature test (CAUCASIAN_EAGLE_DEMO=5, 2026-11-20): the grass fields seen at spots up the mountain (pictures,
         // tufts drawn, frame time), then she runs at trunks beside the way and must not go into or through any.
         // nature.tsv beside the evidence; NATURE_PASS or NATURE_FAIL.
@@ -112,10 +166,8 @@ namespace CaucasianEagle
         std::vector<std::string> mSavedBeaten;
         size_t mBeatenWritten = 0;                 // the beaten counted (for their crystals)
         Growth::State mGrowth, mSavedGrowth;       // her growth now, and as saved (0.5.2: AscentGrowth's rules)
-        std::vector<int> mPrices;                  // the price of each level (the map's: EaglesAscent::Levels)
-        bool mMigrated = false;                    // her save was from before the nine levels: told once, at the start
         // her looks (NyxaraLooks, from her bundle's Looks.txt): the levels worn now, as last put on (-1: not yet)
-        bool mLooksOn = false; int mLookShown[3] = {-1, -1, -1};
+        bool mLooksOn = false; int mGearShown = -1;   // (the gear whose look and light she has on)
         bool mAroundPlaced = false;                // the groups around the way found their places (EaglesAscent::PlaceAround)
         std::vector<std::string> mAroundReport;    // where each was placed, or why not (the ledger writes it)
         std::vector<std::string> mSavedJars;
@@ -130,6 +182,7 @@ namespace CaucasianEagle
         struct TourStop { int Placement = 0; float Along = 0; };
         bool mTour = false; std::vector<TourStop> mTourStops; int mTourAt = -1, mTourPhase = 0, mTourBad = 0, mTourWoke = 0, mTourCalm = 0, mTourAgain = 0;
         float mTourClock = 0, mTourDamage = 0, mTourOff = 0, mTourFirst = 0; DirectX::XMFLOAT3 mTourStand{};
+        int mTourHad[3] = {};   // her crystals as a stop began
         std::string mTourNote, mTourRow; std::filesystem::path mTourShots; std::wstring mTourShot;
         // the finishers' tour (CAUCASIAN_EAGLE_TOUR_FINISH=1 with the creatures' tour): her finishing kill of every creature
         // of the road where it stands; the one she finishes, which finisher, how many of each, none with room, nowhere

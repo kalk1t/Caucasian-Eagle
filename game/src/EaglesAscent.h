@@ -65,6 +65,19 @@ namespace CaucasianEagle
         // face where it is too steep to stand on, and slides down it to ground she can stand on (2026-11-18).
         void KeepOutOfRock(Player& player, bool flying, float dt = 1.f / 60.f, const DoorwaysRuntimeScene* scene = nullptr);
         bool Sliding = false;          // this step she slid down rock too steep to stand on
+        // On foot a rock face or a bank as drawn is a wall (2026-11-22): KeepOutOfRock holds her where the drawn top
+        // (DrawnTop) WallAhead m ahead of her would be more than IntoRock m over her feet. Not near the way (NearTheWay:
+        // within WayReach m of its line, on a stair's treads, or by a cave's open end).
+        static constexpr float IntoRock = .9f, WallAhead = .3f, WayReach = 1.5f;   // (3.5 m: beside a stair's switchback the next leg's line was that near, and she walked into the bank and fell into the mountain at 380 m)
+        // The drawn top round rock and steep land (the map data's "tops", build_mountain.py): the highest drawn land, rough
+        // ground or rock there, from points 1 m apart; NaN where none was found (open land, off the grid).
+        float DrawnTop(float x, float z) const;
+        bool NearTheWay(const DirectX::XMFLOAT3& p) const;
+        int WallHolds = 0;             // steps she was held at such a wall (the tests count them)
+        // The two rules on foot below (at a face as drawn, and from walking into the mountain) are on; a test turns them
+        // off (CAUCASIAN_EAGLE_ROCK_RULES=0) to see the engine's steep walls (GameSession().SteepGroundBlocks) alone.
+        bool RockRules = true;
+        int IntoHolds = 0;             // steps she was held from walking into the mountain (below, KeepOutOfRock)
         // Where she is along the trail (Along, OffTrail, Slope).
         void Locate(const DirectX::XMFLOAT3& position);
         // The air, the checkpoints and the safety nets. Returns the event when she was returned to the last checkpoint
@@ -78,6 +91,8 @@ namespace CaucasianEagle
         // Hides the game models of that name (a 'prop' line's) within radius m of p, or shows them again; returns how many.
         // The Eagle at Amiran's court is not drawn while he is there as a creature (EaglesAscentGame).
         int HideModels(const std::string& name, const DirectX::XMFLOAT3& p, float radius, bool hidden);
+        // the nearest placed model of that name within radius of p: its place and height (false: none)
+        bool FindModel(const std::string& name, const DirectX::XMFLOAT3& p, float radius, DirectX::XMFLOAT3& at, float& height) const;
         // light: 0 day, 1 dawn, 2 night. fog: 0 clear air, 1 haze (the map's own, Gate 4), 2 thick fog.
         static void StyleEnvironment(EnvironmentSettings& environment, int light, int fog);
 
@@ -186,6 +201,7 @@ namespace CaucasianEagle
         std::vector<float> mFloor;
         struct Patch { float X = 0, Z = 0, Step = 1; int Nx = 0, Nz = 0; std::vector<float> H; };
         std::vector<Patch> mPatches;
+        std::vector<int> mTopCell; std::vector<float> mTops; int mTopsPer = 0;   // ("tops": a cell's block, -1 for none; the blocks)
         Patch mOuter;                            // the rest of the round mountain, coarse (the map data's "outer" record): Land() off the near grid
         float OuterLand(float x, float z, bool lowest) const;
         // Stair treads (records "tread"): centre, the path's way, m along it and across, top; found through 4 m cells
@@ -207,7 +223,7 @@ namespace CaucasianEagle
         static constexpr float TrunkCell = 8.f;
         static long long TrunkKey(int cx, int cz) { return (static_cast<long long>(cx) << 32) ^ static_cast<unsigned>(cz); }
         void CaveEnds();                 // which ends of each cave are open (Load)
-        DirectX::XMFLOAT3 mFlown{}; bool mHasFlown = false; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
+        DirectX::XMFLOAT3 mFlown{}, mStood{}; bool mHasFlown = false, mHasStood = false, mJumped = false; float mAir = 0; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
         float mInRock = 0;             // seconds she has been falling inside the mountain
         // The ground's look (record "terrain x0 z0 width depth snowline sea", 2026-11-18): the splat <map>.splat_a.dds
         // and .splat_b.dds covers that rectangle; the engine's terrain shader draws the ML_Terrain* materials with it.

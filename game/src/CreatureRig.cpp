@@ -431,6 +431,10 @@ namespace CaucasianEagle
             }
             default: open += -.45f * drawn + Blow(strike, -.45f, .65f); break;
             }
+            {   // down on the ground (the Eagle, winded after its dive): its wings folded to its sides, beating no more
+                const float perch = std::clamp(pose.Perch, 0.f, 1.f);
+                beat *= 1 - .9f * perch; tip *= 1 - .9f * perch; open += .25f * perch; bow += .12f * perch;
+            }
             if (pose.Dodge == R::Dodge::AirStrafe && evade > 0)
             {   // one hard beat down, banking into it
                 const float h = Arc(evade);
@@ -439,6 +443,11 @@ namespace CaucasianEagle
             }
             a[R::WingL].Z = beat + open;     a[R::WingL2].Z = tip + .5f * open;
             a[R::WingR].Z = -(beat + open);  a[R::WingR2].Z = -(tip + .5f * open);
+            {   // perched: its wings swept back along its body, their tips folded in behind it
+                const float perch = std::clamp(pose.Perch, 0.f, 1.f);
+                a[R::WingL].Y = -1.25f * perch; a[R::WingL2].Y = -1.1f * perch;
+                a[R::WingR].Y = 1.25f * perch;  a[R::WingR2].Y = 1.1f * perch;
+            }
             a[R::Chest].X = .05f * std::sin(pose.Time * rate + 1.2f) - .15f * recoil + bow;
         }
 

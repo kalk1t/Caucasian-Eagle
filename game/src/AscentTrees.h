@@ -59,6 +59,15 @@ namespace CaucasianEagle
         // False only when the library is there but broken.
         bool Initialize(Renderer& renderer, const std::filesystem::path& dataFile, std::string& error);
         void Draw(Renderer& renderer, const DirectX::XMFLOAT3& eye, const DirectX::XMMATRIX& viewProjection);
+        // Her chest, this frame (on: the camera follows her). A tree whose trunk or crown stands between the camera and
+        // her, or that the camera is in, is drawn see-through (a screen door, SeeThroughDoor of its pixels left out), so
+        // that she is never lost behind one (owner 2026-11-22: "examine camera with and around trees").
+        void SetFocus(const DirectX::XMFLOAT3& chest, bool on) { mFocus = chest; mFocusOn = on; }
+        static constexpr float SeeThroughDoor = .7f;
+        int SeeThrough = 0;   // last frame: trees between the camera and her (drawn see-through unless SeeThroughOff)
+        bool SeeThroughOff = false;   // (tests: CAUCASIAN_EAGLE_CAMERA_OLD=1, the trees as they were, to compare)
+        // would this tree hide what is at 'to' from 'eye' (its trunk or crown on the line, short of 'to' by 'shortOf' m)
+        bool Hides(unsigned tree, const DirectX::XMFLOAT3& eye, const DirectX::XMFLOAT3& to, float shortOf) const;
         void DrawShadows(Renderer& renderer, const DirectX::XMFLOAT3& eye, const DirectX::XMMATRIX& lightViewProjection);
         bool On() const { return mReady && !mTrees.empty(); }
         size_t Count() const { return mTrees.size(); }
@@ -90,6 +99,7 @@ namespace CaucasianEagle
             DirectX::XMFLOAT4X4 World, WorldInvTranspose;
             DirectX::XMFLOAT3 Centre;   // of its crown, for culling and distance
             float Radius = 1, Scale = 1, Reach = 8;   // Reach: the radius clamped to 8..30 m, by which it is 'seen'
+            DirectX::XMFLOAT3 Foot{}; float Tall = 0, Wide = 0, LeanX = 0, LeanZ = 0;   // its trunk's line and crown's width (Hides)
             unsigned short Model = 0; unsigned char Variant = 0, Snow = 0;
         };
         // trees drawn or merged together: one group of a square, or all of a block
@@ -118,6 +128,8 @@ namespace CaucasianEagle
         std::unordered_map<long long, Block> mBlocks;
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mImpostors;
         std::vector<std::vector<unsigned>> mBuckets;                // tree indices by bucket, this frame
+        std::vector<std::vector<unsigned>> mDoorBuckets;            // ...and those drawn see-through (between the camera and her)
+        DirectX::XMFLOAT3 mFocus{}; bool mFocusOn = false;
         std::vector<DoorwaysDMeshInstanceGpuData> mInstances;
         std::vector<std::pair<float, int>> mFar;                   // groups drawn merged this frame, by distance
         unsigned mFrame = 0;

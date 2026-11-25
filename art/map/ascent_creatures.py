@@ -103,6 +103,11 @@ HAND = {
     # (and one whose only ground is within 100 m of cave-14's group, the two more than the three alive at once: it held
     # the three places as she went into the cave, and the cave's group never woke: the creatures' tour, 2026-11-21)
     "around-4374": {"skip": True},
+    # (and one whose only ground beside the way stood at a cliff's edge: once the map takes the carved rock as collision
+    # in steep cells near the way, the engine's steep walls holding her there (2026-11-23), around-0522's one place, 9 m
+    # out at 466 m, is no longer level 3 m round it (the land drops 4 m there, which the land's coarse 6 m cell had passed
+    # off as level); from 402 m to 557 m it has no other, and farther up, at 730 m, it left around-0922 none)
+    "around-0522": {"skip": True},
 }
 
 # Where each Eagle Nest stands beside the way at its station: station -> (m to the right of the way, m along it, the

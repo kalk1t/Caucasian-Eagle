@@ -61,6 +61,12 @@ namespace CaucasianEagle
         session.Cursor = PointerFile;                               // her own pointer, wherever the pointer shows
         session.CameraPitch = CameraPitch; session.CameraDistance = CameraDistance; session.CameraPivotHeight = CameraPivotHeight;
         session.CameraMinPitch = CameraMinPitch; session.CameraMaxPitch = CameraMaxPitch;
+        session.CameraLookUpNear = CameraLookUpNear; session.CameraLookUpKeep = CameraLookUpKeep; session.CameraLookUpClear = CameraLookUpClear; session.CameraLookUpSide = CameraLookUpSide;
+        session.CameraPivotSmoothing = CameraPivotSmoothing; session.CameraLiftUnder = CameraLiftUnder;
+        if (char old[4]{}; GetEnvironmentVariableA("CAUCASIAN_EAGLE_CAMERA_OLD", old, sizeof old) && old[0] == '1')
+        {   // (tests only: the camera as it was before 2026-11-22, to measure the new one against)
+            session.CameraLookUpNear = 0; session.CameraLookUpSide = 0; session.CameraPivotSmoothing = 0; session.CameraLiftUnder = 0; session.CameraMaxPitch = .45f;
+        }
         session.SuppressedActions = {
             DoorwaysInputAction::ResetPlayer,                                // R = land from flight
             DoorwaysInputAction::Interact,                                   // E = sword barrier

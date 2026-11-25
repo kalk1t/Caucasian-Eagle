@@ -97,6 +97,24 @@ All on the development PC, which has Visual Studio and has run the game before.
 - [not verified] **Frame rate** beyond "the pilot's log showed the 60 fps cap in a 1280 x 720 window on the development PC".
 - [not verified] A clean clone, a second machine, an installed copy (unchanged from v0.1.0).
 
+## 11.2g What was verified for 0.5.3 (2026-11-25, released)
+
+| Check | Result |
+|---|---|
+| The quests' test, `CAUCASIAN_EAGLE_DEMO=11` | Every step ok: Q opens the first three; bought by Enter, a click and S then Enter; too few crystals refused; counted only once taken; a nest above the one asked counts; all three done: THE HIGHLANDS at once and saved; read back; the next six offered; a quest after the save rolled back; `QUESTS_PASS` |
+| The pointer test, `DEMO=7` | `POINTER_PASS` (her window with her gears, CLOSE, Esc, her menu) |
+| The crystals' ledger, `DEMO=8` | `LEDGER_PASS` |
+| The jars' test, `DEMO=4` | `WAYS_PASS` |
+| Her showcase, `DEMO=9` | `SHOWCASE_PASS` |
+| The map, `DEMO=10` | `MAP_PASS` |
+| The nature test, `DEMO=5` | `NATURE_PASS` |
+| The climb, `DEMO=2`, on an empty save (`CAUCASIAN_EAGLE_ASCENT_SAVE`) | `CLIMB_PASS` shore to summit in 1,458 s; the game's rock rules held her 0 times, the engine's steep walls 28 moves of 407,370 faces. (Run on the developer's own save, at nest 9, it starts at the top and never passes the shore's station: `climb_stuck`. The climb reads the player's save; give it an empty one.) |
+| The creatures' tour, `DEMO=3` | `CREATURES_FAIL bad=3`: only way-4500's Kaji (off its ground, never roused, never came), as since 0.5.2; the Eagle's row: woke, came, beaten, 25 ice crystals |
+| Off the way, `DEMO=14`; Character Lab check | 2026-11-23 on the final map: 78 runs, 0 FELL_THROUGH; `CHECK_PASS` (not run again) |
+| What it uses (the climb, RTX 5080) | about 1.3 GB working set, 1.0 GB private; about 2.0 GB dedicated graphics memory (`GPU Process Memory` counter, one adapter); installed 1.46 GB |
+| The release gate | `Test-Release.ps1 -Version 0.5.3 -AllowUnsigned -Scan`: versions, hashes, sizes (zip 849 MiB, installer 750 MiB), shipped programs, Defender clean; unsigned, as decided |
+| **Not tested** | The installer installed and run; a weaker computer. (The owner checked the game by hand before release, 2026-11-25: "its pretty much all checked") |
+
 ## 11.2f What was verified for 0.5.2's nine levels at the nests (2026-11-21, not released)
 
 | Check | Result |
@@ -143,7 +161,7 @@ The Windows trust audit, with its evidence: [`docs/release-audits/v0.5-to-v0.5.1
 
 1. Start screen appears: the rendered picture behind, the game's own panel at the left titled CAUCASIAN EAGLE with five rows, the makers' line along the bottom ("A GAME BY GIORGI SAMKHARADZE", "Built in Doorways, a custom engine founded by Giorgi Samkharadze in February 2026"); W / S and the mouse move the selection; Guide and Credits open the guide; Settings opens the engine's settings and Back returns; window title reads "Caucasian Eagle"; the first row enters Moonlit Sanctuary; four prologue cards show.
 1a. Growth: fell creatures and see the crystal count rise; press I, buy a level and an evolution, see the count fall and the numbers under All together change; evolve all three items once and see the NYXARA EVOLVES banner; break a chest and drink the potion with Z after taking damage.
-1b. The Ascent's levels (0.5.2): away from a nest press I and see LEVEL UP dim (*in a nest only*); in a nest with crystals enough see *LEVEL UP: n READY* beside I, buy a level of each thing and see her wings, swords and armour change; put her own look back on with A / D and a click on a mark; leave and fall: she wakes in that nest with what she bought.
+1b. The Ascent's quests and gears (0.5.3): press Q anywhere and see the first three quests and their price in wind crystals; TAKE one with too few crystals and see it refused; take one, beat creatures or break jars and see its count rise in the HUD box (*Q: n of m done*); finish all three and see THE HIGHLANDS put on her at once, *Saved*, her window (I) showing the new gear and its numbers, and six fire quests offered; fall and wake at the saved nest wearing it.
 1b. Cage: in a fight, walk to each wall; she stops without jumping; with the camera turned so the wall is between it and her, the blocks in the way sink.
 2. On foot WASD moves her at a jog, back low, wings half open; Shift runs and Ctrl stalks; standing she looks about and shakes her wings.
 3. Space jumps and never flies. R on the ground: she rises for 3 s and flies; W goes where the camera looks; Space held climbs straight up (to the ceiling), X held sinks. R in the air, low: she lands in 3 s and walks; high: "too high to land". Fighting or touching the ground in flight does not end it.

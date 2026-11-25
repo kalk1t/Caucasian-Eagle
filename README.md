@@ -6,7 +6,7 @@ A single-player action game for Windows, built on the Doorways engine.
 
 Amirani fought against God and is chained in a cave on the Caucasus Range, where an eagle feeds on his liver. Once every seven years the cave opens. On that day **Nyxara**, the eagle's daughter, sees him, and promises to spend seven years becoming strong enough to fight her father and break the chain. The game is her road to the mountain. Full story: [`story/STORY.md`](story/STORY.md).
 
-**Version 0.5.2** is **the Eagle's Ascent**: the climb from the sea to Amiran's court at 4,200 m, on foot and on her wings, past the creatures of the mountain and four bosses (the Gveleshapi, the Giant, the Devi Lord and the Eagle). Nyxara fights with two swords (a string of moves on each mouse button, also in a jump; Space jumps out of any of them), slides with **F**, and with **E** wraps her wings round her for 3 seconds while she goes on fighting; she finishes every creature, the bosses too, with one of four finishing kills. In the Eagle Nests she buys nine levels each of her wings, swords and armour with crystals, and every level brings a look she can wear anywhere; **I** shows her, turned round by the mouse. Her wings carry her 10 seconds at first and 30 at level 9; Space held 1 second takes her up. Crystals come from the creatures and from clay jars beside every road (Georgia's old pottery: break them to see what is inside); potions, found in the jars and drunk with **Z**, are her only healing. Every tree of the mountain, 299,664 of them, is drawn as a 3D model with its branches, leaves and roots, and every one stops her; logs, ferns and flowers lie on the ground. **M** shows the whole mountain in 3D, to go over with the mouse (**Tab**: the detailed map). **Esc** opens the menu (with the settings); **H** in any Eagle Nest saves; when she falls she wakes at the nest she saved at, and everything since that save is undone. The road to Amirani of 0.4.0 (twelve regions, seven cities, ten creatures of Caucasian folklore, the Eagle and the chain) is still in the game. It has been tested by unattended runs and only partly played by hand. Download `CaucasianEagle-0.5.2-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows may warn that it does not know the file: it is not signed yet; see [why Windows warns](docs/manual.md#why-windows-warns)), and start **Caucasian Eagle** from the Start menu: since 0.5 `CaucasianEagle.exe` starts the Eagle's Ascent (the road of 0.4 is **Caucasian Eagle - The Road (0.4)**, or `CaucasianEagle.exe --road`). What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
+**Version 0.5.3** is **the Eagle's Ascent**: the climb from the sea to Amiran's court at 4,200 m, on foot and on her wings, past the creatures of the mountain and four bosses (the Gveleshapi, the Giant, the Devi Lord and the Eagle, who now fights in the air over its court). Nyxara fights with two swords (a string of moves on each mouse button, also in a jump; Space jumps out of any of them), slides with **F**, and with **E** wraps her wings round her for 3 seconds while she goes on fighting; she finishes every creature, the bosses too, with one of four finishing kills. She grows by her **quests** (**Q**, anywhere): three, then six, then nine, bought with crystals; each set done, she wears a new gear at once (THE HIGHLANDS, AMIRANI'S FIRE, MOONLIT), each stronger, with longer flight (10 s in her own gear, 30 s in the last) and its own light on her blows. Crystals come in three kinds by the stretch of the way (wind, fire, ice), from the creatures and from clay jars beside every road (Georgia's old pottery: break them to see what is inside); potions, found in the jars and drunk with **Z**, are her only healing. **I** shows her and her gear, turned round by the mouse. The whole mountain beside the path can be walked; rock faces and steep slopes are walls. The camera looks up nearly straight up, glides on stairs, and sees through the trees in its way. Every tree of the mountain, 299,664 of them, is drawn as a 3D model with its branches, leaves and roots, and every one stops her; logs, ferns and flowers lie on the ground. **M** shows the whole mountain in 3D, to go over with the mouse (**Tab**: the detailed map). **Esc** opens the menu (with the settings); **H** in any Eagle Nest saves; when she falls she wakes at the nest she saved at, and everything since that save is undone. The road to Amirani of 0.4.0 (twelve regions, seven cities, ten creatures of Caucasian folklore, the Eagle and the chain) is still in the game. It has been tested by unattended runs and only partly played by hand. Download `CaucasianEagle-0.5.3-Setup.exe` from the [releases page](https://github.com/kalk1t/Caucasian-Eagle/releases), run it (Windows may warn that it does not know the file: it is not signed yet; see [why Windows warns](docs/manual.md#why-windows-warns)), and start **Caucasian Eagle** from the Start menu: since 0.5 `CaucasianEagle.exe` starts the Eagle's Ascent (the road of 0.4 is **Caucasian Eagle - The Road (0.4)**, or `CaucasianEagle.exe --road`). What changed: [`docs/changelog.md`](docs/changelog.md). The road to v1.0 is in [`milestones/`](milestones/README.md).
 
 ## System requirements
 
@@ -14,7 +14,7 @@ Amirani fought against God and is chained in a cave on the Caucasus Range, where
 |---|---|---|
 | System | Windows 10, 64-bit | Windows 11, 64-bit |
 | Processor | 64-bit, 4 cores | 8 cores or more |
-| Graphics | A graphics card with DirectX 11 and 2 GB of its own memory | 4 GB |
+| Graphics | A graphics card with DirectX 11 and 4 GB of its own memory | 6 GB or more |
 | Memory | 8 GB | 16 GB |
 | Disk | 2 GB free | the same, on an SSD |
 | Screen | 1280 x 720 | 1920 x 1080 |
@@ -22,7 +22,7 @@ Amirani fought against God and is chained in a cave on the Caucasus Range, where
 | Sound | Any sound device | |
 | Internet | Not needed | |
 
-The game has run on one computer only: Windows 11, Ryzen 9 9950X3D, 64 GB of memory, GeForce RTX 5080, where it holds 60 frames a second. The "lowest" column is an estimate from what version 0.5.2 was measured to use there (2026-11-21): 1.44 GB on disk once installed; up to about 2 GB of memory (1.3 to 1.4 GB in use at once); up to 1.3 GB of the graphics card's own memory (0.4 GB on the climb, 0.8 GB with the whole mountain in view, 1.3 GB on the road of 0.4); and while it loads it keeps many processor cores busy. No weaker computer has been tried.
+The game has run on one computer only: Windows 11, Ryzen 9 9950X3D, 64 GB of memory, GeForce RTX 5080, where it holds 60 frames a second. The "lowest" column is an estimate from what version 0.5.3 was measured to use there (2026-11-25, the whole climb from the shore to the summit): 1.46 GB on disk once installed; about 1.3 GB of memory in use at once (1.0 GB of its own); about 2 GB of the graphics card's own memory (0.5.2 used 0.4 GB on the climb: 0.5.3's trees, camera and light take more); and while it loads it keeps many processor cores busy. No weaker computer has been tried: on a card with less than 4 GB of its own memory the game may run slowly or not at all.
 
 ## Guide
 
@@ -32,7 +32,7 @@ How to play is in three places, and they say the same:
 - **The [player manual](docs/manual.md):** everything, at length.
 - **Below:** the keys.
 
-In short: follow the old road from its first gate to the mountain. On the way are nine traps (the line under the compass says what each one asks) and 26 named places to find. In most clearings ringed with standing stones you are ambushed and walls hold you in until each wave is beaten. Creatures leave crystals; spend them in Nyxara's window (**I**) on her wings, swords and armour. Seven cities on the road heal you once each and give a lasting gift. Three guardians and, at the end, the Eagle bar the way. The game saves by itself.
+In short: climb the mountain from the sea to Amiran's court, on foot and on her wings. Creatures and clay jars leave crystals; with them she buys her quests (**Q**), and each set of quests done gives her a new gear. Potions in the jars are her only healing. **H** in an Eagle Nest saves; beaten, she wakes there. Three bosses and, at the top, the Eagle bar the way. (The road of 0.4 has its own guide in the manual.)
 
 ## Build and run
 
@@ -53,13 +53,15 @@ The first build compiles the whole engine and takes several minutes. The runnabl
 | Input | Action |
 |---|---|
 | W A S D | Run; A and D turn her |
-| Space | Jump (also out of any move of her combo); held 1 s, take wing (10 s of flight, up to 30 s at wing level 9) |
+| Mouse | Look, up to nearly straight up |
+| Space | Jump (also out of any move of her combo); held 1 s, take wing (10 s of flight, 15, 22 and 30 s in her three gears) |
 | R (flying) | Land |
 | Left click / right click | Her combo: each button goes on through its own string of moves (also in a jump) |
 | F | The slide; flying, the twisted dash |
 | E | Wing shield: 3 s, blows from every side stopped while she goes on fighting; then 7 s to rest |
 | Z | Drink a potion (the only healing) |
-| I | Her window: nine levels each of wings, swords and armour (bought in an Eagle Nest), her looks (anywhere); drag turns round her |
+| Q | Her quests, anywhere: take one with crystals; each set done, a new gear |
+| I | Her window: her gear and what it gives her, her quests for the next, her crystals and what she carries; drag turns round her |
 | H | Save, standing in an Eagle Nest |
 | M | The whole mountain in 3D, gone over with the mouse (drag, right drag, wheel, WASD, Space to her); Tab: the detailed map |
 | Backspace | Back to the last Eagle Nest she stood in |

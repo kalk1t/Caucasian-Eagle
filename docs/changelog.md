@@ -4,6 +4,44 @@
 
 Newest first. Each version names the engine commit it was built against.
 
+## 0.5.3 · 2026-11-25 · Her quests and three gears; the Eagle's own fight; the mountain walkable off the way; the camera
+
+**Her quests (Q) and three gears in place of the nine levels (2026-11-22).** The owner: "nyxara can open quests with Q and quests are coming one after each is done ... first nyxara can buy these three tasks, then when she completes she becomes new look and then she can buy 6 and then after finish these 6 then 9". She sets out in her own plain gear. **Q** opens her quests anywhere (the climb waits): three first, bought with crystals; when all three are done she wears **THE HIGHLANDS** at once, and it is saved; then six for **AMIRANI'S FIRE**, then nine for **MOONLIT**. A quest is to beat so many creatures, break so many clay jars or reach an Eagle Nest, and counts only once taken. The HUD shows the quests taken and *Q: n of m done*. Each gear is new wings, swords and armour and makes her stronger: damage x 1.6 / 2.3 / 3.2, damage taken x 0.8 / 0.6 / 0.3, flight 15 / 22 / 30 s (10 s in her own); she stands a little taller in each, and its light (gold, embers, moonlight) is on her wings, blades and feet. Her moves play at half speed with the Character Lab's light on her blows (lines of light, flashes, sparks, in her gear's kind). The nine levels, buying them in a nest and choosing looks are gone, and so are the spirits who were to give the quests (built and taken out the same day: "we dont need master on the road"). The 18 quests are a first set, to be chosen again with the owner. `game/src/AscentQuests.h/.cpp`; the plan is `docs/plan-three-gears-masters.md`.
+
+**Crystals in three kinds (2026-11-22).** What the creatures and jars leave is of their stretch of the way: **wind** up to the third Eagle Nest, **fire** up to the sixth, **ice** beyond (about 130, 297 and 545 on the mountain). The first set of quests is bought with wind (38 in all), the second with fire (131), the third with ice (182). The HUD shows the three counts, the kind of where she is underlined.
+
+**Her window (I) shows her gear (2026-11-22).** Two panels with her on her stage of sky between them: her gear, what it gives her and the three gears with how far her quests are for the next; her crystals of each kind, which kind is left where she is, and what she carries. Nothing is bought in it now.
+
+**The save (2026-11-22).** `eagles-ascent.sav` now holds her gear, her quests and her three crystal counts ("rules 3"). A save from 0.5.2 or older is not read: the climb starts again from the shore (the owner's choice).
+
+**The Eagle fights in the air (2026-11-23).** The owner: "main Eagle's combat is very poor and it also was fighting half way in the ground". It hovered in one place 9 m from her, and its dive left it 2 m in the court's floor. Now it flies over its court: it circles her high, out of her swords' reach, throwing feathers; it swoops down through where she stands (low, she can strike it; her wing shield throws it down onto the court); it marks her place and dives onto it, then lies winded on the court, its wings folded, while she strikes; it hangs before her and throws a fan of feathers. At two thirds of its health it calls a storm of feathers onto marks round her and swoops twice in a row; at one third it dives three times in a row and stays down longer. It keeps over its court and off Amirani. `tools/boss-film.ps1` films a boss fight unattended (DEMO=12).
+
+**The whole mountain can be walked beside the paths (2026-11-22 to 23).** The owner: "i want whole mountain to be walkable beside the paths we have". Off the way she walked into cliff feet and fell inside the mountain (14 of the first 61 runs of the new off-the-way test). Now:
+- In the engine, the steep faces of walkable ground (too steep to stand on) are walls: she slides along a rock face or down a slope too steep to stand on, and still walks off a ledge. They are found when the map loads (0.4 s; about 10 microseconds a move).
+- The map takes rock as collision in steep cells near the route. Its stair sides are one box per step, turned with the stair.
+- The game keeps her out of the drawn rock where the collision lies behind it, and a step on foot into the mountain's inside is not taken.
+
+The new test (`tools/side-test.ps1`, DEMO=14) runs her off the way to the left and right about every 40 m: no run falls through any more. Engine `91b55bb`.
+
+**The map (2026-11-22 to 23).** The owner: triangle gaps beside the first stairs; "cave entrances terrible"; trees "hanging in the air"; "leave spaces around trees". The fixes:
+- Stair and rock seams are closed.
+- Cave mouths have rims faced out, skirts under the sills, rock plates under foot mouths and a lining behind the walls. The black hoods and the blue holes are gone, and rock points are moved out of the openings.
+- Every tree stands on the lowest drawn ground round its trunk.
+- On walkable ground trunks stand at least 1.6 m apart (about 1,650 of 28,500 near trees left out, the biggest kept).
+- One group beside the way (around-0522) that had only a cliff edge to stand on is left out.
+
+**No words over the way (2026-11-22).** The owner: "no titles on roads ... leave it visible on M map". The nests' names and the "road goes on above" signs no longer hang in the world. The M view names the nests, and a nest still says *SAVE AT THIS EAGLE NEST* with its H.
+
+**The camera (2026-11-22).** The owner: "look up all up", "it should bring camera to nyxara closer". The mouse now looks up nearly straight up. Looking up, the camera swings down behind her and in close, over her right shoulder, until she sinks to the bottom of the view. It follows her height smoothly, so on stairs it glides instead of jumping. Where a slope or wall behind her would bring it into her, it rises over it and looks down. Trees between the camera and her are drawn see-through. `tools/camera-test.ps1` (DEMO=13) sweeps it. Engine `91b55bb`.
+
+**The guide.** Its JOURNEY and HEALTH pages describe the climb (they still described the road of 0.4). MOVING and GROWING describe Q, her gears and her window.
+
+**Tests and tools.** `tools/quest-test.ps1` (DEMO=11: quests bought, refused, counted, a set done and saved, rolled back). `tools/play-gear.ps1 -Gear N` and `tools/play-eagle.ps1 [-Gear -Nest]` start the game on a separate save with a gear or at a nest, to try the Eagle without climbing. `tools/side-test.ps1`, `tools/camera-test.ps1` and `tools/boss-film.ps1` are described above.
+
+**What the game needs, measured again (2026-11-25).** On the whole climb from the shore to the summit, 0.5.3 used about 1.3 GB of memory and about 2 GB of the graphics card's own memory (0.5.2: 0.4 GB on the climb); installed it is 1.46 GB. The lowest graphics card is now one with 4 GB of its own memory (was 2 GB), better 6 GB. README, manual and the guide's page say so.
+
+**Version 0.5.3.** `GameConstants.h`, `CaucasianEagle.rc` and the installer script. Released unsigned, as the owner decided (signing comes with 1.0.0). Engine commit `91b55bb`.
+
 ## 0.5.2 · 2026-11-21 · Real trees; her levels and looks; the wing shield; the mountain to explore
 
 **The trees beside the path are real 3D models (2026-11-20).** The owner: "improve trees, create its real 3D models, refine them, their branches and leaves, their roots". Until 0.5.1 every tree of the Ascent was baked into the map: a few crossed pictures on a stick. Now the game draws them itself from a library of models made by `art/trees` (Python): 18 kinds (the Caucasian fir, the great old fir, the young fir, spruce, Scots pine, beech, oak, maple, hornbeam, the golden beech, birch, apple, cherry, orange and pomegranate trees, rhododendron, juniper and dead snags), 58 variants. Each is grown branch by branch: a trunk that flares at its foot into roots that run into the ground, limbs set the way the kind sets them (a fir's whorls, a maple's opposite pairs, the spiral of the others), twigs, and at their ends the kind's own sprays of leaves, boughs of needles or a pine's tufts, from CC0 photographs (ambientCG, Poly Haven; listed in `art/trees/LICENSES.md`). Bark is the photographed bark of each kind, with its relief, at a real bark's brightness. Every model has four levels of detail; far off a tree is a picture of itself rendered in Blender (an impostor atlas). Trees within 150 m cast shadows (a new engine hook: games cast shadows of what they draw). The map now lists its 47,659 near trees (`Maps/EaglesAscent.plants`) instead of baking them; the far forest stays baked, at half its triangles (5.3 M, was 10.4 M), and the compiled map is 758 MB (was 1.3 GB). Trunks still stop Nyxara. `CAUCASIAN_EAGLE_GAME_TREES=0` turns the new trees off. The Map Lab draws the same trees. `tools/nature-test.ps1` runs the nature test unattended (`-NoGameTrees` for the old look). In the lab's 18 review views a frame takes 2.0 to 4.7 ms.

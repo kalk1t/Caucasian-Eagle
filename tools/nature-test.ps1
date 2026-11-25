@@ -6,7 +6,8 @@ param([string]$Out = '', [switch]$NoGameTrees, [int]$Timeout = 420)
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Out) { $Out = Join-Path $repo ("build\nature\" + (Get-Date -Format 'yyyyMMdd-HHmmss')) }
-$Out = [IO.Path]::GetFullPath((Join-Path (Get-Location) $Out))
+if (-not [IO.Path]::IsPathRooted($Out)) { $Out = Join-Path (Get-Location) $Out }   # (a full path as it is: joined, it was refused)
+$Out = [IO.Path]::GetFullPath($Out)
 New-Item -ItemType Directory -Force $Out, (Join-Path $Out 'shots') | Out-Null
 $exe = Join-Path $repo 'build\stage\CaucasianEagle\CaucasianEagle.exe'
 if (-not (Test-Path $exe)) { throw "Not staged: $exe (tools\build.ps1)" }

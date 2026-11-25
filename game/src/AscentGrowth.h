@@ -1,23 +1,25 @@
 #pragma once
 
-// How Nyxara grows on the Eagle's Ascent (0.5.2, the owner 2026-11-21), and her window there (the I key).
+// How Nyxara grows on the Eagle's Ascent (0.5.3, the owner 2026-11-22), and her window there (the I key).
 //
-// "make it buy as now with crystals , make nest only place where she can upgrade, make the upgrade 9 times instead of
-// 3 ... so player will be able to upgrade each item individually at the nest - I still opens the inventory". Her wings,
-// her swords and her armour have nine levels each, bought one at a time with crystals, only standing in an Eagle Nest.
-// Each level is a look of its own (NyxaraLooks: levels 1-3 THE HIGHLANDS, 4-6 AMIRANI'S FIRE, 7-9 MOONLIT), and at a
-// nest she may wear any look she has reached ("choose own look after leveling up only and at the nest only"): looks
-// change nothing but how she looks. The trainings (power, defence) are gone; their strength is in the levels.
-//   wings    how long she flies: 10 s at level 0 to 30 s at level 9 (AscentLevelFlightSeconds)
-//   swords   the damage of her blows: + AscentSwordLevelDamage a level
-//   armour   the damage she takes: - AscentArmourLevelTaken a level
-//   form     one for each three levels all three have (levels 3, 6, 9): more damage, less taken, taller (FormDamage...)
-// A level's price is the map's (EaglesAscent::Levels): what lies between two nests pays for one level of all three.
-// The state is Growth::State (Level[Wings .. Armour] and Look[]): EaglesAscentGame keeps it, saves it and spends it.
+// "we will only have 3 gears ... we dont need 9level system anymore"; "nyxara can open quests with Q ... first nyxara can
+// buy these three tasks, then when she completes she becomes new look and then she can buy 6 and then after finish
+// these 6 then 9". She sets out in her own gear (0); each set of her quests (AscentQuests) done gives her a whole gear,
+// in this order (docs/plan-three-gears-masters.md):
+//   1 THE HIGHLANDS    3 quests, wind crystals   (THE HIGHLANDS' third tier of wings, swords and armour)    her blue, and wind
+//   2 AMIRANI'S FIRE   6 quests, fire crystals   (AMIRANI'S FIRE's second tier)                             fire
+//   3 MOONLIT          9 quests, ice crystals    (MOONLIT's third tier)                                     ice and crystal
+// She always wears the newest. A gear is her look, her attacks' light (NyxaraKit::SetTrialTheme), and her strength:
+// how long she flies, the damage she deals and takes (GameConstants: Gear...), and a little taller with each (Form).
+// The state is Growth::State::Gear: EaglesAscentGame keeps it and saves it.
+//
+// Crystals (0.5.3) are of three kinds, wind, fire and ice, each the price of a set of her quests. The creatures and clay
+// jars of a stretch of the way (between two nests) leave its kind: wind up to the third nest, fire up to the sixth, ice
+// beyond (GameConstants CrystalNests). Growth::State::AscentCrystals.
 
 #include "Growth.h"
 
-#include <vector>
+#include <string>
 
 namespace CaucasianEagle
 {
@@ -26,33 +28,42 @@ namespace CaucasianEagle
     namespace AscentGrowth
     {
         constexpr int ItemCount = 3;   // Growth::Wings, Growth::Swords, Growth::Armour
+        constexpr int GearCount = 4;   // 0 her own, then the three
 
-        // prices[k]: crystals for level k + 1 of any one item. 0: none to buy (at the top, or no price for it).
-        int Cost(const Growth::State& state, int item, const std::vector<int>& prices);
-        int Form(const Growth::State& state);              // 0..3
+        int Form(const Growth::State& state);              // her gear, 0..3 (how tall she stands)
         float Damage(const Growth::State& state);          // of every blow she deals (1 at the start)
         float DamageTaken(const Growth::State& state);     // of every blow she takes
-        float FlightSeconds(int wingLevel);
-        // the look a level is: its name ("Lammergeier wings"), its example's title ("THE HIGHLANDS") and its colour
-        std::wstring LookName(int item, int level);
-        std::wstring LookTitle(int level);
-        // her state made whole: levels 0..9, looks 0..level
+        float FlightSeconds(int gear);
+
+        const wchar_t* GearTitle(int gear);                // "AS SHE SET OUT", "THE HIGHLANDS", ...
+        const wchar_t* GearEarned(int gear);               // "", "Earned with her first three quests.", ...
+        std::wstring GearItem(int gear, int item);         // "Wings of the royal eagle", ...
+        void GearLook(int gear, int& example, int& tier);  // NyxaraLooks: its example (0-based) and tier (0 her own)
+        void GearStyle(int gear, int& theme, int& level);  // NyxaraKit::SetTrialTheme's
+        struct Tint { float R, G, B; };
+        Tint GearColour(int gear);                         // her own grey, THE HIGHLANDS gold, the fire's embers, moonlight
+
+        enum CrystalKind { WindCrystal, FireCrystal, IceCrystal };
+        constexpr int CrystalKinds = 3;
+        int CrystalKindOf(int stretch);                    // a stretch's kind (EaglesAscent::StretchAlong / StretchHeight)
+        const wchar_t* CrystalName(int kind);              // "wind", "fire", "ice"
+        const char* CrystalId(int kind);                   // the same, for the tests' tables
+        const wchar_t* CrystalFor(int kind);               // "for the Highlands", ...: the gear whose quests it buys
+        Tint CrystalColour(int kind);
+        int AllCrystals(const Growth::State& state);       // the three together
+
+        // her state made whole: gear 0..3, crystals and potions in their bounds
         void Clamp(Growth::State& state);
 
         struct View
         {
             Growth::State Now;
-            std::vector<int> Prices;
-            int Selected = 0;            // the item chosen
             float Fade = 0;              // 0 closed .. 1 open
-            float Flash = 0;             // 1 just bought (or a look put on) .. 0
-            int FlashRow = -1;
-            bool AtNest = false;         // levels are bought and looks chosen only then
+            float Flash = 0;             // 1 a gear just given .. 0
+            bool AtNest = false;
             int PotionHeal = 0;
+            int HereKind = 0;            // the kind of crystal where she is
         };
         void Draw(Ui& ui, const View& view);
-        // the colour of a level's look: her own, THE HIGHLANDS gold, MOONLIT moonlight, AMIRANI'S FIRE embers
-        struct Tint { float R, G, B; };
-        Tint LookColour(int level);
     }
 }

@@ -95,6 +95,7 @@ namespace CaucasianEagle
         float EvadeSide = 1; // which way: 1 its right, -1 its left, 0 back
         float Air = 0;       // 0 .. 1 off the ground (a hop, a leap): its feet are not kept on the ground
         float Run = 0;       // 0 .. 1 running, faster than it walks: it leans into it, its knees come up, its arms pump
+        float Perch = 0;     // 0 .. 1 (the eagle) down on the ground, its wings folded and still
         bool Mirror = false; // the blow with its other side (its left arm, its left foot)
         CreatureRig::Attack Attack = CreatureRig::Attack::Swing;   // the blow wound up (Windup, Action)
         // the blow landing (Strike), and with which side: as a rule the one wound up, but a quick creature winds up its
