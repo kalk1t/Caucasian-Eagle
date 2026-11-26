@@ -1,8 +1,9 @@
 #pragma once
 
 // The game's own settings window (Settings.cpp), in the same panel, gold and ink as Nyxara's other windows.
-// It shows only what this game uses: the window, shadows, the four volumes, the mouse, the size of the
-// interface and the frame counter. The engine's settings screens are not used (DoorwaysGameSession::OwnSettings):
+// It shows only what this game uses: the window, vertical sync and the most frames a second, shadows, the four
+// volumes, the mouse, the size of the interface and the frame counter. The engine's settings screens are not used
+// (DoorwaysGameSession::OwnSettings):
 // the values still belong to the engine, which applies and saves them; this window reads them from
 // GameSession().Settings and asks for changes there.
 

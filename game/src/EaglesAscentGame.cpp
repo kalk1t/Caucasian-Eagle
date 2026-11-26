@@ -73,6 +73,11 @@ namespace CaucasianEagle
         session.CameraStopsAtGround = true;   // the camera stays out of the rock and inside the caves (owner 2026-11-18)
         session.WindowTitle = std::wstring(GameTitle) + L" - The Eagle's Ascent";
         session.UserDataFolder = UserDataFolder;   // the same settings as the road; its own save beside the road's (AscentSaveFileName)
+        // (a test's own folder under %LOCALAPPDATA%, so that the settings it changes and the save it writes are not the
+        // player's: CAUCASIAN_EAGLE_USER_FOLDER=<name>; and an unattended run held to so many frames a second, which it
+        // is not otherwise: CAUCASIAN_EAGLE_FRAME_LIMIT=<n>, -1 for the limit in the settings)
+        if (const std::string folder = Env("CAUCASIAN_EAGLE_USER_FOLDER"); !folder.empty()) session.UserDataFolder = std::wstring(folder.begin(), folder.end());
+        session.UnattendedFrameRateLimit = std::atoi(Env("CAUCASIAN_EAGLE_FRAME_LIMIT").c_str());
     }
 
     bool EaglesAscentGame::Prepare(DoorwaysGameHost& host, std::string& error)
@@ -108,6 +113,7 @@ namespace CaucasianEagle
         // (CAUCASIAN_EAGLE_STEEP_WALLS=0), or the game's own rules at rock (CAUCASIAN_EAGLE_ROCK_RULES=0).
         session.SteepGroundBlocks = Env("CAUCASIAN_EAGLE_STEEP_WALLS") != "0";
         mMap.RockRules = Env("CAUCASIAN_EAGLE_ROCK_RULES") != "0";
+        mMap.LongSteps = Env("CAUCASIAN_EAGLE_LONG_STEPS") != "0";   // (a test's baseline: EaglesAscent::LongSteps)
         GetNyxaraKit().SetRealJump(EaglesAscent::JumpSpeed);   // Space on foot is a real jump here
         auto& camera = host.World.MainCamera;
         camera.FarZ = EaglesAscent::FarPlane; camera.NearZ = .25f;   // the summit must be in view from the shore
@@ -145,10 +151,11 @@ namespace CaucasianEagle
         mMapTest = Env(DemoEnvironmentVariable) == "10";     // the detailed map by the pointer, unattended (MapTest)      // her window showing her, turned round, unattended (ShowTest)
         mPointerTest = Env(DemoEnvironmentVariable) == "7";   // her window and her menu by the pointer, unattended (PointerTest)
         mLedger = Env(DemoEnvironmentVariable) == "8";        // the crystals between the nests, counted, unattended (Ledger)
-        mQuestTest = Env(DemoEnvironmentVariable) == "11";   // her quests: Q, bought, counted, a gear earned (QuestTest)
+        mQuestTest = Env(DemoEnvironmentVariable) == "11";   // her quests: Tab, bought, counted, listed, a gear earned (QuestTest)
         mBossFilm = Env(DemoEnvironmentVariable) == "12";    // a boss filmed as it fights her (BossFilm)
         mCameraTest = Env(DemoEnvironmentVariable) == "13";  // the camera's pitch swept along the way (CameraTest)
         mSideWalk = Env(DemoEnvironmentVariable) == "14";    // she runs off the way to both sides along it (SideWalk)
+        if (!Env(DemoEnvironmentVariable).empty()) mSlowMs = std::clamp(std::atoi(Env("CAUCASIAN_EAGLE_SLOW_MS").c_str()), 0, 200);   // (a test's slow frames)
         mTrees.SeeThroughOff = Env("CAUCASIAN_EAGLE_CAMERA_OLD") == "1";   // (tests: the trees as they were before 2026-11-22)
         mLog = Env(AscentLogEnvironmentVariable);
         mTrace = !mLog.empty();
@@ -167,6 +174,7 @@ namespace CaucasianEagle
             if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "ways.sav"; mSaveTest = true; }
             std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
+            mWaysDash = Env("CAUCASIAN_EAGLE_WAYS_DASH") == "1";
             GetNyxaraKit().SetAutoKeys(&mWaysKeys);
         }
         if (mBossFilm)
@@ -178,6 +186,14 @@ namespace CaucasianEagle
             if (const std::string t = Env("CAUCASIAN_EAGLE_BOSS_SECONDS"); !t.empty()) mBossFor = static_cast<float>(std::atof(t.c_str()));
             if (const std::string t = Env("CAUCASIAN_EAGLE_BOSS_EVERY"); !t.empty()) mBossEvery = std::max(.05f, static_cast<float>(std::atof(t.c_str())));
             mBossFight = Env("CAUCASIAN_EAGLE_BOSS_FIGHT") == "1";
+            mBossWalk = Env("CAUCASIAN_EAGLE_BOSS_FIGHT") == "2";
+            const std::string keys = Env("CAUCASIAN_EAGLE_BOSS_KEYS");   // (her keys by the film's clock: "4:F,6.5:L")
+            for (size_t from = 0; from < keys.size();)
+            {
+                const size_t to = (std::min)(keys.find(',', from), keys.size()), colon = keys.find(':', from);
+                if (colon != std::string::npos && colon + 1 < to) mBossTaps.push_back({static_cast<float>(std::atof(keys.substr(from, colon - from).c_str())), keys[colon + 1]});
+                from = to + 1;
+            }
             GetNyxaraKit().SetAutoKeys(&mBossKeys);
         }
         if (mCameraTest)
@@ -203,6 +219,12 @@ namespace CaucasianEagle
             if (const std::string t = Env("CAUCASIAN_EAGLE_SIDE_FROM"); !t.empty()) mSideFrom = static_cast<float>(std::atof(t.c_str()));
             if (const std::string t = Env("CAUCASIAN_EAGLE_SIDE_TO"); !t.empty()) mSideTo = static_cast<float>(std::atof(t.c_str()));
             mSideFilm = Env("CAUCASIAN_EAGLE_SIDE_FILM") == "1";
+            mSideTrace = mSideFilm || Env("CAUCASIAN_EAGLE_SIDE_TRACE") == "1";
+            mSideAhead = Env("CAUCASIAN_EAGLE_SIDE_AHEAD") == "1";
+            mSideJog = Env("CAUCASIAN_EAGLE_SIDE_JOG") == "1";
+            if (const std::string t = Env("CAUCASIAN_EAGLE_SIDE_FILM_EVERY"); !t.empty()) mSideShotEvery = std::clamp(static_cast<float>(std::atof(t.c_str())), .02f, 5.f);
+            mSideDash = Env("CAUCASIAN_EAGLE_SIDE_DASH") == "1";
+            if (mSideDash) GetNyxaraKit().SetAutoKeys(&mSideKeys);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         }
         if (mPointerTest || mLedger || mQuestTest)
@@ -270,6 +292,12 @@ namespace CaucasianEagle
         {   // her combo, and her attacks as her gears have them (0.5.3: the Character Lab's light, at half speed)
             GetNyxaraKit().SetAttackCombo(0);
             GetNyxaraKit().SetHiggsfieldTrial(true, GearAttackPace);
+            // and her gear's flair, with its own combo and pace, as her gear is put on (Update; owner, 2026-11-25: "i like
+            // 3'd most - so add those to current nyxara's ingame version"; before her first gear plain, no light:
+            // 2026-11-26, "normal nyxara should not have effects"). CAUCASIAN_EAGLE_NYXARA_FLAIR=0: her light
+            // and her combo as they were before it, to compare.
+            mFlairOn = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") != "0";
+            mFlairBlue = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") == "blue";   // (to compare: before her first gear SKY WHEEL in her own blue, as it was for a day)
         }
         if (mNature || mShowTest || mQuestTest || mBossFilm) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger || mShowTest || mMapTest || mQuestTest || mBossFilm || mCameraTest || mSideWalk)
@@ -892,7 +920,8 @@ namespace CaucasianEagle
         const auto state = [&](const char* id) { const int q = quest(id); return q >= 0 ? mGrowth.QuestState[q] : -1; };
         const auto counted = [&](const char* id) { const int q = quest(id); return q >= 0 ? mGrowth.QuestCount[q] : -1; };
         const auto point = [&](int group, int index, const std::string& what) { check(Pointer::Centre(group, index, mPtX, mPtY), what + "_found"); };
-        const int wind = AscentGrowth::WindCrystal, fire = AscentGrowth::FireCrystal;
+        const int wind = AscentGrowth::WindCrystal, fire = AscentGrowth::FireCrystal, ice = AscentGrowth::IceCrystal;
+        const auto listed = [&]() { return AscentQuests::Listed(mGrowth, mQuestLeaving).size(); };   // (the HUD's list: its rows)
         constexpr int Frames = 4;
         const int step = mPtStep++;
         mPtWait = Frames;
@@ -909,9 +938,9 @@ namespace CaucasianEagle
             mGrowth.AscentCrystals[wind] = 40; mGrowth.AscentCrystals[fire] = 20;   // (8 + 12 + 18 for the three)
             picture("hud_none_taken");
             break;
-        case 2: mTestKey = 'Q'; break;   // Q, anywhere
+        case 2: mTestKey = VK_TAB; break;   // Tab, anywhere (Q until 0.5.4)
         case 3:
-            check(mQuestsOpen && session.FreeCursor && mQuestRow == 0 && AscentQuests::Rows(0).size() == 3, "q_opens_the_first_three");
+            check(mQuestsOpen && session.FreeCursor && mQuestRow == 0 && AscentQuests::Rows(0).size() == 3, "tab_opens_the_first_three");
             picture("quests_offered");
             break;
         case 4: mTestKey = VK_RETURN; break;   // the first, with Enter
@@ -937,6 +966,7 @@ namespace CaucasianEagle
         case 15:   // counted only once taken: four creatures, six jars, the fourth nest
             CountQuests(AscentQuests::Beat, 3);
             check(counted("wind.1") == 3 && state("wind.1") == AscentQuests::Taken, "three_beaten_counted");
+            check(listed() == 3, "three_taken_three_listed");
             picture("hud_taken");
             break;
         case 16:
@@ -944,45 +974,80 @@ namespace CaucasianEagle
             check(state("wind.1") == AscentQuests::Done && state("wind.2") == AscentQuests::Done && counted("fire.1") == 0, "beat_4_and_jars_6_done");
             ReachNest(mMap.Nests[2].Station);
             check(state("wind.3") == AscentQuests::Taken && mGrowth.Gear == 0, "the_third_nest_is_not_the_fourth");
+            check(listed() == 3, "two_done_their_rows_still_going");   // (gold, a line through them, then out: the picture is of that)
             picture("hud_two_done");
             break;
-        case 17:
+        case 17:   // 2.5 s on: the done ones are gone from the list, and done still (the market keeps them)
+            check(listed() == 1 && state("wind.1") == AscentQuests::Done && state("wind.2") == AscentQuests::Done, "done_rows_gone_from_the_list");
+            picture("hud_done_gone");
+            break;
+        case 18:
             ReachNest(mMap.Nests[3].Station);
             check(state("wind.3") == AscentQuests::Done, "reach_nest_4_done");
             break;
-        case 18:   // all three done: THE HIGHLANDS at once, saved where she last saved (the shore, in this new climb)
+        case 19:   // all three done: THE HIGHLANDS at once, saved where she last saved (the shore, in this new climb)
             check(mGrowth.Gear == 1 && AscentQuests::OpenSet(mGrowth) == 1, "three_done_gear_1_at_once");
             check(mSavedGrowth.Gear == 1 && mSavedNest == 0, "saved_waking_at_her_last_nest");
             mPtWait = 60;
             break;
-        case 19: check(mFormShown == 1, "gear_moment_played"); picture("gear_1_earned"); break;
-        case 20: mGrowthOpen = true; mPtWait = 30; break;   // her window: her gears, how far her quests are
-        case 21: picture("window_gears"); break;
-        case 22: mGrowthOpen = false; mPtWait = 20; break;
-        case 23:
+        case 20: check(mFormShown == 1, "gear_moment_played"); picture("gear_1_earned"); break;
+        case 21: mGrowthOpen = true; mPtWait = 30; break;   // her window: her gears, how far her quests are
+        case 22: picture("window_gears"); break;
+        case 23: mGrowthOpen = false; mPtWait = 20; break;
+        case 24:
         {   // read back
             LoadSave();
             const int w1 = quest("wind.1");
             check(mSavedGrowth.Gear == 1 && w1 >= 0 && mSavedGrowth.QuestState[w1] == AscentQuests::Done && mSavedGrowth.AscentCrystals[fire] == 20, "reload_gear_and_quests");
             mGrowth.AscentCrystals[fire] = 100;
-            mTestKey = 'Q';
+            mTestKey = VK_TAB;
             break;
         }
-        case 24:
+        case 25:
             check(mQuestsOpen && AscentQuests::Rows(1).size() == 6 && mQuestRow == 0, "the_next_six_offered");
             picture("quests_second_set");
             mTestKey = 'W';   // (up from the first: round to the last, reach the seventh nest)
             break;
-        case 25: check(mQuestRow == 5, "w_round_to_row_6"); mTestKey = VK_RETURN; break;
-        case 26: check(state("fire.6") == AscentQuests::Taken && mGrowth.AscentCrystals[fire] == 68, "fire_6_taken_for_32"); mTestKey = 'Q'; break;
-        case 27:
+        case 26: check(mQuestRow == 5, "w_round_to_row_6"); mTestKey = VK_RETURN; break;
+        case 27: check(state("fire.6") == AscentQuests::Taken && mGrowth.AscentCrystals[fire] == 68, "fire_6_taken_for_32"); mTestKey = VK_TAB; break;
+        case 28:
             ReachNest(mMap.Nests[7].Station);   // the eighth: above the seventh it asks
             check(!mQuestsOpen && state("fire.6") == AscentQuests::Done, "a_nest_above_the_one_asked_counts");
-            mTestKey = 'Q';
+            mTestKey = VK_TAB;
             break;
-        case 28: check(mQuestsOpen && mQuestRow == 0, "q_again_on_the_first_offered"); mTestKey = VK_RETURN; break;
-        case 29: check(state("fire.1") == AscentQuests::Taken && mGrowth.AscentCrystals[fire] == 56, "fire_1_taken_for_12"); mTestKey = 'Q'; break;
-        case 30:   // she falls: back to the save, the quests after it undone, her crystals as they were
+        case 29: check(mQuestsOpen && mQuestRow == 0, "tab_again_on_the_first_offered"); mTestKey = VK_RETURN; break;
+        case 30: check(state("fire.1") == AscentQuests::Taken && mGrowth.AscentCrystals[fire] == 56, "fire_1_taken_for_12"); mTestKey = VK_TAB; break;
+        case 31:
+        {   // six bought: six rows (until 0.5.4 the list had five at the most). The owner, 2026-11-26: "i bought 6 or 9
+            // quests - it only showed 5". (The sixth is done already: for the picture it is on the way again.)
+            mGrowth.AscentCrystals[fire] = 500;
+            for (const int i : AscentQuests::Rows(1)) TakeQuest(i);
+            mGrowth.QuestState[quest("fire.6")] = AscentQuests::Taken;
+            check(listed() == 6, "six_taken_six_listed");
+            picture("hud_six_taken");
+            break;
+        }
+        case 32:   // nine bought (the third set, the second as if she had done it): nine rows
+            for (const int i : AscentQuests::Rows(1)) mGrowth.QuestState[i] = AscentQuests::Done;
+            mQuestLeaving = {};
+            mGrowth.Gear = 2; mGrowth.AscentCrystals[ice] = 500;
+            for (const int i : AscentQuests::Rows(2)) TakeQuest(i);
+            check(AscentQuests::OpenSet(mGrowth) == 2 && listed() == 9, "nine_taken_nine_listed");
+            picture("hud_nine_taken");
+            break;
+        case 33:   // one of the nine done (five creatures): its row says so and goes
+            CountQuests(AscentQuests::Beat, 5);
+            check(state("ice.1") == AscentQuests::Done && listed() == 9, "one_of_nine_done_its_row_going");
+            picture("hud_nine_one_done");
+            break;
+        case 34: check(listed() == 8 && state("ice.1") == AscentQuests::Done, "gone_from_the_list_of_nine"); mTestKey = VK_TAB; break;
+        case 35:   // the market keeps it, as done (and the nine rows and its keys fit the window)
+            check(mQuestsOpen && state("ice.1") == AscentQuests::Done && AscentQuests::Rows(2).size() == 9, "the_market_keeps_the_done_one");
+            picture("quests_nine_one_done");
+            break;
+        case 36: mTestKey = VK_TAB; break;
+        case 37:   // she falls: back to the save, the quests after it undone, her crystals as they were
+            check(!mQuestsOpen, "tab_closed_the_market");
             RollBack();
             check(state("fire.1") == AscentQuests::Offered && state("fire.6") == AscentQuests::Offered && mGrowth.AscentCrystals[fire] == 20 && mGrowth.Gear == 1 &&
                   state("wind.3") == AscentQuests::Done, "rollback_undoes_the_quests_after_the_save");
@@ -1166,13 +1231,17 @@ namespace CaucasianEagle
                 if (jars[j].Id[0] == 'c') { for (const auto& cave : mMap.Caves()) for (const auto& q : cave.Line) nearest({q.X, q.Y, q.Z}); }
                 else for (const auto& q : mMap.Trail) nearest(q);
                 float ax = road.x - jar.x, az = road.z - jar.z; const float l = std::max(.01f, std::sqrt(ax * ax + az * az)); ax /= l; az /= l;
-                const XMFLOAT3 at{jar.x + ax * 1.5f, jar.y, jar.z + az * 1.5f};
+                // (with her slide: on the way itself where it is nearest the jar, at the way's own height; a group of the
+                // rings has no way within 6 m of it, and she stands by it as for her cuts)
+                const XMFLOAT3 at = mWaysDash && best < 36.f ? road : XMFLOAT3{jar.x + ax * 1.5f, jar.y, jar.z + az * 1.5f};
+                mWaysFrom = std::hypot(at.x - jar.x, at.z - jar.z);
                 Put(host, at, std::atan2(-ax, -az));
                 world.MainCamera.Yaw = std::atan2(-ax, -az);
                 std::copy(std::begin(mGrowth.AscentCrystals), std::end(mGrowth.AscentCrystals), std::begin(mWaysHad));
             }
             if (mWaysClock > 1.4f && mWaysClock - dt <= 1.4f) mTourShot = L"jars_" + std::to_wstring(mWaysPick) + L"_whole";
-            for (const float at : {1.6f, 2.3f, 3.0f}) if (mWaysClock > at && mWaysClock < at + .1f) mWaysKeys.Lmb = true;
+            if (mWaysDash) mWaysKeys.K1 = mWaysClock > 1.6f && mWaysClock < 1.7f;   // (F once)
+            else for (const float at : {1.6f, 2.3f, 3.0f}) if (mWaysClock > at && mWaysClock < at + .1f) mWaysKeys.Lmb = true;
             if (mWaysClock > 4.2f && mWaysClock - dt <= 4.2f) mTourShot = L"jars_" + std::to_wstring(mWaysPick) + L"_broken";
             if (mWaysClock > 4.4f)
             {
@@ -1190,6 +1259,13 @@ namespace CaucasianEagle
                                               << "\tkind=" << AscentGrowth::CrystalId(kind)
                                               << "\tgained=" << gained << "\tcrystals=" << mGrowth.AscentCrystals[0] << "/" << mGrowth.AscentCrystals[1] << "/" << mGrowth.AscentCrystals[2]
                                               << "\tpotions=" << mGrowth.Potions << "\ther_dy=" << her.y - jar.y << "\tjar=" << jar.x << "," << jar.y << "," << jar.z;
+                if (mWaysDash) line << "\tby_her_slide_from=" << mWaysFrom << "\tshe_went=" << std::hypot(her.x - jar.x, her.z - jar.z);
+                if (mWaysDash && jars[j].Id[0] == 'c')
+                {   // (in a cave she slid at its wall: she must be in the cave still)
+                    const bool in = mMap.InCave(her);
+                    line << "\tin_the_cave=" << (in ? 1 : 0);
+                    if (!in) { ++mWaysBad; line << "\tOUT_OF_THE_CAVE"; }
+                }
                 if (broken == 0) { ++mWaysBad; line << "\tNONE_BROKEN"; }
                 if (others != 0) { ++mWaysBad; line << "\tOTHER_KIND_" << others; }
                 row(line.str());
@@ -1354,7 +1430,7 @@ namespace CaucasianEagle
         if (mSideAlong < 0)
         {
             std::ofstream(table, std::ios::trunc) << "along\tside\tresult\toff_m\tdrop_m\tseconds\tx\ty\tz\tslope_ahead\tstep_ahead\ton_stair\tsteep_held\tgame_wall\tgame_into\n";
-            if (mSideFilm) std::ofstream(std::filesystem::path(mLog).parent_path() / "side-trace.tsv", std::ios::trunc) << "along\tside\tt\toff\tx\ty\tz\tgrounded\tland\tland_low\tground_under\tground_over\n";
+            if (mSideTrace) std::ofstream(std::filesystem::path(mLog).parent_path() / "side-trace.tsv", std::ios::trunc) << "along\tside\tt\toff\tx\ty\tz\tgrounded\tland\tland_low\tground_under\tground_over\tcam_x\tcam_y\tcam_z\tcam_land\tcam_cave\ther_cave\n";
             mSideAlong = std::max(mSideFrom, 8.f); mSideSide = 0; mSideClock = -1;
         }
         if (mSideClock < 0)
@@ -1372,35 +1448,44 @@ namespace CaucasianEagle
             const XMFLOAT3 a = trailAt(mSideAlong - 4.f), b = trailAt(mSideAlong + 4.f);
             XMFLOAT3 at = trailAt(mSideAlong); float y = at.y;
             if (Standable(*world.RuntimeScene, at, y)) at.y = y;
-            mSideYaw = std::atan2(b.x - a.x, b.z - a.z) + (mSideSide == 0 ? -XM_PIDIV2 : XM_PIDIV2);
+            mSideYaw = std::atan2(b.x - a.x, b.z - a.z) + (mSideAhead ? 0.f : mSideSide == 0 ? -XM_PIDIV2 : XM_PIDIV2);
             Put(host, at, mSideYaw);
             session.ScriptedMove = 0; mSideClock = 0; mSideStill = 0; mSideUnder = 0; mSideStart = at; mSideLast = at; mSideLow = at.y;
+            mSideKeys = {}; GetNyxaraKit().ResetCooldowns();
             mSideSteep = mSideSteepLast = GetDoorwaysRuntimeSteepGroundStats().HeldMoves; mSideWall = mMap.WallHolds;
             return;
         }
         mSideClock += dt;
         world.MainCamera.Yaw = mSideYaw; world.MainCamera.Pitch = -.12f; p.Yaw = mSideYaw;
-        if (mSideClock < .4f) { session.ScriptedMove = 0; mSideLast = p.Position; return; }
-        session.ScriptedMove = 'W'; session.ScriptedFast = true;
+        if (mSideDash && mSideClock < 1.2f)
+        {   // (with her slide: held where she was stood until a slide of the run before is over; it takes a second)
+            Put(host, mSideStart, mSideYaw); session.ScriptedMove = 0; mSideLast = p.Position; mSideLow = mSideStart.y; return;
+        }
+        if (mSideClock < (mSideDash ? 1.5f : .4f)) { session.ScriptedMove = 0; mSideLast = p.Position; return; }
+        session.ScriptedMove = 'W'; session.ScriptedFast = !mSideJog;
+        mSideKeys.K1 = mSideDash && mSideClock < 1.6f;   // (F, as she sets off)
         const float fx = std::sin(mSideYaw), fz = std::cos(mSideYaw);
         const float off = std::hypot(p.Position.x - mSideStart.x, p.Position.z - mSideStart.z);
         const float moved = std::hypot(p.Position.x - mSideLast.x, p.Position.z - mSideLast.z);
         mSideLast = p.Position; mSideLow = std::min(mSideLow, p.Position.y);
         mSideStill = (dt > 0 && moved / dt < .6f) ? mSideStill + dt : 0;
-        if (mSideFilm)
-        {   // the frame: and the walkable ground under her (to 40 m down) and over her (to 40 m up), as the engine finds it
+        if (mSideTrace)
+        {   // the frame: and the walkable ground under her (to 40 m down) and over her (to 40 m up), as the engine finds it;
+            // the camera's place, the land at it, and whether it and she are in a cave (the camera under the land outside one)
             const float x = p.Position.x, z = p.Position.z, y = p.Position.y;
             const auto below = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*world.RuntimeScene, x, z, y - 40.f, y + .3f);
             const auto above = QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*world.RuntimeScene, x, z, y + .3f, y + 40.f);
-            char row[300];
-            std::snprintf(row, sizeof row, "%.0f\t%s\t%.3f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\t%.2f\t%s\t%s\n", mSideAlong, mSideSide == 0 ? "left" : "right", mSideClock, off, x, y, z,
-                          p.IsGrounded ? 1 : 0, mMap.Land(x, z), mMap.LandLow(x, z), below.Hit ? std::to_string(below.GroundY).substr(0, 7).c_str() : "-", above.Hit ? std::to_string(above.GroundY).substr(0, 7).c_str() : "-");
+            const XMFLOAT3 eye = world.MainCamera.Position;
+            char row[420];
+            std::snprintf(row, sizeof row, "%.0f\t%s\t%.3f\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\t%.2f\t%s\t%s\t%.2f\t%.2f\t%.2f\t%.2f\t%d\t%d\n", mSideAlong, mSideAhead ? "ahead" : mSideSide == 0 ? "left" : "right", mSideClock, off, x, y, z,
+                          p.IsGrounded ? 1 : 0, mMap.Land(x, z), mMap.LandLow(x, z), below.Hit ? std::to_string(below.GroundY).substr(0, 7).c_str() : "-", above.Hit ? std::to_string(above.GroundY).substr(0, 7).c_str() : "-",
+                          eye.x, eye.y, eye.z, mMap.Land(eye.x, eye.z), mMap.InCave(eye) ? 1 : 0, mMap.InCave({x, y + 1.f, z}) ? 1 : 0);
             std::ofstream(std::filesystem::path(mLog).parent_path() / "side-trace.tsv", std::ios::app) << row;
             mSideShot += dt;
-            if (mSideShot >= .25f && !mTourShots.empty())
+            if (mSideFilm && mSideShot >= mSideShotEvery && !mTourShots.empty())
             {
                 mSideShot = 0;
-                wchar_t name[64]; swprintf_s(name, L"film_%05d_%s_%05.2f", static_cast<int>(mSideAlong), mSideSide == 0 ? L"left" : L"right", mSideClock); mTourShot = name;
+                wchar_t name[64]; swprintf_s(name, L"film_%05d_%s_%05.2f", static_cast<int>(mSideAlong), mSideAhead ? L"ahead" : mSideSide == 0 ? L"left" : L"right", mSideClock); mTourShot = name;
             }
         }
         const auto steepHeld = GetDoorwaysRuntimeSteepGroundStats().HeldMoves;   // (the engine's steep walls held her this frame)
@@ -1410,7 +1495,7 @@ namespace CaucasianEagle
         std::string result;
         if (off >= 30.f) result = "free";
         else if (mSideUnder > .3f) result = "FELL_THROUGH";
-        else if (mSideClock > 8.4f) result = "timeout";
+        else if (mSideClock > (mSideJog ? 14.f : mSideDash ? 9.5f : 8.4f)) result = "timeout";
         else if (mSideStill > .8f && p.IsGrounded)
         {
             EaglesAscent::Trunk t;
@@ -1433,17 +1518,17 @@ namespace CaucasianEagle
         const bool bad = result == "BLOCKED" || result == "FELL_THROUGH";
         mSideBad += bad ? 1 : 0; ++mSideCount[result + (stair ? "_on_stair" : "")];
         char line[360];
-        std::snprintf(line, sizeof line, "%.0f\t%s\t%s\t%.1f\t%.1f\t%.1f\t%.2f\t%.2f\t%.2f\t%.2f\t%s\t%d\t%llu\t%d\t%d\n", mSideAlong, mSideSide == 0 ? "left" : "right", result.c_str(), off,
+        std::snprintf(line, sizeof line, "%.0f\t%s\t%s\t%.1f\t%.1f\t%.1f\t%.2f\t%.2f\t%.2f\t%.2f\t%s\t%d\t%llu\t%d\t%d\n", mSideAlong, mSideAhead ? "ahead" : mSideSide == 0 ? "left" : "right", result.c_str(), off,
                       mSideStart.y - mSideLow, mSideClock, p.Position.x, p.Position.y, p.Position.z, (l1 - l0) / 2.5f,
                       ahead.Hit ? std::to_string(ahead.GroundY - p.Position.y).substr(0, 5).c_str() : "-", stair ? 1 : 0,
                       static_cast<unsigned long long>(steepHeld - mSideSteep), mMap.WallHolds - mSideWall, mMap.IntoHolds - mSideInto);
         std::ofstream(table, std::ios::app) << line;
         if ((bad || result == "timeout") && !mTourShots.empty())
         {
-            wchar_t name[64]; swprintf_s(name, L"side_%05d_%s_%S", static_cast<int>(mSideAlong), mSideSide == 0 ? L"left" : L"right", result.c_str()); mTourShot = name;
+            wchar_t name[64]; swprintf_s(name, L"side_%05d_%s_%S", static_cast<int>(mSideAlong), mSideAhead ? L"ahead" : mSideSide == 0 ? L"left" : L"right", result.c_str()); mTourShot = name;
         }
         session.ScriptedMove = 0; mSideClock = -1; mSideInto = mMap.IntoHolds;
-        if (++mSideSide > 1) { mSideSide = 0; mSideAlong += mSideEvery; }
+        if (mSideAhead || ++mSideSide > 1) { mSideSide = 0; mSideAlong += mSideEvery; }
     }
 
     void EaglesAscentGame::BossFilm(DoorwaysGameHost& host, float dt)
@@ -1476,6 +1561,16 @@ namespace CaucasianEagle
         const Journey::MountainLook* boss = nullptr;
         for (const auto& l : looks) if (l.Group == index) boss = &l;
         mBossKeys = {};
+        for (const auto& [at, key] : mBossTaps)
+            if (mBossClock >= at && mBossClock < at + .1f)
+                switch (key)
+                {
+                case 'L': mBossKeys.Lmb = true; break; case 'R': mBossKeys.Rmb = true; break; case 'F': mBossKeys.K1 = true; break;
+                case 'V': mBossKeys.K2 = true; break; case 'C': mBossKeys.K3 = true; break; case 'E': mBossKeys.E = true; break;
+                case 'J': mBossKeys.Space = true; break;
+                default: break;
+                }
+        if (mBossWalk && !boss) GameSession().ScriptedMove = 0;   // (it is beaten: she stands)
         if (boss)
         {
             // the camera behind her, the boss in the picture
@@ -1488,6 +1583,20 @@ namespace CaucasianEagle
                 const bool low = boss->Pos.y - 1.3f - her.Position.y < 2.5f;
                 if (low && d > 4.f && d < 16.f) { her.Position.x += std::sin(toward) * 5.f * dt; her.Position.z += std::cos(toward) * 5.f * dt; }
                 if (d < 7.f) { her.Yaw = toward; if (std::fmod(mBossClock, .5f) < dt) mBossKeys.Lmb = true; }
+            }
+            if (mBossWalk)
+            {   // on foot at it, up the way as a player goes (W by the view, which looks at it); within reach she cuts,
+                // her left string for three seconds and her right for three, in turn. While a slide of the film's keys
+                // carries her she is not turned and does not cut: it goes on through the creature, as a player's does
+                auto& session = GameSession();
+                bool sliding = false;
+                for (const auto& [at, key] : mBossTaps) sliding = sliding || (key == 'F' && mBossClock >= at && mBossClock < at + 1.4f);
+                session.ScriptedMove = d > 2.4f && !sliding ? 'W' : 0; session.ScriptedFast = d > 9.f;
+                if (d < 3.4f && !sliding)
+                {
+                    her.Yaw = toward;
+                    if (std::fmod(mBossClock, .4f) < dt) (std::fmod(mBossClock, 6.f) < 3.f ? mBossKeys.Lmb : mBossKeys.Rmb) = true;
+                }
             }
             mBossLog += dt;
             if (mBossLog >= .1f)
@@ -1932,6 +2041,7 @@ namespace CaucasianEagle
     void EaglesAscentGame::Update(DoorwaysGameHost& host, float dt, float realDt, bool inputAllowed)
     {
         if (mGround) { GroundProbe(host); return; }
+        if (mSlowMs > 0) Sleep(static_cast<DWORD>(mSlowMs));   // (a test on a slow computer's frames)
         mClock += realDt; mNotice = std::max(0.f, mNotice - realDt);
         auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
@@ -1947,8 +2057,13 @@ namespace CaucasianEagle
         if (mMapTest) MapTest(host, realDt);
         // M: the mountain in 3D, as before 0.5.2's detailed map (owner, 2026-11-21: "i like old map better for M"); Tab
         // from it the detailed map (AscentMap) and back; M or Esc closes either
+        // Tab otherwise: her quests (0.5.4; below). It is read here once a frame, and never with Alt held (Alt+Tab, away to
+        // another window, would leave her quests open behind her).
         const bool keyM = !mPaused && !mSmoke && !mClimb && !mTour && !mGrowthOpen && Press('M', inputAllowed);
-        const bool keyTab = (mChart.Open || mView.Open) && Press(VK_TAB, inputAllowed);
+        const bool tabKey = Press(VK_TAB, inputAllowed && !IsDoorwaysKeyDown(VK_MENU));
+        const bool tabTest = mTestKey == VK_TAB;   // (the quests' test's)
+        if (tabTest) mTestKey = 0;
+        const bool keyTab = (mChart.Open || mView.Open) && tabKey;
         if (keyM)
         {
             if (mChart.Open) { mChart.Hide(); session.FreeCursor = false; mHoldBlade = true; Sound::PlayUi("ui/close", .6f); }
@@ -2023,6 +2138,13 @@ namespace CaucasianEagle
                 if (!NyxaraLooks::Apply(host.Render, host.WorldRender, example, tiers, why)) OutputDebugStringA(("[EAGLES ASCENT] her look: " + why + "\n").c_str());
             }
             GetNyxaraKit().SetTrialTheme(theme, level);
+            if (mFlairOn)
+            {   // her gear's flair (each gear's third, "flowing": AscentGrowth::GearFlair), and the combo that is its own
+                int flairGear = 0, style = 0; bool own = false, plain = false;
+                AscentGrowth::GearFlair(mGrowth.Gear, flairGear, style, own, plain);
+                GetNyxaraKit().SetFlair(flairGear, style, own, plain && !mFlairBlue);
+                GetNyxaraKit().SetAttackCombo(NyxaraKit::FlairCombo(flairGear, style));
+            }
             mGearShown = mGrowth.Gear;
             if (mTrace) Evidence(world, ("gear_" + std::to_string(mGrowth.Gear)).c_str());
         }
@@ -2094,17 +2216,21 @@ namespace CaucasianEagle
             if (mShowTest) ShowTest(host, realDt);   // (its views are judged where the camera has just been put)
             return;
         }
-        // Q: her quests (AscentQuests), anywhere. W / S or the pointer choose one, Enter or a click on its TAKE buys it; Q, Esc
-        // or a click on CLOSE closes. The climb waits while they are open, and the pointer shows.
+        // Tab: her quests (AscentQuests), anywhere: the quest market (Q until 0.5.4; the owner, 2026-11-26: "i also want to
+        // change quest market buton and it will be tab, keep tab changing maps while M"). W / S or the pointer choose one,
+        // Enter or a click on its TAKE buys it; Tab, Esc or a click on CLOSE closes. The climb waits while they are open, and
+        // the pointer shows. (A quest just done goes from the list on the HUD: its row's seconds pass here, so not while a
+        // map or her window is open over it.)
         mQuestsFade = std::clamp(mQuestsFade + (mQuestsOpen ? 1.f : -1.f) * realDt / .18f, 0.f, 1.f);
         mQuestFlash = std::max(0.f, mQuestFlash - realDt * 2.f);
+        if (!mQuestsOpen) mQuestLeaving.Pass(realDt);
         if (mQuestsOpen)
         {
             session.FreeCursor = true;
             const int set = AscentQuests::OpenSet(mGrowth);
             const std::vector<int> rows = set >= 0 ? AscentQuests::Rows(set) : std::vector<int>{};
             const int count = static_cast<int>(rows.size());
-            bool close = session.EscapePressed || !alive || Pressed('Q', inputAllowed);
+            bool close = session.EscapePressed || !alive || tabKey || tabTest;
             session.EscapePressed = false;
             bool take = Pressed(VK_RETURN, inputAllowed) || Pressed(VK_SPACE, inputAllowed);
             const int move = (Pressed('S', inputAllowed) || Pressed(VK_DOWN, inputAllowed) ? 1 : 0) - (Pressed('W', inputAllowed) || Pressed(VK_UP, inputAllowed) ? 1 : 0);
@@ -2239,8 +2365,8 @@ namespace CaucasianEagle
             if (station > 0) SaveHere(station);
             else Notify(L"NOT SAVED", L"She can save only standing in an Eagle Nest.", 3);
         }
-        // Q: her quests, anywhere (the climb waits while they are open); a nest a quest asks her to reach; a set done, its gear
-        if (alive && Pressed('Q', allowed)) { QuestsOpen(); return; }
+        // Tab: her quests, anywhere (the climb waits while they are open); a nest a quest asks her to reach; a set done, its gear
+        if (alive && (tabTest || (tabKey && allowed))) { QuestsOpen(); return; }
         if (alive) if (const int station = NestAt(p.Position); station > 0) ReachNest(station);
         if (alive) GearIfEarned();
         if (mSmoke) Smoke(host, realDt);
@@ -2552,7 +2678,8 @@ namespace CaucasianEagle
             const float ix = 352 * s;
             ui.Key(Ui::KeyLabel(L"I", 'I'), ix, py + 7 * s, kh, Palette::White);
             ui.Text(L"GEAR", ix + 14 * s, py + 10 * s, tiny, Palette::Dim);
-            if (!mQuestsOpen) AscentQuests::DrawTaken(ui, mGrowth, 14 * s, py + 40 * s);
+            // (the quests she is on, down to over her health at the most: NyxaraHud's emblem is 114 units up from the bottom)
+            if (!mQuestsOpen) AscentQuests::DrawTaken(ui, mGrowth, mQuestLeaving, 14 * s, py + 40 * s, ui.H - 124 * s);
         }
         if (NestAt(p.Position) > 0 && !mGrowthOpen && !mQuestsOpen)
         {   // in a nest: H saves
@@ -2589,7 +2716,7 @@ namespace CaucasianEagle
             ui.Centered(mNoticeLine, ui.W * .5f, ui.H * .16f + 30 * s, body, Palette::Ink.Fade(a));
         }
         if (mQuestsFade > 0)
-        {   // her quests (Q)
+        {   // her quests (Tab)
             AscentQuests::View v;
             v.Now = mGrowth; v.Selected = mQuestRow; v.Fade = mQuestsFade; v.Flash = mQuestFlash; v.FlashRow = mQuestFlashRow;
             AscentQuests::Draw(ui, v);
@@ -2882,6 +3009,7 @@ namespace CaucasianEagle
     void EaglesAscentGame::QuestDone(int quest)
     {   // (the last of a set: its gear's moment says it, the next frame: GearIfEarned)
         mGrowth.QuestState[quest] = AscentQuests::Done;
+        mQuestLeaving.Start(quest);   // (its row on the HUD says so and goes; the panel keeps it, as done)
         const int set = AscentQuests::QuestAt(quest).Set;
         Notify(L"QUEST DONE", AscentQuests::QuestTitle(quest) + L".   " + std::to_wstring(AscentQuests::DoneOf(mGrowth, set)) + L" of " +
                               std::to_wstring(AscentQuests::QuestsOf(set)) + L" done.", 4.5f);

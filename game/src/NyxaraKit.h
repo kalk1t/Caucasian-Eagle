@@ -10,7 +10,7 @@
 //                  right 4); a click in a jump is the leaping cut
 //   C              the feather storm: she leaps, turns three times in the air and throws her wing feathers all round
 //                  her like daggers (to 27 m, stuck in the ground); at each turn every creature within 27 m is struck
-//   F              the slide, low along the ground, cutting what is before her (in flight: the twisted dash, V's
+//   F              the slide, her dash on foot: low along the ground, cutting what she passes (in flight: the twisted dash, V's
 //                  twist, feet first, striking every creature it goes through)
 //   V              the thrown swords: they stick in the middle of the nearest creature before her, she twists after
 //                  them feet first with her wings folded, sticks both feet on its side, crouched there takes the
@@ -60,6 +60,7 @@ namespace Doorways
 {
     struct DoorwaysSkeleton;
     struct DoorwaysSkeletonPose;
+    class NyxaraFlair;
 
     class NyxaraKit
     {
@@ -185,11 +186,39 @@ namespace Doorways
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
+        // F in flight, the twisted dash: off unless asked for (the owner, 2026-11-26: "F should not work while flying").
+        // Off, F in flight does nothing but say that her slide is from the ground.
+        void SetFlightDash(bool on) { mFlightDash = on; }
+        bool FlightDash() const { return mFlightDash; }
+        // How often a killing blow dooms its creature for her finishing kill (0 to 1; the owner, 2026-11-26: "make
+        // finishing kill of each monster randomly with 50% chance of happening"): the others die of the blow itself.
+        // A test's own: CAUCASIAN_EAGLE_NYXARA_FINISH=<0 to 1>.
+        void SetFinishChance(float chance) { mFinishChance = chance < 0 ? 0.f : chance > 1 ? 1.f : chance; }
+        float FinishChance() const { return mFinishChance; }
         void SetSkillsVC(bool on) { mSkillsVC = on; }                    // V and C, her skills (off unless asked: the Character Lab); pace: of her attacks and skills
         void SetHiggsfieldTrial(bool on, float pace = .5f) { mHiggsfieldTrial = on; mTrialPace = pace; }
         // the trial's light as her gear has it (the Character Lab): theme, the look's example (0 her blue, with wind as her
         // gear grows; 1 ice and crystal; 2 fire); level, her gear's highest tier (0 to 3), each a step more of it
         void SetTrialTheme(int theme, int level) { mTrialTheme = theme; mTrialLevel = level; }   // her moves reworked after Higgsfield's videos (off unless asked: the Character Lab); pace: of her attacks and skills
+        // Her flair (owner, 2026-11-25: nine ways of her blows' light and of her combo, three for each of her three
+        // gears, "in character lab", "you have to work first before we change anything for game"; then: "i like 3'd most
+        // - so add those to current nyxara's ingame version, also adjust finishings on the new effect systems"):
+        // NyxaraFlair, none (-1) unless asked: the game asks for her gear's third, the Character Lab for any of the
+        // nine. With one on: its light in place of the kit's own for her cuts, her moves and her finishing kills, its
+        // pace for her cuts and moves (her skills keep theirs), and what its blows ask of the game's feel (the moment
+        // held, the view shaken, the world slowed), and for her slide its wake and its cuts. plain: as she set out,
+        // before her first gear: none of its light at all, its blood and its feel (the owner, 2026-11-26: "normal nyxara
+        // should not have effects"). own: THE HIGHLANDS' third in her own blue, kept to compare (NyxaraFlair::Choose).
+        void SetFlair(int gear, int style, bool own = false, bool plain = false);
+        int FlairGear() const;
+        int FlairStyle() const;
+        bool FlairOwn() const;
+        bool FlairOn() const;                 // one is chosen, and its textures were loaded
+        bool FlairPlain() const;              // the plain one is chosen: no light
+        bool FlairLit() const;                // one is on, and it is not the plain one
+        static int FlairCombo(int gear, int style) { return 1 + gear * 3 + style; }   // its combo (SetAttackCombo)
+        int FlairMotes() const;               // (the lab's evidence: how much of it is alive, how much the last frame drew)
+        int FlairQuads() const;
         void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
         void ResetCooldowns() { mSkillCooldown = {}; }
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
@@ -247,7 +276,7 @@ namespace Doorways
         // Her combo (owner, 2026-11-20: of five made, "i like 1's LMB combo and 4's RMB , now set those"). Each button's
         // string of the styles' moves, begun by style 2's move for that button (LMB FLASH STEP, RMB DRAW CUT); the same
         // button clicked again goes on down it, on the move too. -1: none.
-        static constexpr int ComboCount = 1;
+        static constexpr int ComboCount = 10;   // (0 HER COMBO; 1 to 9 the nine of her flair, FlairCombo: the game plays each gear's third)
         struct ComboInfo
         {
             const wchar_t* Name = L""; const wchar_t* What = L"";
@@ -378,10 +407,17 @@ namespace Doorways
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
+        bool mFlightDash = false;   // SetFlightDash
+        float mFinishChance = .5f;  // SetFinishChance
         bool mSkillsVC = false;   // V (the thrown swords) and C (the feather storm): off in the game (owner, 2026-11-21: "remove C and V skills from game, so nyxara doesnt have anymore skills yet until i decide to"); the Character Lab keeps them
         bool mHiggsfieldTrial = false;      // SetHiggsfieldTrial (owner, 2026-11-22: "only in character lab yet")
         float mTrialPace = .5f;
         int mTrialTheme = 0, mTrialLevel = 0;
+        std::unique_ptr<NyxaraFlair> mFlair;   // SetFlair (made the first time one is asked for)
+        float mFlairDt = 0;                    // this frame's time for it: the game's, but not held by a blow's moment (ScaleFrameTime)
+        bool mFlairDashing = false;            // (a move carrying her, last frame)
+        DirectX::XMFLOAT3 mFlairFrom{};        // where the last piece of her dash's wake ended
+        std::string mFlairError;               // what was missing, if its textures were not loaded
         bool mTrialDashing = false;         // (a move carrying her, last frame)
         DirectX::XMFLOAT3 mTrialFrom{};     // the trial FLASH STEP's streak: where its last piece was left
         bool mGuarding = false, mEWas = false;   // her wing shield is up (E pressed: ShieldSeconds); E was down last frame

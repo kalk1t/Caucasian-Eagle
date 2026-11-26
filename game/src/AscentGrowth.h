@@ -9,8 +9,9 @@
 //   1 THE HIGHLANDS    3 quests, wind crystals   (THE HIGHLANDS' third tier of wings, swords and armour)    her blue, and wind
 //   2 AMIRANI'S FIRE   6 quests, fire crystals   (AMIRANI'S FIRE's second tier)                             fire
 //   3 MOONLIT          9 quests, ice crystals    (MOONLIT's third tier)                                     ice and crystal
-// She always wears the newest. A gear is her look, her attacks' light (NyxaraKit::SetTrialTheme), and her strength:
-// how long she flies, the damage she deals and takes (GameConstants: Gear...), and a little taller with each (Form).
+// She always wears the newest. A gear is her look, her attacks' light and her combo (her flair: NyxaraKit::SetFlair,
+// each gear's third, "flowing": GearFlair; her skills' light NyxaraKit::SetTrialTheme), and her strength: how long she
+// flies, the damage she deals and takes (GameConstants: Gear...), and a little taller with each (Form).
 // The state is Growth::State::Gear: EaglesAscentGame keeps it and saves it.
 //
 // Crystals (0.5.3) are of three kinds, wind, fire and ice, each the price of a set of her quests. The creatures and clay
@@ -40,6 +41,9 @@ namespace CaucasianEagle
         std::wstring GearItem(int gear, int item);         // "Wings of the royal eagle", ...
         void GearLook(int gear, int& example, int& tier);  // NyxaraLooks: its example (0-based) and tier (0 her own)
         void GearStyle(int gear, int& theme, int& level);  // NyxaraKit::SetTrialTheme's
+        // NyxaraKit::SetFlair's, and its combo (NyxaraKit::FlairCombo): each gear's third; before her first gear plain,
+        // no light at all (own: THE HIGHLANDS' third in her own blue, what plain is laid over, kept to compare)
+        void GearFlair(int gear, int& flairGear, int& style, bool& own, bool& plain);
         struct Tint { float R, G, B; };
         Tint GearColour(int gear);                         // her own grey, THE HIGHLANDS gold, the fire's embers, moonlight
 

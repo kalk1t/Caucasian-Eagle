@@ -68,6 +68,19 @@ namespace CaucasianEagle
         // On foot a rock face or a bank as drawn is a wall (2026-11-22): KeepOutOfRock holds her where the drawn top
         // (DrawnTop) WallAhead m ahead of her would be more than IntoRock m over her feet. Not near the way (NearTheWay:
         // within WayReach m of its line, on a stair's treads, or by a cave's open end).
+        // A long step (2026-11-25: her slide goes half a metre a step of the engine, a metre and more a frame at few frames
+        // a second) is gone over in short ones by these rules, by the caves' walls and by the trees' hold, and she is held
+        // at the first that would not be taken, as at more frames a second: a step of over LongStep m, in steps of
+        // ShortStep at the most. One of PutStep m or more, and more than PutSpeed m/s would carry her in that frame, is
+        // no step: she was put there. (Her slide goes 30 m/s at the most and the engine's frame is a tenth of a second
+        // at the longest, App.cpp: a step of 3 m.) The rules were made and tested at a run's step, a tenth of a metre.
+        // Measured (the off-the-way test with her slide; its baseline, CAUCASIAN_EAGLE_LONG_STEPS=0, is without this):
+        // without it her slide went through the tree 9.7 m left of the way at 660 m in nine runs of nine at 31, 21 and
+        // 10 frames a second, on to 23.7 m, and was held by it only at 200; with it the tree holds her in sixteen runs
+        // of sixteen at 31, 21, 12 and 10.
+        // The caves' walls held her in the jars' test at 12 frames a second without it too, a metre deeper in the wall.
+        static constexpr float LongStep = .35f, ShortStep = .2f, PutStep = 3.f, PutSpeed = 45.f;
+        bool LongSteps = true;         // false: CAUCASIAN_EAGLE_LONG_STEPS=0 (a test's baseline: a long step asked only where it ends)
         static constexpr float IntoRock = .9f, WallAhead = .3f, WayReach = 1.5f;   // (3.5 m: beside a stair's switchback the next leg's line was that near, and she walked into the bank and fell into the mountain at 380 m)
         // The drawn top round rock and steep land (the map data's "tops", build_mountain.py): the highest drawn land, rough
         // ground or rock there, from points 1 m apart; NaN where none was found (open land, off the grid).
@@ -216,13 +229,17 @@ namespace CaucasianEagle
         // 2026-11-20, the owner: "add collisions to trees". She is held off every trunk, on foot and on wings, from its
         // foot to three quarters of its height (the crowns stay soft: leaves). A box each in the scene would be some
         // 260 000 blockers the engine tries at every step; here only the trunks of her own 8 m squares are looked at.
-        void HoldOffTrees(Player& p, bool flying) const;
+        // A long step (from: where she was a frame ago; her slide goes half a metre a step of the engine, a metre a frame
+        // at 30 frames a second) is gone over in short ones and held at each, as she would be at more frames a second:
+        // held only where it ended, a step ending past a trunk's middle is pushed on, out of its far side (2026-11-25).
+        void HoldOffTrees(Player& p, bool flying, const DirectX::XMFLOAT3* from = nullptr) const;
         void LoadTrees(const std::filesystem::path& path);
         std::vector<Trunk> mTrunks;
         std::unordered_map<long long, std::vector<unsigned>> mTrunkCells;
         static constexpr float TrunkCell = 8.f;
         static long long TrunkKey(int cx, int cz) { return (static_cast<long long>(cx) << 32) ^ static_cast<unsigned>(cz); }
         void CaveEnds();                 // which ends of each cave are open (Load)
+        float mPut = PutStep;          // this frame's longest step that is a step (KeepOutOfRock: PutStep, PutSpeed)
         DirectX::XMFLOAT3 mFlown{}, mStood{}; bool mHasFlown = false, mHasStood = false, mJumped = false; float mAir = 0; float mSlideStill = 0; DirectX::XMFLOAT3 mSlideAnchor{}; float mSlidAgo = 1;
         float mInRock = 0;             // seconds she has been falling inside the mountain
         // The ground's look (record "terrain x0 z0 width depth snowline sea", 2026-11-18): the splat <map>.splat_a.dds

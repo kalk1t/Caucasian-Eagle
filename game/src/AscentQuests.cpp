@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cwctype>
 #include <string>
 #include <vector>
 
@@ -127,20 +128,31 @@ namespace CaucasianEagle::AscentQuests
     {
         if (v.Fade <= 0) return;
         using namespace Palette;
-        const float S = ui.S, W = ui.W, a = v.Fade;
+        const float W = ui.W, a = v.Fade;
         constexpr float Width = 640, Pad = 16, Tiny = 1.55f, Small = 1.9f, Big = 2.6f;
         const Growth::State& s = v.Now;
         const int set = OpenSet(s), kind = Kind(set);
         const Color tint = set >= 0 ? Tinted(set) : Moon;
         const std::vector<int> rows = set >= 0 ? Rows(set) : std::vector<int>{};
 
-        const float w = Width * S, x = (W - w) * .5f, inner = w - 2 * Pad * S, right = x + w - Pad * S;
-        const auto said = ui.Wrap(Lead(set), Small * S, inner);
-        const float rowH = 46 * S, line = ui.Height(Small * S) + 3 * S;
-        const float head = 92 * S, words = static_cast<float>(said.size()) * line + 14 * S;
-        const float list = set >= 0 ? ui.Height(Tiny * S) + 10 * S + static_cast<float>(rows.size()) * (rowH + 4 * S) + ui.Height(Tiny * S) + 8 * S : 0.f;
-        const float h = head + words + list + 14 * S, keys = 24 * S + ui.Height(Tiny * S) + 30 * S;
-        const float y = (std::max)(90 * S, (ui.H - h - keys) * .5f);
+        // Its measures at a scale: the window's own, or a smaller one where the panel and its keys would not fit under
+        // each other in the window (nine quests in a window 720 high, or the interface made larger in the settings).
+        std::vector<std::wstring> said;
+        float S = ui.S, w = 0, x = 0, inner = 0, right = 0, rowH = 0, line = 0, head = 0, words = 0, h = 0, keys = 0;
+        const auto measure = [&](float scale)
+        {
+            S = scale;
+            w = Width * S; x = (W - w) * .5f; inner = w - 2 * Pad * S; right = x + w - Pad * S;
+            said = ui.Wrap(Lead(set), Small * S, inner);
+            rowH = 46 * S; line = ui.Height(Small * S) + 3 * S;
+            head = 92 * S; words = static_cast<float>(said.size()) * line + 14 * S;
+            const float list = set >= 0 ? ui.Height(Tiny * S) + 10 * S + static_cast<float>(rows.size()) * (rowH + 4 * S) + ui.Height(Tiny * S) + 8 * S : 0.f;
+            h = head + words + list + 14 * S; keys = 24 * S + ui.Height(Tiny * S) + 30 * S;
+        };
+        measure(ui.S);
+        const float air = 8 * ui.S;   // (over and under it, at the least)
+        if (h + keys > ui.H - 2 * air) measure(ui.S * (ui.H - 2 * air) / (h + keys));
+        const float y = (std::max)((std::min)(90 * S, ui.H - h - keys - air), (ui.H - h - keys) * .5f);
 
         ui.Rect(0, 0, W, ui.H, Black.Fade(.42f * a));
         ui.Nine(HudArt::Panel, x, y, w, h, White.Fade(a));
@@ -232,41 +244,103 @@ namespace CaucasianEagle::AscentQuests
                 key(Ui::KeyLabel(L"ENTER", VK_RETURN), L"TAKE");
             }
             const float closeX = kx;
-            const float cw = key(Ui::KeyLabel(L"Q", 'Q'), L"CLOSE");
+            const float cw = key(Ui::KeyLabel(L"TAB", VK_TAB), L"CLOSE");
             Pointer::Add(Pointer::CloseKey, 0, closeX, ky, cw, kh);
             ui.Text(set >= 0 ? L"or the mouse: a quest's TAKE, or CLOSE" : L"or the mouse: CLOSE", x + Pad * S, ky + kh + 8 * S, Tiny * S, Dim.Fade(a));
         }
     }
 
-    void DrawTaken(Ui& ui, const Growth::State& s, float x, float y)
-    {   // her set's quests she has taken (at most five), in its colour, done ones gold; none taken: where they are (Q)
+    std::vector<int> Listed(const Growth::State& s, const Leaving& leaving)
+    {
+        const int set = OpenSet(s);
+        std::vector<int> rows;
+        for (int i = 0; i < Total; ++i)
+            if ((Quests[i].Set == set && s.QuestState[i] == Taken) || (s.QuestState[i] == Done && leaving.Left[i] > 0)) rows.push_back(i);
+        return rows;
+    }
+
+    void DrawTaken(Ui& ui, const Growth::State& s, const Leaving& leaving, float x, float y, float bottom)
+    {   // the quests she is on, every one, in her set's colour and with how far she is; one just done: gold, a line drawn
+        // through it, out to the left, and the rows under it close up. None on the way: where they are (Tab).
         using namespace Palette;
         const int set = OpenSet(s);
-        if (set < 0) return;
-        const float S = ui.S, Tiny = 1.55f;
-        std::vector<int> taken;
-        for (const int i : Rows(set)) if (s.QuestState[i] == Taken || s.QuestState[i] == Done) taken.push_back(i);
-        const size_t shown = (std::max)(size_t{1}, (std::min)(taken.size(), size_t{5}));
-        const float line = ui.Height(Tiny * S) + 5 * S, w = 396 * S;
-        const Color c = Tinted(set);
-        ui.Rect(x, y, w, static_cast<float>(shown) * line + 26 * S, {.015f, .025f, .04f, .62f});
+        const std::vector<int> rows = Listed(s, leaving);
+        if (set < 0 && rows.empty()) return;   // (all her quests done, and the last gone from the list)
+        constexpr float Tiny = 1.55f, Least = .72f;
+        // a done row's going, 0 .. 1 of LeaveSeconds: its moment of light; the line through it; held to be read; out to
+        // the left, fading; and its place closed
+        constexpr float PopEnd = .14f, StruckFrom = .04f, StruckEnd = .30f, OutFrom = .58f, OutEnd = .84f;
+        const auto ease = [](float t) { t = std::clamp(t, 0.f, 1.f); return t * t * (3 - 2 * t); };
+        const auto going = [&](int i) { return s.QuestState[i] == Done ? std::clamp(1 - leaving.Left[i] / LeaveSeconds, 0.f, 1.f) : -1.f; };
+        const auto share = [&](int i) { const float u = going(i); return u < OutEnd ? 1.f : 1 - ease((u - OutEnd) / (1 - OutEnd)); };
+
+        const float S = ui.S, w = 396 * S, head = 22 * S, foot = 4 * S;
+        float lines = 0;
+        for (const int i : rows) lines += share(i);
+        // its rows made smaller where they would go under 'bottom'; where that is not enough, the last of them counted
+        const float full = ui.Height(Tiny * S) + 5 * S, room = bottom - y - head - foot;
+        const float fit = lines * full > room && room > 0 ? (std::max)(Least, room / (lines * full)) : 1.f;
+        const float size = Tiny * S * fit, line = ui.Height(size) + 5 * S * fit;
+        size_t shown = rows.size();
+        if (lines * line > room + .5f && room > 0) shown = static_cast<size_t>((std::max)(1.f, std::floor(room / line) - 1));
+        const bool more = shown < rows.size();
+        float tall = more ? 1.f : 0.f;
+        for (size_t k = 0; k < shown; ++k) tall += share(rows[k]);
+        tall = (std::max)(tall, 1.f);
+
+        const Color c = set >= 0 ? Tinted(set) : GoldLight;
+        ui.Rect(x, y, w, head + tall * line + foot, {.015f, .025f, .04f, .62f});
         ui.Spaced(L"QUESTS", x + 12 * S, y + 6 * S, Tiny * S * .9f, 2.5f * S, Gold);
-        ui.RightAligned(std::wstring(Ui::KeyLabel(L"Q", 'Q')) + L": " + std::to_wstring(DoneOf(s, set)) + L" of " + std::to_wstring(QuestsOf(set)) + L" done",
-                        x + w - 12 * S, y + 6 * S, Tiny * S * .9f, Dim);
-        float cy = y + 22 * S;
-        if (taken.empty())
-        {
-            ui.Text(std::wstring(L"None taken. They are bought with ") + AscentGrowth::CrystalName(Kind(set)) + L" crystals.", x + 14 * S, cy, Tiny * S, Dim);
+        if (set >= 0)
+        {   // its key and how many of the set are done
+            const std::wstring done = std::to_wstring(DoneOf(s, set)) + L" of " + std::to_wstring(QuestsOf(set)) + L" done";
+            const wchar_t* tab = Ui::KeyLabel(L"TAB", VK_TAB);
+            const float kh = 15 * S, kw = ui.KeyWidth(tab, kh), dw = ui.Width(done, Tiny * S * .9f);
+            ui.RightAligned(done, x + w - 12 * S, y + 6 * S, Tiny * S * .9f, Dim);
+            ui.Key(tab, x + w - 12 * S - dw - 7 * S - kw * .5f, y + 4 * S, kh, White);
+        }
+        else ui.RightAligned(L"all done", x + w - 12 * S, y + 6 * S, Tiny * S * .9f, GoldLight);
+        float cy = y + head;
+        if (rows.empty())
+        {   // none on the way: how many she can take, and with what
+            int offered = 0;
+            for (const int i : Rows(set)) if (s.QuestState[i] == Offered) ++offered;
+            const std::wstring crystals = std::wstring(AscentGrowth::CrystalName(Kind(set))) + L" crystals.";
+            if (offered == QuestsOf(set)) ui.Text(L"None taken. They are bought with " + crystals, x + 14 * S, cy, Tiny * S, Dim);
+            else if (offered > 0)
+            {
+                std::wstring count = CountWords(offered);
+                count[0] = static_cast<wchar_t>(std::towupper(count[0]));
+                ui.Text(count + L" more to take, with " + crystals, x + 14 * S, cy, Tiny * S, Dim);
+            }
             return;
         }
-        for (size_t k = 0; k < (std::min)(taken.size(), size_t{5}); ++k)
+        const float textH = ui.Height(size);
+        for (size_t k = 0; k < shown; ++k)
         {
-            const int i = taken[k];
-            const bool done = s.QuestState[i] == Done;
-            ui.Icon(HudArt::Diamond, x + 20 * S, cy + ui.Height(Tiny * S) * .5f, 11 * S, done ? GoldLight : c);
-            ui.Text(QuestTitle(i), x + 32 * S, cy, Tiny * S, Ink);
-            ui.RightAligned(QuestProgress(s, i), x + w - 12 * S, cy, Tiny * S, done ? GoldLight : c);
-            cy += line;
+            const int i = rows[k];
+            const float u = going(i), mid = cy + textH * .5f;
+            const std::wstring title = QuestTitle(i);
+            if (u < 0)
+            {   // on the way
+                const Color own = Quests[i].Set == set ? c : Tinted(Quests[i].Set);
+                ui.Icon(HudArt::Diamond, x + 20 * S, mid, 11 * S * fit, own);
+                ui.Text(title, x + 32 * S, cy, size, Ink);
+                ui.RightAligned(QuestProgress(s, i), x + w - 12 * S, cy, size, own);
+            }
+            else if (u < OutEnd)
+            {   // done: its moment
+                const float pop = 1 - std::clamp(u / PopEnd, 0.f, 1.f), struck = ease((u - StruckFrom) / (StruckEnd - StruckFrom));
+                const float out = ease((u - OutFrom) / (OutEnd - OutFrom)), seen = 1 - out, dx = -52 * S * out;
+                ui.Rect(x + 4 * S, cy - 2.5f * S * fit, w - 8 * S, line, GoldLight.Fade((.10f + .40f * pop) * seen));
+                if (pop > 0) ui.Icon(HudArt::Glow, x + 20 * S + dx, mid, 44 * S * fit, GoldLight.Fade(.55f * pop));
+                ui.Icon(HudArt::Diamond, x + 20 * S + dx, mid, 11 * S * fit * (1 + .9f * pop), GoldLight.Fade(seen));
+                ui.Text(title, x + 32 * S + dx, cy, size, GoldLight.Fade(seen));
+                if (struck > 0) ui.Rect(x + 30 * S + dx, std::round(mid), (ui.Width(title, size) + 4 * S) * struck, (std::max)(1.f, std::round(1.4f * S * fit)), GoldLight.Fade(.9f * seen));
+                ui.RightAligned(L"done", x + w - 12 * S + dx, cy, size, GoldLight.Fade(seen));
+            }
+            cy += line * share(i);
         }
+        if (more) ui.Text(L"and " + std::to_wstring(rows.size() - shown) + L" more", x + 32 * S, cy, size, Dim);
     }
 }

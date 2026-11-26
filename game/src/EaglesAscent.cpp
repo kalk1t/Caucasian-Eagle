@@ -249,28 +249,45 @@ namespace CaucasianEagle
         return found;
     }
 
-    void EaglesAscent::HoldOffTrees(Player& p, bool flying) const
+    void EaglesAscent::HoldOffTrees(Player& p, bool flying, const DirectX::XMFLOAT3* from) const
     {
         if (mTrunks.empty() || !TreesHold) return;
         const float body = flying ? .6f : .42f;   // her half width; on wings their spread
-        const int ex = static_cast<int>(std::floor(p.Position.x / TrunkCell)), ez = static_cast<int>(std::floor(p.Position.z / TrunkCell));
-        for (int pass = 0; pass < 2; ++pass)      // (between two trunks: once more)
-            for (int cz = ez - 1; cz <= ez + 1; ++cz)
-                for (int cx = ex - 1; cx <= ex + 1; ++cx)
-                {
-                    const auto cell = mTrunkCells.find(TrunkKey(cx, cz));
-                    if (cell == mTrunkCells.end()) continue;
-                    for (const unsigned i : cell->second)
+        const float y = p.Position.y;
+        const auto hold = [&](float& x, float& z)
+        {
+            const int ex = static_cast<int>(std::floor(x / TrunkCell)), ez = static_cast<int>(std::floor(z / TrunkCell));
+            for (int pass = 0; pass < 2; ++pass)      // (between two trunks: once more)
+                for (int cz = ez - 1; cz <= ez + 1; ++cz)
+                    for (int cx = ex - 1; cx <= ex + 1; ++cx)
                     {
-                        const Trunk& t = mTrunks[i];
-                        if (p.Position.y < t.Y - 1.5f || p.Position.y > TrunkTop(t)) continue;
-                        const float keep = t.R + body, dx = p.Position.x - t.X, dz = p.Position.z - t.Z, d2 = dx * dx + dz * dz;
-                        if (d2 >= keep * keep) continue;
-                        const float d = std::sqrt(d2);
-                        if (d < 1e-3f) { p.Position.x = t.X + keep; continue; }
-                        p.Position.x = t.X + dx / d * keep; p.Position.z = t.Z + dz / d * keep;
+                        const auto cell = mTrunkCells.find(TrunkKey(cx, cz));
+                        if (cell == mTrunkCells.end()) continue;
+                        for (const unsigned i : cell->second)
+                        {
+                            const Trunk& t = mTrunks[i];
+                            if (y < t.Y - 1.5f || y > TrunkTop(t)) continue;
+                            const float keep = t.R + body, dx = x - t.X, dz = z - t.Z, d2 = dx * dx + dz * dz;
+                            if (d2 >= keep * keep) continue;
+                            const float d = std::sqrt(d2);
+                            if (d < 1e-3f) { x = t.X + keep; continue; }
+                            x = t.X + dx / d * keep; z = t.Z + dz / d * keep;
+                        }
                     }
-                }
+        };
+        if (from)
+        {   // a long step, gone over in short ones (not a step of metres: she was put there)
+            const float dx = p.Position.x - from->x, dz = p.Position.z - from->z, d = std::hypot(dx, dz);
+            if (d > LongStep && d < mPut)
+            {
+                const int n = static_cast<int>(std::ceil(d / ShortStep));
+                float x = from->x, z = from->z;
+                for (int k = 0; k < n; ++k) { x += dx / static_cast<float>(n); z += dz / static_cast<float>(n); hold(x, z); }
+                p.Position.x = x; p.Position.z = z;
+                return;
+            }
+        }
+        hold(p.Position.x, p.Position.z);
     }
 
     void EaglesAscent::HoldInCave(Player& p) const
@@ -881,10 +898,33 @@ namespace CaucasianEagle
     void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt, const DoorwaysRuntimeScene* scene)
     {
         Sliding = false;
+        mPut = (std::max)(PutStep, PutSpeed * dt);                       // (a longer step than this is no step: she was put there)
         if (p.IsGrounded || flying) { mAir = 0; mJumped = false; }       // (how long she has been off the ground on foot, and
         else { if (mAir <= 0 && p.VerticalVelocity > .5f) mJumped = true; mAir += dt; }   //  whether she left it by a jump)
-        if (!flying) HoldInCave(p);
-        HoldOffTrees(p, flying);
+        if (!flying)
+        {   // (a long step, LongStep in the header, is asked at each short one and ends at the first that is held: the band
+            // at a cave's wall from which she is put back is 1.6 m deep, and her slide's step at 10 frames a second, the
+            // fewest the engine's clock makes, is 3 m. In the jars' test at 12 she was held without this too, a metre
+            // deeper in the wall.)
+            bool held = false;
+            const XMFLOAT3 end = p.Position;
+            const float d = mHasFlown && LongSteps ? std::hypot(end.x - mFlown.x, end.z - mFlown.z) : 0.f;
+            if (d > LongStep && d < mPut)
+            {
+                const int n = static_cast<int>(std::ceil(d / ShortStep));
+                for (int k = 1; k < n && !held; ++k)
+                {
+                    const float u = static_cast<float>(k) / static_cast<float>(n);
+                    const XMFLOAT3 at{mFlown.x + (end.x - mFlown.x) * u, mFlown.y + (end.y - mFlown.y) * u, mFlown.z + (end.z - mFlown.z) * u};
+                    p.Position = at;
+                    HoldInCave(p);
+                    held = p.Position.x != at.x || p.Position.z != at.z;
+                }
+                if (!held) p.Position = end;
+            }
+            if (!held) HoldInCave(p);
+        }
+        HoldOffTrees(p, flying, mHasFlown && LongSteps ? &mFlown : nullptr);
         CaveSpot cave;
         if (InCave(p.Position, &cave))
         {   // In a cave (2026-11-18): the land's rules do not hold under the mountain. The tube is her collision on foot;
@@ -912,19 +952,43 @@ namespace CaucasianEagle
         // inside the mountain (the off-the-way test, CAUCASIAN_EAGLE_DEMO=14: 14 of its first 61 runs). Now where the drawn
         // top WallAhead m ahead of her (her front) would be more than IntoRock over her feet she is held where she was,
         // sliding along the face where one way is free. Not if she is in it already (she walks out), nor near the way.
-        if (RockRules && !flying && mHasFlown && !mTopCell.empty() && !NearTheWay(p.Position) && !(DrawnTop(mFlown.x, mFlown.z) > mFlown.y + IntoRock))
+        // (Both rules go over a long step in short ones, from where she was a frame ago: LongStep in the header. Looked at
+        // only where a step of her slide ends, half a metre on and more, a strip of rock or of the mountain's inside
+        // narrower than that would be stepped over.)
+        struct Step
         {
-            const auto wall = [&](float x, float z)
+            XMFLOAT3 From, Go; int Shorts;
+            XMFLOAT3 At(int k) const { const float u = static_cast<float>(k) / static_cast<float>(Shorts); return {From.x + Go.x * u, From.y + Go.y * u, From.z + Go.z * u}; }
+        };
+        const auto stepTaken = [&]
+        {
+            Step s{mFlown, {p.Position.x - mFlown.x, p.Position.y - mFlown.y, p.Position.z - mFlown.z}, 1};
+            const float d = std::hypot(s.Go.x, s.Go.z);
+            if (LongSteps && d > LongStep && d < mPut) s.Shorts = static_cast<int>(std::ceil(d / ShortStep));
+            return s;
+        };
+        if (RockRules && !flying && mHasFlown && !mTopCell.empty() && !(DrawnTop(mFlown.x, mFlown.z) > mFlown.y + IntoRock))
+        {
+            const auto wall = [&](const XMFLOAT3& from, float x, float z, float y)
             {
-                const float dx = x - mFlown.x, dz = z - mFlown.z, d = std::hypot(dx, dz);
+                const float dx = x - from.x, dz = z - from.z, d = std::hypot(dx, dz);
                 if (d < 1e-5f) return false;
-                return DrawnTop(x + dx / d * WallAhead, z + dz / d * WallAhead) > p.Position.y + IntoRock;   // (NaN: none known, no wall)
+                return DrawnTop(x + dx / d * WallAhead, z + dz / d * WallAhead) > y + IntoRock;   // (NaN: none known, no wall)
             };
-            if (wall(p.Position.x, p.Position.z))
+            const Step step = stepTaken();
+            XMFLOAT3 was = mFlown;
+            for (int k = 1; k < step.Shorts; ++k)
+            {   // (a long step: as far as the first short one that is at a wall, each asked where it is)
+                const XMFLOAT3 at = step.At(k);
+                if (!NearTheWay(at) && wall(was, at.x, at.z, at.y)) { p.Position = at; break; }
+                was = at;
+            }
+            if (!NearTheWay(p.Position) && wall(was, p.Position.x, p.Position.z, p.Position.y))
             {
-                if (!wall(p.Position.x, mFlown.z)) p.Position.z = mFlown.z;
-                else if (!wall(mFlown.x, p.Position.z)) p.Position.x = mFlown.x;
-                else { p.Position.x = mFlown.x; p.Position.z = mFlown.z; }
+                if (!wall(was, p.Position.x, was.z, p.Position.y)) p.Position.z = was.z;
+                else if (!wall(was, was.x, p.Position.z, p.Position.y)) p.Position.x = was.x;
+                else { p.Position.x = was.x; p.Position.z = was.z; }
+                if (step.Shorts > 1) p.Position.y = was.y;   // (at her height there: the engine stands her on its ground)
                 ++WallHolds;
             }
         }
@@ -939,19 +1003,27 @@ namespace CaucasianEagle
         // Off a real edge (air under it, or ground to land on) she walks off as before.
         if (RockRules && !flying && mHasFlown && mHasStood && !p.IsGrounded && !mJumped && mAir < .5f && p.VerticalVelocity <= .5f && scene)
         {
-            const float y = p.Position.y;
-            const auto into = [&](float x, float z)
+            const auto into = [&](float x, float z, float y)
             {   // air under her there: the drawn top under her feet where it is known (the 6 m grid's lowest corner can lie
                 // 7 m under her in a cell that is all rock face over her: at 380 m she fell into the mountain so)
                 const float top = DrawnTop(x, z);
                 if (std::isfinite(top) ? top < y - .5f : LandLow(x, z) < y - 1.5f) return false;
                 return !Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, x, z, y - 6.f, y + .6f).Hit;
             };
-            if (into(p.Position.x, p.Position.z))
+            const Step step = stepTaken();
+            XMFLOAT3 was = mFlown;
+            for (int k = 1; k < step.Shorts; ++k)
+            {   // (a long step: as far as the first short one that is into the mountain)
+                const XMFLOAT3 at = step.At(k);
+                if (into(at.x, at.z, at.y)) { p.Position = at; break; }
+                was = at;
+            }
+            const float y = p.Position.y;
+            if (into(p.Position.x, p.Position.z, y))
             {
-                if (!into(p.Position.x, mFlown.z)) p.Position.z = mFlown.z;
-                else if (!into(mFlown.x, p.Position.z)) p.Position.x = mFlown.x;
-                else { p.Position.x = mFlown.x; p.Position.z = mFlown.z; }
+                if (!into(p.Position.x, was.z, y)) p.Position.z = was.z;
+                else if (!into(was.x, p.Position.z, y)) p.Position.x = was.x;
+                else { p.Position.x = was.x; p.Position.z = was.z; }
                 const auto under = Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, p.Position.x, p.Position.z, y - 6.f, y + .6f);
                 if (under.Hit && under.GroundY > y - .6f) p.Position.y = under.GroundY;   // on her feet there (along the face, or back)
                 else p.Position = mStood;                                                 // or where she last stood

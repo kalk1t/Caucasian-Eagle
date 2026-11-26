@@ -74,11 +74,12 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
     ui.Text(hud.Action && hud.Action[0] ? hud.Action : L"TWO SWORDS", vx, wy, TextTiny * S, hud.Action && hud.Action[0] ? Ink : Faint);
 
     // ---------------------------------------------------------------- skill bar
-    struct Slot { const wchar_t* Key; const wchar_t* Name; const HudArt::Sprite* Art; float Cooldown, Max; bool Active, Glow; Color Accent; int Group; };
+    struct Slot { const wchar_t* Key; const wchar_t* Name; const HudArt::Sprite* Art; float Cooldown, Max; bool Active, Glow; Color Accent; int Group; bool Off = false; };
+    const bool noSlide = hud.Flying && !hud.FlightDash;   // (F is her slide, from the ground: in flight its slot is dim)
     const Slot slots[] = {
         {Ui::KeyLabel(L"LMB", VK_LBUTTON), L"LEFT", &HudArt::IconSlash, 0, 1, hud.Slashing, false, Silver, 0},
         {Ui::KeyLabel(L"RMB", VK_RBUTTON), L"RIGHT", &HudArt::IconHeavy, 0, 1, hud.Heavy, false, Silver, 0},
-        {Ui::KeyLabel(L"F", 'F'), hud.Flying ? L"DASH" : L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1},
+        {Ui::KeyLabel(L"F", 'F'), hud.Flying && hud.FlightDash ? L"DASH" : L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1, noSlide},
         {Ui::KeyLabel(L"V", 'V'), L"SWORDS", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
         {Ui::KeyLabel(L"C", 'C'), L"STORM", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},   // the feather storm (a leap)
         {Ui::KeyLabel(L"E", 'E'), L"SHIELD", &HudArt::IconGuard, hud.GuardCooldown, hud.GuardCooldownMax, hud.Guarding, false, Moon, 2},
@@ -107,7 +108,7 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         if (ready[i] > 0) ui.Sprite(HudArt::SlotGlow, x, sy, size, size, White.Fade(ready[i] / ReadyFlash));
         ui.Sprite(HudArt::Slot, x, sy, size, size);
         const float grow = slot.Active ? 1.08f : 1.f;
-        ui.Icon(*slot.Art, x + size * .5f, sy + size * .47f, IconSize * S * grow, cooling ? Faint : slot.Active || slot.Glow ? White : slot.Accent);
+        ui.Icon(*slot.Art, x + size * .5f, sy + size * .47f, IconSize * S * grow, cooling || slot.Off ? Faint : slot.Active || slot.Glow ? White : slot.Accent);
         if (cooling)
         {   // the well darkens from the top and clears as the skill comes back
             const float rim = 5 * S, f = std::clamp(slot.Cooldown / slot.Max, 0.f, 1.f);
@@ -115,8 +116,8 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
             std::wostringstream seconds; seconds << std::fixed << std::setprecision(slot.Cooldown < 1 ? 1 : 0) << slot.Cooldown;
             ui.Centered(seconds.str(), x + size * .5f, sy + (size - ui.Height(3.f * S)) * .5f - 2 * S, 3.f * S, Ink);
         }
-        ui.Key(slot.Key, x + size * .5f, sy + size - KeyHeight * S * .45f, KeyHeight * S, slot.Glow ? GoldLight : White);
-        ui.Centered(slot.Name, x + size * .5f, sy + size + KeyHeight * S * .62f, 1.4f * S, cooling ? Faint : Dim);
+        ui.Key(slot.Key, x + size * .5f, sy + size - KeyHeight * S * .45f, KeyHeight * S, slot.Off ? Faint : slot.Glow ? GoldLight : White);
+        ui.Centered(slot.Name, x + size * .5f, sy + size + KeyHeight * S * .62f, 1.4f * S, cooling || slot.Off ? Faint : Dim);
         x += size;
     }
 

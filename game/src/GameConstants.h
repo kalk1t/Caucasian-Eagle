@@ -297,7 +297,7 @@ namespace CaucasianEagle
     // with wind, the second with fire, the third with ice (AscentQuests). (First chosen as the spirits' places, which the
     // owner took out the same day: "we dont need masters anymore".)
     constexpr int CrystalNests[2] = {3, 6};
-    constexpr float GearAttackPace = .5f;                         // her attacks and skills play at half speed (the owner: "effects and half speed")
+    constexpr float GearAttackPace = .5f;                         // her skills play at half speed, and her attacks where her gear's flair is off (the owner: "effects and half speed"); her flair's strings have their own pace (NyxaraFlair::Info), her slide its own (NyxaraKit.cpp: SlidePace)
     constexpr int AscentBossCrystals = 25;       // crystals from a boss of the Ascent (art/map/ascent_creatures.py BOSS_CRYSTALS)
     constexpr int MaxPotions = 5;                // potions she can carry
     constexpr int PotionHeal = 35;               // health from one potion
@@ -397,6 +397,16 @@ namespace CaucasianEagle
     constexpr float CameraLookUpNear = 1.7f, CameraLookUpKeep = 0.2f, CameraLookUpClear = 0.35f;
     constexpr float CameraLookUpSide = 0.6f;   // m, close in, the camera is over her right shoulder: her wings off the view's middle
     constexpr float CameraPivotSmoothing = 0.12f; // s, the camera follows her height smoothly: on stairs it glides, not jumps
+    // m, and never further from her height than this (2026-11-26). Her slide (F) goes up a steep slope or stairs so
+    // fast, as much as 19.6 m in its second, that the pivot was left up to 2.9 m behind: under the ground at her feet
+    // (it is 1.35 m over them). The camera, stopped by that ground at once, was inside the land for a tenth of a second
+    // or two: in 40 of 162 slides up the way and 52 of 324 off it, over the whole way (the off-the-way test with -Dash
+    // and -Trace; CAUCASIAN_EAGLE_PIVOT_LAG=0 is its baseline). With the limit: in none up the way, and off it in two
+    // where it is so without her slide too. Running up, the pivot is 0.76 m behind her at the most, and the stairs'
+    // glide is as it was. Without her slide the limit is met where she is set on a cave's floor 1.7 m up at once
+    // (1,700 m right of the way, 3,780 m on it, 7,620 m left), and running down the steepest slopes off the way, where
+    // the pivot would be 1.13 m over her at the most.
+    constexpr float CameraPivotLagMost = 1.0f;
     constexpr float CameraLiftUnder = 3.5f;       // m, a slope or wall behind her bringing the camera nearer than this: it rises over it
     constexpr float VistaPitch = 0.24f;        // rad, capture mode (CAUCASIAN_EAGLE_VISTA=1): look up at the mountain
 

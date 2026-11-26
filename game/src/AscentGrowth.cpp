@@ -70,6 +70,24 @@ namespace CaucasianEagle::AscentGrowth
         }
     }
 
+    void GearFlair(int gear, int& flairGear, int& style, bool& own, bool& plain)
+    {   // Her flair (NyxaraFlair's nine, three for each gear), the owner, 2026-11-25, having tried them in the Character
+        // Lab: "i like 3'd most - so add those to current nyxara's ingame version ... update current nyxara's windy, fire
+        // and ice versions with 3'd effects called flowing". THE HIGHLANDS: SKY WHEEL (wind); AMIRANI'S FIRE: FIRE DANCE;
+        // MOONLIT: MOON WRAITH (ice and moonlight). As she set out she had SKY WHEEL in her own blue for a day, THE
+        // HIGHLANDS' gold not yet hers; the owner, 2026-11-26, having seen it: "normal nyxara should not have effects
+        // and when she becomes windy - wind effects, when she becomes fire - fire effects and ice when she becomes ice".
+        // So before her first gear her flair is plain: SKY WHEEL's strings and pace, its blood and its feel, no light.
+        style = 2; own = plain = false;
+        switch (Clamped(gear))
+        {
+        case 2: flairGear = 1; break;
+        case 3: flairGear = 2; break;
+        case 1: flairGear = 0; break;
+        default: flairGear = 0; own = plain = true; break;
+        }
+    }
+
     std::wstring GearItem(int gear, int item)
     {
         item = std::clamp(item, 0, ItemCount - 1);
@@ -192,7 +210,7 @@ namespace CaucasianEagle::AscentGrowth
             total(L"Her flight", Seconds(gear) + L" seconds");
 
             cy += 6 * S;
-            ui.Spaced(L"HER GEARS, BY HER QUESTS (Q)", x + Pad * S, cy, Tiny * S, 3 * S, Gold.Fade(a));
+            ui.Spaced(L"HER GEARS, BY HER QUESTS (TAB)", x + Pad * S, cy, Tiny * S, 3 * S, Gold.Fade(a));
             cy += ui.Height(Tiny * S) + 6 * S;
             for (int g = 1; g < GearCount; ++g)
             {   // each gear, in order: hers and those before, earned; the next, how far her quests for it are; the last

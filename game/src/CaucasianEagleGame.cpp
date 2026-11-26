@@ -62,7 +62,9 @@ namespace CaucasianEagle
         session.CameraPitch = CameraPitch; session.CameraDistance = CameraDistance; session.CameraPivotHeight = CameraPivotHeight;
         session.CameraMinPitch = CameraMinPitch; session.CameraMaxPitch = CameraMaxPitch;
         session.CameraLookUpNear = CameraLookUpNear; session.CameraLookUpKeep = CameraLookUpKeep; session.CameraLookUpClear = CameraLookUpClear; session.CameraLookUpSide = CameraLookUpSide;
-        session.CameraPivotSmoothing = CameraPivotSmoothing; session.CameraLiftUnder = CameraLiftUnder;
+        session.CameraPivotSmoothing = CameraPivotSmoothing; session.CameraLiftUnder = CameraLiftUnder; session.CameraPivotLagMost = CameraPivotLagMost;
+        if (char lag[16]{}; GetEnvironmentVariableA("CAUCASIAN_EAGLE_PIVOT_LAG", lag, sizeof lag))
+            session.CameraPivotLagMost = static_cast<float>(std::atof(lag));   // (tests only; 0: the camera's height as far behind hers as in 0.5.3)
         if (char old[4]{}; GetEnvironmentVariableA("CAUCASIAN_EAGLE_CAMERA_OLD", old, sizeof old) && old[0] == '1')
         {   // (tests only: the camera as it was before 2026-11-22, to measure the new one against)
             session.CameraLookUpNear = 0; session.CameraLookUpSide = 0; session.CameraPivotSmoothing = 0; session.CameraLiftUnder = 0; session.CameraMaxPitch = .45f;

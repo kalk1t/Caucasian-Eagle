@@ -12,6 +12,7 @@
 #include "DoorwaysWalkableSurfaceQuery.h"
 #include "GameConstants.h"
 #include "NyxaraClips.h"
+#include "NyxaraFlair.h"
 #include "NyxaraHud.h"
 #include "Renderer.h"
 #include "Sound.h"
@@ -105,8 +106,42 @@ namespace Doorways
         // faster than she jumped she holds the pose at JumpHold (her leg reaching down). After JumpLand: her step out.
         constexpr float JumpApex = .333f, JumpHold = .575f, JumpLand = .617f;
         constexpr float DropSeconds = .45f;  // held that long in the reaching pose, a drop becomes a fall (the Fall clip)
-        constexpr float SlideFrom = .25f, SlideTo = .95f, SlideEvery = .22f, SlideReach = 1.7f, SlideArc = FrontArc;
-        constexpr int SlideDamage = 35;
+        // F, her slide (Skill_Slide: 1.53 s and 6.2 m as it was made), as a dash (2026-11-25; the owner: "i want f to be 3x
+        // faster and 3x longer distance to dash").
+        // Three times as fast: the game played it, as her other skills, at half the speed it was made at (3.1 s); it is
+        // played at SlidePace now, one and a half times that speed, wherever she is (1.04 s).
+        // Three times as far (18.7 m), and then seven tenths of that (2026-11-26; the owner: "i want F do have 0.7x of the
+        // current distance"): SlideFar times the clip's own way (13.1 m), the way added while she is down and sliding
+        // (gathered from SlideGoIn of the clip over SlideGoGather, held to SlideGoOut, lost over SlideGoLose), so that she
+        // drops into it and gets up out of it at the clip's own speed and her feet hold. (Laid evenly over the clip she
+        // would leave it faster than a run and be stopped short: out of a move she is carried on by a run's speed at
+        // the most.)
+        // What she passes is cut, to SlideTo of the clip: every creature her way since a frame ago goes within SlideWide of
+        // (and its own width), and again for every SlideCutEvery metres she goes on within that reach of where it stood
+        // when her way first met it, SlideCutsMost times at the most: three cuts through a creature of a man's width,
+        // four through a giant. (Her cuts knock it on along her way and it moves by itself: measured to where it is, the
+        // first ali of the Ascent, passed squarely, was cut three times or four as the frames fell.) (It was a cut every
+        // 0.22 s of the clip at what stood within 1.7 m before her: one every 1.1 m of her way, four in all. By the clock,
+        // at this speed, she would go five metres between two cuts and pass a creature without one. And looked at only
+        // where she stands each frame, half a metre on from the last, a creature a metre off her line is stepped over:
+        // in the Ascent she slid past the first ali so, and did not cut it.) The clay jars beside her way break as near
+        // it: the game is told of a blow all round her every SlideTell m of it. (SlidePut m or more between two frames is
+        // no way of hers: she was put there, her window's stage or a fall's way back, and nothing between is cut.)
+        // Its look is her gear's (2026-11-26; the owner, asked whether it should have her gear's trail: "yes based on
+        // what gear she wears"): with a flair on, its wake along her way (NyxaraFlair::Dash), her blades' trails, and
+        // each cut its bite, as a cut in passing (Blow::Passing: no moment is held, or her slide would stop in it). As
+        // she set out, with no gear, there is only blood. Without a flair: her old light.
+        constexpr float SlidePace = 1.5f, SlideFar = 2.1f;
+        constexpr float SlideGoIn = .03f, SlideGoGather = .15f, SlideGoOut = .8f, SlideGoLose = .35f;
+        constexpr float SlideTo = 1.1f, SlideWide = 1.f, SlideCutEvery = 1.1f, SlideTell = .5f, SlidePut = 12.f;
+        // On a climb: the engine makes its moves in pieces of SlideStep m, each on the ground it reaches (GameSession's
+        // LongMovePiece). Made in one piece, half a metre a step of the engine, it went 5 m up the way before the first
+        // creature of the Ascent: her height follows the ground with a lag, and the ground ahead was a step too high.
+        // In pieces it goes up what her easy pace goes up (every slope that is no rock face to the engine); her run is
+        // stopped sooner on a steep one, its height further behind. Measured over the whole way (the off-the-way test,
+        // -Dash against -Jog): where her slide went further than her run for that, her easy pace ended where it did.
+        constexpr float SlideStep = .15f;
+        constexpr int SlideDamage = 35, SlideCutsMost = 4;
         // The feather storm (C; Skill_Storm, made by MakeStorm): her times in it (s of the clip). She crouches (to StormCrouch),
         // leaves the ground (StormLeave), is at the top (StormTop), floats there and comes down from StormFall, her feet on
         // the ground again at StormDown; her body hovers as in Fly_Rise up to StormHang and lands as in Fly_Land after it.
@@ -168,7 +203,8 @@ namespace Doorways
         // it will be called twisted-dash and it also makes damage through"): DashSeconds at DashSpeed, laid back into V's
         // twist (DrillLean, feet first, over DashTip, and back to her flight over DashTipBack), DashTurns whole times round
         // about her length. Every creature her way goes through (DashWide either side of her line, its width counted) is
-        // struck once.
+        // struck once. Off unless asked for (SetFlightDash; 2026-11-26, the owner: "F should not work while flying"): in
+        // the game and the Character Lab F in flight does nothing but say that her slide is from the ground.
         constexpr float DashSpeed = 15, DashSeconds = .6f, DashTip = .14f, DashTipBack = .18f, DashTurns = 2;
         constexpr float DashWide = .7f, DashPush = 2.5f;
         constexpr int DashDamage = 60;
@@ -304,6 +340,13 @@ namespace Doorways
                 return path[i] + (path[i + 1] - path[i]) * (f - static_cast<float>(i));
             };
             return std::clamp(along(std::clamp(t, 0.f, .78f) * (.87f / .78f)) / (std::max)(along(.87f), 1e-3f), 0.f, 1.f);
+        }
+        // F, her slide: the metres a second of the clip that are added to its own way, t s into it (SlideFar; whole: the
+        // clip's own way, m). Over the clip they come to SlideFar - 1 times that way.
+        float SlideMore(float t, float whole)
+        {
+            const float held = SlideGoGather * .5f + (SlideGoOut - SlideGoIn - SlideGoGather) + SlideGoLose * .5f;   // (s: what the window comes to)
+            return (SlideFar - 1) * whole / held * Smooth(SlideGoIn, SlideGoIn + SlideGoGather, t) * (1 - Smooth(SlideGoOut, SlideGoOut + SlideGoLose, t));
         }
 
         // ------------------------------------------------------------------ procedural meshes
@@ -630,6 +673,9 @@ namespace Doorways
         // "i like 1's LMB combo and 4's RMB , now set those".
         struct MoveRef { int Style, Button; };
         constexpr MoveRef FlashStep{2, 0}, DrawCut{2, 1}, Pinwheel{4, 0}, MountainBreaker{7, 1}, LowFang{8, 0}, SwallowDart{9, 1};
+        // (and the rest of the twenty, for the nine combos of her flair)
+        constexpr MoveRef TalonFlick{0, 0}, TwinFang{0, 1}, Crescent{1, 0}, Moonfall{1, 1}, Needle{3, 0}, Fleche{3, 1}, Cyclone{4, 1}, Updraft{5, 0},
+                          EagleDive{5, 1}, TwinSlash{6, 0}, GaleRush{6, 1}, HeavyCleave{7, 0}, GroundWave{8, 1}, HitAndFade{9, 0};
         constexpr float ComboWindow = .4f;
         struct ComboSpec { const wchar_t* Name; const wchar_t* What; std::vector<MoveRef> String[2]; };
         const std::vector<ComboSpec>& Combos()
@@ -638,6 +684,38 @@ namespace Doorways
                 {L"HER COMBO", L"in and round, the ground broken; in and out, and round", {
                     {FlashStep, Pinwheel, MountainBreaker},
                     {DrawCut, SwallowDart, Pinwheel}}},
+                // The nine of her flair (NyxaraFlair; owner, 2026-11-25), 1 + gear * 3 + style. In each gear the first is
+                // fast and sharp (many quick blows, a rush through at the end), the second heavy (few blows, the ground
+                // broken), the third flowing (turns, one move running into the next): the third is the game's, as her
+                // gear is put on ("i like 3'd most - so add those to current nyxara's ingame version"); the Character Lab
+                // plays all nine.
+                {L"GALE EDGE", L"quick cuts and a rush through; in, the draw, and out again", {
+                    {TalonFlick, TwinFang, TwinSlash, GaleRush},
+                    {FlashStep, DrawCut, SwallowDart}}},
+                {L"STONEBREAKER", L"a cleave, a sweep, the ground broken; down from high, up, and down on it", {
+                    {HeavyCleave, Crescent, MountainBreaker},
+                    {Moonfall, Updraft, EagleDive}}},
+                {L"SKY WHEEL", L"round, a sweep, and round three times; in and out, two cuts, and round", {
+                    {Pinwheel, Crescent, Cyclone},
+                    {SwallowDart, TwinSlash, Pinwheel}}},
+                {L"CINDER RAZOR", L"a thrust, a flick, the X, a thrust through; in, low, and out again", {
+                    {Needle, TalonFlick, TwinFang, Fleche},
+                    {FlashStep, LowFang, SwallowDart}}},
+                {L"FORGE HAMMER", L"a cleave, down from high, the ground broken; fire along the ground, up, and down on it", {
+                    {HeavyCleave, Moonfall, MountainBreaker},
+                    {GroundWave, Updraft, EagleDive}}},
+                {L"FIRE DANCE", L"two cuts, round, a rush, and round three times; a sweep, back, in, and round", {
+                    {TwinSlash, Pinwheel, GaleRush, Cyclone},
+                    {Crescent, HitAndFade, SwallowDart, Pinwheel}}},
+                {L"SILVER THREAD", L"the draw, a thrust, the X, and through it; a thrust through, back, and through again", {
+                    {DrawCut, Needle, TwinFang, FlashStep},
+                    {Fleche, HitAndFade, FlashStep}}},
+                {L"GLACIER", L"a sweep, a cleave, down from high; low, ice along the ground, the ground broken", {
+                    {Crescent, HeavyCleave, Moonfall},
+                    {LowFang, GroundWave, MountainBreaker}}},
+                {L"MOON WRAITH", L"a sweep, two cuts, and round three times; in, round, out, and down from the air", {
+                    {Crescent, TwinSlash, Cyclone},
+                    {FlashStep, Pinwheel, SwallowDart, EagleDive}}},
             };
             return all;
         }
@@ -859,6 +937,11 @@ namespace Doorways
         std::string Attack;                // the cut or skill being played, empty: none
         int Begun = 0;                     // cuts and skills begun (NyxaraKit::AttacksBegun)
         float AttackTime = 0, SkillStrike = 0, SkillReach = 1;
+        // (F, her slide) where she was a frame ago, how far it has carried her (m), how far on the game is next told of a
+        // blow, and the creatures it has cut: which, how far she has gone within reach of it, how many times
+        struct SlideCut { int Who; float In; int Times; float X, Z; };   // (X, Z: where it stood when her way first met it)
+        XMFLOAT3 SlideWas{}; float SlideGone = 0, SlideTold = 0; std::vector<SlideCut> SlideCuts;
+        bool SlideWake = false;   // (her flair's wake of it has begun)
         float Pace = 1;   // how fast her attacks and skills play (the Character Lab's trial: half; NyxaraKit::Update sets it)
         // a style's move (StartMove): which, by which button (0 left, 1 right), the creature it was aimed at, its next blow,
         // how far it carries her in, how far it has turned her; where it means her to be now and how fast it carries her
@@ -953,6 +1036,7 @@ namespace Doorways
         XMFLOAT3 FinishStrike{};                              // (the slide) her blade's point as it kills: on its neck, or short of it in its back
         bool FinishHit[4]{};                                  // (4 to 10) which of its blows have landed
         XMFLOAT3 FinishMark[4]{}, FinishMarkWay[4]{}; int FinishMarks = 0;   // (4 to 10) where they cut it, and which way
+        XMFLOAT3 FinishLit{}, FinishLitWay{}; bool FinishLitAny = false;     // (her flair) its last blow's light: where on it, and the way her blade went
         float WingAimFlap = 0, WingAimBack = 0;               // her wings held up (+) and swept back (+) by a move (radians, on what else they do)
         // the made clips: every 1/60 s her feet's middle and the points of her swords, left and right (her own space)
         std::vector<XMFLOAT3> FinishFeetAt[Finishers + 1], FinishTipAt[Finishers + 1][2];
@@ -2838,7 +2922,9 @@ namespace Doorways
             if (found == NyxaraClips::Attacks.end() || found->second.Forward.size() < 2) return 0;
             const auto& path = found->second.Forward;
             const size_t i = (std::min)(static_cast<size_t>((std::max)(0.f, AttackTime) * 30), path.size() - 2);
-            return (path[i + 1] - path[i]) * 30 * AttackRate * Pace * (Skill() ? SkillReach : 1.f);
+            float go = (path[i + 1] - path[i]) * 30;   // (m a second of the clip)
+            if (Attack == "Skill_Slide") go += SlideMore(AttackTime, path.back());   // (F: three times as far)
+            return go * AttackRate * Pace * (Skill() ? SkillReach : 1.f);
         }
 
         // She looks where she turns (2026-11-19): her head and neck lead a turn, as far as she turns fast, and come
@@ -4400,6 +4486,20 @@ namespace Doorways
         mCombo = combo >= 0 && combo < ComboCount && combo < static_cast<int>(Combos().size()) ? combo : -1;
         if (mBody) mBody->ComboButton = -1;
     }
+    void NyxaraKit::SetFlair(int gear, int style, bool own, bool plain)
+    {
+        if (gear < 0 || style < 0) { if (mFlair) mFlair->Choose(-1, -1); return; }
+        if (!mFlair) { mFlair = std::make_unique<NyxaraFlair>(); mFlair->SetGround(&mFootGround); }
+        mFlair->Choose(gear, style, own, plain);
+    }
+    int NyxaraKit::FlairGear() const { return mFlair ? mFlair->Gear() : -1; }
+    int NyxaraKit::FlairStyle() const { return mFlair ? mFlair->Style() : -1; }
+    bool NyxaraKit::FlairOwn() const { return mFlair && mFlair->Own(); }
+    bool NyxaraKit::FlairOn() const { return mFlair && mFlair->On(); }
+    bool NyxaraKit::FlairPlain() const { return mFlair && mFlair->Chosen() && mFlair->Plain(); }
+    bool NyxaraKit::FlairLit() const { return mFlair && mFlair->Lit(); }
+    int NyxaraKit::FlairMotes() const { return mFlair ? mFlair->Motes() : 0; }
+    int NyxaraKit::FlairQuads() const { return mFlair ? mFlair->Quads() : 0; }
     bool NyxaraKit::ComboMade(int combo) const
     {
         if (!mBody || combo < 0 || combo >= static_cast<int>(Combos().size())) return false;
@@ -4462,6 +4562,7 @@ namespace Doorways
         (void)inputAllowed;
         if (!mReady) return realDeltaTime * timeScale;
         float scaled = realDeltaTime;
+        const bool held = mHitStop > 0;   // (her flair's light goes on through it: mFlairDt)
         if (mHitStop > 0) { mHitStop -= realDeltaTime; scaled = realDeltaTime * .06f; }   // the moment a heavy blow lands
         else if (mSlow > 0)
         {   // a finishing kill's moment: slow, and back to speed evenly over its time
@@ -4469,6 +4570,7 @@ namespace Doorways
             const float back = 1 - std::clamp(mSlow / (std::max)(mSlowFull, 1e-3f), 0.f, 1.f);
             scaled = realDeltaTime * (mSlowRate + (1 - mSlowRate) * back * back * (3 - 2 * back));
         }
+        mFlairDt = (held ? realDeltaTime : scaled) * timeScale;
         scaled *= timeScale;
         // The engine moves her on a 60 Hz grid: this frame's time is added to what was left over, and she is moved in
         // slices of 1/60 s while there is a whole one (PlayerController::UpdateWithInput, its SliceSeconds; at most 1.25 s
@@ -4712,6 +4814,12 @@ namespace Doorways
             const float feet = w.Pos.y - 1.3f + w.Lift;
             dooms = std::hypot(w.Pos.x - mHerPlace.x, w.Pos.z - mHerPlace.z) - w.Radius <= FinishReach && std::abs(feet - mHerPlace.y) <= FinishHigh;
             for (const auto& o : mWraiths) dooms = dooms && !(o.Alive && o.Doom > 0);
+            if (dooms)
+            {   // ... and by chance (SetFinishChance: half of them; the owner, 2026-11-26: "make finishing kill of each
+                // monster randomly with 50% chance of happening"): the others die of this blow itself
+                static const float asked = [] { char v[32]{}; size_t n = 0; return getenv_s(&n, v, "CAUCASIAN_EAGLE_NYXARA_FINISH") == 0 && n > 1 ? static_cast<float>(std::atof(v)) : -1.f; }();
+                dooms = Random() < (asked >= 0 ? asked : mFinishChance);
+            }
         }
         if (!mTrainingMode) w.Health -= damage;
         else ++mTrainingTargetHits;
@@ -4745,6 +4853,17 @@ namespace Doorways
         auto& w = mWraiths[index];
         if (!w.Alive) return;
         KillWraith(index, 0);
+        if (mFlair && mFlair->On())
+        {   // (her flair: a kill's light is its own, here as in a finisher)
+            NyxaraFlair::Kill kill;
+            const XMFLOAT3 feet = FeetOf(w);
+            XMFLOAT3 way{feet.x - mHerPlace.x, 0, feet.z - mHerPlace.z};
+            way = Len(way) > 1e-3f ? Norm(way) : XMFLOAT3{0, 0, 1};
+            kill.It = {feet, w.Height, w.Radius}; kill.Way = way;
+            kill.At = {feet.x - way.x * .6f * w.Radius, feet.y + .55f * w.Height, feet.z - way.z * .6f * w.Radius};
+            mFlair->Finish(kill);
+            return;
+        }
         Burst(w.Pos, ShadeViolet, 26, 6.f, .35f);
         Fx ring; ring.Kind = FxKind::Ring; ring.Pos = {w.Pos.x, w.Pos.y - w.Lift - 1.2f, w.Pos.z}; ring.Size = 2.2f;
         ring.Life = .6f; ring.Color = ShadeViolet; mFx.push_back(ring);
@@ -5009,7 +5128,7 @@ namespace Doorways
         b.Finish = which; b.FinishTarget = index; b.FinishTime = 0; b.FinishSide = side; b.FinishBehind = behind;
         b.FinishBlown[0] = b.FinishBlown[1] = false; b.FinishKilled = b.FinishLanded = b.FinishRipped = false;
         for (bool& hit : b.FinishHit) hit = false;
-        b.FinishMarks = 0;
+        b.FinishMarks = 0; b.FinishLitAny = false;
         b.FinishBlowAt[0] = spec.Blow[0]; b.FinishBlowAt[1] = spec.Blow[1]; b.FinishDeathAt = spec.Death;
         b.FinishFrom = S; b.FinishFeet = F; b.FinishWay = u; b.FinishRight = r; b.FinishNeck = neck;
         b.FinishHeight = H; b.FinishRadius = R; b.FinishKnee = K; b.FinishTall = tall; b.FinishDepth = w.Depth > 0 ? w.Depth : 1.5f * R;
@@ -5352,10 +5471,26 @@ namespace Doorways
         }
 
         // ---- what happens on the way
+        // (Her flair, where one is on: each cut's light is its own, and the kill's: NyxaraFlair's Strike, placed on the
+        // creature, and Finish; owner, 2026-11-25, "adjust finishings on the new effect systems". Then none of the
+        // kit's own lines, drops, rings and bursts are made here: slash, spray and ring do nothing or ask her flair.)
+        const bool flair = mFlair && mFlair->On();
         const auto slash = [&](XMFLOAT3 at, XMFLOAT3 way, float length, float life)
         {   // a long bright line where her blade went through it
+            if (flair) return;
             if (b.Marks.size() > 500) b.Marks.erase(b.Marks.begin(), b.Marks.begin() + 150);
             b.Marks.push_back({at, Norm(way), life, life, length, F.y, 5});
+        };
+        const auto spray = [&](const XMFLOAT3& at, const XMFLOAT3& way, int count, float speed) { if (!flair) b.Spray(at, way, count, speed, F.y); };
+        const auto ring = [&](const XMFLOAT3& at, float size, XMFLOAT4 colour, float life) { if (flair) mFlair->Gust(at, size); else RingEffect(at, size, colour, life); };
+        const auto cutLight = [&](const XMFLOAT3& at, const XMFLOAT3& way, int hand, int weight, float ringWide = 0, bool whirl = false)
+        {   // (her flair) a blow of the finisher on it: where, the way her blade goes, its blade (0 left, 1 right, 2 both)
+            if (!flair) return;
+            NyxaraFlair::Blow blow;
+            blow.Her = p.Position; blow.Yaw = p.Yaw; blow.Hand = hand; blow.Weight = weight; blow.Ring = ringWide; blow.Whirl = whirl;
+            blow.Placed = true; blow.At = at; blow.Struck.push_back({F, H, R});
+            mFlair->Strike(blow);
+            b.FinishLit = at; b.FinishLitWay = way; b.FinishLitAny = true;
         };
         const auto slow = [&](float seconds, float rate) { mSlow = mSlowFull = seconds; mSlowRate = rate; };
         const auto passed = [&](float when) { return when >= 0 && t >= when; };
@@ -5369,8 +5504,9 @@ namespace Doorways
                 {
                     b.FinishBlown[k] = true;
                     slash(cross, ways[k], length, 1.1f);
-                    b.Wound(F, H, R, p.Position, k ? -1.f : 1.f, false, 60);
-                    b.Spray(cross, Add(Mul(ways[k], .6f), Mul(u, -.5f)), 12, 3.5f, F.y);
+                    if (!flair) b.Wound(F, H, R, p.Position, k ? -1.f : 1.f, false, 60);
+                    spray(cross, Add(Mul(ways[k], .6f), Mul(u, -.5f)), 12, 3.5f);
+                    cutLight(cross, ways[k], k ? 0 : 1, 1);   // (Attack_R1's cut, then Attack_L1's)
                     w.Flash = .16f;
                     mHitStop = (std::max)(mHitStop, k ? .09f : .05f);
                     mShake = (std::max)(mShake, k ? .16f : .1f);
@@ -5382,7 +5518,7 @@ namespace Doorways
             if (!b.FinishKilled && passed(b.FinishDeathAt))
             {   // the cross opens
                 for (int k = 0; k < 2; ++k) slash(cross, ways[k], length * 1.15f, .45f);
-                b.Spray(cross, Add(Mul(u, -1), {0, .35f, 0}), 34, 4.5f, F.y);
+                spray(cross, Add(Mul(u, -1), {0, .35f, 0}), 34, 4.5f);
                 mShake = (std::max)(mShake, .22f);
                 slow(.4f, .4f);
                 CaucasianEagle::Sound::Play("combat/hit", 1.f, .06f);
@@ -5394,7 +5530,7 @@ namespace Doorways
             {   // she springs: her wings open and beat
                 b.FinishBlown[1] = true;
                 for (auto& wing : b.WingSpring) wing.FlapGo += 3.2f;
-                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.8f, {.62f, .56f, .48f, 1}, .4f);
+                ring({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.8f, {.62f, .56f, .48f, 1}, .4f);
                 CaucasianEagle::Sound::Play("nyxara/effort", .9f, .08f);
                 CaucasianEagle::Sound::Play("nyxara/wing", .75f);
                 CaucasianEagle::Sound::Play("nyxara/dash", .6f, .1f);
@@ -5403,7 +5539,8 @@ namespace Doorways
             {   // her blades go in
                 b.FinishBlown[0] = true;
                 for (auto& wing : b.WingSpring) wing.FlapGo -= 2.6f;
-                b.Spray(b.FinishAnchor, Add(Mul(u, -.7f), {0, .6f, 0}), 40, 4.5f, F.y);
+                spray(b.FinishAnchor, Add(Mul(u, -.7f), {0, .6f, 0}), 40, 4.5f);
+                cutLight(b.FinishAnchor, {0, -1, 0}, 2, 1);
                 w.Flash = .16f;
                 mHitStop = (std::max)(mHitStop, .12f); mShake = (std::max)(mShake, .35f);
                 slow(.45f, .3f);
@@ -5415,7 +5552,7 @@ namespace Doorways
                 b.FinishRipped = true;
                 XMFLOAT3 place, anchor; float high;
                 b.PlungeRide(hopFrom, place, high, &anchor);
-                b.Spray(anchor, {0, 1, 0}, 26, 3.5f, F.y);
+                spray(anchor, {0, 1, 0}, 26, 3.5f);
                 for (auto& wing : b.WingSpring) wing.FlapGo += 3.f;
                 CaucasianEagle::Sound::Play("nyxara/wing", .6f);
                 CaucasianEagle::Sound::Play("nyxara/dash", .7f, .1f);
@@ -5424,7 +5561,7 @@ namespace Doorways
             if (b.FinishRipped && !b.FinishLanded && t >= hopFrom + hop)
             {
                 b.FinishLanded = true;
-                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.6f, MoonWhite, .35f);
+                ring({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.6f, MoonWhite, .35f);
                 mShake = (std::max)(mShake, .06f);
                 CaucasianEagle::Sound::Play("nyxara/land", .8f);
             }
@@ -5455,6 +5592,7 @@ namespace Doorways
                 if (m.Hit[k] < 0 || b.FinishHit[k] || t < m.Hit[k]) continue;
                 b.FinishHit[k] = true;
                 const bool last = std::abs(m.Hit[k] - spec.Death) < 1e-3f;
+                XMFLOAT3 lit{}, litWay{}; int lights = 0;
                 for (int hand = 0; hand < 2; ++hand)
                 {
                     if (m.Hand[k] != 2 && m.Hand[k] != hand) continue;
@@ -5462,9 +5600,20 @@ namespace Doorways
                     XMFLOAT3 way = Sub(tipAt(hand, m.Hit[k] + 1 / 60.f), tipAt(hand, m.Hit[k] - 1 / 60.f));
                     way = Len(way) > 1e-4f ? Norm(way) : Norm(Sub(r, up));
                     slash(at, way, length, m.Show == 3 ? .35f : .9f);
-                    b.Spray(at, Add(Mul(way, .6f), Mul(u, .4f)), last ? 30 : 12, last ? 4.5f : 3.5f, F.y);
-                    if (mHiggsfieldTrial) TrialBiteLight(at, u, true);
+                    spray(at, Add(Mul(way, .6f), Mul(u, .4f)), last ? 30 : 12, last ? 4.5f : 3.5f);
+                    if (mHiggsfieldTrial && !flair) TrialBiteLight(at, u, true);
                     if (b.FinishMarks < 4) { b.FinishMark[b.FinishMarks] = at; b.FinishMarkWay[b.FinishMarks] = way; ++b.FinishMarks; }
+                    lit = Add(lit, at); litWay = Add(litWay, way); ++lights;
+                }
+                if (flair && lights)
+                {   // (her flair: one light for the blow, both blades' as one. The first two of a flurry are light blows,
+                    // the rest middle ones, the last too: what the kill adds is the kill's own, Finish, below. A whole
+                    // turn's cut is all round her; blades into the ground send out the style's ring)
+                    int blows = 0;
+                    for (const float hit : m.Hit) if (hit >= 0) ++blows;
+                    const bool intoGround = last && m.Show == 2;
+                    cutLight(Mul(lit, 1.f / static_cast<float>(lights)), Len(litWay) > 1e-4f ? Norm(litWay) : u, m.Hand[k], blows > 2 && k < 2 ? 0 : 1,
+                             intoGround ? std::clamp(1.5f * R + 1.5f, 2.f, 5.f) : 0.f, which == 5 && k == 0);
                 }
                 w.Flash = .16f;
                 mHitStop = (std::max)(mHitStop, last ? .1f : .05f);
@@ -5479,14 +5628,14 @@ namespace Doorways
             {   // her wings beat her up
                 b.FinishBlown[1] = true;
                 for (auto& wing : b.WingSpring) wing.FlapGo += 3.2f;
-                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.6f, {.62f, .56f, .48f, 1}, .35f);
+                ring({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.6f, {.62f, .56f, .48f, 1}, .35f);
                 CaucasianEagle::Sound::Play("nyxara/wing", .75f);
                 CaucasianEagle::Sound::Play("nyxara/effort", .8f, .08f);
             }
             if (m.Leap > 0 && !b.FinishLanded && t >= m.LeapDown)
             {
                 b.FinishLanded = true;
-                RingEffect({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.4f, MoonWhite, .3f);
+                if (!flair || m.Show != 2) ring({p.Position.x, p.Position.y + .05f, p.Position.z}, 1.4f, MoonWhite, .3f);   // (her flair: blades into the ground have its ring already)
                 CaucasianEagle::Sound::Play("nyxara/land", .8f);
             }
             if (m.Past > 0 && !b.FinishBlown[0] && t >= m.PastFrom - .05f)
@@ -5499,16 +5648,20 @@ namespace Doorways
             {   // its kill, as this one has it
                 if (m.Show == 1)
                 {   // (her blade's point comes out of its back as she draws it)
-                    b.Spray(Add(b.FinishStrike, Mul(u, .8f * R)), Add(u, {0, .3f, 0}), 40, 5.f, F.y);
+                    spray(Add(b.FinishStrike, Mul(u, .8f * R)), Add(u, {0, .3f, 0}), 40, 5.f);
+                    if (flair) { b.FinishLit = Add(b.FinishStrike, Mul(u, .8f * R)); b.FinishLitWay = u; b.FinishLitAny = true; }
                     CaucasianEagle::Sound::Play("combat/blow", .9f, .08f);
                 }
                 else if (m.Show == 2)
                 {   // (the ground shakes round her blades)
                     const XMFLOAT3 at{b.FinishStrike.x, F.y + .05f, b.FinishStrike.z};
-                    RingEffect(at, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), {.62f, .56f, .48f, 1}, .5f);
-                    RingEffect(at, std::clamp(R + 1.f, 1.2f, 3.5f), MoonWhite, .35f);
-                    Burst(at, {.55f, .5f, .45f, 1}, 26, 4.f, .3f);
-                    if (mHiggsfieldTrial) TrialGroundLight({at.x, at.y + .05f, at.z}, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), true);
+                    if (!flair)
+                    {
+                        RingEffect(at, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), {.62f, .56f, .48f, 1}, .5f);
+                        RingEffect(at, std::clamp(R + 1.f, 1.2f, 3.5f), MoonWhite, .35f);
+                        Burst(at, {.55f, .5f, .45f, 1}, 26, 4.f, .3f);
+                        if (mHiggsfieldTrial) TrialGroundLight({at.x, at.y + .05f, at.z}, std::clamp(1.5f * R + 1.5f, 2.f, 5.f), true);
+                    }
                     mShake = (std::max)(mShake, .45f);
                     CaucasianEagle::Sound::Play("combat/blow", 1.f, .06f);
                 }
@@ -5517,7 +5670,8 @@ namespace Doorways
                     for (int k = 0; k < b.FinishMarks; ++k)
                     {
                         slash(b.FinishMark[k], b.FinishMarkWay[k], length * 1.3f, .6f);
-                        b.Spray(b.FinishMark[k], Add(Mul(b.FinishMarkWay[k], .5f), {0, .4f, 0}), 40, 4.5f, F.y);
+                        spray(b.FinishMark[k], Add(Mul(b.FinishMarkWay[k], .5f), {0, .4f, 0}), 40, 4.5f);
+                        cutLight(b.FinishMark[k], b.FinishMarkWay[k], 1, 1);
                     }
                     w.Flash = .2f;
                     mShake = (std::max)(mShake, .3f);
@@ -5526,7 +5680,7 @@ namespace Doorways
                 }
                 else
                 {
-                    b.Spray(b.FinishStrike, Add(Mul(u, m.Show == 4 ? .3f : .6f), {0, m.Show == 4 ? .9f : .4f, 0}), 34, 4.5f, F.y);
+                    spray(b.FinishStrike, Add(Mul(u, m.Show == 4 ? .3f : .6f), {0, m.Show == 4 ? .9f : .4f, 0}), 34, 4.5f);
                     CaucasianEagle::Sound::Play("combat/blow", .8f, .08f);
                 }
                 slow(.45f, .35f);
@@ -5539,7 +5693,8 @@ namespace Doorways
                 b.FinishBlown[0] = true;
                 const XMFLOAT3 legs = Add(Add(F, Mul(r, .5f * R)), {0, (std::max)(.25f, .8f * K), 0});
                 slash(legs, u, std::clamp(.8f * R + .5f, .6f, 1.6f), .8f);
-                b.Spray(legs, Add(r, Mul(u, .5f)), 14, 3.f, F.y);
+                spray(legs, Add(r, Mul(u, .5f)), 14, 3.f);
+                cutLight(legs, u, 0, 1);
                 w.Flash = .16f;
                 mHitStop = (std::max)(mHitStop, .04f); mShake = (std::max)(mShake, .1f);
                 CaucasianEagle::Sound::Play("nyxara/swing", .5f, .15f);
@@ -5561,7 +5716,8 @@ namespace Doorways
                 const XMFLOAT3 v = Sub(Body::FlipAt(tipR, kill + 1 / 60.f), Body::FlipAt(tipR, kill - 1 / 60.f));
                 const XMFLOAT3 way = Norm({v.x * c + v.z * sn, v.y, -v.x * sn + v.z * c});
                 slash(b.FinishStrike, way, std::clamp(.35f * H, .8f, 1.8f), .9f);
-                b.Spray(b.FinishStrike, Add(Mul(way, .6f), {0, .5f, 0}), 46, 5.f, F.y);
+                spray(b.FinishStrike, Add(Mul(way, .6f), {0, .5f, 0}), 46, 5.f);
+                cutLight(b.FinishStrike, way, 1, 1);
                 mHitStop = (std::max)(mHitStop, .1f); mShake = (std::max)(mShake, .3f);
                 slow(.45f, .35f);
                 CaucasianEagle::Sound::Play("nyxara/swing_heavy", .6f, .1f);
@@ -5593,7 +5749,15 @@ namespace Doorways
             KillWraith(b.FinishTarget, linger);
             f.Until = linger + .65f;
             LetFall(f);
-            Burst(Add(F, {0, .6f * H, 0}), ShadeViolet, 14, 3.f, .3f);
+            if (flair)
+            {   // (her flair: the kill's own light, round it: where her last blow was in it, the way her blade went)
+                NyxaraFlair::Kill kill;
+                kill.At = b.FinishLitAny ? b.FinishLit : which == 1 ? Add(Sub(F, Mul(u, .85f * R)), {0, .5f * H, 0}) : b.FinishStrike;
+                kill.Way = u; kill.Cut = b.FinishLitAny ? b.FinishLitWay : XMFLOAT3{};
+                kill.It = {F, H, R}; kill.Ground = which >= 4 && More[which].Show == 2;
+                mFlair->Finish(kill);
+            }
+            else Burst(Add(F, {0, .6f * H, 0}), ShadeViolet, 14, 3.f, .3f);
             b.Log(world, "finish kill");
         }
         if (t >= spec.Seconds)
@@ -5608,7 +5772,14 @@ namespace Doorways
         (void)worldRenderer;
         if (!mReady) return;
         auto& b = *mBody;
-        b.Pace = mHiggsfieldTrial ? mTrialPace : 1.f;
+        b.Pace = b.Attack == "Skill_Slide" ? SlidePace : mHiggsfieldTrial ? mTrialPace : 1.f;   // (F, her slide: its own, a dash's)
+        const bool flair = mFlair && mFlair->On();
+        const float flairDt = dt > 0 ? mFlairDt : 0.f;
+        if (flair && !b.Skill())
+        {   // (her flair: its own pace, of its combo's moves and of her own cuts; her skills keep theirs, as the game has them)
+            const NyxaraFlair::Info info = NyxaraFlair::Describe(mFlair->Gear(), mFlair->Style(), mFlair->Own());
+            b.Pace = mCombo >= 0 ? info.Pace : info.CutPace;
+        }
         auto& p = world.MainPlayer;
         auto& s = GameSession();
         b.Clock += dt;
@@ -5703,9 +5874,11 @@ namespace Doorways
         const auto sideOf = [&] { return b.Attack.find("_L") != std::string::npos ? 1.f : b.Attack.find("_R") != std::string::npos ? -1.f : b.Rand() < .5f ? 1.f : -1.f; };
         // A blow from where she is: every enemy within reach (plus its radius) and within arc degrees of her line,
         // whose height she is not over (in the air), is struck.
+        std::vector<NyxaraFlair::Blow::Body> flairStruck;   // (her flair: the creatures the last blow struck)
         const auto strike = [&](float reach, float arc, int damage, float push, float launch = 0)
         {
             int struck = 0;
+            flairStruck.clear();
             const float limit = std::cos(XMConvertToRadians(arc));
             for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
             {
@@ -5716,8 +5889,9 @@ namespace Doorways
                 const float over = p.Position.y - f.Feet.y;
                 if (over > f.Height + .5f || over < -2.5f) continue;   // over its head, or it is high over hers
                 if (d > f.Radius + .3f && (dx * std::sin(p.Yaw) + dz * std::cos(p.Yaw)) / d < limit) continue;
-                b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, damage);
+                if (!flair) b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, damage);   // (her flair bleeds its own)
                 DamageWraith(i, damage, p.Position, push, launch);
+                if (flair) flairStruck.push_back({f.Feet, f.Height, f.Radius});
                 ++struck;
             }
             if (struck) b.Log(world, ("hit " + std::to_string(struck)).c_str());
@@ -5966,8 +6140,9 @@ namespace Doorways
         if ((keyC || keyF) && free && !b.Jumping && !b.Carried())
         {
             if (keyF && flying)
-            {   // F in flight: the twisted dash
-                if (!cooling(0))
+            {   // F in flight: the twisted dash, where it is asked for (SetFlightDash); else nothing, and a word of it
+                if (!mFlightDash) { mNotice = L"THE SLIDE: FROM THE GROUND"; mNoticeTimer = .7f; }
+                else if (!cooling(0))
                 {
                     b.Air = 1; b.AirTime = 0; b.TwistNow = 0;
                     b.DashFrom = p.Position; b.DashStruck.clear();
@@ -5983,7 +6158,8 @@ namespace Doorways
                 if (!cooling(0))
                 {
                     b.SkillReach = 1;
-                    b.StartAttack(world, "Skill_Slide"); b.SkillStrike = SlideFrom;
+                    b.StartAttack(world, "Skill_Slide"); b.SkillStrike = 1e9f;   // (its cuts: by her way, below)
+                    b.Pace = SlidePace; b.SlideWas = p.Position; b.SlideGone = b.SlideTold = 0; b.SlideCuts.clear(); b.SlideWake = false;
                     mSkillCooldown[0] = SkillCooldown[0] * mCooldownScale;
                     CaucasianEagle::Sound::Play("nyxara/dash", .85f);
                 }
@@ -6246,7 +6422,23 @@ namespace Doorways
                 b.MoveVel = going ? XMFLOAT2{owex * 60, owez * 60} : XMFLOAT2{0, 0};   // (asked of one slice, if nothing asks again)
                 b.MoveOwe = going ? XMFLOAT2{owex, owez} : XMFLOAT2{0, 0};
             }
-            const bool lit = mHiggsfieldTrial;
+            const bool lit = mHiggsfieldTrial && !flair;
+            if (flair)
+            {   // (her flair: the wake of a move carrying her in or back, the lines of a turn round her)
+                if (was <= 0) mFlairDashing = false;
+                const bool dashing = (m.Lunge > .8f && t >= m.LungeFrom && was < m.LungeTo + .03f) ||
+                                     (m.Back > .6f && t >= m.BackFrom && was < m.BackTo + .03f);
+                const XMFLOAT3 at{p.Position.x, p.Position.y + 1.f, p.Position.z};
+                if (dashing)
+                {
+                    const bool first = !mFlairDashing || Len(Sub(at, mFlairFrom)) > 4.f;
+                    if (first) mFlairFrom = at;
+                    mFlair->Dash(mFlairFrom, at, first);
+                    mFlairFrom = at;
+                }
+                mFlairDashing = dashing;
+                if (m.Spin != 0 && t >= m.SpinFrom && was < m.SpinTo) mFlair->Whirl({p.Position.x, p.Position.y + 1.05f, p.Position.z}, flairDt);
+            }
             if (lit)
             {   // (the Character Lab's trial, after Higgsfield's video: every move's light is lines, not balls) speed lines
                 // left along her way while a move carries her in or back, a flash where she set off; while she turns, a
@@ -6282,6 +6474,7 @@ namespace Doorways
                 if (h.Shape == 1)
                 {   // a line along the ground before her: every creature within Arc m of it (its width counted), Reach m long
                     const XMFLOAT3 way = Forward(p.Yaw);
+                    flairStruck.clear();
                     for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
                     {
                         if (!mWraiths[i].Alive) continue;
@@ -6289,8 +6482,9 @@ namespace Doorways
                         const float dx = f.Feet.x - p.Position.x, dz = f.Feet.z - p.Position.z;
                         const float along = dx * way.x + dz * way.z, across = std::abs(dx * way.z - dz * way.x);
                         if (along < -f.Radius || along > h.Reach + f.Radius || across > h.Arc + f.Radius || std::abs(f.Feet.y - p.Position.y) > 2.5f) continue;
-                        b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, h.Damage);
+                        if (!flair) b.Wound(f.Feet, f.Height, f.Radius, p.Position, sideOf(), true, h.Damage);
                         DamageWraith(i, h.Damage, p.Position, h.Push, h.Launch);
+                        if (flair) flairStruck.push_back({f.Feet, f.Height, f.Radius});
                         ++struck;
                     }
                     b.WaveFrom = p.Position; b.WaveWay = way; b.WaveReach = h.Reach; b.WaveTime = 0; b.WaveSparks = 0;
@@ -6300,9 +6494,22 @@ namespace Doorways
                 }
                 else struck = strike(h.Reach, h.Arc, h.Damage, h.Push, h.Launch);
                 CaucasianEagle::Sound::Play(h.Damage >= 70 ? "nyxara/swing_heavy" : "nyxara/swing", .5f, .15f);
-                if (struck && h.Stop > 0) mHitStop = (std::max)(mHitStop, h.Stop);
-                if ((struck || h.Ring > 0) && h.Shake > 0) mShake = (std::max)(mShake, h.Shake);
-                if (h.Ring > 0)
+                if (flair)
+                {   // (her flair: the blow's light is its own, and what it asks of the game's feel: TakeFeel, below)
+                    const bool lastHit = b.MoveHitNext + 1 >= static_cast<int>(m.Hits.size());
+                    const bool lastMove = comboed && b.ComboButton >= 0 &&
+                                          b.ComboStep + 1 >= static_cast<int>(Combos()[static_cast<size_t>(mCombo)].String[b.ComboButton].size());
+                    NyxaraFlair::Blow blow;
+                    blow.Her = p.Position; blow.Yaw = p.Yaw; blow.Hand = h.Hand; blow.Ring = h.Ring; blow.Reach = h.Shape == 1 ? 2.f : h.Reach;
+                    blow.Weight = (lastHit && lastMove) || h.Damage >= 85 ? 2 : h.Damage >= 55 || (lastHit && m.Hits.size() > 1) ? 1 : 0;
+                    blow.Whirl = m.Spin != 0 && h.Arc >= 150.f; blow.Rising = m.Hop > .05f || h.Launch > 0;
+                    blow.Struck = flairStruck;
+                    mFlair->Strike(blow);
+                }
+                if (!flair && struck && h.Stop > 0) mHitStop = (std::max)(mHitStop, h.Stop);
+                if (!flair && (struck || h.Ring > 0) && h.Shake > 0) mShake = (std::max)(mShake, h.Shake);
+                if (flair) { /* (its own light, above) */ }
+                else if (h.Ring > 0)
                 {   // the ground struck: a ring out over it, and sparks (the trial: lines of light out along the ground and up)
                     const XMFLOAT3 at = Add(p.Position, Mul(Forward(p.Yaw), .9f));
                     RingEffect({at.x, at.y + .05f, at.z}, h.Ring, lit ? ThemeMain() : MoonWhite, .45f);
@@ -6372,12 +6579,72 @@ namespace Doorways
                     ++b.StormVolley;
                     b.SkillStrike = b.StormVolley < 3 ? b.StormVolleyAt[b.StormVolley] : 1e9f;
                 }
-                else
-                {
-                    const bool slide = b.Attack == "Skill_Slide";
-                    if (slide) strike(SlideReach, SlideArc, SlideDamage, CutPush);
-                    b.SkillStrike = slide && b.SkillStrike + SlideEvery <= SlideTo ? b.SkillStrike + SlideEvery : 1e9f;
+                else b.SkillStrike = 1e9f;
+            }
+            if (b.Attack == "Skill_Slide" && b.AttackTime <= SlideTo)
+            {   // F, her slide: what her way goes past is cut, by her way (above): her line since a frame ago against each
+                // creature, as her twisted dash's is. Its light is her gear's (her flair's: its wake along her way, each
+                // cut its bite); with no flair, her old light and its blood.
+                float ax = b.SlideWas.x, az = b.SlideWas.z, gx = p.Position.x - ax, gz = p.Position.z - az, went = std::hypot(gx, gz);
+                if (went >= SlidePut) { ax = p.Position.x; az = p.Position.z; gx = gz = went = 0; }   // (she was put here)
+                const float hx = went > 1e-4f ? gx / went : std::sin(p.Yaw), hz = went > 1e-4f ? gz / went : std::cos(p.Yaw);
+                if (flair && went > 1e-3f)
+                {   // (her wake: this frame's piece of her way, at her middle, laid low as she is)
+                    constexpr float Low = .6f;
+                    mFlair->Dash({ax, b.SlideWas.y + Low, az}, {p.Position.x, p.Position.y + Low, p.Position.z}, !b.SlideWake);
+                    b.SlideWake = true;
                 }
+                b.SlideWas = p.Position;
+                int struck = 0;
+                for (int i = 0; i < static_cast<int>(mWraiths.size()); ++i)
+                {
+                    if (!mWraiths[i].Alive) continue;
+                    const Foe f = foe(i);
+                    const float over = p.Position.y - f.Feet.y;
+                    if (over > f.Height + .5f || over < -2.5f) continue;   // over its head, or it is high over hers
+                    // (how much of this frame's way lay within reach of it: of where it stood when her way first met it)
+                    auto cut = std::find_if(b.SlideCuts.begin(), b.SlideCuts.end(), [i](const Body::SlideCut& c) { return c.Who == i; });
+                    const bool met = cut != b.SlideCuts.end();
+                    const float reach = f.Radius + SlideWide, cx = (met ? cut->X : f.Feet.x) - ax, cz = (met ? cut->Z : f.Feet.z) - az;
+                    const float away2 = cx * cx + cz * cz, ahead = cx * hx + cz * hz, beside2 = away2 - ahead * ahead;
+                    if (beside2 >= reach * reach) continue;
+                    const float half = std::sqrt(reach * reach - beside2), in = (std::min)(went, ahead + half) - (std::max)(0.f, ahead - half);
+                    if (in < 0) continue;
+                    if (!met)
+                    {   // (first met before her or beside her, or right at her: not what stands behind her as she sets off)
+                        if (ahead < 0 && away2 > (f.Radius + .3f) * (f.Radius + .3f)) continue;
+                        b.SlideCuts.push_back(Body::SlideCut{i, 0.f, 0, f.Feet.x, f.Feet.z}); cut = b.SlideCuts.end() - 1;
+                    }
+                    cut->In += in;
+                    // (and where on this frame's way she was nearest to it as it stands now: the blow comes from there)
+                    const float nowX = f.Feet.x - ax, nowZ = f.Feet.z - az, nowAhead = nowX * hx + nowZ * hz;
+                    const float nowBeside2 = nowX * nowX + nowZ * nowZ - nowAhead * nowAhead;
+                    float nearest = std::clamp(nowAhead, 0.f, went);
+                    if (nowBeside2 < .04f && std::abs(nowAhead - nearest) < .2f) nearest = nowAhead - .3f;   // (right through its middle: from before it)
+                    const XMFLOAT3 from{ax + hx * nearest, p.Position.y, az + hz * nearest};
+                    while (cut->Times < SlideCutsMost && cut->In >= static_cast<float>(cut->Times) * SlideCutEvery && mWraiths[i].Alive)
+                    {
+                        ++cut->Times;
+                        if (flair)
+                        {   // (her flair: the cut's bite as her gear has it, her blades in turn; a cut in passing)
+                            NyxaraFlair::Blow blow;
+                            blow.Her = from; blow.Yaw = std::atan2(hx, hz); blow.Hand = cut->Times % 2; blow.Weight = 0; blow.Reach = reach;
+                            blow.Passing = true; blow.Struck.push_back({f.Feet, f.Height, f.Radius});
+                            mFlair->Strike(blow);
+                        }
+                        else b.Wound(f.Feet, f.Height, f.Radius, from, sideOf(), true, SlideDamage);
+                        DamageWraith(i, SlideDamage, from, CutPush, 0);
+                        ++struck;
+                    }
+                }
+                if (struck) b.Log(world, ("slide cut " + std::to_string(struck)).c_str());
+                // (and the game is told of a blow all round her every SlideTell m of her way: the clay jars beside it)
+                for (; mBlowListener && b.SlideTold <= b.SlideGone + went; b.SlideTold += SlideTell)
+                {
+                    const float on = std::clamp(b.SlideTold - b.SlideGone, 0.f, went);
+                    mBlowListener({ax + hx * on, p.Position.y, az + hz * on}, p.Yaw, SlideWide + .2f, 360.f);
+                }
+                b.SlideGone += went;
             }
             if (b.AttackTime >= b.Duration(b.Attack)) b.Attack.clear();
         }
@@ -6391,6 +6658,15 @@ namespace Doorways
                 const bool leap = b.Attack == "Attack_Jump";
                 const bool last = b.Attack == LeftChain[std::size(LeftChain) - 1] || b.Attack == RightChain[std::size(RightChain) - 1];
                 strike(leap ? JumpReach : SwordReach, SwordArc, leap ? JumpDamage : last ? LastDamage : CutDamage, CutPush);
+                if (flair)
+                {   // (her flair: her own cut's light; each chain's last cut, and her leaping one, its heaviest)
+                    NyxaraFlair::Blow blow;
+                    blow.Her = p.Position; blow.Yaw = p.Yaw; blow.Reach = leap ? JumpReach : SwordReach;
+                    blow.Hand = leap ? 2 : b.Attack.find("_L") != std::string::npos ? 0 : 1;
+                    blow.Weight = leap || last ? 2 : b.Step > 0 ? 1 : 0;
+                    blow.Struck = flairStruck;
+                    mFlair->Strike(blow);
+                }
                 CaucasianEagle::Sound::Play("nyxara/swing", .5f, .15f);
             }
             if (b.Queued && b.AttackTime >= hit + ChainAfter && styled) b.Attack.clear();   // (with a combo, a click goes on into its move, not her old cuts)
@@ -6413,7 +6689,8 @@ namespace Doorways
             {
                 const float d = b.WaveSparks * .5f;
                 const XMFLOAT3 at = Add(b.WaveFrom, {b.WaveWay.x * d, .12f, b.WaveWay.z * d});
-                if (mHiggsfieldTrial)
+                if (flair) mFlair->Wave(at, b.WaveWay);
+                else if (mHiggsfieldTrial)
                 {   // (the trial: a spike of light up out of the ground, and hot sparks)
                     Ray(at, {(Random() - .5f) * .3f, 1, (Random() - .5f) * .3f}, .8f + .7f * Random(), .07f, ThemeMain(), .28f, true);
                     Embers(at, {0, 1, 0}, 4, ThemeCore(), 4.f);
@@ -6522,6 +6799,7 @@ namespace Doorways
         float impulse = !b.Dead && dt > 0 ? b.ForwardSpeed(world) : 0.f;
         s.ImpulseX = std::sin(p.Yaw) * impulse;
         s.ImpulseZ = std::cos(p.Yaw) * impulse;
+        s.LongMovePiece = b.Attack == "Skill_Slide" ? SlideStep : 0.f;   // (F, her slide: up a climb as on the level)
         if (b.Finish) { s.ImpulseX = b.FinishGo.x; s.ImpulseZ = b.FinishGo.y; }   // (a finisher's plan: UpdateFinish)
         else if (b.InMove()) { s.ImpulseX = b.MoveVel.x; s.ImpulseZ = b.MoveVel.y; }   // (a style's move: its way, above)
         b.WasAt = {p.Position.x, p.Position.z};
@@ -6845,7 +7123,12 @@ namespace Doorways
                     for (auto& q : trail) q.Age += poseDt;
                     while (!trail.empty() && trail.front().Age > StyleTrailSeconds) trail.erase(trail.begin());
                 }
-                if (composed && b.InMove() && b.AttackTime >= 0 && b.SwordJoint[0] >= 0 && b.SwordJoint[1] >= 0)
+                // (her flair: its own trails, and of her own cuts and her finishing kills too, not only a style's moves)
+                if (mFlair) mFlair->AgeTrails(poseDt, p.Position);
+                const bool finishing = flair && b.Finish != 0;
+                const bool sliding = flair && b.Attack == "Skill_Slide" && b.AttackTime <= SlideTo;   // (her slide: her blades' trails too)
+                const bool bladesOut = b.InMove() || finishing || sliding || (flair && !b.Attack.empty() && !b.Skill());
+                if (composed && bladesOut && (finishing || b.AttackTime >= 0) && b.SwordJoint[0] >= 0 && b.SwordJoint[1] >= 0)
                 {
                     DoorwaysSkeletonPose posed = pose;
                     if (EvaluateDoorwaysSkeletonPoseMatrices(b.Skeleton, posed, nullptr))
@@ -6856,6 +7139,13 @@ namespace Doorways
                             const XMMATRIX sword = XMLoadFloat4x4(&posed.ModelSpaceMatrices[static_cast<size_t>(b.SwordJoint[k2])]) * place;
                             const XMVECTOR grip = XMVector3TransformCoord(XMLoadFloat3(&b.SwordGrip[k2]), sword);
                             const XMVECTOR tip = XMVector3TransformCoord(XMLoadFloat3(&b.SwordTip[k2]), sword);
+                            if (flair)
+                            {
+                                XMFLOAT3 gripAt, tipAt;
+                                XMStoreFloat3(&gripAt, grip); XMStoreFloat3(&tipAt, tip);
+                                mFlair->Blade(k2, gripAt, tipAt, poseDt, finishing ? 1.f : b.Pace, false);   // (a finisher is played by its own clock, as made)
+                                continue;
+                            }
                             TrailPoint q{};
                             XMStoreFloat3(&q.Base, XMVectorLerp(grip, tip, .35f)); XMStoreFloat3(&q.Tip, tip);
                             q.Speed = mTrail[k2].empty() || poseDt <= 0 ? 0.f : Len(Sub(q.Tip, mTrail[k2].back().Tip)) / poseDt;
@@ -6902,6 +7192,13 @@ namespace Doorways
         }
         else mTrailTimer = 0;
 
+        if (mFlair)
+        {   // her flair: its light goes on through a blow's held moment; what its blows ask of the game's feel
+            mFlair->Update(flairDt);
+            const NyxaraFlair::Feel feel = mFlair->TakeFeel();
+            mHitStop = (std::max)(mHitStop, feel.Stop); mShake = (std::max)(mShake, feel.Shake);
+            if (feel.Slow > 0 && mSlow <= 0) { mSlow = mSlowFull = feel.Slow; mSlowRate = feel.SlowRate; }
+        }
         mShake *= std::exp(-8.f * realDt); if (mShake < .003f) mShake = 0;
         s.CameraShake = mShake;
         mBarrier = mGuarding ? 1.f : (std::max)(0.f, mBarrier - 6.f * dt);
@@ -7126,12 +7423,13 @@ namespace Doorways
         const bool flying = world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         hud.ActionStatus = std::wstring(L"NYXARA  TWO SWORDS  |  ") + (flying ? L"F DASH " : L"F SLIDE ") + skill(0) + L"  V SWORDS " + skill(1) + L"  C STORM " + skill(2) +
             (mBoosting ? L"  |  WING BOOST" : L"");
-        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE / DASH  V THROWN SWORDS  C FEATHER STORM  E BARRIER  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB (HELD 1.5 S: FLY)  CTRL+SPACE SINK  R LAND";
+        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE  V THROWN SWORDS  C FEATHER STORM  E BARRIER  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB (HELD 1.5 S: FLY)  CTRL+SPACE SINK  R LAND";
         if (mNoticeTimer > 0) { hud.ActionNotice = mNotice; hud.ActionNoticeTimer = mNoticeTimer; }
 
         auto& h = NyxaraHud();   // the graphical HUD (DrawNyxaraHud)
         h.Valid = true;
         h.Flight = mFlightEnergy; h.FlightCharge = FlightCharge(); h.Flying = world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
+        h.FlightDash = mFlightDash;
         for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
@@ -7519,5 +7817,10 @@ namespace Doorways
         }
         renderer.ResetDefaultWorldRenderState();
         renderer.BindDoorwaysSkinningDisabled();
+        if (mFlair)
+        {   // her flair, over all the rest (none of it unless the Character Lab asked: SetFlair)
+            if (mFlair->Chosen() && !mFlair->Loaded() && !mFlair->Failed()) mFlair->Load(renderer, mFlairError);
+            mFlair->Draw(renderer, eye, viewProjection);
+        }
     }
 }

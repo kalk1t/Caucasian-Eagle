@@ -25,7 +25,7 @@ namespace CaucasianEagle::Settings
     {
         enum Row
         {
-            RowWindow, RowSize, RowApply, RowSync, RowShadows,     // picture
+            RowWindow, RowSize, RowApply, RowSync, RowLimit, RowShadows,     // picture
             RowMaster, RowMusic, RowEffects, RowMenus,             // sound
             RowMouse, RowInvert,                                   // controls
             RowScale, RowFrames,                                   // interface
@@ -35,11 +35,17 @@ namespace CaucasianEagle::Settings
         struct Entry { const wchar_t* Section; const wchar_t* Label; Kind Type; };
         const Entry Entries[RowCount] = {
             {L"PICTURE", L"Window", Choice}, {nullptr, L"Window size", Choice}, {nullptr, L"Apply the window", Action},
-            {nullptr, L"Smooth frames (vertical sync)", Choice}, {nullptr, L"Shadows", Choice},
+            {nullptr, L"Smooth frames (vertical sync)", Choice}, {nullptr, L"Frames a second, at most", Choice}, {nullptr, L"Shadows", Choice},
             {L"SOUND", L"Everything", Slider}, {nullptr, L"Music", Slider}, {nullptr, L"Fights, world and voices", Slider}, {nullptr, L"Menus", Slider},
             {L"CONTROLS", L"Mouse speed", Slider}, {nullptr, L"Look up and down reversed", Choice},
             {L"INTERFACE", L"Size of the interface", Choice}, {nullptr, L"Frames a second, shown", Choice},
             {L"", L"Restore the defaults", Action}, {nullptr, L"Done", Action}};
+
+        // The most frames a second (the owner, 2026-11-26: "can we add settings where player choose between 30/60/120
+        // and unlimited fps?"): the engine's FrameRateLimit, 0 none. With vertical sync on, the screen's own rate is a
+        // limit too, whatever is chosen here.
+        constexpr int Limits[] = {30, 60, 120, 0};
+        constexpr int LimitCount = static_cast<int>(sizeof Limits / sizeof Limits[0]);
 
         constexpr int KeyCount = 11;
         const int Keys[KeyCount] = {'W', VK_UP, 'S', VK_DOWN, 'A', VK_LEFT, 'D', VK_RIGHT, VK_RETURN, VK_SPACE, VK_ESCAPE};
@@ -87,9 +93,9 @@ namespace CaucasianEagle::Settings
         {
             char line[320];
             std::snprintf(line, sizeof line,
-                "CaucasianEagle settings: window=%s %dx%d sync=%d shadows=%d master=%.2f music=%.2f effects=%.2f menus=%.2f mouse=%.1f invert=%d scale=%.2f frames=%d trial=%d\n",
+                "CaucasianEagle settings: window=%s %dx%d sync=%d limit=%d shadows=%d master=%.2f music=%.2f effects=%.2f menus=%.2f mouse=%.1f invert=%d scale=%.2f frames=%d trial=%d\n",
                 p.Graphics.WindowMode == DoorwaysWindowMode::Borderless ? "full" : "windowed", p.Graphics.WindowedClientWidth, p.Graphics.WindowedClientHeight,
-                p.Graphics.VSyncEnabled ? 1 : 0, static_cast<int>(p.Graphics.ShadowQualityProfile), p.Audio.MasterVolume, p.Audio.MusicVolume,
+                p.Graphics.VSyncEnabled ? 1 : 0, p.Graphics.FrameRateLimit, static_cast<int>(p.Graphics.ShadowQualityProfile), p.Audio.MasterVolume, p.Audio.MusicVolume,
                 p.Audio.EffectsVolume, p.Audio.InterfaceVolume, p.Controls.MouseSensitivity, p.Controls.InvertMouseY ? 1 : 0, p.Interface.UiScale,
                 p.Interface.ShowPerformance ? 1 : 0, confirming ? 1 : 0);
             if (gLogged == line) return;
@@ -203,6 +209,9 @@ namespace CaucasianEagle::Settings
                 return t;
             case RowApply: return windowChanged ? L"ENTER" : L"nothing to apply";
             case RowSync: return onOff(now.Graphics.VSyncEnabled);
+            case RowLimit:
+                if (now.Graphics.FrameRateLimit <= 0) return L"no limit";
+                std::swprintf(t, 48, L"%d", now.Graphics.FrameRateLimit); return t;
             case RowShadows:
                 switch (now.Graphics.ShadowQualityProfile)
                 { case DoorwaysShadowQualityProfileId::Low: return L"light"; case DoorwaysShadowQualityProfileId::Medium: return L"medium"; default: return L"fine"; }
@@ -279,7 +288,16 @@ namespace CaucasianEagle::Settings
             else ui.RightAligned(text, vx + vw, cy + (ch - ui.Height(Tiny * S)) * .5f, Tiny * S, (i == RowApply && windowChanged ? GoldLight : Faint).Fade(a));
             cy += (RowH + Gap) * S;
         }
-        ui.Centered(L"W  S  choose      A  D  change      ENTER  take      ESC  back      or the mouse", x + w * .5f, cy + 10 * S, Tiny * S, Dim.Fade(a));
+        // under the rows: the keys; on the two rows of the frames, what the two do together (vertical sync holds the frames
+        // to the screen's own rate whatever limit is chosen; without it they are shown at once and may tear)
+        const wchar_t* under = L"W  S  choose      A  D  change      ENTER  take      ESC  back      or the mouse";
+        if (gRow == RowSync)
+            under = now.Graphics.VSyncEnabled ? L"On: each frame waits for the screen. Never over the screen's rate, never torn."
+                                              : L"Off: each frame is shown at once. Over the screen's rate the picture may tear.";
+        else if (gRow == RowLimit)
+            under = now.Graphics.VSyncEnabled ? L"Vertical sync is on: the screen's own rate is the most as well."
+                                              : L"Vertical sync is off: nothing but this holds the frames. The picture may tear.";
+        ui.Centered(under, x + w * .5f, cy + 10 * S, Tiny * S, Dim.Fade(a));
 
         // ---- a window change on trial
         if (link.Confirming)
@@ -339,6 +357,14 @@ namespace CaucasianEagle::Settings
             else sound = false;
             break;
         case RowSync: wanted.Graphics.VSyncEnabled = !now.Graphics.VSyncEnabled; break;
+        case RowLimit:
+        {   // (A and D go up and down the four and stop at their ends; Enter or a click on the row's name goes on round)
+            int at = LimitCount - 1;
+            for (int i = 0; i + 1 < LimitCount; ++i)
+                if (now.Graphics.FrameRateLimit > 0 && now.Graphics.FrameRateLimit <= Limits[i]) { at = i; break; }
+            wanted.Graphics.FrameRateLimit = Limits[step != 0 ? std::clamp(at + step, 0, LimitCount - 1) : (at + 1) % LimitCount];
+            break;
+        }
         case RowShadows:
         {
             const int level = (std::min)(static_cast<int>(now.Graphics.ShadowQualityProfile), 2);

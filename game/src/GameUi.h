@@ -50,7 +50,7 @@ namespace CaucasianEagle
     // once a frame.
     namespace Pointer
     {
-        enum Group { PauseRow, GrowthCard, RuneCard, PageKey, CloseKey, LevelKey, LookPip, QuestRow, QuestTake };   // (QuestRow, QuestTake: her quests, Q)
+        enum Group { PauseRow, GrowthCard, RuneCard, PageKey, CloseKey, LevelKey, LookPip, QuestRow, QuestTake };   // (QuestRow, QuestTake: her quests, Tab)
         void Clear();
         void Add(int group, int index, float x, float y, float w, float h);
         int Hit(int group, float x, float y);   // the index of the zone under (x, y), or -1

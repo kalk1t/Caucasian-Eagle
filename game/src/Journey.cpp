@@ -1938,6 +1938,10 @@ namespace CaucasianEagle
     {
         if(!mCreatureStations)return;
         const auto& enemies=GetNyxaraKit().Enemies();
+        // Her flair (the Character Lab asks for it; the game never): its own light is on what she strikes, and a body
+        // white for a sixth of a second hides it. So with it a struck body is white for its first moment only, and less.
+        const bool flair=GetNyxaraKit().FlairLit();   // (plain, as she set out: no light of hers on it, and it flashes white as ever)
+        const auto struckNow=[flair](float flash){return flash>(flair?.115f:0.f);};
         for(size_t i=0;i<mMonsters.size();++i)
         {
             const auto& m=mMonsters[i];const auto& e=enemies[i];
@@ -1950,7 +1954,7 @@ namespace CaucasianEagle
                 renderer.DrawBox(XMMatrixScaling(.05f,.012f,radius*2)*XMMatrixTranslation(feet.x+side*radius,.009f,feet.z),viewProjection,marker);
             }
             if(i==0)
-            {renderer.DrawBox(XMMatrixScaling(.8f,1.8f,.8f)*XMMatrixTranslation(0,.9f,2.4f),viewProjection,Surface(renderer.mWhiteTextureView.Get(),e.Flash>0?XMFLOAT4{2,1,1,1}:XMFLOAT4{.55f,.35f,.18f,1},.05f));continue;}
+            {renderer.DrawBox(XMMatrixScaling(.8f,1.8f,.8f)*XMMatrixTranslation(0,.9f,2.4f),viewProjection,Surface(renderer.mWhiteTextureView.Get(),struckNow(e.Flash)?(flair?XMFLOAT4{1.1f,.7f,.45f,1}:XMFLOAT4{2,1,1,1}):XMFLOAT4{.55f,.35f,.18f,1},.05f));continue;}
             if(m.Dying && m.Death<StationAwaySeconds)continue;        // dead and gone until it stands here again
             if(!m.Dying && e.Doom<=0)
             {   // its health, over its head, turned to the camera (as in the campaign's Draw)
@@ -1988,7 +1992,8 @@ namespace CaucasianEagle
                 const auto& hold=mStationHeld[i];
                 place=HeldPlace(model.Min,model.Max,model.Rig,def.Height,e.Yaw,feet,held,hold.Neck,hold.Feet);
             }
-            const Material skin=Surface(model.Texture.Get(),e.Flash>0?XMFLOAT4{3,3,3,1}:XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},e.Flash>0?1.f:MonsterEmission,false,model.Normal.Get());
+            const bool white=struckNow(e.Flash);
+            const Material skin=Surface(model.Texture.Get(),white?(flair?XMFLOAT4{1.8f,1.8f,1.8f,1}:XMFLOAT4{3,3,3,1}):XMFLOAT4{MonsterTint,MonsterTint,MonsterTint,1},white?(flair?.5f:1.f):MonsterEmission,false,model.Normal.Get());
             if(rigged)
             {
                 CreaturePose pose=look.Pose;
