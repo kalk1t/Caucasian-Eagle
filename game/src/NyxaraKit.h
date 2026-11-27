@@ -62,6 +62,7 @@ namespace Doorways
     struct DoorwaysSkeletonPose;
     class NyxaraFlair;
     class NyxaraSoul;
+    class NyxaraHorses;
 
     class NyxaraKit
     {
@@ -267,7 +268,14 @@ namespace Doorways
         bool FlairOn() const;                 // one is chosen, and its textures were loaded
         bool FlairPlain() const;              // the plain one is chosen: no light
         bool FlairLit() const;                // one is on, and it is not the plain one
-        static int FlairCombo(int gear, int style) { return 1 + gear * 3 + style; }   // its combo (SetAttackCombo)
+        // its combo (SetAttackCombo): style 0 to 2 the nine's; 3 to 8 the six of her three in one of that gear (below; the
+        // game's is the 7th, GearFlairStyle)
+        static int FlairCombo(int gear, int style) { return style < 3 ? 1 + gear * 3 + style : 10 + gear * MixedCount + (style - 3); }
+        // Her three in one (2026-11-27, the Character Lab's 4 to 9 and N): six combos for each gear, made of its three
+        // ways together. LMB plays a sharp move (of its first way's strings), RMB a heavy one (its second's), and the
+        // other button clicked on without a pause a flowing one (its third's), each move in its own way's light, handed on
+        // to the next (NyxaraFlair::Use). SetFlair with a style of 3 or more: the gear's three by the move.
+        static constexpr int MixedCount = 6;
         int FlairMotes() const;               // (the lab's evidence: how much of it is alive, how much the last frame drew)
         int FlairQuads() const;
         void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return (and Q's rest)
@@ -328,16 +336,19 @@ namespace Doorways
         // Her combo (owner, 2026-11-20: of five made, "i like 1's LMB combo and 4's RMB , now set those"). Each button's
         // string of the styles' moves, begun by style 2's move for that button (LMB FLASH STEP, RMB DRAW CUT); the same
         // button clicked again goes on down it, on the move too. -1: none.
-        static constexpr int ComboCount = 10;   // (0 HER COMBO; 1 to 9 the nine of her flair, FlairCombo: the game plays each gear's third)
+        static constexpr int ComboCount = 28;   // (0 HER COMBO; 1 to 9 the nine of her flair, FlairCombo; 10 to 27 her three in one: the game plays each gear's 7th)
         struct ComboInfo
         {
             const wchar_t* Name = L""; const wchar_t* What = L"";
-            std::vector<const wchar_t*> String[2];   // each button's moves, in order
+            std::vector<const wchar_t*> String[3];   // each button's moves, in order; (her three in one) the flowing string, the other button clicked on
         };
         static ComboInfo Combo(int combo);
         void SetAttackCombo(int combo);              // (and no style)
         int AttackCombo() const { return mCombo; }
         bool ComboMade(int combo) const;             // all its moves were made at load
+        // (her three in one's combo counter, the HUD's Chain: its moves, its blows landed, its last moves' ways)
+        struct ChainCount { bool On = false; int Moves = 0, Hits = 0; float Left = 0, Fade = 0, Pop = 0, HitPop = 0; int Marks[10]{}; int MarkCount = 0; };
+        const ChainCount& Chain() const { return mChain; }
 
         // Her guards for E (owner, 2026-11-20: "generate 10 different defending animations for E skill and let me test them
         // with 0-9 numbers then i choose which one stays for E"): her pose while E is held. -1: as before (her guard stance).
@@ -348,6 +359,32 @@ namespace Doorways
         int GuardStyle() const { return mGuardStyle; }
         bool GuardMade(int guard) const;             // its clip was made at load
         const DoorwaysSkeleton* BodySkeleton() const;
+        // Her horses (owner, 2026-11-27: "in characterlab , i want you to put at least 6 different kind of horses that
+        // nyxara will be able to sit on ... also get me 6 different driving experience for each horse - so i will choose
+        // one or three"): NyxaraHorse.h. None unless loaded (the Character Lab). PlaceHorses: the six in a row from there,
+        // apart m apart toward its right, each facing yaw. RideKey (the lab's T; the game's G once chosen): on the horse
+        // by her, down from it, or hers called to her. While she rides the horse moves her (her own keys, her moves, her
+        // fights and her flight are its), and she sits it, posed on it by code (NyxaraRide.h).
+        bool LoadHorses(Renderer& renderer, std::string& error);
+        void PlaceHorses(const WorldState& world, DirectX::XMFLOAT3 at, float yaw, float apart);
+        void RideKey();
+        void SetHorseKind(int kind);              // hers: the one called
+        int HorseKind() const;
+        void SetRideWay(int way);
+        int RideWay() const;
+        static int HorseKinds();
+        static int RideWays();
+        static const wchar_t* HorseName(int kind);
+        static const wchar_t* HorseLine(int kind);
+        static const wchar_t* RideWayName(int way);
+        static const wchar_t* RideWayLine(int way);
+        bool Riding() const;                      // getting on, on, or getting down
+        bool Seated() const;
+        void GetOffHorse(WorldState& world);      // down at once where she is (the lab's start again)
+        DirectX::XMFLOAT3 HorseAt(int kind) const;
+        float HorseYaw(int kind) const;
+        std::wstring RideNote() const;            // (the lab's panel)
+        std::string RideLog() const;              // (a log's line)
 
     private:
         struct Body;                        // her pose and her moves (NyxaraKit.cpp)
@@ -475,6 +512,7 @@ namespace Doorways
         DirectX::XMFLOAT3 mFlairFrom{};        // where the last piece of her dash's wake ended
         std::string mFlairError;               // what was missing, if its textures were not loaded
         std::unique_ptr<NyxaraSoul> mSoul;     // her soul's picture (Q: made at load; its textures loaded as it is first drawn)
+        std::unique_ptr<NyxaraHorses> mHorses; // her horses (LoadHorses; none unless loaded)
         bool mQWaits = false;                  // (Q was held as a window closed: no Q until it is let go)
         std::string mSoulError;                // what was missing, if its textures were not loaded
         WorldRenderer* mWorldRenderer = nullptr;   // (Update's: Draw draws her soul's body with it)
@@ -497,6 +535,7 @@ namespace Doorways
         float mHitStop = 0, mShake = 0;          // impact feel
         int mStyle = -1;                         // her attack style (SetAttackStyle): -1 her own cuts
         int mCombo = -1;                         // her combo (SetAttackCombo): -1 none
+        ChainCount mChain;   // (her three in one's combo counter)
         int mGuardStyle = 0;                     // her guard for E (SetGuardStyle): -1 her guard stance
         double mGrid = 0;                        // the engine's 60 Hz grid of her movement: its time left over (ScaleFrameTime)
         struct TrailPoint { DirectX::XMFLOAT3 Base, Tip; float Age = 0, Speed = 0; };

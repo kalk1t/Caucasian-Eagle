@@ -152,6 +152,50 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         ui.Sprite(HudArt::Divider, cx - 120 * S, noticeY + ui.Height(TextSmall * S) + 1 * S, 240 * S, 15 * S, White.Fade(.8f * fade));
     }
 
+    // ---------------------------------------------------------------- her combo counter (her three in one)
+    if (hud.Chain && hud.ChainFade > 0 && hud.ChainMoves >= 2)
+    {   // at the right, a third of the way down: the moves of her string, large (a moment larger as one begins), COMBO;
+        // the time left to go on with it; its last moves, oldest first, each by its way (the crescent sharp, as on her
+        // left click's slot; the sword heavy, as on her right click's; the swirl flowing), in its way's colour; and the
+        // blows of it that landed
+        constexpr float Number = 3.6f, NumberPop = 1.1f, Mark = 17, MarkGap = 3, LineWidth = 104;
+        const float fade = std::clamp(hud.ChainFade, 0.f, 1.f), right = W - (Margin + 34) * S, top = H * .34f;
+        const auto way = [&](int w, float a) { const float* c = hud.ChainColour[std::clamp(w, 0, 2)]; return Color{c[0], c[1], c[2], a}; };
+        const int newest = hud.ChainMarkCount > 0 ? hud.ChainMarks[hud.ChainMarkCount - 1] : 0;
+        const float big = (Number + NumberPop * hud.ChainPop) * S;
+        const std::wstring moves = std::to_wstring(hud.ChainMoves);
+        const float numberH = ui.Height(Number * S), numberY = top + numberH - ui.Height(big);
+        const float shadow = 1.5f * S;   // (each part over its shadow, and all over a soft shade: it reads over snow and sky)
+        ui.Icon(HudArt::Glow, right - 58 * S, top + 50 * S, 210 * S, Black.Fade(.5f * fade));
+        ui.Icon(HudArt::Glow, right - ui.Width(moves, big) * .5f, numberY + ui.Height(big) * .55f, (44 + 18 * hud.ChainPop) * S, way(newest, .45f * fade));
+        ui.RightAligned(moves, right + shadow, numberY + shadow, big, Black.Fade(.55f * fade));
+        ui.RightAligned(moves, right, numberY, big, White.Fade(fade));
+        const float wordY = top + numberH + 2 * S, wordX = right - ui.SpacedWidth(L"COMBO", TextTiny * S, 3 * S);
+        ui.Spaced(L"COMBO", wordX + shadow, wordY + shadow, TextTiny * S, 3 * S, Black.Fade(.6f * fade));
+        ui.Spaced(L"COMBO", wordX, wordY, TextTiny * S, 3 * S, way(newest, fade));
+        const float lineY = wordY + ui.Height(TextTiny * S) + 6 * S, lineW = LineWidth * S, left = std::clamp(hud.ChainLeft, 0.f, 1.f);
+        ui.Rect(right - lineW, lineY, lineW, 2 * S, Well.Fade(.85f * fade));
+        ui.Rect(right - lineW * left, lineY, lineW * left, 2 * S, way(newest, fade));
+        const float mark = Mark * S, markY = lineY + 8 * S + mark * .5f;
+        for (int i = 0; i < hud.ChainMarkCount; ++i)
+        {
+            const int w = hud.ChainMarks[i];
+            const bool last = i == hud.ChainMarkCount - 1;
+            const float cx = right - mark * .5f - static_cast<float>(hud.ChainMarkCount - 1 - i) * (mark + MarkGap * S);
+            const HudArt::Sprite& art = w == 0 ? HudArt::IconSlash : w == 1 ? HudArt::IconHeavy : HudArt::IconStorm;
+            const float drawn = mark * (last ? 1 + .3f * hud.ChainPop : .86f);
+            ui.Icon(art, cx + shadow, markY + shadow, drawn, Black.Fade(.65f * fade));
+            ui.Icon(art, cx, markY, drawn, way(w, fade * (last ? 1.f : .8f)));
+        }
+        if (hud.ChainHits > 0)
+        {
+            const std::wstring hits = std::to_wstring(hud.ChainHits) + (hud.ChainHits == 1 ? L" HIT" : L" HITS");
+            const float hitText = (TextSmall + .5f * hud.ChainHitPop) * S;   // (not size: the skill bar's)
+            ui.RightAligned(hits, right + shadow, markY + mark * .5f + 6 * S + shadow, hitText, Black.Fade(.55f * fade));
+            ui.RightAligned(hits, right, markY + mark * .5f + 6 * S, hitText, Ink.Fade(fade * (.75f + .25f * hud.ChainHitPop)));
+        }
+    }
+
     // ---------------------------------------------------------------- the bow's mark, at the middle of the screen
     if (hud.Bow)
     {

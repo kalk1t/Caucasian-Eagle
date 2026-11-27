@@ -25,6 +25,18 @@ namespace Doorways
         bool TargetVisible = false; float TargetX = 0, TargetY = 0, TargetSize = 0;   // the enemy the arrows will go to, on the screen (0..1)
         bool Bow = false, Shooting = false; float Aim = 0;   // the bow is out; arrows are flying; 0..1 she is aiming (the mark shows)
         const wchar_t* Notice = L""; float NoticeTimer = 0;
+        // Her combo counter (2026-11-27, the owner: "also make little combo counter for the combinations you will create
+        // for combat"; her three in one, the Character Lab's 4 to 9): while a string of hers goes on and a moment after,
+        // its moves (from the second), the blows of it that landed, the time left to go on with it, and its last moves,
+        // each marked by its way (0 sharp, 1 heavy, 2 flowing) in that way's colour in the gear she wears.
+        static constexpr int ChainMarksMost = 10;
+        bool Chain = false;
+        int ChainMoves = 0, ChainHits = 0;   // its moves; its blows that landed (each creature struck, once a blow)
+        float ChainLeft = 0;                 // 1..0 the time left to go on with it (1 in a move)
+        float ChainFade = 0;                 // 1 while it goes on, then falling to 0
+        float ChainPop = 0, ChainHitPop = 0; // 1 as a move of it begins / a blow of it lands, falling to 0
+        int ChainMarks[ChainMarksMost]{}; int ChainMarkCount = 0;   // its last moves' ways, oldest first
+        float ChainColour[3][3]{};           // the three ways' colours (0..1, as the screen shows them)
         struct Enemy { float X = 0, Y = 0, Health = 0, Flash = 0; bool Visible = false; };
         Enemy Enemies[8]; int EnemyCount = 0;                // X/Y in 0..1 screen space
     };

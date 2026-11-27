@@ -9,7 +9,8 @@ For each model in ASSETS it reads the raw Meshy GLB, and
   3. dissolves degenerate faces and makes all normals point outward,
   4. reduces the model to its triangle budget, keeping its outline (only where the model has more),
   5. gives it smooth normals with hard edges kept above the model's 'sharp' angle,
-  6. for scenery that stands on the ground, puts its foot on y = 0 and its middle on the origin,
+  6. for scenery that stands on the ground, puts its foot on y = 0 and its middle on the origin (a horse is first turned
+     so that its nose points along the game's +Z: face_forward),
   7. writes art/refine/out/<Name>.glb (same texture coordinates, so the Meshy colour map still fits) and a
      picture art/refine/out/<Name>.png (before on the left, after on the right) for looking at.
   8. checks it with the QA gate (art/tools/model_qa.py) into art/refine/qa_report.txt.
@@ -32,7 +33,7 @@ sys.path.insert(0, os.path.join(REPO, "art", "tools"))
 import model_qa                       # the QA gate: art/refine/qa_report.txt
 QA_REPORT = os.path.join(REPO, "art", "refine", "qa_report.txt")
 
-M, P, L = "art/monsters/meshy/out", "art/props/meshy/out", "art/mountain/meshy/out"
+M, P, L, H = "art/monsters/meshy/out", "art/props/meshy/out", "art/mountain/meshy/out", "art/horses/meshy/out"
 # name: folder, triangle budget, sharp angle (degrees), fragment share, ground (stand it on y = 0), note
 ASSETS = {
     # creatures: skin and cloth, soft normals; small ones need fewer triangles than giants seen close
@@ -52,7 +53,42 @@ ASSETS = {
     "Fir":        (P + "/fir_3d",        14000, 60, .002, True,  "needles as cards: keep islands"),
     "Rocks":      (P + "/rocks_3d",      9000,  30, .010, True,  "faceted stone: keep it faceted"),
     "Tower":      (P + "/tower_3d",      18000, 30, .006, True,  "masonry: hard edges"),
+    # her horses (2026-11-27): stood on y = 0, their noses along +Z (face_forward); seen close under her
+    "Tushetian":  (H + "/tushetian_3d",  30000, 55, .004, True,  "horse: shaggy coat and mane"),
+    "Kabardian":  (H + "/kabardian_3d",  30000, 50, .004, True,  "horse: silver fittings on the tack"),
+    "Karabakh":   (H + "/karabakh_3d",   30000, 50, .004, True,  "horse: fine legs, gold coins on the bridle"),
+    "Rashi":      (H + "/rashi_3d",      34000, 50, .003, True,  "winged horse: keep the feathers and wing tips"),
+    "FireHorse":  (H + "/fire_3d",       32000, 45, .002, True,  "fire horse: flames of the mane and tail are islands, keep them"),
+    "FrostHorse": (H + "/frost_3d",      32000, 40, .002, True,  "frost horse: icicles are islands, keep them crisp"),
 }
+HORSES = {"Tushetian", "Kabardian", "Karabakh", "Rashi", "FireHorse", "FrostHorse"}
+
+
+def face_forward(obj):
+    """Turns a horse about the up axis so that its nose points along Blender's -Y (the game's +Z). Its long axis is
+    found from its lower body (legs and barrel: below 60 % of its height, so that a winged horse's wings do not turn
+    it); its head is the end of that axis whose outermost vertices stand higher (the nose is held high, the tail hangs;
+    the outermost 3 % only, so that a winged horse's raised wing tips over its back do not count)."""
+    cos = [v.co.copy() for v in obj.data.vertices]
+    zs = sorted(c.z for c in cos)
+    low, high = zs[0], zs[-1]
+    body = [c for c in cos if c.z < low + .6 * (high - low)]
+    mx = sum(c.x for c in body) / len(body); my = sum(c.y for c in body) / len(body)
+    sxx = sum((c.x - mx) ** 2 for c in body); syy = sum((c.y - my) ** 2 for c in body); sxy = sum((c.x - mx) * (c.y - my) for c in body)
+    angle = .5 * math.atan2(2 * sxy, sxx - syy)          # the long axis, in the ground plane
+    ax, ay = math.cos(angle), math.sin(angle)
+    along = sorted(cos, key=lambda c: (c.x - mx) * ax + (c.y - my) * ay)
+    end = max(1, len(along) * 3 // 100)
+    if sum(c.z for c in along[:end]) > sum(c.z for c in along[-end:]):
+        ax, ay = -ax, -ay                                 # (the head is at the far end of +axis)
+    turn = math.atan2(-1, 0) - math.atan2(ay, ax)         # from the head's way to -Y
+    turn = math.atan2(math.sin(turn), math.cos(turn))
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.select_all(action="DESELECT"); obj.select_set(True)
+    obj.rotation_mode = "XYZ"                             # (the glTF importer leaves it in quaternions)
+    obj.rotation_euler = (0, 0, turn)                     # (applied as a transform: its normals turn with it)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=False)
+    return math.degrees(turn)
 
 
 def stats(obj):
@@ -207,6 +243,8 @@ for name, (folder, budget, sharp, share, ground, note) in ASSETS.items():
     if INSPECT:
         continue
     picture(obj, os.path.join(OUT, name + "_before.png"))
+    if name in HORSES:
+        print("  turned %.1f degrees to face +Z" % face_forward(obj))
     removed = refine(obj, budget, sharp, share, ground)
     after = stats(obj); describe("after", after)
     print("  fragments removed %d" % removed)

@@ -363,10 +363,26 @@ namespace CaucasianEagle
     // is armed). The owner, 2026-11-27, having tried ten ways in the Character Lab: "i like 1st most - so implement it
     // ingame". (0 until then: her Fly_Rise, Fly and Fly_Land as made.)
     constexpr int FlightStyle = 1;
+    // Her way of fighting in every gear (AscentGrowth::GearFlair, NyxaraKit::SetFlair's style: 0 to 2 the nine's, 3 to 8
+    // her three in one's six): the Character Lab's 7th, her three in one's fourth. Left click a sharp move, right click
+    // a heavy one, the other button clicked without a pause a flowing one, each in its own way's light handed on to the
+    // next: THE HIGHLANDS' STONE WHEEL, AMIRANI'S FIRE's FORGE DANCE, MOONLIT's GLACIER WHEEL; before her first gear
+    // STONE WHEEL's moves without light; and her combo counter (DrawNyxaraHud). The owner, 2026-11-27, having tried the
+    // eighteen: "i like 7th combos the most - take that and implement in game as it is for base , then windy fire and
+    // ice nyxaras , also keep the combo counter ingame also". (2, each gear's third, flowing, from 2026-11-25.)
+    constexpr int GearFlairStyle = 6;
     constexpr float FlightSway = .11f;          // m she rides up and down in the air
     constexpr float FlightSwayRate = 1.9f;      // rad/s of that
     constexpr float FlightRock = .035f;         // rad her body rocks in the air (pitch; the roll is 0.8 of it, slower)
     constexpr float FlightGroundLift = .8f;     // m she hovers over the ground when she is low in flight
+    // Her body in flight (2026-11-27, the owner: "we need to examine nyxara while flying she goes through stairs and some
+    // walls as on map also in caves"): a ball of FlightBodyRadius m round the point FlightBodyMiddle m over her feet (in
+    // EAGLE her body lies level there, her head 0.65 m ahead of its middle), kept by the engine out of every face of the
+    // map's collision, walkable or not (GameSession().FlightBodyRadius): she slides along walls, cave walls and roofs,
+    // and over stairs; nothing over her lets her up through it. Her feet are 0.4 m under its lowest point: she lands as
+    // before. CAUCASIAN_EAGLE_FLIGHT_BODY=0 turns it off (a test's baseline).
+    constexpr float FlightBodyRadius = .65f;
+    constexpr float FlightBodyMiddle = 1.05f;
     constexpr float FlightSteerGain = 1.f;      // how strongly looking up or down with the camera climbs or dives
     constexpr float FlightCeiling = 45.f;       // m above the ground under her that free flight can climb
 

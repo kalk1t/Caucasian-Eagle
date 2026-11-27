@@ -77,8 +77,12 @@ namespace CaucasianEagle::AscentGrowth
         // MOONLIT: MOON WRAITH (ice and moonlight). As she set out she had SKY WHEEL in her own blue for a day, THE
         // HIGHLANDS' gold not yet hers; the owner, 2026-11-26, having seen it: "normal nyxara should not have effects
         // and when she becomes windy - wind effects, when she becomes fire - fire effects and ice when she becomes ice".
-        // So before her first gear her flair is plain: SKY WHEEL's strings and pace, its blood and its feel, no light.
-        style = 2; own = plain = false;
+        // So before her first gear her flair is plain: no light. Then, 2026-11-27, of the six ways that take all three of
+        // a gear's in turn (her three in one, the Character Lab's 4 to 9): "i like 7th combos the most - take that and
+        // implement in game as it is for base , then windy fire and ice nyxaras". THE HIGHLANDS: STONE WHEEL; AMIRANI'S
+        // FIRE: FORGE DANCE; MOONLIT: GLACIER WHEEL; before her first gear STONE WHEEL's strings and paces, their blood
+        // and their feel, no light (GearFlairStyle).
+        style = GearFlairStyle; own = plain = false;
         switch (Clamped(gear))
         {
         case 2: flairGear = 1; break;

@@ -210,6 +210,7 @@ namespace CaucasianEagle
         bool mLooksOn = false; int mGearShown = -1;   // (the gear whose look and light she has on)
         bool mFlairOn = false;                        // her gear's flair is asked for (not in the tests that measure her own cuts)
         bool mFlairBlue = false;                      // (a comparison's: before her first gear her flair in her own blue, not plain)
+        bool mFlairThird = false;                     // (a comparison's: each gear's third, flowing, as from 2026-11-25 to 2026-11-27)
         bool mAroundPlaced = false;                // the groups around the way found their places (EaglesAscent::PlaceAround)
         std::vector<std::string> mAroundReport;    // where each was placed, or why not (the ledger writes it)
         std::vector<std::string> mSavedJars;

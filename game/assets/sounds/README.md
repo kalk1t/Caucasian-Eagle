@@ -10,7 +10,7 @@ Every sound the game plays is a file in this folder. To change a sound, replace 
 
 | Made by | What |
 |---|---|
-| `python art/sounds/build_sounds.py` | Effects, loops and music, synthesised from noise, sine waves, plucked strings and sung vowels. The music is built from scale steps over a held bass, in the manner of Georgian three-voice song (see the comment above `music()` in the script) |
+| `python art/sounds/build_sounds.py` | Effects, loops and music, synthesised from noise, sine waves, plucked strings and sung vowels. The music is built from scale steps over a held bass, in the manner of Georgian three-voice song (see the comment above `music()` in the script). `python art/sounds/build_sounds.py horses` makes only `horse/` |
 | `python art/sounds/build_voice.py` | Spoken lines, read from `game/src/Story.cpp` by the voices that come with Windows (David is the storyteller, Zira is Nyxara) |
 
 Running a script again overwrites its files, including any recording saved under the same name. Keep recordings elsewhere too, or do not run the script again after replacing files.
@@ -37,6 +37,17 @@ Running a script again overwrites its files, including any recording saved under
 | `say_fight` | 4 | Her words when the walls of a fight rise |
 | `say_win` | 3 | Her words when a fight is won |
 | `say_evolve` | 1 | Her words when she evolves |
+
+## horse/
+
+Her horses (in the Character Lab since 2026-11-27).
+
+| Name | Files | Plays when |
+|---|---|---|
+| `hoof` | 4 | Each hoof of a horse coming down, louder the faster it goes (the one she rides the loudest); a leap and its landing |
+| `snort` | 1 | She is up on it; a called horse has come to her side; it runs into a wall at speed; it is winded |
+| `neigh` | 1 | Her horse is called (with the whistle); spurred while winded, it rears |
+| `whistle` | 1 | She calls her horse (T in the Character Lab, far from the horses) |
 
 ## creatures/
 

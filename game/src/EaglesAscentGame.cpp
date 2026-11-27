@@ -112,6 +112,10 @@ namespace CaucasianEagle
         // engine (2026-11-23; she slides along them, and down a slope too steep to stand on). A test can turn them off
         // (CAUCASIAN_EAGLE_STEEP_WALLS=0), or the game's own rules at rock (CAUCASIAN_EAGLE_ROCK_RULES=0).
         session.SteepGroundBlocks = Env("CAUCASIAN_EAGLE_STEEP_WALLS") != "0";
+        // Her body in flight is kept out of every face of the map's collision (2026-11-27: GameConstants' FlightBodyRadius;
+        // CAUCASIAN_EAGLE_FLIGHT_BODY=0, a test's baseline, turns it off).
+        session.FlightBodyRadius = Env("CAUCASIAN_EAGLE_FLIGHT_BODY") != "0" ? FlightBodyRadius : 0.f;
+        session.FlightBodyMiddle = FlightBodyMiddle;
         mMap.RockRules = Env("CAUCASIAN_EAGLE_ROCK_RULES") != "0";
         mMap.LongSteps = Env("CAUCASIAN_EAGLE_LONG_STEPS") != "0";   // (a test's baseline: EaglesAscent::LongSteps)
         mMap.SoulPuts = Env("CAUCASIAN_EAGLE_SOUL_PUT") != "0";     // (a test's baseline: EaglesAscent::SoulPuts)
@@ -306,10 +310,12 @@ namespace CaucasianEagle
             GetNyxaraKit().SetHiggsfieldTrial(true, GearAttackPace);
             // and her gear's flair, with its own combo and pace, as her gear is put on (Update; owner, 2026-11-25: "i like
             // 3'd most - so add those to current nyxara's ingame version"; before her first gear plain, no light:
-            // 2026-11-26, "normal nyxara should not have effects"). CAUCASIAN_EAGLE_NYXARA_FLAIR=0: her light
-            // and her combo as they were before it, to compare.
+            // 2026-11-26, "normal nyxara should not have effects"; since 2026-11-27 her three in one, the Character Lab's 7th:
+            // GearFlairStyle). CAUCASIAN_EAGLE_NYXARA_FLAIR=0: her light and her combo as they were before it, to compare;
+            // =third each gear's third, flowing, as from 2026-11-25.
             mFlairOn = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") != "0";
             mFlairBlue = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") == "blue";   // (to compare: before her first gear SKY WHEEL in her own blue, as it was for a day)
+            mFlairThird = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") == "third";
         }
         if (mNature || mShowTest || mQuestTest || mBossFilm) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger || mShowTest || mMapTest || mQuestTest || mBossFilm || mCameraTest || mSideWalk || mSoulTest)
@@ -2355,6 +2361,7 @@ namespace CaucasianEagle
             mAroundPlaced = true;
             // and the engine's steep walls found now, before her first step (0.4 s on this map)
             if (GameSession().SteepGroundBlocks) PrepareDoorwaysRuntimeSceneSteepGround(*world.RuntimeScene);
+            if (GameSession().FlightBodyRadius > 0) PrepareDoorwaysRuntimeSceneFlightSolid(*world.RuntimeScene);   // (and her flying body's)
             StartCreatures();
             int placed = 0, groups = 0;
             for (const auto& pl : mMap.Placements) if (pl.Around) { ++groups; if (!pl.Spur.empty()) ++placed; }
@@ -2376,9 +2383,10 @@ namespace CaucasianEagle
             }
             GetNyxaraKit().SetTrialTheme(theme, level);
             if (mFlairOn)
-            {   // her gear's flair (each gear's third, "flowing": AscentGrowth::GearFlair), and the combo that is its own
+            {   // her gear's flair (her three in one, the Character Lab's 7th: AscentGrowth::GearFlair), and the combo that is its own
                 int flairGear = 0, style = 0; bool own = false, plain = false;
                 AscentGrowth::GearFlair(mGrowth.Gear, flairGear, style, own, plain);
+                if (mFlairThird || (mFlairBlue && plain)) style = 2;   // (to compare: each gear's third; as she set out, SKY WHEEL in her own blue)
                 GetNyxaraKit().SetFlair(flairGear, style, own, plain && !mFlairBlue);
                 GetNyxaraKit().SetAttackCombo(NyxaraKit::FlairCombo(flairGear, style));
             }

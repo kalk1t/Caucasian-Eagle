@@ -232,17 +232,30 @@ namespace Doorways
 
     void NyxaraFlair::Choose(int gear, int style, bool own, bool plain)
     {
-        const int g = gear < 0 || style < 0 ? -1 : std::clamp(gear, 0, GearCount - 1), s = g < 0 ? -1 : std::clamp(style, 0, StylesPerGear - 1);
+        const int g = gear < 0 || style < 0 ? -1 : std::clamp(gear, 0, GearCount - 1);
+        const int s = g < 0 ? -1 : style == Mixed ? Mixed : std::clamp(style, 0, StylesPerGear - 1);
         const bool o = own && g == 0 && s == 2, bare = plain && g >= 0;
         if (g == mGear && s == mStyle && o == mOwn && bare == mPlain) return;
         mGear = g; mStyle = s; mOwn = o; mPlain = bare;
+        mUse = mHandFrom = 0;
         Clear();
+    }
+    void NyxaraFlair::Use(int style)
+    {
+        if (!Mixing()) return;
+        const int s = std::clamp(style, 0, StylesPerGear - 1);
+        if (s == mUse) return;
+        mHandFrom = mUse; mUse = s;
+        mHandOwed[0] = mHandOwed[1] = !mPlain;
     }
 
     void NyxaraFlair::Clear()
     {
         mMotes.clear(); mArcs.clear(); mPending.clear();
-        for (int k = 0; k < 2; ++k) { mTrail[k].clear(); mShedOwed[k] = 0; mUnseen[k] = 1; mSince[k] = 0; mBent[k] = {}; mHeadOn[k] = false; mMovedSince[k] = false; }
+        for (int k = 0; k < 2; ++k)
+        {
+            mTrail[k].clear(); mShedOwed[k] = 0; mUnseen[k] = 1; mSince[k] = 0; mBent[k] = {}; mHeadOn[k] = false; mMovedSince[k] = false; mHandOwed[k] = false;
+        }
         mWhirlOwed = mDashOwed = mWait = 0;
         mDashFirst = false;
         mFeel = {};
@@ -276,7 +289,9 @@ namespace Doorways
         mSinceMoved = moved ? 0.f : mSinceMoved + poseDt;
         if (moved) for (bool& m : mMovedSince) m = true;
         float longest = 0;
-        if (Chosen()) for (const Ribbon& r : Now().Ribbons) longest = (std::max)(longest, r.Life);
+        if (Chosen())
+            for (int s = Mixing() ? 0 : LookStyle(); s <= (Mixing() ? StylesPerGear - 1 : LookStyle()); ++s)   // (her three in one: the longest of the three)
+                for (const Ribbon& r : LookOf(mGear, s, mOwn).Ribbons) longest = (std::max)(longest, r.Life);
         for (int k = 0; k < 2; ++k)
         {
             mUnseen[k] += poseDt; mSince[k] += poseDt;
@@ -297,7 +312,7 @@ namespace Doorways
         if (!On() || hand < 0 || hand > 1) return;
         auto& trail = mTrail[hand];
         const Look& look = Now();
-        TrailPoint q; q.Grip = grip; q.Tip = tip;
+        TrailPoint q; q.Grip = grip; q.Tip = tip; q.Style = LookStyle();
         q.Fresh = fresh || trail.empty() || mUnseen[hand] > poseDt * 1.5f + .02f;
         mUnseen[hand] = 0;
         if (q.Fresh && mHeadOn[hand] && !trail.empty()) trail.push_back(mHead[hand]);   // (what was its end stays its end)
@@ -313,6 +328,7 @@ namespace Doorways
             // her blade has gone on and she has not yet. This is the band's end for now, not one of its points.
             if (mSinceMoved < 1.5f / 60.f && !mMovedSince[hand]) { mHead[hand] = q; mHeadOn[hand] = true; return; }
             if (q.Shown > .05f && !mPlain) Shed(hand, was.Tip, tip, q.Shown);   // (plain: her blade's way is kept for a cut's blood, and nothing shed or drawn)
+            if (mHandOwed[hand] && went > .01f) { mHandOwed[hand] = false; HandOver(was.Tip, tip); }   // (her three in one: a move of another way begun)
         }
         mSince[hand] = 0; mMovedSince[hand] = false;
         trail.push_back(q);
@@ -322,8 +338,9 @@ namespace Doorways
     void NyxaraFlair::DrawRibbons(const V3& eye)
     {
         const Look& look = Now();
-        struct Fine { V3 Grip, Dir; float Length, Age, Shown; bool Fresh; };
+        struct Fine { V3 Grip, Dir; float Length, Age, Shown; bool Fresh; int Style; };
         std::vector<Fine> fine;
+        std::vector<float> share, counted;   // (her three in one: each fine point's share of the way drawn, over HandOverSeconds)
         for (int hand = 0; hand < 2; ++hand)
         {
             const std::vector<TrailPoint>* drawn = &mTrail[hand];
@@ -343,7 +360,7 @@ namespace Doorways
             {
                 const TrailPoint& p2 = trail[i];
                 const V3 d2 = dirOf(i);
-                if (i == 0 || p2.Fresh) { fine.push_back({p2.Grip, d2, Len(p2.Tip - p2.Grip), p2.Age, p2.Shown, true}); continue; }
+                if (i == 0 || p2.Fresh) { fine.push_back({p2.Grip, d2, Len(p2.Tip - p2.Grip), p2.Age, p2.Shown, true, p2.Style}); continue; }
                 const TrailPoint& p1 = trail[i - 1];
                 const std::size_t i0 = i >= 2 && !p1.Fresh ? i - 2 : i - 1, i3 = i + 1 < trail.size() && !trail[i + 1].Fresh ? i + 1 : i;
                 const V3 d0 = dirOf(i0), d1 = dirOf(i - 1), d3 = dirOf(i3);
@@ -354,26 +371,52 @@ namespace Doorways
                 {
                     const float u = F(s) / F(steps);
                     fine.push_back({Curve(trail[i0].Grip, p1.Grip, p2.Grip, trail[i3].Grip, u), Norm(Curve(d0, d1, d2, d3, u), d2), Mix(l1, l2, u),
-                                    Mix(p1.Age, p2.Age, u), Mix(p1.Shown, p2.Shown, u), false});
+                                    Mix(p1.Age, p2.Age, u), Mix(p1.Shown, p2.Shown, u), false, p2.Style});
                 }
             }
-            for (std::size_t k = 0; k < look.Ribbons.size(); ++k)
-            {
-                const Ribbon& r = look.Ribbons[k];
-                const float over = 1 - .002f * static_cast<float>(k);   // (of its bands that cover, the later over the earlier)
-                for (std::size_t j = 0; j + 1 < fine.size(); ++j)
+            const auto bands = [&](const Look& lit, const float* part)
+            {   // (part: her three in one, each fine point's share of this way; none, all of it)
+                for (std::size_t k = 0; k < lit.Ribbons.size(); ++k)
                 {
-                    const Fine& f0 = fine[j]; const Fine& f1 = fine[j + 1];   // (f1 the younger)
-                    if (f1.Fresh || (f0.Shown <= .01f && f1.Shown <= .01f)) continue;
-                    const float u1 = f1.Age / r.Life, u0 = (std::min)(f0.Age / r.Life, 1.f);
-                    if (u1 >= 1) continue;
-                    const V3 o0 = f0.Grip + f0.Dir * (f0.Length * r.Outer), i0 = f0.Grip + f0.Dir * (f0.Length * r.Inner);
-                    const V3 o1 = f1.Grip + f1.Dir * (f1.Length * r.Outer), i1 = f1.Grip + f1.Dir * (f1.Length * r.Inner);
-                    const float a0 = r.Alpha * f0.Shown * (1 - Smooth(.7f, 1.f, u0)), a1 = r.Alpha * f1.Shown * (1 - Smooth(.7f, 1.f, u1));
-                    const V3 toEye = eye - (o0 + i1) * .5f;
-                    Quad(o0, o1, i1, i0, r.Shape, u0, u1, Mix(r.Color0, r.Color1, u0), Mix(r.Color0, r.Color1, u1), a0, a1,
-                         Mix(r.Worn0, r.Worn1, u0), Mix(r.Worn0, r.Worn1, u1), r.Soft, r.Light, Dot(toEye, toEye) * over);
+                    const Ribbon& r = lit.Ribbons[k];
+                    const float over = 1 - .002f * static_cast<float>(k);   // (of its bands that cover, the later over the earlier)
+                    for (std::size_t j = 0; j + 1 < fine.size(); ++j)
+                    {
+                        const Fine& f0 = fine[j]; const Fine& f1 = fine[j + 1];   // (f1 the younger)
+                        if (f1.Fresh || (f0.Shown <= .01f && f1.Shown <= .01f)) continue;
+                        const float w0 = part ? part[j] : 1.f, w1 = part ? part[j + 1] : 1.f;
+                        if (w0 <= .001f && w1 <= .001f) continue;
+                        const float u1 = f1.Age / r.Life, u0 = (std::min)(f0.Age / r.Life, 1.f);
+                        if (u1 >= 1) continue;
+                        const V3 o0 = f0.Grip + f0.Dir * (f0.Length * r.Outer), i0 = f0.Grip + f0.Dir * (f0.Length * r.Inner);
+                        const V3 o1 = f1.Grip + f1.Dir * (f1.Length * r.Outer), i1 = f1.Grip + f1.Dir * (f1.Length * r.Inner);
+                        const float a0 = w0 * r.Alpha * f0.Shown * (1 - Smooth(.7f, 1.f, u0)), a1 = w1 * r.Alpha * f1.Shown * (1 - Smooth(.7f, 1.f, u1));
+                        const V3 toEye = eye - (o0 + i1) * .5f;
+                        Quad(o0, o1, i1, i0, r.Shape, u0, u1, Mix(r.Color0, r.Color1, u0), Mix(r.Color0, r.Color1, u1), a0, a1,
+                             Mix(r.Worn0, r.Worn1, u0), Mix(r.Worn0, r.Worn1, u1), r.Soft, r.Light, Dot(toEye, toEye) * over);
+                    }
                 }
+            };
+            if (!Mixing()) { bands(look, nullptr); continue; }
+            // Her three in one: each way's bands over the part of the trail made in it, the one giving way to the next
+            // over HandOverSeconds (each fine point's share of a way: of the points within half that of its age, how many
+            // were made in it; the trail's ages fall from its oldest end to its newest).
+            share.resize(fine.size()); counted.resize(fine.size() + 1);
+            for (int s = 0; s < StylesPerGear; ++s)
+            {
+                bool any = false;
+                counted[0] = 0;
+                for (std::size_t j = 0; j < fine.size(); ++j) { counted[j + 1] = counted[j] + (fine[j].Style == s ? 1.f : 0.f); any = any || fine[j].Style == s; }
+                if (!any) continue;
+                std::size_t lo = 0, hi = 0;
+                for (std::size_t j = 0; j < fine.size(); ++j)
+                {
+                    while (lo < j && fine[lo].Age > fine[j].Age + .5f * HandOverSeconds) ++lo;
+                    if (hi < j) hi = j;
+                    while (hi + 1 < fine.size() && fine[hi + 1].Age >= fine[j].Age - .5f * HandOverSeconds) ++hi;
+                    share[j] = (counted[hi + 1] - counted[lo]) / static_cast<float>(hi + 1 - lo);
+                }
+                bands(LookOf(mGear, s, mOwn), share.data());
             }
         }
     }
@@ -1462,6 +1505,21 @@ namespace Doorways
     }
 
     // What her blades shed as they go, each of the nine its own.
+    // Her three in one: as a move of another way begins, her blade's point throws the last way's light on into the new
+    // one's: sparks and embers of the one turning to the other as they fly on along her blade's way, and a small light
+    // of the new one where it takes over.
+    void NyxaraFlair::HandOver(const V3& from, const V3& to)
+    {
+        const Look& was = LookOf(mGear, mHandFrom, mOwn); const Look& now = Now();
+        const V3 d = to - from;
+        const float len = Len(d);
+        if (len < .005f) return;
+        const V3 way = d * (1 / len);
+        Sparks(to, way, 7, 5.f, .45f, was.Core * 2.5f, now.Main * 1.6f, .028f, .32f, 1.5f, false);
+        Embers(to, 5, .12f, 1.2f, was.Main * 1.8f, now.Main * 1.4f, .045f, .55f, .25f, 4.f);
+        Flash(to, .28f, now.Main * 1.8f, .1f, .75f);
+    }
+
     void NyxaraFlair::Shed(int hand, const V3& from, const V3& to, float shown)
     {
         const Look& look = Now();

@@ -1,6 +1,7 @@
 """Builds the placeholder sounds of Caucasian Eagle: effects, loops and music.
 
     python art/sounds/build_sounds.py            (from the repository root)
+    python art/sounds/build_sounds.py horses     (only her horses' sounds, horse/)
 
 Everything is synthesised here from noise, sine waves, plucked strings and a breathy flute,
 so the game has a complete set of sounds without any recording. They are placeholders: any
@@ -14,9 +15,11 @@ quieter than a guardian's roar), so the game can play most of them near full vol
 The fighting is the exception, on purpose: blades, blows, kills and Nyxara's own voice in a
 fight are hard, loud and overdriven ('drive', 'grit', 'snarl', 'crunch' below). She is angry.
 
-The same seed is used every run, so the files come out identical.
+The same seed is used every run, so the files come out identical. Her horses' sounds are made last, from
+a seed of their own, so the files made before them are the same with them or without them.
 """
 import os
+import sys
 import wave
 import numpy as np
 from scipy.signal import butter, lfilter, fftconvolve
@@ -524,7 +527,38 @@ def build_music():
           [(0, True, .4), (.75, True, .18), (2, True, .4), (3, True, .26), (3.5, True, .18)], .5, lead='choir', echo=2.4)
 
 
+def build_horses():
+    """Her horses (2026-11-27): their hooves, a snort, a neigh, and her whistle for hers."""
+    global rng
+    rng = np.random.default_rng(2711)                                         # (their own: see the top)
+    for i in range(4):                                                        # a hoof on hard ground: a knock, a hollow ring, a little grit
+        n = noise(.16)
+        knock = band(n, 1100 + 180 * i, 3600) * env(len(n), .001, .025, 3)
+        ring = np.sin(sweep(.16, 250 - 20 * i, 140 - 8 * i)) * env(len(n), .002, .11, 2.5)
+        dirt = low(n, 1500 - 100 * i) * env(len(n), .003, .13, 2) * .4
+        save(f'horse/hoof_{i + 1}', room(.8 * knock + ring + dirt, .3, .07), .5)
+    n = noise(.7)                                                             # a snort: breath blown out through its nose, its nostrils fluttering
+    flutter = .55 + .45 * np.sin(2 * np.pi * 31 * t(.7) + rng.uniform(0, 6)) ** 2
+    save('horse/snort', room(band(n, 280, 2400) * flutter * env(len(n), .02, .62, 1.6), .45, .12), .45)
+    seconds = 1.35                                                            # a neigh: a high call breaking down in a shaking fall
+    x = t(seconds)
+    f = np.interp(x, [0, .12, .35, .9, seconds], [620, 980, 900, 520, 380])
+    shake = (.02 + .11 * np.clip((x - .25) / .8, 0, 1)) * np.sin(2 * np.pi * (8.5 + 2 * x) * x)
+    phase = 2 * np.pi * np.cumsum(f * (1 + shake)) / SR
+    source = sum(np.sin(k * phase) / k ** 1.4 for k in range(1, 9)) + .35 * low(noise(seconds), 5000)
+    v = sum(band(source, fc * .8, fc * 1.25) * g for fc, g in ((900, 1.0), (1700, .6), (2900, .3)))
+    save('horse/neigh', room(v * env(len(v), .05, seconds - .05, 1.3), .9, .22), .6)
+    seconds = .75                                                             # her whistle for it: two notes, up, then down, a breath between
+    x = t(seconds)
+    f = np.where(x < .3, np.interp(x, [0, .3], [1750, 2350]), np.interp(x, [.3, .38, seconds], [2350, 2650, 2050]))
+    w = np.sin(2 * np.pi * np.cumsum(f) / SR) * env(len(x), .03, seconds - .03, 1.2) * (1 - .85 * np.exp(-((x - .33) / .025) ** 2))
+    save('horse/whistle', room(w + .05 * band(noise(seconds), 1500, 4000) * env(len(x), .03, seconds - .03), .5, .15), .4)
+
+
 if __name__ == '__main__':
-    build_nyxara(); build_creatures(); build_combat(); build_world(); build_ui(); build_music()
+    if sys.argv[1:] == ['horses']:
+        build_horses()
+    else:
+        build_nyxara(); build_creatures(); build_combat(); build_world(); build_ui(); build_music(); build_horses()
     count = sum(len([f for f in files if f.endswith('.wav')]) for _, _, files in os.walk(OUT))
     print(f'{count} sound files in {os.path.normpath(OUT)}')

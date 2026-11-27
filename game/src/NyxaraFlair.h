@@ -52,6 +52,13 @@ namespace Doorways
     {
     public:
         static constexpr int GearCount = 3, StylesPerGear = 3;
+        // Her three in one (2026-11-27): chosen as a style, the gear's three by the move. Her kit tells it, as each move
+        // of her combo begins, which of them the move is in (Use: 0 sharp, 1 heavy, 2 flowing); its blows, what her
+        // blades shed, its pace and its feel are that one's. Her blades' trails keep the way each part of them was made
+        // in, the one's bands giving way to the next's over HandOverSeconds of the trail, and as a move of another way
+        // begins her blades throw the last one's light on into the new one's (HandOver).
+        static constexpr int Mixed = 3;
+        static constexpr float HandOverSeconds = .1f;
         struct Info
         {
             const wchar_t* Gear = L""; const wchar_t* Name = L""; const wchar_t* What = L"";
@@ -66,7 +73,10 @@ namespace Doorways
         bool Load(Renderer& renderer, std::string& error);
         bool Loaded() const { return mLoaded; }
         bool Failed() const { return mFailed; }
-        void Choose(int gear, int style, bool own = false, bool plain = false);   // (-1: none)
+        void Choose(int gear, int style, bool own = false, bool plain = false);   // (-1: none; Mixed: her three in one)
+        void Use(int style);                                                      // (Mixed) the way of the move she begins
+        bool Mixing() const { return mStyle == Mixed; }
+        int LookStyle() const { return Mixing() ? mUse : mStyle; }               // the way whose light is made now
         bool Chosen() const { return mGear >= 0 && mStyle >= 0; }
         bool On() const { return mLoaded && Chosen(); }
         bool Plain() const { return mPlain; }            // none of its light is made: blood, and the game's feel
@@ -175,7 +185,7 @@ namespace Doorways
             bool Pointed = true;                                  // narrowing to a point at both its ends
             int Order = 0;                                        // (of those that cover: the later made over the earlier)
         };
-        struct TrailPoint { DirectX::XMFLOAT3 Grip{}, Tip{}; float Age = 0, Shown = 0; bool Fresh = false; };
+        struct TrailPoint { DirectX::XMFLOAT3 Grip{}, Tip{}; float Age = 0, Shown = 0; bool Fresh = false; int Style = 0; };   // (Style: the way it was made in)
         struct Ribbon
         {   // one band of a blade's trail
             Cell Shape = Cell::SlashRazor;
@@ -192,8 +202,8 @@ namespace Doorways
         };
         struct Look;
         static const Look& LookOf(int gear, int style, bool own = false);
-        const Look& Now() const { return LookOf(mGear, mStyle, mOwn); }
-        int Which() const { return mGear * StylesPerGear + mStyle; }   // (which of the nine: 0 to 8)
+        const Look& Now() const { return LookOf(mGear, LookStyle(), mOwn); }
+        int Which() const { return mGear * StylesPerGear + LookStyle(); }   // (which of the nine: 0 to 8)
         // (SKY WHEEL's gold, its hot lights and what they cool to: in its own form, her own blue instead)
         DirectX::XMFLOAT3 WheelGold() const;
         DirectX::XMFLOAT3 WheelHot() const;
@@ -265,6 +275,7 @@ namespace Doorways
         void StrikeGlacier(const Blow& blow, const Cut& cut);
         void StrikeWraith(const Blow& blow, const Cut& cut);
         void Shed(int hand, const DirectX::XMFLOAT3& from, const DirectX::XMFLOAT3& to, float shown);
+        void HandOver(const DirectX::XMFLOAT3& from, const DirectX::XMFLOAT3& to);   // (Mixed) a blade's point as a move of another way begins
 
         // ---- drawing: every piece into one mesh
         void Quad(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, const DirectX::XMFLOAT3& c, const DirectX::XMFLOAT3& d, Cell shape, float u0, float u1,
@@ -278,6 +289,8 @@ namespace Doorways
         int mGear = -1, mStyle = -1;
         bool mOwn = false;   // (Choose's own: only THE HIGHLANDS' third has such a form)
         bool mPlain = false; // (Choose's plain: as she sets out)
+        int mUse = 0, mHandFrom = 0;   // (Mixed: the way of the move she is in, and of the one before it)
+        bool mHandOwed[2]{};           // (Mixed: a blade's hand-over is owed at its next point)
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> mAtlas, mNoise;
         DoorwaysGpuMesh mMesh;
         std::vector<DoorwaysGpuDMeshVertex> mVertices;

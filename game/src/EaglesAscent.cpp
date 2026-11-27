@@ -9,6 +9,7 @@
 #include "DoorwaysGame.h"
 #include "DoorwaysMaterialRuntime.h"
 #include "DoorwaysRuntimePathResolver.h"
+#include "DoorwaysRuntimeScene.h"
 #include "DoorwaysWalkableSurfaceQuery.h"
 #include "EnvironmentSettings.h"
 #include "Renderer.h"
@@ -898,6 +899,17 @@ namespace CaucasianEagle
     void EaglesAscent::KeepOutOfRock(Player& p, bool flying, float dt, const DoorwaysRuntimeScene* scene)
     {
         Sliding = false;
+        const XMFLOAT3 engineLeft = p.Position;   // (where the engine's move left her: in flight her body out of every face)
+        const auto keepBody = [&]
+        {   // In flight over the land what the rules here move her by (off a tree, back from the rock, up onto the land) is
+            // swept by her flying body as the engine's move is (2026-11-27, GameSession().FlightBodyRadius): so they put her
+            // through no face of the collision either (up through an overhang, a stair, a piece; in a cave, where the drawn
+            // cave is lower than its tube, the tube's roof had her body down through the cave's floor).
+            const auto& session = GameSession();
+            if (!flying || !scene || session.FlightBodyRadius <= 0) return;
+            if (p.Position.x == engineLeft.x && p.Position.y == engineLeft.y && p.Position.z == engineLeft.z) return;
+            p.Position = ResolveDoorwaysRuntimeSceneFlightBody(*scene, engineLeft, p.Position, session.FlightBodyMiddle, session.FlightBodyRadius).Position;
+        };
         mPut = (std::max)(PutStep, PutSpeed * dt);                       // (a longer step than this is no step: she was put there)
         if (p.IsGrounded || flying) { mAir = 0; mJumped = false; }       // (how long she has been off the ground on foot, and
         else { if (mAir <= 0 && p.VerticalVelocity > .5f) mJumped = true; mAir += dt; }   //  whether she left it by a jump)
@@ -938,6 +950,7 @@ namespace CaucasianEagle
                     p.Position.x -= cave.RightX * push; p.Position.z -= cave.RightZ * push;
                 }
                 p.Position.y = std::clamp(p.Position.y, cave.Floor + .05f, std::max(cave.Floor + .05f, cave.Roof - 1.9f));
+                keepBody();
             }
             else if (p.Position.y < cave.Floor - .3f) { p.Position.y = cave.Floor; p.VerticalVelocity = std::max(p.VerticalVelocity, 0.f); }
             mSlideStill = 0; mSlidAgo = 1;
@@ -1070,6 +1083,7 @@ namespace CaucasianEagle
             const float h = FlightLand(p.Position.x, p.Position.z), low = Land(p.Position.x, p.Position.z);
             if (p.Position.y < h + clear && (h - p.Position.y < 2.f || h <= low + .01f)) p.Position.y = h + clear;
             else if (p.Position.y < low + clear) p.Position.y = low + clear;
+            keepBody();
         }
         else if (!p.IsGrounded && mHasFlown)
         {   // On foot in the air: a jump, or a fall off an edge (the session's WalkOffLedges). The engine stands her only on

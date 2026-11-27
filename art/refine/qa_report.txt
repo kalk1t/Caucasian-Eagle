@@ -9,12 +9,18 @@ Devi	pass	18702 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (20 pai
 Dog	FAIL	16097 tris	z-fight pairs 1	Doorways_Dog: 2 zero-area UV faces	hidden back-to-back faces: Doorways_Dog (39 pairs) - delete to save tris; asset lowest point z=-0.5265 (not resting on ground plane z=0)
 Eagle	pass	30730 tris	z-fight pairs 0	-	hidden back-to-back faces: Doorways_Eagle (46 pairs) - delete to save tris; asset lowest point z=-0.6698 (not resting on ground plane z=0)
 Fir	FAIL	5501 tris	z-fight pairs 11	Mesh_0: 8 zero-area UV faces	hidden back-to-back faces: Mesh_0 (50 pairs) - delete to save tris
+FireHorse	FAIL	20659 tris	z-fight pairs 0	Mesh_0: 127 edges with inconsistent face winding	Mesh_0: non-manifold edges=95 wire=0; hidden back-to-back faces: Mesh_0 (1 pairs) - delete to save tris
+FrostHorse	FAIL	20447 tris	z-fight pairs 0	Mesh_0: 6 zero-area UV faces; Mesh_0: 647 edges with inconsistent face winding	Mesh_0: non-manifold edges=436 wire=0
 Gveleshapi	pass	18778 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (7 pairs) - delete to save tris; asset lowest point z=-0.9511 (not resting on ground plane z=0)
+Kabardian	FAIL	19553 tris	z-fight pairs 0	Mesh_0: 7 zero-area UV faces; Mesh_0: 1558 edges with inconsistent face winding	Mesh_0: non-manifold edges=1065 wire=0
 Kaji	FAIL	14381 tris	z-fight pairs 1	-	hidden back-to-back faces: Mesh_0 (24 pairs) - delete to save tris; asset lowest point z=-0.9499 (not resting on ground plane z=0)
+Karabakh	FAIL	20293 tris	z-fight pairs 0	Mesh_0: 2 zero-area UV faces; Mesh_0: 618 edges with inconsistent face winding	Mesh_0: non-manifold edges=422 wire=0; hidden back-to-back faces: Mesh_0 (1 pairs) - delete to save tris
 Kudiani	FAIL	13695 tris	z-fight pairs 5	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (65 pairs) - delete to save tris; asset lowest point z=-0.9506 (not resting on ground plane z=0)
 Mountain	pass	135200 tris	z-fight pairs 0	-	asset lowest point z=-90.0 (not resting on ground plane z=0)
 Ochokochi	FAIL	13819 tris	z-fight pairs 5	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (58 pairs) - delete to save tris; asset lowest point z=-0.9517 (not resting on ground plane z=0)
+Rashi	FAIL	24265 tris	z-fight pairs 0	Mesh_0: 655 edges with inconsistent face winding; floating/detached part in Mesh_0 (13 verts at [-0.035, 0.577, 0.662])	Mesh_0: non-manifold edges=463 wire=0
 Rocks	pass	6254 tris	z-fight pairs 0	-	hidden back-to-back faces: Mesh_0 (2 pairs) - delete to save tris
 Rokapi	FAIL	13886 tris	z-fight pairs 1	Mesh_0: 7 zero-area UV faces	hidden back-to-back faces: Mesh_0 (51 pairs) - delete to save tris; asset lowest point z=-0.9391 (not resting on ground plane z=0)
 Tower	FAIL	12198 tris	z-fight pairs 12	-	hidden back-to-back faces: Mesh_0 (28 pairs) - delete to save tris
+Tushetian	FAIL	20431 tris	z-fight pairs 0	Mesh_0: 2 zero-area UV faces; Mesh_0: 451 edges with inconsistent face winding	Mesh_0: non-manifold edges=369 wire=0
 Uaig	FAIL	16069 tris	z-fight pairs 3	Mesh_0: 6 zero-area UV faces	hidden back-to-back faces: Mesh_0 (66 pairs) - delete to save tris; asset lowest point z=-0.9523 (not resting on ground plane z=0)

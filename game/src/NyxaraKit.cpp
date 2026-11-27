@@ -14,6 +14,7 @@
 #include "NyxaraClips.h"
 #include "NyxaraFlair.h"
 #include "NyxaraFlight.h"
+#include "NyxaraHorse.h"
 #include "NyxaraHud.h"
 #include "NyxaraSoul.h"
 #include "Renderer.h"
@@ -107,6 +108,46 @@ namespace Doorways
         // leaves the ground at its start, is at the top at JumpApex, her first foot is down again at JumpLand; falling
         // faster than she jumped she holds the pose at JumpHold (her leg reaching down). After JumpLand: her step out.
         constexpr float JumpApex = .333f, JumpHold = .575f, JumpLand = .617f;
+        // A jump up rising ground (2026-11-27, the owner: "also jump needs to be fixed while going up on stairs or on
+        // mountain fast with shift or even without the jump happens very short"). At her pace (three times what it was
+        // since the shadow dash) the ground she runs up climbs nearly as fast as her jump rises: at W (9.6 m/s) up 30
+        // degrees 5.5 m/s of its 9.5, and she was down again in 0.44 s of its 1.06 s; at Shift (16.2 m/s) at once. Her
+        // jump is given the climb of the ground ahead of her (GroundClimbAhead: the walkable ground on her way to where a
+        // jump on the level would bring her down, followed JumpClimbStep at a time as she could walk it; the climb is its
+        // rise to the farthest she could follow it, over her time in the air on the level), at most JumpClimbMost of the
+        // jump: up a slope she is as long in the air as on the level, as high over the ground, and comes down where she
+        // would have. Downhill, at a slope's top, standing, or toward rock too steep to stand on: as before. (Measured on
+        // the trail the same day: the first way, the climb of the ground on to her jump's top, 5 m on at the most, made a
+        // short steep bank under a level top at Shift a leap of 6 m over it, as if the bank went on.)
+        constexpr float JumpClimbStep = .5f, JumpClimbGap = 1.f, JumpClimbMost = 1.25f;
+        constexpr int JumpClimbSteps = 40;
+
+        // The ground's climb ahead of her (m/s), for a jump: above.
+        float GroundClimbAhead(const WorldState& world, const Player& p, float jump)
+        {   // (CAUCASIAN_EAGLE_JUMP_CLIMB=0: none, a test's baseline)
+            static const bool off = [] { char e[4]{}; size_t n = 0; return getenv_s(&n, e, "CAUCASIAN_EAGLE_JUMP_CLIMB") == 0 && n > 1 && e[0] == '0'; }();
+            if (off || !world.RuntimeScene) return 0.f;
+            const float vx = p.ActualVelocity.x, vz = p.ActualVelocity.z, v = std::hypot(vx, vz);
+            if (v < 1.f) return 0.f;
+            const float ux = vx / v, uz = vz / v;
+            const float air = 2.f * jump / (std::max)(1.f, -p.GravityAcceleration);   // her time in the air on the level
+            const float reach = v * air;                                               // where it would bring her down
+            const int steps = std::clamp(static_cast<int>(std::ceil(reach / JumpClimbStep)), 1, JumpClimbSteps);
+            const float step = reach / static_cast<float>(steps);
+            float y = p.Position.y, at = 0;
+            for (int k = 1; k <= steps; ++k)
+            {   // the ground on her way as she could walk it from the last of it she found: up no steeper than 60 degrees
+                // (1.8 m a metre), nor down more than a metre a metre; a step's face or a stone's edge between (JumpClimbGap
+                // with none at the most) is passed over, and at more the way ends
+                const float d = step * static_cast<float>(k), on = d - at;
+                const auto g = Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(
+                    *world.RuntimeScene, p.Position.x + ux * d, p.Position.z + uz * d, y - on, y + 1.8f * on);
+                if (g.Hit) { y = g.GroundY; at = d; }
+                else if (on > JumpClimbGap) break;
+            }
+            if (y <= p.Position.y) return 0.f;
+            return (std::min)(JumpClimbMost * jump, (y - p.Position.y) / air);
+        }
         constexpr float DropSeconds = .45f;  // held that long in the reaching pose, a drop becomes a fall (the Fall clip)
         // F, her slide (Skill_Slide: 1.53 s and 6.2 m as it was made), as a dash (2026-11-25; the owner: "i want f to be 3x
         // faster and 3x longer distance to dash").
@@ -698,18 +739,65 @@ namespace Doorways
         constexpr MoveRef TalonFlick{0, 0}, TwinFang{0, 1}, Crescent{1, 0}, Moonfall{1, 1}, Needle{3, 0}, Fleche{3, 1}, Cyclone{4, 1}, Updraft{5, 0},
                           EagleDive{5, 1}, TwinSlash{6, 0}, GaleRush{6, 1}, HeavyCleave{7, 0}, GroundWave{8, 1}, HitAndFade{9, 0};
         constexpr float ComboWindow = .4f;
-        struct ComboSpec { const wchar_t* Name; const wchar_t* What; std::vector<MoveRef> String[2]; };
+        // Her combo counter (her three in one; the HUD's Chain): a move's pop, a blow's, and how long it stays after its
+        // string is over (full for a third of it, then fading); and the colours of the three ways in each gear, as the
+        // screen shows them (sharp, heavy, flowing: THE HIGHLANDS sky blue, gold, pale wind; AMIRANI'S FIRE white-hot,
+        // the forge's red, flame; MOONLIT silver-violet, ice, teal)
+        constexpr float ChainPopSeconds = .18f, ChainHitPopSeconds = .25f, ChainStays = 1.5f;
+        constexpr float ChainColours[3][3][3] = {{{.48f, .74f, 1.f}, {1.f, .76f, .34f}, {.62f, .95f, 1.f}},
+                                                 {{1.f, .88f, .52f}, {1.f, .42f, .16f}, {1.f, .62f, .2f}},
+                                                 {{.76f, .64f, 1.f}, {.56f, .8f, 1.f}, {.36f, 1.f, .8f}}};
+        // (her flair plain, as she set out, with no light: no element's colour, her own silver, the crescent white, the
+        // sword warm, the swirl cool)
+        constexpr float ChainPlainColours[3][3] = {{.9f, .94f, 1.f}, {1.f, .9f, .76f}, {.78f, .94f, 1.f}};
+        // (String[2]: her three in one's flowing string, played as the other button is clicked on without a pause)
+        struct ComboSpec { const wchar_t* Name; const wchar_t* What; std::vector<MoveRef> String[3]; };
+        // Her three in one (2026-11-27; the owner: "i want you to change nyxara's fight style in characterlab - i want to
+        // take all of those three nyxara style you created 1-2-3 and create at least 6 different fight style based on
+        // those three together, combine them to make combo, take visuals and adjust on each other", then "i like all three
+        // styles that much i need those to be involved in attacking styles, make them to exchange each other"; asked how,
+        // by the key: LMB a sharp move, RMB a heavy one, and the other button clicked on without a pause a flowing one; six
+        // for each gear in its own element; each move in its own way's light, handed on to the next). Of each gear's three
+        // (sharp, heavy, flowing: a string for each button), LMB is given one of the sharp way's two strings, RMB one of the
+        // heavy way's, and the changing of buttons one of the flowing way's: of the eight ways to take them, the six that
+        // are not all first strings or all second ones (each string so in three of the six).
+        constexpr int MixedOf[NyxaraKit::MixedCount][3] = {{0, 0, 1}, {0, 1, 0}, {0, 1, 1}, {1, 0, 0}, {1, 0, 1}, {1, 1, 0}};
+        constexpr const wchar_t* MixedNames[3][NyxaraKit::MixedCount] = {
+            {L"TALON AND ANVIL", L"STORMFALL", L"HIGH GALE", L"STONE WHEEL", L"SWALLOW AND STONE", L"SKY ANVIL"},
+            {L"EMBER AND HAMMER", L"FIREFALL", L"CINDER WHIRL", L"FORGE DANCE", L"SPARK AND ANVIL", L"ASHEN WHEEL"},
+            {L"THREAD AND FLOE", L"ICEFALL", L"SILVER DRIFT", L"GLACIER WHEEL", L"FROST AND THREAD", L"MOON ANVIL"}};
+        std::vector<ComboSpec> WithMixed(std::vector<ComboSpec> all)
+        {
+            static std::array<std::wstring, 3 * NyxaraKit::MixedCount> words;   // (what each is, kept for its pointer)
+            const auto half = [](const wchar_t* what, int k)
+            {   // one button's half of a combo's words ("LMB's; RMB's")
+                const std::wstring w = what; const size_t cut = w.find(L"; ");
+                return cut == std::wstring::npos ? w : k == 0 ? w.substr(0, cut) : w.substr(cut + 2);
+            };
+            const std::vector<ComboSpec> nine(all.begin(), all.end());
+            for (int g = 0; g < 3; ++g)
+                for (int n = 0; n < NyxaraKit::MixedCount; ++n)
+                {
+                    const ComboSpec& sharp = nine[static_cast<size_t>(1 + g * 3)], &heavy = nine[static_cast<size_t>(2 + g * 3)];
+                    const ComboSpec& flowing = nine[static_cast<size_t>(3 + g * 3)];
+                    const int* of = MixedOf[n];
+                    std::wstring& said = words[static_cast<size_t>(g * NyxaraKit::MixedCount + n)];
+                    said = L"LMB " + half(sharp.What, of[0]) + L"; RMB " + half(heavy.What, of[1]) + L"; changing hands " + half(flowing.What, of[2]);
+                    all.push_back({MixedNames[g][n], said.c_str(), {sharp.String[of[0]], heavy.String[of[1]], flowing.String[of[2]]}});
+                }
+            return all;
+        }
         const std::vector<ComboSpec>& Combos()
         {
-            static const std::vector<ComboSpec> all{
+            static const std::vector<ComboSpec> all = WithMixed({
                 {L"HER COMBO", L"in and round, the ground broken; in and out, and round", {
                     {FlashStep, Pinwheel, MountainBreaker},
                     {DrawCut, SwallowDart, Pinwheel}}},
                 // The nine of her flair (NyxaraFlair; owner, 2026-11-25), 1 + gear * 3 + style. In each gear the first is
                 // fast and sharp (many quick blows, a rush through at the end), the second heavy (few blows, the ground
-                // broken), the third flowing (turns, one move running into the next): the third is the game's, as her
-                // gear is put on ("i like 3'd most - so add those to current nyxara's ingame version"); the Character Lab
-                // plays all nine.
+                // broken), the third flowing (turns, one move running into the next): the third was the game's from
+                // 2026-11-25 ("i like 3'd most - so add those to current nyxara's ingame version"), and since 2026-11-27
+                // her three in one's fourth, made of them (WithMixed, GearFlairStyle); the Character Lab plays all nine.
                 {L"GALE EDGE", L"quick cuts and a rush through; in, the draw, and out again", {
                     {TalonFlick, TwinFang, TwinSlash, GaleRush},
                     {FlashStep, DrawCut, SwallowDart}}},
@@ -737,7 +825,7 @@ namespace Doorways
                 {L"MOON WRAITH", L"a sweep, two cuts, and round three times; in, round, out, and down from the air", {
                     {Crescent, TwinSlash, Cyclone},
                     {FlashStep, Pinwheel, SwallowDart, EagleDive}}},
-            };
+            });
             return all;
         }
         const StyleMove& RefMove(MoveRef r) { return Styles()[static_cast<size_t>(r.Style)].Move[r.Button]; }
@@ -913,6 +1001,7 @@ namespace Doorways
             return SwordsAway(clip) && !(Armed && (clip == "Move" || clip == "Jump" || clip == "Fall"));
         }
         std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
+        DoorwaysSkeletonPose RideGrip; bool RideGripTried = false;   // her fists on guard (Idle's first pose): on a horse, her hands on its reins
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         bool InHand = true;                                // where her swords are: in her hands, or on her back
         float DrawSeconds = 0, DrawReach = 0;              // a draw or a putting away: how long her arms take in all, and up to the handles
@@ -1049,6 +1138,7 @@ namespace Doorways
         float CloseBack[3]{}, CloseFlap[3]{};              // and closed so: each bone forward (-) and down (-) (radians)
         XMFLOAT3 WingLine[2][4]{}; bool WingLineKnown = false;   // each wing in the world: its three bones and its feathers' tip (Draw's lights)
         int ComboButton = -1, ComboStep = 0; float ComboEndedAt = -9;   // a combo's string: its button (-1 none), the move of it begun last, when a move of it was over
+        int ComboKey = -1;   // (her three in one: the button clicked last; ComboButton 2 its flowing string)
         float MovePlan = 0, MoveSpun = 0;
         XMFLOAT2 MoveAt{}, MoveVel{};
         XMFLOAT2 MoveOwe{};                               // what is left of its way, asked of the next frame (ScaleFrameTime)
@@ -1064,6 +1154,7 @@ namespace Doorways
         float JumpTime = 0, DeathTime = 0;
         bool JumpReal = false, JumpAir = false, WasGrounded = true;   // a jump that the world moves her in; she has left the ground in it
         float JumpClock = 0, AirSeconds = 0, Dropped = 0, FellAt = 0; // seconds of this jump; off the ground on foot; held reaching down; her fall a frame ago (m/s)
+        float JumpClimb = 0;               // m/s this jump was given up rising ground (GroundClimbAhead)
         float Squat = 0, SquatGo = 0;      // her knees taking a landing: her hips let down (m), and how fast
         bool Struck = false;               // something hurt her since her last frame
         float Flinch = 0, FlinchGo = 0;    // knocked back by it: her picture tipped forward (radians; back < 0), and how fast
@@ -4657,6 +4748,34 @@ namespace Doorways
     NyxaraKit::NyxaraKit() : mBody(std::make_unique<Body>()) {}
     NyxaraKit::~NyxaraKit() = default;
 
+    // ---- her horses (NyxaraHorse.h)
+    bool NyxaraKit::LoadHorses(Renderer& renderer, std::string& error)
+    {
+        if (!mHorses) mHorses = std::make_unique<NyxaraHorses>();
+        if (mHorses->Load(renderer, error)) return true;
+        mHorses.reset();
+        return false;
+    }
+    void NyxaraKit::PlaceHorses(const WorldState& world, XMFLOAT3 at, float yaw, float apart) { if (mHorses) mHorses->Place(world, at, yaw, apart); }
+    void NyxaraKit::RideKey() { if (mHorses) mHorses->Ask(); }
+    void NyxaraKit::SetHorseKind(int kind) { if (mHorses) mHorses->SetKind(kind); }
+    int NyxaraKit::HorseKind() const { return mHorses ? mHorses->Kind() : 0; }
+    void NyxaraKit::SetRideWay(int way) { if (mHorses) mHorses->SetWay(way); }
+    int NyxaraKit::RideWay() const { return mHorses ? mHorses->Way() : 0; }
+    int NyxaraKit::HorseKinds() { return NyxaraHorses::KindCount; }
+    int NyxaraKit::RideWays() { return NyxaraHorses::WayCount; }
+    const wchar_t* NyxaraKit::HorseName(int kind) { return NyxaraHorses::KindName(kind); }
+    const wchar_t* NyxaraKit::HorseLine(int kind) { return NyxaraHorses::KindLine(kind); }
+    const wchar_t* NyxaraKit::RideWayName(int way) { return NyxaraHorses::WayName(way); }
+    const wchar_t* NyxaraKit::RideWayLine(int way) { return NyxaraHorses::WayLine(way); }
+    bool NyxaraKit::Riding() const { return mHorses && mHorses->Riding(); }
+    bool NyxaraKit::Seated() const { return mHorses && mHorses->Seated(); }
+    void NyxaraKit::GetOffHorse(WorldState& world) { if (mHorses) mHorses->Drop(world); }
+    XMFLOAT3 NyxaraKit::HorseAt(int kind) const { return mHorses ? mHorses->At(kind) : XMFLOAT3{}; }
+    float NyxaraKit::HorseYaw(int kind) const { return mHorses ? mHorses->YawOf(kind) : 0.f; }
+    std::wstring NyxaraKit::RideNote() const { return mHorses ? mHorses->Note() : std::wstring(); }
+    std::string NyxaraKit::RideLog() const { return mHorses ? mHorses->Log() : std::string(); }
+
     float NyxaraKit::Random()
     {
         mSeed = mSeed * 1664525u + 1013904223u;
@@ -4993,7 +5112,7 @@ namespace Doorways
         if (combo < 0 || combo >= static_cast<int>(Combos().size())) return info;
         const ComboSpec& spec = Combos()[static_cast<size_t>(combo)];
         info.Name = spec.Name; info.What = spec.What;
-        for (int k = 0; k < 2; ++k)
+        for (int k = 0; k < 3; ++k)
             for (const MoveRef r : spec.String[k])
             {
                 info.String[k].push_back(RefMove(r).Name);
@@ -5016,13 +5135,14 @@ namespace Doorways
     {
         mStyle = -1;
         mCombo = combo >= 0 && combo < ComboCount && combo < static_cast<int>(Combos().size()) ? combo : -1;
-        if (mBody) mBody->ComboButton = -1;
+        if (mBody) { mBody->ComboButton = -1; mBody->ComboKey = -1; }
+        mChain = {};
     }
     void NyxaraKit::SetFlair(int gear, int style, bool own, bool plain)
     {
         if (gear < 0 || style < 0) { if (mFlair) mFlair->Choose(-1, -1); return; }
         if (!mFlair) { mFlair = std::make_unique<NyxaraFlair>(); mFlair->SetGround(&mFootGround); }
-        mFlair->Choose(gear, style, own, plain);
+        mFlair->Choose(gear, style >= NyxaraFlair::StylesPerGear ? NyxaraFlair::Mixed : style, own, plain);   // (3 or more: her three in one)
     }
     int NyxaraKit::FlairGear() const { return mFlair ? mFlair->Gear() : -1; }
     int NyxaraKit::FlairStyle() const { return mFlair ? mFlair->Style() : -1; }
@@ -6373,12 +6493,22 @@ namespace Doorways
         const float flairDt = dt > 0 ? mFlairDt : 0.f;
         if (flair && !b.Skill())
         {   // (her flair: its own pace, of its combo's moves and of her own cuts; her skills keep theirs, as the game has them)
-            const NyxaraFlair::Info info = NyxaraFlair::Describe(mFlair->Gear(), mFlair->Style(), mFlair->Own());
+            const NyxaraFlair::Info info = NyxaraFlair::Describe(mFlair->Gear(), mFlair->LookStyle(), mFlair->Own());   // (her three in one: the move's way's)
             b.Pace = mCombo >= 0 ? info.Pace : info.CutPace;
         }
         auto& p = world.MainPlayer;
         auto& s = GameSession();
         b.Clock += dt;
+        if (mChain.On)
+        {   // her combo counter: on while her string goes on (in a move of it, or ComboWindow after one), then a moment more
+            mChain.Pop = (std::max)(0.f, mChain.Pop - dt / ChainPopSeconds);
+            mChain.HitPop = (std::max)(0.f, mChain.HitPop - dt / ChainHitPopSeconds);
+            const float window = ComboWindow / (std::max)(b.Pace, .01f);
+            const bool goesOn = mCombo >= 0 && b.ComboButton >= 0 && (b.InMove() || b.Clock - b.ComboEndedAt <= window);
+            mChain.Left = !goesOn ? 0.f : b.InMove() ? 1.f : std::clamp(1 - (b.Clock - b.ComboEndedAt) / window, 0.f, 1.f);
+            if (goesOn) mChain.Fade = ChainStays;
+            else if ((mChain.Fade -= dt) <= 0) mChain = {};
+        }
         // (shown in her window, the game standing still: her pose alone goes on in real time, standing and breathing)
         const float poseDt = mShowcase && dt <= 0 ? realDt : dt;
         if (mShowcase && dt <= 0) b.Clock += realDt;
@@ -6402,7 +6532,10 @@ namespace Doorways
         }
         const bool unattended = s.Unattended;
         const bool live = inputAllowed && !mInputBlocked && !unattended;   // the desktop's own keys (steering, stepping back)
-        const Keys k = ReadKeys(inputAllowed);
+        Keys k = ReadKeys(inputAllowed);
+        // (on a horse her keys are the horse's: NyxaraHorses reads them. Her own moves, cuts, skills, soul and flight wait)
+        const bool riding = mHorses && mHorses->Riding();
+        if (riding) k = Keys{};
         const auto pressed = [](bool now, bool before) { return now && !before; };
         const bool clickL = pressed(k.Lmb, mPrev.Lmb), clickR = pressed(k.Rmb, mPrev.Rmb), keyF = pressed(k.K1, mPrev.K1),
                    keyV = mSkillsVC && pressed(k.K2, mPrev.K2), keyC = mSkillsVC && pressed(k.K3, mPrev.K3);   // (V and C: SetSkillsVC)
@@ -6411,7 +6544,7 @@ namespace Doorways
         else if (!k.Q) mQWaits = false;
         const bool keyQ = !mQWaits && pressed(k.Q, mPrev.Q);
         const bool scriptedSpace = unattended && mRealJump > 0 && s.ScriptedJump;
-        const bool space = pressed(k.Space, mPrev.Space) || pressed(scriptedSpace, mScriptedSpaceWas);
+        const bool space = !riding && (pressed(k.Space, mPrev.Space) || pressed(scriptedSpace, mScriptedSpaceWas));
         mScriptedSpaceWas = scriptedSpace;
         mPrev = k;
         const bool alive = combat.PlayerActionsAllowed();
@@ -6631,7 +6764,7 @@ namespace Doorways
             else if (b.Touch >= b.LandEnd()) b.Touch = -1;
         }
         b.WasFlying = flying;
-        const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0 || b.Soul == 3;   // leaving the ground or coming down, finishing one: nothing else
+        const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0 || b.Soul == 3 || riding;   // leaving the ground or coming down, finishing one, on a horse: nothing else
 
         // ---- her wing shield: E pressed, ShieldSeconds round her whatever she does (ShieldSeconds, above)
         {
@@ -6665,7 +6798,7 @@ namespace Doorways
         if (space && !flying && !busy && !b.Cast && !b.Jumping && !b.Carried() && alive)
         {
             b.Attack.clear(); b.Queued = 0; b.Jumping = true; b.JumpTime = 0;
-            b.JumpReal = false; b.JumpAir = false; b.JumpClock = 0; b.Dropped = 0;
+            b.JumpReal = false; b.JumpAir = false; b.JumpClock = 0; b.Dropped = 0; b.JumpClimb = 0;
             float jumpLift = 0;
             // a real jump where the game asks for one: from the ground, or from the brink of an edge she stands on
             if (mRealJump > 0 && p.VerticalVelocity <= 0 &&
@@ -6677,13 +6810,15 @@ namespace Doorways
                 // jump's first frame did not take them out of it: the ground over her feet was taken for her landing
                 // (EaglesAscent::KeepOutOfRock, the engine's sweep for rising ground) and the jump was over as it began.
                 if (p.IsGrounded && p.GroundY > p.Position.y && p.GroundY - p.Position.y < .6f) { jumpLift = p.GroundY - p.Position.y; p.Position.y = p.GroundY; }
-                p.VerticalVelocity = mRealJump; p.IsGrounded = false;
+                // Up rising ground it is given the ground's climb ahead of her (2026-11-27: JumpClimbStep).
+                b.JumpClimb = p.IsGrounded ? GroundClimbAhead(world, p, mRealJump) : 0.f;
+                p.VerticalVelocity = mRealJump + b.JumpClimb; p.IsGrounded = false;
                 p.GroundState = Doorways::DoorwaysPhysicsGroundState::Airborne;
                 p.MissingAuthoritativeGround = false; p.GroundY = p.TargetGroundY = p.Position.y;
                 b.JumpReal = true;
             }
-            char jumpSaid[48];
-            std::snprintf(jumpSaid, sizeof jumpSaid, "jump %s lifted %.2f", b.JumpReal ? "real" : "clip-only", jumpLift);
+            char jumpSaid[72];
+            std::snprintf(jumpSaid, sizeof jumpSaid, "jump %s lifted %.2f climb %.2f", b.JumpReal ? "real" : "clip-only", jumpLift, b.JumpClimb);
             b.Log(world, jumpSaid);
         }
         else if (b.Jumping && b.JumpReal)
@@ -6698,7 +6833,8 @@ namespace Doorways
             if (flying) b.Jumping = false;
             else if (up || (!b.JumpAir && b.JumpClock < .15f))
             {
-                const float v = p.VerticalVelocity / (mRealJump > 0 ? mRealJump : 9.5f);
+                // (up rising ground by her speed over the ground's climb that the jump was given: her rise and fall over it)
+                const float v = (p.VerticalVelocity - b.JumpClimb) / (mRealJump > 0 ? mRealJump : 9.5f);
                 const float goal = v > 0 ? JumpApex * (1 - (std::min)(1.f, v)) : JumpApex + (JumpHold - JumpApex) * (std::min)(1.f, -v);
                 b.JumpTime = std::clamp(goal, b.JumpTime, b.JumpTime + dt * 3);
                 b.Dropped = v <= -1 ? b.Dropped + dt : 0;
@@ -6719,7 +6855,7 @@ namespace Doorways
             if (!b.Jumping && !busy && !b.Cast && !b.Carried() && b.Attack.empty() && !mFalling && b.Duration("Jump") > JumpLand &&
                 (b.AirSeconds > .18f || (b.AirSeconds > .05f && p.VerticalVelocity < -4)))
             {
-                b.Jumping = true; b.JumpReal = true; b.JumpAir = true; b.JumpClock = 1; b.JumpTime = JumpApex + .03f; b.Dropped = 0;
+                b.Jumping = true; b.JumpReal = true; b.JumpAir = true; b.JumpClock = 1; b.JumpTime = JumpApex + .03f; b.Dropped = 0; b.JumpClimb = 0;
                 b.Log(world, "off an edge");
             }
         }
@@ -6888,12 +7024,23 @@ namespace Doorways
         {
             const StyleMove* chosen = &Styles()[static_cast<size_t>((std::max)(0, mStyle))].Move[button];
             if (comboed)
-            {
-                const auto& string = Combos()[static_cast<size_t>(mCombo)].String[button];
-                const bool goesOn = b.ComboButton == button && b.ComboStep + 1 < static_cast<int>(string.size()) &&
-                                    (b.InMove() || b.Clock - b.ComboEndedAt <= ComboWindow / b.Pace);
-                b.ComboStep = goesOn ? b.ComboStep + 1 : 0; b.ComboButton = button;
+            {   // (her three in one: the other button clicked on without a pause, its flowing string, in its light)
+                const ComboSpec& spec = Combos()[static_cast<size_t>(mCombo)];
+                const bool mixed = !spec.String[2].empty();
+                const bool chained = b.ComboButton >= 0 && (b.InMove() || b.Clock - b.ComboEndedAt <= ComboWindow / b.Pace);
+                const int which = mixed && chained && b.ComboKey >= 0 && b.ComboKey != button ? 2 : button;
+                const auto& string = spec.String[which];
+                const bool goesOn = b.ComboButton == which && chained && b.ComboStep + 1 < static_cast<int>(string.size());
+                b.ComboStep = goesOn ? b.ComboStep + 1 : 0; b.ComboButton = which; b.ComboKey = button;
                 chosen = &RefMove(string[static_cast<size_t>(b.ComboStep)]);
+                if (mixed && mFlair) mFlair->Use(which);
+                if (mixed)
+                {   // her combo counter: a string begun anew, or one more move of it
+                    if (!chained || !mChain.On) mChain = {};
+                    mChain.On = true; ++mChain.Moves; mChain.Pop = 1; mChain.Fade = ChainStays;
+                    if (mChain.MarkCount == 10) { std::copy(mChain.Marks + 1, mChain.Marks + 10, mChain.Marks); --mChain.MarkCount; }
+                    mChain.Marks[mChain.MarkCount++] = which;
+                }
                 if (mHiggsfieldTrial && chosen == &RefMove(FlashStep) && b.Clips.count(FlashStepTrial().Clip)) chosen = &FlashStepTrial();
             }
             const StyleMove& m = *chosen;
@@ -7195,6 +7342,7 @@ namespace Doorways
                             mBlowListener({p.Position.x + way.x * at, p.Position.y, p.Position.z + way.z * at}, p.Yaw, (std::max)(1.5f, h.Arc), 359.f);
                 }
                 else struck = strike(h.Reach, h.Arc, h.Damage, h.Push, h.Launch);
+                if (struck > 0 && mChain.On && b.ComboButton >= 0) { mChain.Hits += struck; mChain.HitPop = 1; }   // (her combo counter)
                 CaucasianEagle::Sound::Play(h.Damage >= 70 ? "nyxara/swing_heavy" : "nyxara/swing", .5f, .15f);
                 if (flair)
                 {   // (her flair: the blow's light is its own, and what it asks of the game's feel: TakeFeel, below)
@@ -7663,20 +7811,50 @@ namespace Doorways
             b.FlightHeld = false;
         }
 
+        // ---- her horse (NyxaraHorse.h): the one she rides moved by her keys (the engine moves her on it: the session's
+        // impulses, her facing, a leap's rise; set here, after her own travel, they are the horse's), the others standing,
+        // grazing or coming to her. Her own going is given up to it.
+        if (mHorses)
+        {
+            NyxaraHorses::Controls c;
+            if (live)
+            {
+                c.W = IsDoorwaysKeyDown('W'); c.S = IsDoorwaysKeyDown('S'); c.A = IsDoorwaysKeyDown('A'); c.D = IsDoorwaysKeyDown('D');
+                c.Shift = IsDoorwaysKeyDown(VK_SHIFT); c.Ctrl = IsDoorwaysKeyDown(VK_CONTROL); c.Space = IsDoorwaysKeyDown(VK_SPACE);
+            }
+            else if (unattended)
+            {   // (a test's: the session's scripted keys)
+                c.W = s.ScriptedMove == 'W'; c.S = s.ScriptedMove == 'S'; c.A = s.ScriptedSteer < 0; c.D = s.ScriptedSteer > 0;
+                c.Shift = s.ScriptedFast; c.Ctrl = s.ScriptedSlow; c.Space = s.ScriptedJump;
+            }
+            c.ViewYaw = world.MainCamera.Yaw;
+            if (b.Dead || flying) mHorses->Drop(world);
+            std::wstring said;
+            mHorses->Update(world, c, dt, said);
+            if (!said.empty()) Notice(said.c_str(), 2.2f);
+            for (const auto& spark : mHorses->Sparks()) Burst(spark.At, spark.Color, spark.Count, spark.Speed, spark.Size);
+            if (mHorses->Riding())
+            {
+                b.Glide = {0, 0}; b.Throttle = 0; b.Went = {0, 0}; b.Jumping = false; b.JumpReal = false; mFalling = false;
+                b.Back = false; b.Squat = 0; b.SquatGo = 0;
+            }
+        }
+        const bool onHorse = mHorses && mHorses->Riding();
+
         // ---- the clip and her pose
         // (her own going, or carried on after the key: still her stride. Not what a move's last push leaves her for a
         // frame: after every skill she strode for one frame, and her arms and swords set out for her back and returned)
-        const bool moving = !(mShowcase && dt <= 0) && ((p.IsMoving && (b.Speed > .08f || b.Freed)) || std::hypot(b.Glide.x, b.Glide.y) > .08f);   // (shown in her window she stands)
+        const bool moving = !onHorse && !(mShowcase && dt <= 0) && ((p.IsMoving && (b.Speed > .08f || b.Freed)) || std::hypot(b.Glide.x, b.Glide.y) > .08f);   // (shown in her window she stands)
         {   // On guard or at ease (2026-11-19). Idle is a fighter's guard, both swords up: she stood so everywhere, and
             // drew both swords every time she stopped walking. Now she stands on guard only while something threatens
             // her: she is fighting, or a creature is within GuardNear of her, and for GuardSeconds after. Otherwise she
             // stands at ease (Stand), her swords on her back, and walks off without having to put them away.
             constexpr float GuardSeconds = 5.f, GuardNear = 14.f;
-            bool threat = !b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0 || mGuarding || mShowcase;   // (shown in her window: on guard, both swords in her hands)
+            bool threat = !onHorse && (!b.Attack.empty() || b.Cast != 0 || b.Struck || b.Finish != 0 || mGuarding || mShowcase);   // (shown in her window: on guard, both swords in her hands; on a horse: her hands on its reins)
             if (b.Struck) for (auto& w : b.WingSpring) w.FlapGo += 3.f;
             b.Struck = false;
             for (const auto& w : mWraiths)
-                if (!threat && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
+                if (!threat && !onHorse && w.Alive && std::hypot(w.Pos.x - p.Position.x, w.Pos.z - p.Position.z) < GuardNear && std::abs(w.Pos.y - p.Position.y) < GuardNear) threat = true;
             // And while that lasts her swords stay in her hands as she goes, jumps and falls (Armed; owner, 2026-11-19:
             // "hands are not following the skills and combos properly"). Until this they went to her back with her first
             // step, and were drawn again for every cut and every skill made on the move: in a fight on the move her
@@ -7721,7 +7899,7 @@ namespace Doorways
         b.StyleFrame(mGaitStyle > 0 ? &GaitStyles[mGaitStyle] : nullptr, striding, (std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), poseDt);
         {   // Turning on the spot she steps (2026-11-19: she was turned as a statue on a plate). Her legs are the walk's,
             // stepping in place (her stride drawn in to nothing), her body goes on standing.
-            const bool turning = !moving && !b.Dead && !flying && p.IsGrounded && b.Attack.empty() && !b.Cast && !b.Jumping && !carried &&
+            const bool turning = !moving && !onHorse && !b.Dead && !flying && p.IsGrounded && b.Attack.empty() && !b.Cast && !b.Jumping && !carried &&
                                  b.Rise < 0 && b.Touch < 0 && std::abs(b.TurnRate) > .5f;
             if (turning) { b.Gait = "Move"; b.Stride(0, false, poseDt); }
             else if (!striding) b.StrideScale += (1 - b.StrideScale) * (std::min)(1.f, poseDt * 10);   // (standing: her feet where her clip has them)
@@ -7741,6 +7919,7 @@ namespace Doorways
             time = mPreviewTime >= 0 ? (std::min)(mPreviewTime, b.Duration(clip)) : std::fmod(mPreviewClock, b.Duration(clip));
         }
         else if (b.Dead) { clip = "Death"; time = b.DeathTime; }
+        else if (onHorse) { clip = b.Duration("Stand") > 0 ? "Stand" : "Idle"; time = b.Clock; }   // (posed on it: NyxaraRide)
         else if (b.Soul == 3 && b.Duration(Body::SoulBackClip) > 0)
         {   // her way back to her soul, played over however long it takes
             clip = Body::SoulBackClip; time = std::clamp(b.SoulTime / b.SoulBack, 0.f, 1.f) * b.Duration(clip);
@@ -7763,12 +7942,12 @@ namespace Doorways
             DoorwaysSkeletonPose pose;
             std::string error;
             // her feet on the drawn ground: on foot and standing on it, not while a move lifts or carries her
-            const bool planted = !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
+            const bool planted = !onHorse && !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
                                  !b.Finish && std::abs(b.LiftNow) < .05f && !previewing;
             const bool composed = b.Compose(world, clip, time, poseDt, pose, &error);
             b.StyleHold = 0;
-            if (composed && !flying && !b.Dead && !previewing) b.StylePose(pose, poseDt, clip == "Move", world.AnimatedPlayerVisual.Scale.y);   // (her way of going)
-            const float planting = composed ? b.PlantFeet(world, mFootGround, mStairTread, pose, poseDt, planted) : 0.f;
+            if (composed && !flying && !b.Dead && !previewing && !onHorse) b.StylePose(pose, poseDt, clip == "Move", world.AnimatedPlayerVisual.Scale.y);   // (her way of going)
+            const float planting = composed && !onHorse ? b.PlantFeet(world, mFootGround, mStairTread, pose, poseDt, planted) : 0.f;
             if (composed && !b.BodyMove) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + planting;
             if (!b.BodyMove)
             {   // (her bank turns about her chest, not about her feet: her picture is put back by what the roll moves her chest)
@@ -7781,6 +7960,18 @@ namespace Doorways
                 world.AnimatedPlayerVisual.Translation.x += b.FlightShift.x;
                 world.AnimatedPlayerVisual.Translation.y += b.FlightShift.y;
                 world.AnimatedPlayerVisual.Translation.z += b.FlightShift.z;
+            }
+            if (onHorse)
+            {   // on a horse: her picture as she is, on its seat; her body posed on it (her hips on its saddle, her feet in its
+                // stirrups, her hands at its reins), over the clip's
+                world.AnimatedPlayerVisual.Translation = {0, 0, 0};
+                world.AnimatedPlayerVisual.Rotation = {0, 0, 0};
+                if (!b.RideGripTried)
+                {
+                    b.RideGripTried = true;
+                    if (!b.Sample("Idle", 0, b.RideGrip, nullptr)) b.RideGrip.LocalJoints.clear();
+                }
+                if (composed) mHorses->PoseRider(world, b.Skeleton, pose, b.RideGrip.LocalJoints.empty() ? nullptr : &b.RideGrip);
             }
             float toward = std::numeric_limits<float>::quiet_NaN();
             {   // the nearest creature within LookFar of her and not behind her (a third of a turn either way)
@@ -7798,7 +7989,7 @@ namespace Doorways
             {   // Standing at ease for a while she opens her wings, shakes them out and lowers them again (2026-11-19): every
                 // quarter of a minute or so, not by a clock. A blow up on both wings as they open, one down after it.
                 constexpr float StretchSeconds = 1.7f, Shake = .65f;
-                b.AtEase = clip == "Stand" && std::abs(b.TurnRate) < .2f ? b.AtEase + poseDt : 0.f;
+                b.AtEase = clip == "Stand" && !onHorse && std::abs(b.TurnRate) < .2f ? b.AtEase + poseDt : 0.f;
                 if (b.AtEase <= 0) { b.NextStretch = b.Rand(9, 16); b.Stretch = -1; }
                 else if (b.Stretch < 0 && b.AtEase > b.NextStretch)
                 {
@@ -7825,7 +8016,8 @@ namespace Doorways
                 b.WingCloseTo = !shield ? 0.f : flying ? .25f : engaged ? .5f : 1.f;
             }
             if (composed)
-                b.SwingWings(pose, poseDt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
+                b.SwingWings(pose, poseDt, onHorse ? (p.IsGrounded ? 6.f * mHorses->WingBounce() : p.VerticalVelocity) : !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f,
+                             onHorse ? 0.f : flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
                              b.Dead || b.Cast || b.Air ? 0.f : b.Finish ? .6f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
                              clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? b.StyleFold(.75f - .6f * b.GaitRun) : 0.f);
             b.WingLineKnown = false;
@@ -8204,6 +8396,16 @@ namespace Doorways
         for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
+        {   // her combo counter (her three in one)
+            h.Chain = mChain.On; h.ChainMoves = mChain.Moves; h.ChainHits = mChain.Hits; h.ChainLeft = mChain.Left;
+            h.ChainFade = mChain.Fade; h.ChainPop = mChain.Pop; h.ChainHitPop = mChain.HitPop;
+            h.ChainMarkCount = (std::min)(mChain.MarkCount, NyxaraHudState::ChainMarksMost);
+            std::copy(mChain.Marks, mChain.Marks + h.ChainMarkCount, h.ChainMarks);
+            const int gear = mFlair && mFlair->Gear() >= 0 ? mFlair->Gear() : 0;
+            const bool silver = mFlair && mFlair->Plain();   // (as she set out: her own silver)
+            for (int w = 0; w < 3; ++w)
+                for (int c = 0; c < 3; ++c) h.ChainColour[w][c] = silver ? ChainPlainColours[w][c] : ChainColours[gear][w][c];
+        }
         h.Action = b.Soul == 3 ? L"TO HER SOUL" : b.Soul == 1 ? NyxaraSoul::Name : b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH"
                  : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
         h.SoulOut = b.Soul != 0; h.SoulRest = mSoulCooldown; h.SoulRestMax = SoulCooldownSeconds * mCooldownScale;   // (her soul, Q: its slot, its rest)
@@ -8235,6 +8437,7 @@ namespace Doorways
                 }
             }
         }
+        if (mHorses) mHorses->Draw(renderer, viewProjection);   // (her horses: skinned, as the creatures are)
         renderer.BindDoorwaysSkinningDisabled();
         const XMFLOAT3 eye = world.MainCamera.Position;
         const auto material = [&](XMFLOAT4 color, ID3D11ShaderResourceView* texture, float emission, bool blend)

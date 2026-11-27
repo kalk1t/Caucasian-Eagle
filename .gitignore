@@ -38,6 +38,8 @@ _logs/
 # Road to Amirani: Meshy downloads and intermediate exports (rebuilt by the scripts)
 art/monsters/meshy/out/
 art/props/meshy/out/
+art/horses/meshy/out/
+art/tools/task_log.jsonl
 art/world/export/*.glb
 art/world/export/textures/
 

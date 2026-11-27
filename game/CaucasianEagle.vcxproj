@@ -87,6 +87,7 @@
     <ClCompile Include="src\NyxaraKit.cpp" />
     <ClCompile Include="src\NyxaraFlair.cpp" />
     <ClCompile Include="src\NyxaraSoul.cpp" />
+    <ClCompile Include="src\NyxaraHorse.cpp" />
     <ClCompile Include="src\NyxaraLooks.cpp" />
     <ClCompile Include="src\AmiraniMountain.cpp" />
     <ClCompile Include="src\Journey.cpp" />
@@ -118,6 +119,8 @@
     <ClInclude Include="src\NyxaraFlair.h" />
     <ClInclude Include="src\NyxaraFlight.h" />
     <ClInclude Include="src\NyxaraSoul.h" />
+    <ClInclude Include="src\NyxaraHorse.h" />
+    <ClInclude Include="src\NyxaraRide.h" />
     <ClInclude Include="src\NyxaraLooks.h" />
     <ClInclude Include="src\NyxaraEquipment.h" />
     <ClInclude Include="src\AmiraniMountain.h" />
