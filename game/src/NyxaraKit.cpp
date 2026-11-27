@@ -13,6 +13,7 @@
 #include "GameConstants.h"
 #include "NyxaraClips.h"
 #include "NyxaraFlair.h"
+#include "NyxaraFlight.h"
 #include "NyxaraHud.h"
 #include "NyxaraSoul.h"
 #include "Renderer.h"
@@ -906,7 +907,11 @@ namespace Doorways
         // the swords change place as her hands are there.
         static bool SwordsAway(const std::string& clip) { return clip == "Stand" || clip == "Move" || clip == "Walk" || clip == "Run" || clip == "Stairs_Up" || clip == "Jump" || clip == "Fall"; }
         // (in a fight they stay in her hands as she goes, jumps and falls: Armed)
-        bool Away(const std::string& clip) const { return SwordsAway(clip) && !(Armed && (clip == "Move" || clip == "Jump" || clip == "Fall")); }
+        bool Away(const std::string& clip) const
+        {   // (in a flight style of hers, NyxaraFlight, her flight's three clips have her swords on her back: her arms are her flight's)
+            if (FlightStyle > 0 && !Armed && (clip == "Fly" || clip == "Fly_Rise" || clip == "Fly_Land")) return true;
+            return SwordsAway(clip) && !(Armed && (clip == "Move" || clip == "Jump" || clip == "Fall"));
+        }
         std::vector<char> ArmJoint;                        // per joint: a shoulder, arm, hand or finger
         DoorwaysSkeletonPose ReachPose; bool HasReach = false, Drawing = false;
         bool InHand = true;                                // where her swords are: in her hands, or on her back
@@ -1066,6 +1071,16 @@ namespace Doorways
         float StruckWeight = 1, StruckX = 0, StruckZ = -1;   // how hard it was (1: a blow of 9), and the way it knocked her (her axes: x her right, z the way she faces)
         bool StruckBelow = false;          // it burst under her feet
         float FlyTime = 0, FlyLean = 0, Hover = 0, Rise = -1, Touch = -1;
+        // Her flight in a style of its own (NyxaraKit::SetFlightStyle; 0: her three flight clips): its poser, and the pose it
+        // made this frame, played in place of Fly, Fly_Rise and Fly_Land while FlightLive (Sample); her picture moved with
+        // its lean (FlightShift). Her take-off and her landing last as long as the style has them.
+        int FlightStyle = 0;
+        NyxaraFlight::Poser FlightPoser;
+        DoorwaysSkeletonPose FlightPose;
+        bool FlightLive = false;
+        XMFLOAT3 FlightShift{};
+        float RiseEnd() const { return FlightStyle > 0 ? RiseLifts + NyxaraFlight::Poser::RiseSeconds(FlightStyle) : (std::max)(Duration("Fly_Rise"), RiseLifts + .05f); }
+        float LandEnd() const { return FlightStyle > 0 ? LandReachTime + NyxaraFlight::Poser::LandSeconds(FlightStyle) : Duration("Fly_Land"); }
         bool WasFlying = false;
         int Air = 0; float AirTime = 0;    // F in flight: 1 the twisted dash
         XMFLOAT3 DashFrom{}; std::vector<int> DashStruck;   // (in it) where she was a frame ago; the creatures it has struck
@@ -1596,6 +1611,11 @@ namespace Doorways
         bool Sample(const std::string& name, float time, DoorwaysSkeletonPose& out, std::string* error) const
         {
             if (name == "Move") return SampleMove(time, out, error);
+            if (FlightLive && (name == "Fly" || name == "Fly_Rise" || name == "Fly_Land") && FlightPose.LocalJoints.size() == Skeleton.Joints.size())
+            {   // her flight in a style of hers: this frame's pose (NyxaraFlight)
+                out = FlightPose;
+                return true;
+            }
             const auto found = Clips.find(name);
             if (found == Clips.end()) { if (error) *error = "Missing NYXARA clip: " + name; return false; }
             const float duration = found->second.DurationSeconds;
@@ -5038,6 +5058,11 @@ namespace Doorways
     const char* NyxaraKit::GaitStyleName(int style) { return GaitStyles[std::clamp(style, 0, GaitStyleCount() - 1)].Name; }
     const char* NyxaraKit::GaitStyleLine(int style) { return GaitStyles[std::clamp(style, 0, GaitStyleCount() - 1)].Line; }
     void NyxaraKit::SetGaitStyle(int style) { mGaitStyle = std::clamp(style, 0, GaitStyleCount() - 1); }
+    int NyxaraKit::FlightStyleCount() { return NyxaraFlight::Poser::Count(); }
+    const char* NyxaraKit::FlightStyleName(int style) { return NyxaraFlight::Poser::Style(style).Name; }
+    const char* NyxaraKit::FlightStyleLine(int style) { return NyxaraFlight::Poser::Style(style).Line; }
+    void NyxaraKit::SetFlightStyle(int style) { mFlightStyle = std::clamp(style, 0, FlightStyleCount() - 1); }
+    std::string NyxaraKit::FlightNote() const { return mBody && mBody->FlightLive ? mBody->FlightPoser.Note() : std::string(); }
     std::string NyxaraKit::GaitNote() const { return mBody ? mBody->SoleNote + (mBody->WingsHeldKnown ? "; wings held steady in a style" : "; wings NOT held (not learned)") : std::string(); }
 
     void NyxaraKit::UpdateSoul(WorldState& world, const DoorwaysSkeletonPose& pose, float dt)
@@ -6590,7 +6615,7 @@ namespace Doorways
         if (b.Rise >= 0)
         {
             b.Rise += dt;
-            if (b.Rise >= (std::max)(b.Duration("Fly_Rise"), RiseLifts + .05f)) { b.Rise = -1; b.FlyTime = 0; }
+            if (b.Rise >= b.RiseEnd()) { b.Rise = -1; b.FlyTime = 0; }
         }
         const bool landing = flying && (s.FreeFlightLandSpeed > 0 || s.FreeFlightEnd);
         if (landing && b.Touch < 0 && !b.Moving())
@@ -6603,7 +6628,7 @@ namespace Doorways
         {
             b.Touch += dt;
             if (flying) b.Touch = (std::min)(b.Touch, LandReachTime);
-            else if (b.Touch >= b.Duration("Fly_Land")) b.Touch = -1;
+            else if (b.Touch >= b.LandEnd()) b.Touch = -1;
         }
         b.WasFlying = flying;
         const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0 || b.Soul == 3;   // leaving the ground or coming down, finishing one: nothing else
@@ -7444,6 +7469,49 @@ namespace Doorways
             b.Bank += ((winging ? std::clamp(-b.TurnRate * .24f, -.42f, .42f) : 0.f) - b.Bank) * (std::min)(1.f, dt * (b.Air ? 12.f : 3.5f));
         }
         world.AnimatedPlayerVisual.Rotation = {b.FlyLean + b.LeanPitch + b.Flinch, 0, b.LeanRoll + b.Bank + b.FlinchRoll};
+        {   // her flight in a style of hers (SetFlightStyle): posed by NyxaraFlight, not played from her three flight clips;
+            // her lean its own, her bank in her pose (about the way she flies, whatever her lean)
+            b.FlightStyle = mFlightStyle;
+            const bool flightStyled = mFlightStyle > 0 && !b.Dead && !b.Carried() && (flying || b.Rise >= 0 || b.Touch >= 0);
+            if (flightStyled && !b.FlightPoser.Bound())
+            {
+                DoorwaysSkeletonPose rest;
+                if (b.Sample("Stand", 0, rest, nullptr) && EvaluateDoorwaysSkeletonPoseMatrices(b.Skeleton, rest, nullptr) && b.FlightPoser.Bind(b.Skeleton, rest))
+                    b.FlightPose = rest;
+            }
+            const bool flightLive = flightStyled && b.FlightPoser.Bound();
+            if (flightLive)
+            {
+                NyxaraFlight::Poser::Input in;
+                in.Dt = poseDt; in.Flying = flying; in.Landing = landing;
+                in.Rise = b.Rise >= 0 ? b.Rise - RiseLifts : -1.f; in.Touch = b.Touch; in.Reach = LandReachTime;
+                in.Velocity = p.ActualVelocity; in.Yaw = p.Yaw; in.Turn = b.TurnRate;
+                // On the ground, her landing ends in the pose she goes on in, as it will be played: at ease (Stand), or on
+                // guard (Idle) as a creature is near; her arms as her swords are (in her hands: her guard's; on her back:
+                // at ease), so that a draw after it is the game's own. (Ending in Stand's first frame, she snapped into
+                // her guard in a fifth of a second as a landing near a creature ended.)
+                DoorwaysSkeletonPose after, arms;
+                if (!flying && b.Touch >= LandReachTime)
+                {
+                    const std::string next = b.Guard > 0 || b.Duration("Stand") <= 0 ? "Idle" : "Stand", held = b.InHand ? "Idle" : "Stand";
+                    if (b.Sample(next, b.Clock, after, nullptr) && (held == next || b.Sample(held, b.Clock, arms, nullptr)))
+                    {
+                        if (held != next)
+                            for (size_t j = 0; j < after.LocalJoints.size() && j < arms.LocalJoints.size() && j < b.ArmJoint.size(); ++j)
+                                if (b.ArmJoint[j]) after.LocalJoints[j] = arms.LocalJoints[j];
+                        in.After = &after;
+                    }
+                }
+                NyxaraFlight::Poser::Output made;
+                b.FlightPoser.Step(mFlightStyle, in, b.FlightPose, made);
+                b.Bank = 0;
+                world.AnimatedPlayerVisual.Rotation = {made.Pitch + b.LeanPitch + b.Flinch, 0, b.LeanRoll + b.FlinchRoll};
+                b.FlightShift = made.Shift;
+                if (made.Thud > 0) mShake = (std::max)(mShake, made.Thud);
+            }
+            else if (b.FlightLive) b.FlightPoser.Reset();
+            b.FlightLive = flightLive;
+        }
         b.Hover += ((flying && p.IsGrounded && !landing && b.Rise < 0 ? 1.f : 0.f) - b.Hover) * (std::min)(1.f, dt * 3);
         const float hover = b.Hover * FlyHover;
         b.LiftNow = lift + hover;
@@ -7707,6 +7775,12 @@ namespace Doorways
                 constexpr float Chest = 1.15f;
                 world.AnimatedPlayerVisual.Translation.x = Chest * std::sin(b.Bank);
                 world.AnimatedPlayerVisual.Translation.y += Chest * (1 - std::cos(b.Bank));
+            }
+            if (!b.BodyMove && b.FlightLive)
+            {   // (her lean in a flight style turns her about her middle, not about her feet)
+                world.AnimatedPlayerVisual.Translation.x += b.FlightShift.x;
+                world.AnimatedPlayerVisual.Translation.y += b.FlightShift.y;
+                world.AnimatedPlayerVisual.Translation.z += b.FlightShift.z;
             }
             float toward = std::numeric_limits<float>::quiet_NaN();
             {   // the nearest creature within LookFar of her and not behind her (a third of a turn either way)

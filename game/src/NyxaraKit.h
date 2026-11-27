@@ -202,6 +202,16 @@ namespace Doorways
         static const char* GaitStyleName(int style);
         static const char* GaitStyleLine(int style);
         std::string GaitNote() const;           // where her feet are down in her walk and her run, as learned at load
+        // Her ways of flying (2026-11-27, the Character Lab's trial; the owner: "get me at least 9 different flying styles",
+        // "whole sequence of flying up and itself flying pose and all it includes"). 0: her flight as made, her three
+        // flight clips; 1 to FlightStyleCount() - 1: each a whole flight posed by code (NyxaraFlight.h). The game's
+        // (CaucasianEagle::FlightStyle): 1, EAGLE, since 2026-11-27 ("i like 1st most - so implement it ingame"); 0 until then.
+        void SetFlightStyle(int style);
+        int FlightStyle() const { return mFlightStyle; }
+        static int FlightStyleCount();
+        static const char* FlightStyleName(int style);
+        static const char* FlightStyleLine(int style);
+        std::string FlightNote() const;         // how she flies in a style this frame (NyxaraFlight::Poser::Note), for a log; empty when not
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
@@ -446,6 +456,7 @@ namespace Doorways
         float mSpeedScale = 1;
         float mFootPace = 1;                // SetFootPace
         int mGaitStyle = 0;                 // SetGaitStyle
+        int mFlightStyle = 0;               // SetFlightStyle
         float mBarrier = 0;                 // 0..1 her shield up (E: her wings closed round her)
         bool mShowcase = false;             // SetShowcase
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none

@@ -50,6 +50,7 @@ namespace CaucasianEagle
         auto& session = GameSession();
         session.SlowWalk = true; session.SlowWalkSpeed = WalkSpeed; // hold Ctrl to walk
         GetNyxaraKit().SetFootPace(FootPace); GetNyxaraKit().SetGaitStyle(GaitStyle);   // her pace on foot and her way of going (GameConstants.h)
+        GetNyxaraKit().SetFlightStyle(FlightStyle);                 // her way of flying (GameConstants.h: EAGLE)
         session.FastMultiplier = WingBoostMultiplier;               // Shift wing boost
         session.FreeFlight = true;                                  // R takes her up and lands her (Journey)
         session.FreeFlightCeiling = FlightCeiling;

@@ -357,6 +357,12 @@ namespace CaucasianEagle
     // speeded up also - implement it ingame". (1 and 0 until then: her walk and run as made.)
     constexpr float FootPace = 3.f;
     constexpr int GaitStyle = 4;
+    // She flies in the way EAGLE (FlightStyle 1, NyxaraKit::SetFlightStyle: her whole flight posed by NyxaraFlight.h in
+    // place of her three flight clips; deep slow beats and long soaring glides, her body long and level, her legs
+    // trailing; two great beats to rise; she lands braking, her wings cupped forward; her swords on her back unless she
+    // is armed). The owner, 2026-11-27, having tried ten ways in the Character Lab: "i like 1st most - so implement it
+    // ingame". (0 until then: her Fly_Rise, Fly and Fly_Land as made.)
+    constexpr int FlightStyle = 1;
     constexpr float FlightSway = .11f;          // m she rides up and down in the air
     constexpr float FlightSwayRate = 1.9f;      // rad/s of that
     constexpr float FlightRock = .035f;         // rad her body rocks in the air (pitch; the roll is 0.8 of it, slower)

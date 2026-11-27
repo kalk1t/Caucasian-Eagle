@@ -116,6 +116,7 @@
     <ClInclude Include="src\GameConstants.h" />
     <ClInclude Include="src\NyxaraKit.h" />
     <ClInclude Include="src\NyxaraFlair.h" />
+    <ClInclude Include="src\NyxaraFlight.h" />
     <ClInclude Include="src\NyxaraSoul.h" />
     <ClInclude Include="src\NyxaraLooks.h" />
     <ClInclude Include="src\NyxaraEquipment.h" />
