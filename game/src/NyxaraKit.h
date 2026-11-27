@@ -61,6 +61,7 @@ namespace Doorways
     struct DoorwaysSkeleton;
     struct DoorwaysSkeletonPose;
     class NyxaraFlair;
+    class NyxaraSoul;
 
     class NyxaraKit
     {
@@ -128,7 +129,7 @@ namespace Doorways
             static constexpr float LiesAfter = 1.1f;
         };
         struct Orb { DirectX::XMFLOAT3 Pos{}, Vel{}; float Life = 0; int Damage = 6; DirectX::XMFLOAT4 Color{.62f, .28f, 1.f, 1.f}; };
-        // K1 F, K2 V, C K3. (Q and G are kept for the test pilot's scripts; they do nothing now.)
+        // K1 F, K2 V, C K3, Q her soul. (G is kept for the test pilot's scripts.)
         struct Keys { bool Lmb = false, Rmb = false, Q = false, E = false, K1 = false, K2 = false, K3 = false, Shift = false, G = false, Space = false; };
 
         // ---- used by the journey, which owns the monsters of the road
@@ -183,6 +184,24 @@ namespace Doorways
         // Her travel speed is multiplied by this (0 while a move carries her, slower stepping back). The kit applies
         // it to MoveSpeed itself; an owner that sets MoveSpeed after the kit's Update multiplies by it too.
         float SpeedScale() const { return mSpeedScale; }
+        // Her paces on foot, all at once, so many times as fast: W, Shift, Ctrl, S, up a stair, and how she is carried on
+        // when a key is let go; and her stride with them, the stride of the pace as made stepped so many times as often,
+        // so that her feet keep to the ground. 1: as made. The game's (CaucasianEagle::FootPace): 3 since 2026-11-26, tried
+        // in the Character Lab first ("i want try her walk to be 3x faster"; of my question which, "All on foot"), then
+        // "i like the speeded up also - implement it ingame". Not in flight.
+        void SetFootPace(float pace) { mFootPace = std::clamp(pace, .25f, 4.f); }
+        float FootPace() const { return mFootPace; }
+        // Her ways of going on foot (2026-11-26, the Character Lab's trial; the owner: "because we fasting up walking then
+        // we need different styles of walking so i can choose one. bring me at least 6-9 walking style for nyxara so i
+        // choose one"). 0: her stride as made; 1 to GaitStyleCount() - 1: the styles, each made of her walk and her run
+        // (NyxaraKit.cpp, GaitStyles). The game's (CaucasianEagle::GaitStyle): 4, SHADOW DASH, since 2026-11-26 ("i like
+        // 4th walk style"); 0 until then.
+        void SetGaitStyle(int style);
+        int GaitStyle() const { return mGaitStyle; }
+        static int GaitStyleCount();
+        static const char* GaitStyleName(int style);
+        static const char* GaitStyleLine(int style);
+        std::string GaitNote() const;           // where her feet are down in her walk and her run, as learned at load
         void Effect(const DirectX::XMFLOAT3& at, DirectX::XMFLOAT4 color, int count, float speed, float size) { Burst(at, color, count, speed, size); }
         void RingEffect(const DirectX::XMFLOAT3& at, float size, DirectX::XMFLOAT4 color, float life);
         void SetDamageScale(float scale) { mDamageScale = scale; }
@@ -195,6 +214,28 @@ namespace Doorways
         // A test's own: CAUCASIAN_EAGLE_NYXARA_FINISH=<0 to 1>.
         void SetFinishChance(float chance) { mFinishChance = chance < 0 ? 0.f : chance > 1 ? 1.f : chance; }
         float FinishChance() const { return mFinishChance; }
+        // Her soul (Q, THREAD STEP; the owner, 2026-11-26: "i want nyxara to be able to keep her soul where she is while
+        // doing q skill and she moves forward with 5-7 meter and she can get back to her sould whenever she presses q
+        // again - her soul is untouchable that time and she strings from souls still are lined to nyxara's current body";
+        // tried in the Character Lab, then "first is the best . add it ingame"). The first Q, on foot: her soul stays
+        // where she stands and she is thrown 6 m on by herself; then she goes and fights as she likes, for as long as she
+        // likes, threads from it to her. The second Q: she flies back to it along them, in about a second, and is in it
+        // again. Put elsewhere by the game (a nest, the start: more than 25 m in a frame), or dead, she lets it go.
+        void LetSoulGo();                 // (at once, without a word: a test's, a lab's)
+        int SoulState() const;            // 0 none; 1 she leaves it (thrown on); 2 away from it; 3 on her way back to it
+        float SoulApart() const;          // how far she is from it (m, over the ground; 0: none)
+        float SoulLastWay() const;        // (the Character Lab's check) how far her last leaving carried her (m)
+        float SoulLastBack() const;       // and her last way back: how long it took (s), and how far from it she ended (m)
+        float SoulLastMiss() const;
+        int SoulQuads() const;            // (the lab's evidence: how much of it the last frame drew)
+        // Its leaving's throw over, the rest of it is given up at once for her way, a cut, a skill, a jump or Q (the owner,
+        // 2026-11-26: "let it be able to fight right after Q right away"); Q leaves it out of her cuts and combos at any
+        // moment of them, and out of her slide ("Q can be pressed anytime while fighting/combo"). SoulCooldownLeft: s before
+        // Q may leave it again, 15 from the end of its skill (she is in it again, it is let go, she dies: "give it a
+        // 15second cooldown for a skill"); ResetCooldowns makes it ready.
+        float SoulCooldownLeft() const { return mSoulCooldown; }
+        float SoulLastHeld() const;                 // (the check's) how long her last leaving held her (s: Q to free)
+        const std::string& SoulLastOutOf() const;   // and what she was doing as she left it ("" nothing; a cut's clip, her slide)
         void SetSkillsVC(bool on) { mSkillsVC = on; }                    // V and C, her skills (off unless asked: the Character Lab); pace: of her attacks and skills
         void SetHiggsfieldTrial(bool on, float pace = .5f) { mHiggsfieldTrial = on; mTrialPace = pace; }
         // the trial's light as her gear has it (the Character Lab): theme, the look's example (0 her blue, with wind as her
@@ -219,8 +260,9 @@ namespace Doorways
         static int FlairCombo(int gear, int style) { return 1 + gear * 3 + style; }   // its combo (SetAttackCombo)
         int FlairMotes() const;               // (the lab's evidence: how much of it is alive, how much the last frame drew)
         int FlairQuads() const;
-        void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return
-        void ResetCooldowns() { mSkillCooldown = {}; }
+        void SetCooldownScale(float scale) { mCooldownScale = scale; }   // of the time her three skills take to return (and Q's rest)
+        float CooldownScale() const { return mCooldownScale; }
+        void ResetCooldowns() { mSkillCooldown = {}; mSoulCooldown = 0; }   // (her three skills' and Q's, her soul's)
         void Shake(float amount) { mShake = (std::max)(mShake, amount); }
         // Every hit on the player goes through here: a hit starts a short time in which further hits do nothing (and
         // none hurts her while she finishes a creature). from: where the blow came from (the creature, the burst, a
@@ -402,11 +444,14 @@ namespace Doorways
         FootGround mFootGround;
         StairTread mStairTread;
         float mSpeedScale = 1;
+        float mFootPace = 1;                // SetFootPace
+        int mGaitStyle = 0;                 // SetGaitStyle
         float mBarrier = 0;                 // 0..1 her shield up (E: her wings closed round her)
         bool mShowcase = false;             // SetShowcase
         int mFinisher = 0;                  // the finisher chosen (SetFinisher), 0 none
         float mShieldMotes = 0;             // the shield's sparks owed (a fraction of one)
         float mGuardHeld = 0, mGuardCooldown = 0;
+        float mSoulCooldown = 0;            // Q, her soul: s before it may be left again (SoulCooldownLeft)
         bool mFlightDash = false;   // SetFlightDash
         float mFinishChance = .5f;  // SetFinishChance
         bool mSkillsVC = false;   // V (the thrown swords) and C (the feather storm): off in the game (owner, 2026-11-21: "remove C and V skills from game, so nyxara doesnt have anymore skills yet until i decide to"); the Character Lab keeps them
@@ -418,6 +463,11 @@ namespace Doorways
         bool mFlairDashing = false;            // (a move carrying her, last frame)
         DirectX::XMFLOAT3 mFlairFrom{};        // where the last piece of her dash's wake ended
         std::string mFlairError;               // what was missing, if its textures were not loaded
+        std::unique_ptr<NyxaraSoul> mSoul;     // her soul's picture (Q: made at load; its textures loaded as it is first drawn)
+        bool mQWaits = false;                  // (Q was held as a window closed: no Q until it is let go)
+        std::string mSoulError;                // what was missing, if its textures were not loaded
+        WorldRenderer* mWorldRenderer = nullptr;   // (Update's: Draw draws her soul's body with it)
+        void UpdateSoul(WorldState& world, const DoorwaysSkeletonPose& pose, float dt);   // its body, her ties to it, her afterimages
         bool mTrialDashing = false;         // (a move carrying her, last frame)
         DirectX::XMFLOAT3 mTrialFrom{};     // the trial FLASH STEP's streak: where its last piece was left
         bool mGuarding = false, mEWas = false;   // her wing shield is up (E pressed: ShieldSeconds); E was down last frame

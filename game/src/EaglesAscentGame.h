@@ -137,6 +137,23 @@ namespace CaucasianEagle
         // CAUCASIAN_EAGLE_SIDE_DASH=1: she slides (F) off the way and runs on from where it leaves her: her slide against
         // the mountain's walls, at every place the test stands her
         bool mSideDash = false; Doorways::NyxaraKit::Keys mSideKeys;
+        // The soul test (CAUCASIAN_EAGLE_DEMO=15, 2026-11-26): her soul, Q (THREAD STEP), at places along the way, every
+        // CAUCASIAN_EAGLE_SOUL_EVERY m (400) from CAUCASIAN_EAGLE_SOUL_FROM m (60), but where she must fly: stood on the
+        // way facing up it, a cut, and 0.15 s into it Q leaves it, out of the cut, and throws her on; W held as it throws her,
+        // she runs on as soon as the throw is over (held under 0.35 s), 3 s on; Q takes her back to it. soul.tsv (beside the
+        // evidence) has each place: how far her leaving carried her (short: walls stopped her before 4.5 m, counted, not
+        // failed), how far she ran from it, how long her way back took (0.6 to 1.3 s), how far from it she ended (under
+        // 0.15 m), how much of it was drawn, and whether she stood on the ground after. At the first place also: Q again
+        // 0.8 s after she is in it does nothing (it rests 15 s from her return; "resting" in soul.tsv); Q in
+        // flight does nothing; her window (I) opened and closed with her soul away keeps it, and her place; put at a nest
+        // more than 30 m off, she lets it go. At the second: she takes wing away from it, and Q takes her back from the
+        // air, onto her feet. SOUL_PASS or SOUL_FAIL; with CAUCASIAN_EAGLE_TOUR_SHOTS, pictures of the first three places
+        // (and of her window, with her soul away).
+        void SoulTest(Doorways::DoorwaysGameHost& host, float dt);
+        bool mSoulTest = false; int mSoulBad = 0, mSoulPlace = 0, mSoulStep = -1, mSoulOnce = 0, mSoulShort = 0, mSoulQuads = 0;
+        float mSoulEvery = 400, mSoulFrom = 60, mSoulAlong = -1, mSoulClock = 0, mSoulYaw = 0, mSoulWay = 0, mSoulApart = 0, mSoulBack = 0, mSoulMiss = 0;
+        DirectX::XMFLOAT3 mSoulStart{}, mSoulAt{}, mSoulWas{}; std::string mSoulWhy, mSoulOutOf; float mSoulHeld = 0, mSoulRest = 0;
+        Doorways::NyxaraKit::Keys mSoulKeys;
         // CAUCASIAN_EAGLE_SLOW_MS=<n> (the unattended tests): every frame waits n thousandths of a second more, a slow
         // computer's frames. Measured where a test runs at 200 frames a second and more: 16, about 31 a second (the
         // engine makes two of its steps in each); 33, about 21 (three); 60, about 12 (five); 100 and more, 10 (six):

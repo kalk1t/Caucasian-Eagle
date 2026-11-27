@@ -1000,17 +1000,26 @@ namespace CaucasianEagle
         // frames before the ground under her ends) to where there is no ground she can stand on within 6 m under her
         // feet, and the land's lowest there is not 1.5 m under them (no air under her: the mountain's inside), is not
         // taken: she stays where she was, or slides along the face where one way is free, and is put back on her feet.
-        // Off a real edge (air under it, or ground to land on) she walks off as before.
+        // Off a real edge (air under it, or ground to land on) she walks off as before; and over a brink, where the drawn
+        // top falls away ahead of her (BrinkAhead, 2026-11-26). Going on foot in pieces (her run at three times the pace,
+        // her slide; the engine's LongMovePiece) she is on the ground to its last centimetre, and as she left it at a
+        // brink her feet were at the drawn top still: no air under her. The off-the-way test had her held so at the brink
+        // of ten falls of 19 to 45 m she had run off at her pace as made, her feet half a metre over the ground there as
+        // it fell away under her (the engine's height a fifth of the way to the ground each step).
         if (RockRules && !flying && mHasFlown && mHasStood && !p.IsGrounded && !mJumped && mAir < .5f && p.VerticalVelocity <= .5f && scene)
         {
+            const Step step = stepTaken();
+            float wayX = step.Go.x, wayZ = step.Go.z;   // (her way this frame; standing, her facing)
+            if (const float d = std::hypot(wayX, wayZ); d > .01f) { wayX /= d; wayZ /= d; } else { wayX = std::sin(p.Yaw); wayZ = std::cos(p.Yaw); }
             const auto into = [&](float x, float z, float y)
             {   // air under her there: the drawn top under her feet where it is known (the 6 m grid's lowest corner can lie
                 // 7 m under her in a cell that is all rock face over her: at 380 m she fell into the mountain so)
                 const float top = DrawnTop(x, z);
                 if (std::isfinite(top) ? top < y - .5f : LandLow(x, z) < y - 1.5f) return false;
+                const float ahead = DrawnTop(x + wayX * BrinkAhead, z + wayZ * BrinkAhead);   // (a brink: the ground falling away ahead)
+                if (std::isfinite(ahead) && ahead < y - BrinkAhead) return false;
                 return !Doorways::QueryDoorwaysRuntimeSceneWalkableGroundInHeightRange(*scene, x, z, y - 6.f, y + .6f).Hit;
             };
-            const Step step = stepTaken();
             XMFLOAT3 was = mFlown;
             for (int k = 1; k < step.Shorts; ++k)
             {   // (a long step: as far as the first short one that is into the mountain)

@@ -64,6 +64,11 @@ namespace CaucasianEagle
         // from where she was at the last call. On foot in the air (a jump or a fall off an edge) she is kept on the rock's
         // face where it is too steep to stand on, and slides down it to ground she can stand on (2026-11-18).
         void KeepOutOfRock(Player& player, bool flying, float dt = 1.f / 60.f, const DoorwaysRuntimeScene* scene = nullptr);
+        // She is where the game put her, not where a step of hers took her (her soul's way back, Q: a straight line
+        // through all; 2026-11-26): KeepOutOfRock judges her next step from here, and puts her back here if it must (not
+        // where she last stood before it, up to 73 m away).
+        void PutHere(const DirectX::XMFLOAT3& at) { mFlown = mStood = at; mHasFlown = mHasStood = true; }
+        bool SoulPuts = true;          // false: CAUCASIAN_EAGLE_SOUL_PUT=0 (a test's baseline: these rules on her soul's way back too)
         bool Sliding = false;          // this step she slid down rock too steep to stand on
         // On foot a rock face or a bank as drawn is a wall (2026-11-22): KeepOutOfRock holds her where the drawn top
         // (DrawnTop) WallAhead m ahead of her would be more than IntoRock m over her feet. Not near the way (NearTheWay:
@@ -81,6 +86,9 @@ namespace CaucasianEagle
         // The caves' walls held her in the jars' test at 12 frames a second without it too, a metre deeper in the wall.
         static constexpr float LongStep = .35f, ShortStep = .2f, PutStep = 3.f, PutSpeed = 45.f;
         bool LongSteps = true;         // false: CAUCASIAN_EAGLE_LONG_STEPS=0 (a test's baseline: a long step asked only where it ends)
+        // Over a brink she goes (KeepOutOfRock's rule that she does not walk into the mountain; 2026-11-26): where the
+        // drawn top BrinkAhead m ahead of her on her way is more than BrinkAhead m under her feet.
+        static constexpr float BrinkAhead = 1.f;
         static constexpr float IntoRock = .9f, WallAhead = .3f, WayReach = 1.5f;   // (3.5 m: beside a stair's switchback the next leg's line was that near, and she walked into the bank and fell into the mountain at 380 m)
         // The drawn top round rock and steep land (the map data's "tops", build_mountain.py): the highest drawn land, rough
         // ground or rock there, from points 1 m apart; NaN where none was found (open land, off the grid).

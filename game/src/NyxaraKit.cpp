@@ -14,6 +14,7 @@
 #include "NyxaraClips.h"
 #include "NyxaraFlair.h"
 #include "NyxaraHud.h"
+#include "NyxaraSoul.h"
 #include "Renderer.h"
 #include "Sound.h"
 #include "WorldRenderer.h"
@@ -134,6 +135,18 @@ namespace Doorways
         constexpr float SlidePace = 1.5f, SlideFar = 2.1f;
         constexpr float SlideGoIn = .03f, SlideGoGather = .15f, SlideGoOut = .8f, SlideGoLose = .35f;
         constexpr float SlideTo = 1.1f, SlideWide = 1.f, SlideCutEvery = 1.1f, SlideTell = .5f, SlidePut = 12.f;
+        // Her soul (Q: THREAD STEP, tried in the Character Lab and chosen by the owner, 2026-11-26; NyxaraSoul.h). Its
+        // leaving (Skill_Soul, made at load: MakeSoul, played as made) throws her SoulFar m on, from SoulOutFrom s into it
+        // to SoulOutTo s, fastest in the middle. Her way back takes SoulBackLeast + SoulBackPer s a metre apart,
+        // SoulBackShortest to SoulBackMost s (the owner: "she flies back fast along the strings in about a second"),
+        // pulled at her chest (SoulFlinch: her flinch's push, a quarter more when it is behind her). Its throw over
+        // (SoulOutTo), the rest of its leaving is hers to give up at once (the owner, 2026-11-26: "let it be able to fight
+        // right after Q right away"). SoulCooldownSeconds s after it is over (she is in it again, it is let go, she dies) Q
+        // may leave it again (the owner, 2026-11-26: "give it a 15second cooldown for a skill"; 0.6 s, mine, until then).
+        // Put more than SoulPutAway m from where the kit last left her (a nest, the start: no step of hers), she lets it go.
+        constexpr float SoulFar = 6.f, SoulOutFrom = .04f, SoulOutTo = .26f, SoulFlinch = 4.f;
+        constexpr float SoulBackLeast = .55f, SoulBackPer = .05f, SoulBackShortest = .7f, SoulBackMost = 1.f, SoulCooldownSeconds = 15.f;
+        constexpr float SoulPutAway = 25.f;
         // On a climb: the engine makes its moves in pieces of SlideStep m, each on the ground it reaches (GameSession's
         // LongMovePiece). Made in one piece, half a metre a step of the engine, it went 5 m up the way before the first
         // creature of the Ascent: her height follows the ground with a lag, and the ground ahead was a step too high.
@@ -141,6 +154,13 @@ namespace Doorways
         // stopped sooner on a steep one, its height further behind. Measured over the whole way (the off-the-way test,
         // -Dash against -Jog): where her slide went further than her run for that, her easy pace ended where it did.
         constexpr float SlideStep = .15f;
+        // Her going on foot at a faster pace than as made (SetFootPace; the game's three times since 2026-11-26) is made
+        // in pieces of FootStep m too. In one piece her run of 16.2 m/s went 0.27 m a step of the engine, and her height,
+        // following the ground a fifth of the way a step (HeightFollowSpeed 12), fell behind it by more than the engine's
+        // step (0.45 m) on a slope steeper than about 18 degrees, by the engine's sums (her run as made: 45), and there she
+        // stopped. In pieces she goes up what her easy pace as made went up, at all three of her paces (Ctrl's 5 m/s goes
+        // 0.083 m a step: two pieces).
+        constexpr float FootStep = .075f;
         constexpr int SlideDamage = 35, SlideCutsMost = 4;
         // The feather storm (C; Skill_Storm, made by MakeStorm): her times in it (s of the clip). She crouches (to StormCrouch),
         // leaves the ground (StormLeave), is at the top (StormTop), floats there and comes down from StormFall, her feet on
@@ -819,6 +839,54 @@ namespace Doorways
             const float u = (t - a) / (c - a);
             return u <= 0 || u >= 1 ? 0.f : 4 * u * (1 - u);
         }
+        // Her ways of going on foot (2026-11-26; NyxaraKit::SetGaitStyle). The owner, her pace on foot three times as fast
+        // in the Character Lab: "because we fasting up walking then we need different styles of walking so i can choose one.
+        // bring me at least 6-9 walking style for nyxara so i choose one". As made (0) her walk and run are stepped as often
+        // as the ground asks: at three times the pace her legs go three times as often, as a film run fast. Each style is a
+        // way of going made of the same two clips:
+        // - how often she strides at most (Cadence + CadenceRise x her speed, strides a second): fewer, longer strides. A foot
+        //   on the ground still goes back under her as fast as the ground does (none slides); what is drawn out is the time
+        //   with both feet off the ground, and her body goes up and comes down in it as a body thrown does (Gravity, m/s2),
+        //   her legs holding their split in the middle of it as long as Hang says (0 evenly, to .7);
+        // - which of her walk and run she goes in: by her speed over Divide (0: by her pace, as made; 1: by her speed);
+        // - how far her feet reach before and behind her (Reach: her stride drawn out, PlantFeet);
+        // - her body: leaning forward (Lean, radians), her chest bowed (Bow, radians), her hips let down (Crouch, m), her
+        //   head kept level against her lean and bow (Steady, 0..1), her knees taking each landing (Land);
+        // - her arms (unless they hold her swords): their swing (times as made), bent at the elbows, carried back and held
+        //   out from her sides (degrees); her wings: folded (0..1; -1 as made), opened toward their spread in flight (0..1),
+        //   swept back (radians), beaten with her steps (radians).
+        // All of it shows as she goes at a run (from 1.2 m/s, all of it from 3.5 m/s); standing, turning on the spot or
+        // going back she is as made.
+        struct GaitStyleSpec
+        {
+            const char* Name;
+            const char* Line;
+            float Divide, Cadence, CadenceRise, Reach, Gravity, Hang;
+            float Lean, Bow, Crouch, Steady, Land;
+            float ArmSwing, ArmBend, ArmBack, ArmOut;
+            float WingFold, WingOpen, WingBack, WingBeat;
+        };
+        const GaitStyleSpec GaitStyles[] = {
+            // divide, cadence, rise, reach, gravity, hang;  lean, bow, crouch, steady, land;  arm swing, bend, back, out;  wing fold, open, back, beat
+            {"AS MADE", "her walk and run stepped as often as the ground asks: at a fast pace, a film run fast",
+             0, 0, 0, 1, 9.8f, 0,  0, 0, 0, 0, 0,  1, 0, 0, 0,  -1, 0, 0, 0},
+            {"SWIFT", "a sprinter's stride: long and quick, leaning in, her arms driving bent at the elbows, her wings held tight",
+             1, 1.55f, .065f, 1.15f, 9.8f, 0,  .14f, .06f, .02f, .6f, .3f,  1.9f, 75, 0, 4,  1, 0, .15f, 0},
+            {"BOUNDS", "long low leaps: few strides, her legs split in the air, her arms wide, her wings flicking open at each",
+             1, 1.1f, .025f, 1.2f, 9.8f, .45f,  .08f, .04f, .03f, .4f, .5f,  1.6f, 25, 0, 10,  .5f, 0, 0, .5f},
+            {"WIND GLIDE", "light steps under half-open wings swept back, her arms back and out, as if the air carried half of her",
+             1, 1.25f, .03f, 1.1f, 4.5f, .3f,  .12f, .05f, 0, .7f, .2f,  .35f, 10, 25, 18,  0, .55f, .25f, .1f},
+            {"SHADOW DASH", "low and fast: crouched, bowed far forward, her arms swept straight back, her wings flat to her back",
+             1, 1.9f, .06f, 1.25f, 9.8f, 0,  .3f, .2f, .05f, .9f, .2f,  .15f, 5, 60, 10,  1, 0, .35f, 0},
+            {"FEATHER", "slow floating strides: long hangs in the air, her wings lifting at each, her arms soft and out",
+             1, .8f, .015f, 1.15f, 5.5f, .6f,  .04f, 0, 0, .5f, .4f,  .8f, 20, -5, 22,  .3f, .25f, 0, .45f},
+            {"HUNTER", "a hunter's lope: level, long reaching steps, her knees soft, her head steady, her arms low",
+             1, 1.35f, .04f, 1.35f, 9.8f, .15f,  .1f, .1f, .1f, 1, .6f,  .7f, 30, 10, 6,  .8f, 0, .2f, 0},
+            {"WINGBEAT", "a bird's run to take off: a wing beat with every leap, long flights, her arms back",
+             1, 1.f, .02f, 1.2f, 7.f, .4f,  .1f, .05f, .02f, .5f, .4f,  .6f, 15, 20, 12,  0, .35f, 0, .9f},
+            {"PROUD", "upright and proud: her chest up, long even strides, her arms easy, her wings folded at her back",
+             1.6f, 1.3f, .035f, 1.3f, 9.8f, .2f,  -.02f, -.06f, 0, .8f, .3f,  .55f, 15, 0, 5,  1, 0, 0, 0},
+        };
     }
 
     // ================================================================ her body and her moves
@@ -917,6 +985,29 @@ namespace Doorways
         std::string Gait = "Move", LastClip, Current = "Idle";
         float GaitRun = 0;                 // her stride ("Move"): the share of Run in it, 0 a walk .. 1 a run
         float StrideScale = 1;             // < 1: her steps shortened (slower than a walk steps she keeps stepping, shorter)
+        // her way of going (GaitStyle): what she goes in (StyleNow; none as made), how much of it shows (StyleShare, 0..1: her
+        // speed), and what it does to her this frame: her body over her stride's own in the air between steps (StyleArc, m),
+        // her lean (radians), her hips let down (m), her wings' aims (radians); and how much the clip shown is her stride
+        // (StyleBow, 0..1: her chest bowed, her head and wings, as it is)
+        const GaitStyleSpec* StyleNow = nullptr;
+        float StyleShare = 0, StyleArc = 0, StyleLean = 0, StyleLow = 0, StyleWingFlap = 0, StyleWingBack = 0, StyleBow = 0;
+        float FlightClock = 0, FlightTotal = 0, FlightNatural = 0;   // her flight between steps: how long so far, in all, and as made (s)
+        bool InFlight = false;
+        // her soles in her walk and her run (LearnSoles): how high each is over its lowest, along the phase, as her body is made
+        static constexpr int SoleSteps = 64;
+        float SoleUp[2][2][SoleSteps] = {};   // [walk, run][her left foot, her right][phase]
+        bool SolesKnown = false;
+        std::string SoleNote;
+        // her wings held steady in her ways of going (LearnWings; StylePose): what her walk and her run have on average over a
+        // stride, for each wing (its root in her model's space, its two outer bones each in its own), her chest's turn, and her
+        // chest's right and up as SwingWings reads them. (2026-11-26: the clips' wings rise and fall once a stride with her
+        // chest's twist, and the at-ease fold lowered them about her twisting chest; at a style's pace the time warp held the
+        // high and the low of it, one flight her wings up, the next down.)
+        XMFLOAT4 WingHeldRoot[2][2] = {}, WingHeldOuter[2][2][2] = {}, ChestHeld[2] = {};   // [walk, run][wing][its 2nd, 3rd bone]
+        XMFLOAT3 WingRightHeld[2] = {}, WingUpHeld[2] = {};
+        bool WingsHeldKnown = false;
+        float StyleHold = 0;                      // how much her wings are so held this frame (StylePose; SwingWings' axes with it)
+        XMFLOAT4 StyleChestTurn = {0, 0, 0, 1};   // what her way of going turned her chest by (its bow), in her model's space
         // (out of a move that carried her, a skill such as the slide: how she went in its last frame, and whether that was
         // this frame's last one; owner 2026-11-21: "when nyxara dashes and stands than between the animation and the
         // continueing walk is a delay and scene cut happens")
@@ -1012,6 +1103,18 @@ namespace Doorways
         XMFLOAT3 CastOffAt{}, CastOffGo{};
         float HandleGap = 0;
 
+        // ---- her soul (Q)
+        int Soul = 0;                        // 0 none, 1 she leaves it (thrown on), 2 away from it, 3 on her way back to it
+        float SoulTime = 0, SoulBack = 1;    // s into her way back; how long it takes
+        XMFLOAT3 SoulAt{}, SoulFrom{};       // where it stands (where she stood); her way back: from where
+        float SoulYaw = 0, SoulFromYaw = 0;  // her facing as she left it; as she set off back
+        float SoulClock = 0;                                      // s since she left it (Q's rest: the kit's, mSoulCooldown)
+        float SoulGhostWay = 0; XMFLOAT3 SoulGhostWas{};          // m gone since her last afterimage; where she was a frame ago
+        XMFLOAT3 SoulSeen{}; bool SoulSeenKnown = false;          // (where the kit last left her: put further than SoulPutAway from it, she lets it go)
+        bool SoulLeaving = false, SoulMissDue = false;          // (this frame she leaves it: UpdateSoul takes her pose; she is in it again: how far off)
+        float SoulLastWay = 0, SoulLastBack = 0, SoulLastMiss = 0;   // (the check's: her last leaving's way, her last way back's time, how far from it she ended)
+        float SoulLastHeld = 0; std::string SoulOutOf;               // (and how long her last leaving held her; what she was doing as she left it)
+
         // ---- her finishing kills (Finishes; UpdateFinish)
         int Finish = 0, FinishLast = 0, FinishTarget = -1;    // the one she plays (0 none), the last she played, the creature
         float FinishTime = 0;
@@ -1089,8 +1192,24 @@ namespace Doorways
         bool Skill() const { return Attack.rfind("Skill_", 0) == 0; }
         bool InMove() const { return MoveOf && Attack == MoveOf->Clip; }               // a style's move is played
         bool MoveFree() const { return InMove() && AttackTime >= MoveOf->Free; }       // and may be given up for what comes next
-        bool Carried() const { return Attack == "Attack_Jump" || Skill() || InMove(); }
-        bool Moving() const { return !Attack.empty() || Cast != 0 || Air != 0 || Rise >= 0 || Touch >= 0 || Finish != 0; }
+        bool Carried() const { return Attack == "Attack_Jump" || Skill() || InMove() || Soul == 3; }
+        bool Moving() const { return !Attack.empty() || Cast != 0 || Air != 0 || Rise >= 0 || Touch >= 0 || Finish != 0 || Soul == 3; }
+        // her soul (Q): its leaving and its way back (MakeSoul); how fast its leaving carries her on t s into it (m/s)
+        static constexpr const char* SoulClip = "Skill_Soul";
+        static constexpr const char* SoulBackClip = "Soul_Back";
+        // her soul's leaving over (its clip played out, or given up, its throw over): away from it
+        void SoulGone(const WorldState& world)
+        {
+            const XMFLOAT3& at = world.MainPlayer.Position;
+            Soul = 2; SoulLastWay = std::hypot(at.x - SoulAt.x, at.z - SoulAt.z); SoulLastHeld = SoulClock;
+            Log(world, ("soul away, " + std::to_string(SoulLastWay) + " m, held " + std::to_string(SoulLastHeld) + " s").c_str());
+        }
+        static float SoulGo(float t)
+        {
+            if (t <= SoulOutFrom || t >= SoulOutTo) return 0;
+            const float u = (t - SoulOutFrom) / (SoulOutTo - SoulOutFrom);
+            return SoulFar * 6 * u * (1 - u) / (SoulOutTo - SoulOutFrom);
+        }
         static bool Loops(const std::string& name)
         {
             return name == "Idle" || name == "Stand" || name == "Walk" || name == "Run" || name == "Fly" || name == "Cast_Fly" || name == "Fall";
@@ -1118,6 +1237,324 @@ namespace Doorways
             Phase = std::fmod(Phase + (back ? -1.f : 1.f) * dt * stepped + 1.f, 1.f);
         }
         float GaitTime() const { return Gait == "Move" ? Phase : Phase * Duration(Gait); }
+        // Her soles in her walk and her run, along the phase (2026-11-26, for her ways of going): how high each is over the
+        // lowest it goes in that clip, its ankle or its ball, whichever is nearer. Within 2 cm of it a sole is down, past
+        // 5 cm off the ground.
+        void LearnSoles()
+        {
+            SolesKnown = false;
+            if (FootJoint[0] < 0 || FootJoint[1] < 0) return;
+            const char* const names[2] = {"Walk", "Run"};
+            std::string note;
+            for (int c = 0; c < 2; ++c)
+            {
+                const float d = Duration(names[c]);
+                if (d <= 0) return;
+                float y[2][2][SoleSteps] = {}, low[2][2] = {{1e9f, 1e9f}, {1e9f, 1e9f}};   // [foot][ankle, ball][phase]
+                for (int i = 0; i < SoleSteps; ++i)
+                {
+                    DoorwaysSkeletonPose pose;
+                    if (!Sample(names[c], d * static_cast<float>(i) / SoleSteps, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        y[k][0][i] = pose.ModelSpaceMatrices[FootJoint[k]]._42;
+                        y[k][1][i] = ToeJoint[k] >= 0 ? pose.ModelSpaceMatrices[ToeJoint[k]]._42 : y[k][0][i];
+                        for (int e = 0; e < 2; ++e) low[k][e] = (std::min)(low[k][e], y[k][e][i]);
+                    }
+                }
+                float air = 0;
+                for (int i = 0; i < SoleSteps; ++i)
+                {
+                    float down = 0;
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        SoleUp[c][k][i] = (std::min)(y[k][0][i] - low[k][0], y[k][1][i] - low[k][1]);
+                        down = (std::max)(down, 1 - Ramp(SoleUp[c][k][i], .02f, .05f));
+                    }
+                    air += 1 - down;
+                }
+                note += std::string(c ? "; " : "") + names[c] + ":";
+                for (int k = 0; k < 2; ++k)
+                {   // (where this foot comes down and lifts, as phases)
+                    note += k ? " right" : " left";
+                    for (int i = 0; i < SoleSteps; ++i)
+                    {
+                        const bool now = SoleUp[c][k][i] < .035f, before = SoleUp[c][k][(i + SoleSteps - 1) % SoleSteps] < .035f;
+                        if (now == before) continue;
+                        char at[24];
+                        std::snprintf(at, sizeof at, " %s %.2f", now ? "down" : "up", static_cast<double>(i) / SoleSteps);
+                        note += at;
+                    }
+                }
+                char share[64];
+                std::snprintf(share, sizeof share, " (both off the ground %.0f%%; ankles lowest %.3f %.3f)", 100.0 * air / SoleSteps,
+                              static_cast<double>(low[0][0]), static_cast<double>(low[1][0]));
+                note += share;
+            }
+            SoleNote = note;
+            SolesKnown = true;
+        }
+        void LearnWings()
+        {
+            WingsHeldKnown = false;
+            for (const auto& wing : WingJoint)
+                for (const int j : wing)
+                    if (j < 0) return;
+            const int chest = Skeleton.Joints[WingJoint[0][0]].ParentIndex, under = chest >= 0 ? Skeleton.Joints[chest].ParentIndex : -1;
+            if (chest < 0 || Skeleton.Joints[WingJoint[1][0]].ParentIndex != chest) return;
+            const char* const names[2] = {"Walk", "Run"};
+            constexpr int Samples = 64;
+            const auto turnOf = [](const DoorwaysSkeletonPose& pose, int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&pose.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            const auto at = [](const DoorwaysSkeletonPose& pose, int j) { const auto& m = pose.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
+            const auto add = [](XMVECTOR& sum, XMVECTOR q, XMVECTOR first) { sum += XMVectorGetX(XMQuaternionDot(q, first)) < 0 ? -q : q; };   // (one sign for all)
+            for (int c = 0; c < 2; ++c)
+            {
+                const float d = Duration(names[c]);
+                if (d <= 0) return;
+                XMVECTOR rootSum[2] = {XMVectorZero(), XMVectorZero()}, outerSum[2][2] = {{XMVectorZero(), XMVectorZero()}, {XMVectorZero(), XMVectorZero()}};
+                XMVECTOR rootFirst[2] = {XMVectorZero(), XMVectorZero()}, outerFirst[2][2] = {{XMVectorZero(), XMVectorZero()}, {XMVectorZero(), XMVectorZero()}};
+                XMVECTOR chestSum = XMVectorZero(), chestFirst = XMQuaternionIdentity(), rightSum = XMVectorZero(), upSum = XMVectorZero();
+                for (int i = 0; i < Samples; ++i)
+                {
+                    DoorwaysSkeletonPose pose;
+                    if (!Sample(names[c], d * static_cast<float>(i) / Samples, pose, nullptr) || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, pose, nullptr)) return;
+                    const XMVECTOR chestTurn = turnOf(pose, chest);
+                    if (i == 0) chestFirst = chestTurn;
+                    add(chestSum, chestTurn, chestFirst);
+                    for (int k = 0; k < 2; ++k)
+                    {
+                        const XMVECTOR rootTurn = turnOf(pose, WingJoint[k][0]);
+                        if (i == 0) rootFirst[k] = rootTurn;
+                        add(rootSum[k], rootTurn, rootFirst[k]);
+                        for (int e = 0; e < 2; ++e)
+                        {
+                            const XMVECTOR own = XMQuaternionNormalize(XMLoadFloat4(&pose.LocalJoints[WingJoint[k][e + 1]].Rotation));
+                            if (i == 0) outerFirst[k][e] = own;
+                            add(outerSum[k][e], own, outerFirst[k][e]);
+                        }
+                    }
+                    const XMVECTOR sideways = (at(pose, WingJoint[1][0]) - at(pose, WingJoint[0][0])) * WingRightIs;   // (as SwingWings reads them)
+                    if (XMVectorGetX(XMVector3LengthSq(sideways)) > 1e-8f) rightSum += XMVector3Normalize(sideways);
+                    const XMVECTOR upward = under >= 0 ? at(pose, chest) - at(pose, under) : XMVectorSet(0, 1, 0, 0);
+                    if (XMVectorGetX(XMVector3LengthSq(upward)) > 1e-8f) upSum += XMVector3Normalize(upward);
+                }
+                if (XMVectorGetX(XMVector3LengthSq(rightSum)) < 1e-8f || XMVectorGetX(XMVector3LengthSq(upSum)) < 1e-8f) return;
+                XMStoreFloat4(&ChestHeld[c], XMQuaternionNormalize(chestSum));
+                for (int k = 0; k < 2; ++k)
+                {
+                    XMStoreFloat4(&WingHeldRoot[c][k], XMQuaternionNormalize(rootSum[k]));
+                    for (int e = 0; e < 2; ++e) XMStoreFloat4(&WingHeldOuter[c][k][e], XMQuaternionNormalize(outerSum[k][e]));
+                }
+                XMStoreFloat3(&WingRightHeld[c], XMVector3Normalize(rightSum));
+                XMStoreFloat3(&WingUpHeld[c], XMVector3Normalize(upSum));
+            }
+            WingsHeldKnown = true;
+        }
+        // Her stride in a way of going (GaitStyle; Stride is hers as made): the share of her run, the phase stepped on, her
+        // feet's reach; and her flight between steps (StyleArc). speed: hers (m/s); pace: her pace on foot (SetFootPace).
+        void StyleStride(const GaitStyleSpec& g, float speed, float pace, bool back, float dt)
+        {
+            const float dw = Duration("Walk"), dr = Duration("Run"), lw = WalkPace * dw, lr = RunPace * dr;
+            const float by = speed / (g.Divide > 0 ? g.Divide : pace);
+            const float share = back ? 0.f : std::clamp((by * dw - lw) / ((lr - lw) - by * (dr - dw)), 0.f, 1.f);
+            GaitRun += (share - GaitRun) * (std::min)(1.f, dt * 8);
+            const float length = lw + GaitRun * (lr - lw), w = StyleShare;     // (metres a stride, as made)
+            const float reach = 1 + (g.Reach - 1) * w;
+            const float ground = speed / (length * reach);   // strides a second at which a foot down goes back as fast as the ground
+            const float most = g.Cadence > 0 ? g.Cadence + g.CadenceRise * speed : ground;
+            const float want = ground - w * (std::max)(0.f, ground - most);   // strides a second, no more than the ground asks
+            // where her feet are down along the phase, in her walk and run as mixed now; her flights between; and the pace of
+            // each part of a flight against the rest of it (slower in its middle: Hang)
+            float down[SoleSteps] = {}, hang[SoleSteps] = {}, air = 0;
+            bool warped = SolesKnown && !back && want < ground * .98f;
+            if (warped)
+            {
+                for (int i = 0; i < SoleSteps; ++i)
+                {
+                    float d = 0;
+                    for (int k = 0; k < 2; ++k) d = (std::max)(d, 1 - Ramp(SoleUp[0][k][i] + (SoleUp[1][k][i] - SoleUp[0][k][i]) * GaitRun, .02f, .05f));
+                    down[i] = d; hang[i] = 1; air += 1 - d;
+                }
+                warped = air > .05f * SoleSteps;   // (a walk has a foot down all the time: nothing to draw out)
+            }
+            float aloftRate = ground;   // strides a second through the air
+            if (warped)
+            {
+                int start = 0;
+                while (start < SoleSteps && down[start] < .5f) ++start;
+                if (start < SoleSteps && g.Hang > 0)
+                    for (int n = 0; n < SoleSteps;)
+                    {
+                        if (down[(start + n) % SoleSteps] >= .5f) { ++n; continue; }
+                        int m = 0;
+                        while (n + m < SoleSteps && down[(start + n + m) % SoleSteps] < .5f) ++m;
+                        for (int j = 0; j < m; ++j)
+                            hang[(start + n + j) % SoleSteps] = 1 + g.Hang * w * std::cos(XM_2PI * (static_cast<float>(j) + .5f) / static_cast<float>(m));
+                        n += m;
+                    }
+                const auto cycle = [&](float r)   // seconds a stride, at r strides a second through the air
+                {
+                    float t = 0;
+                    for (int i = 0; i < SoleSteps; ++i) t += 1.f / (down[i] * ground + (1 - down[i]) * r * hang[i]);
+                    return t / SoleSteps;
+                };
+                float lo = ground / 8, hi = ground;
+                if (cycle(hi) < 1 / want)
+                {
+                    for (int it = 0; it < 24; ++it)
+                    {
+                        const float mid = (lo + hi) * .5f;
+                        (cycle(mid) > 1 / want ? lo : hi) = mid;
+                    }
+                    aloftRate = (lo + hi) * .5f;
+                }
+            }
+            if (!warped)
+            {   // (as made: slower than a slow walk she keeps stepping, her steps drawn in)
+                const float stepped = (std::max)(ground, .75f / dw);
+                StrideScale += (reach * ground / stepped - StrideScale) * (std::min)(1.f, dt * 20);
+                Phase = std::fmod(Phase + (back ? -1.f : 1.f) * dt * stepped + 1.f, 1.f);
+            }
+            else
+            {
+                StrideScale += (reach - StrideScale) * (std::min)(1.f, dt * 20);
+                for (float left = dt; left > 1e-6f;)
+                {
+                    const float h = (std::min)(left, 1 / 240.f); left -= h;
+                    const float at = Phase * SoleSteps;
+                    const int i0 = static_cast<int>(at) % SoleSteps, i1 = (i0 + 1) % SoleSteps;
+                    const float f = at - std::floor(at), d = down[i0] + (down[i1] - down[i0]) * f, hg = hang[i0] + (hang[i1] - hang[i0]) * f;
+                    Phase = std::fmod(Phase + h * (d * ground + (1 - d) * aloftRate * hg), 1.f);
+                }
+            }
+            // Her flight: from both her feet leaving the ground until one is down her body goes up and comes down as thrown,
+            // over what her stride as made has of it (her clips' own, shorter flight)
+            const int now = static_cast<int>(Phase * SoleSteps) % SoleSteps;
+            const bool aloft = warped && down[now] < .5f;
+            if (aloft && !InFlight)
+            {   // a flight begins: how long it will be, and how long it would have been as made
+                FlightClock = 0; FlightTotal = FlightNatural = 0;
+                for (int n = 0; n < SoleSteps && down[(now + n) % SoleSteps] < .5f; ++n)
+                {
+                    const int i = (now + n) % SoleSteps;
+                    FlightTotal += 1.f / (SoleSteps * (down[i] * ground + (1 - down[i]) * aloftRate * hang[i]));
+                    FlightNatural += 1.f / (SoleSteps * ground);
+                }
+            }
+            if (aloft) FlightClock += dt;
+            else if (InFlight && g.Land > 0)   // (down: her knees take it, as hard as she came down over her stride as made)
+                SquatGo += g.Land * w * g.Gravity * (std::max)(0.f, FlightTotal - FlightNatural) * .75f;
+            InFlight = aloft;
+            const float p = FlightTotal > 0 ? std::clamp(FlightClock / FlightTotal, 0.f, 1.f) : 0.f;
+            StyleArc = aloft ? .5f * g.Gravity * p * (1 - p) * (std::max)(0.f, FlightTotal * FlightTotal - FlightNatural * FlightNatural) : 0.f;
+        }
+        // her way of going, every frame on foot: how much of it shows, and what it does to her body (StyleStride steps it)
+        void StyleFrame(const GaitStyleSpec* g, bool going, float speed, float dt)
+        {
+            if (g) StyleNow = g;
+            const bool on = g && going && !Back && Gait == "Move";
+            StyleShare += ((on ? Ramp(speed, 1.2f, 3.5f) : 0.f) - StyleShare) * (std::min)(1.f, dt * 5);
+            if (!g && StyleShare < 1e-3f) { StyleNow = nullptr; StyleShare = 0; }
+            if (!on) { StyleArc *= std::exp(-dt * 20); InFlight = false; }
+            const GaitStyleSpec* s = StyleNow;
+            const float w = s ? StyleShare : 0.f;
+            StyleLean = s ? s->Lean * w : 0.f;
+            StyleLow = s ? s->Crouch * w : 0.f;
+            StyleWingBack = s ? s->WingBack * w : 0.f;
+            StyleWingFlap = s ? s->WingBeat * w * std::sin(XM_2PI * 2 * Phase) : 0.f;
+        }
+        float StyleFold(float asMade) const { return StyleNow && StyleNow->WingFold >= 0 ? asMade + (StyleNow->WingFold - asMade) * StyleShare : asMade; }
+        // Her way of going on her pose (after Compose, before PlantFeet): her chest bowed, her head kept level, her wings
+        // opened, her body up in her flight between steps (her feet with it: PlantFeet sees them off the ground).
+        // stride: the clip shown is her stride; scale: her picture's (metres a unit of her body).
+        void StylePose(DoorwaysSkeletonPose& out, float dt, bool stride, float scale)
+        {
+            StyleBow += ((stride ? 1.f : 0.f) - StyleBow) * (std::min)(1.f, dt * 10);
+            const GaitStyleSpec* s = StyleNow;
+            if (!s || StyleShare < 1e-3f || out.LocalJoints.empty() || !EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr)) return;
+            const auto turnOf = [&](int j) { XMVECTOR sc, q, t; XMMatrixDecompose(&sc, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
+            const int wingChest = WingsHeldKnown ? Skeleton.Joints[WingJoint[0][0]].ParentIndex : -1;
+            const XMVECTOR chestAsMade = wingChest >= 0 ? turnOf(wingChest) : XMQuaternionIdentity();   // (before her bow)
+            const float w = StyleShare * StyleBow, bow = s->Bow * w, upright = -(s->Bow * w + StyleLean * StyleBow) * s->Steady;
+            bool changed = false;
+            if (std::abs(bow) > 1e-4f)
+            {   // her chest bowed: a share at each joint of her spine, each a turn about her right as her body has it
+                const int bend[3] = {Spine, Spine1, Spine2};
+                int count = 0;
+                for (const int j : bend) count += j >= 0 && Skeleton.Joints[j].ParentIndex >= 0;
+                if (count > 0)
+                {
+                    const XMVECTOR forward = XMQuaternionRotationAxis(XMVectorSet(1, 0, 0, 0), bow / static_cast<float>(count));
+                    XMVECTOR ups[3];
+                    for (int i = 0; i < 3; ++i) ups[i] = bend[i] >= 0 && Skeleton.Joints[bend[i]].ParentIndex >= 0 ? turnOf(Skeleton.Joints[bend[i]].ParentIndex) : XMQuaternionIdentity();
+                    for (int i = 0; i < 3; ++i)
+                    {   // (all about the same axis: no turn of one changes the others')
+                        const int j = bend[i];
+                        if (j < 0 || Skeleton.Joints[j].ParentIndex < 0) continue;
+                        const XMVECTOR there = XMQuaternionMultiply(XMQuaternionMultiply(ups[i], forward), XMQuaternionConjugate(ups[i]));
+                        XMStoreFloat4(&out.LocalJoints[j].Rotation, XMQuaternionNormalize(After(there, XMLoadFloat4(&out.LocalJoints[j].Rotation))));
+                    }
+                    changed = true;
+                }
+            }
+            if (std::abs(upright) > 1e-4f && NeckJoint >= 0 && HeadJoint >= 0 && Skeleton.Joints[HeadJoint].ParentIndex == NeckJoint && Skeleton.Joints[NeckJoint].ParentIndex >= 0)
+            {   // her head turned back up by what she leans and bows, as far as Steady says (her neck half of it)
+                if (changed) EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr);
+                const int above = Skeleton.Joints[NeckJoint].ParentIndex;
+                const XMVECTOR side = XMVectorSet(1, 0, 0, 0);
+                const XMVECTOR neck = XMQuaternionMultiply(turnOf(NeckJoint), XMQuaternionRotationAxis(side, upright * .5f));
+                const XMVECTOR head = XMQuaternionMultiply(turnOf(HeadJoint), XMQuaternionRotationAxis(side, upright));
+                XMStoreFloat4(&out.LocalJoints[NeckJoint].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(neck, XMQuaternionInverse(turnOf(above)))));
+                XMStoreFloat4(&out.LocalJoints[HeadJoint].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(head, XMQuaternionInverse(neck))));
+                changed = true;
+            }
+            if (wingChest >= 0 && w > 1e-3f)
+            {   // her wings held as her stride has them on average (not rising and falling with her chest's twist, whose high and
+                // low the time warp holds), her chest's bow carried with them; and opened toward their spread in flight (where
+                // Fly's beat down has them level) as her chest stands on average. SwingWings lowers and sweeps them about it too.
+                if (changed) EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr);
+                const XMVECTOR chestNow = turnOf(wingChest), bowed = XMQuaternionNormalize(XMQuaternionMultiply(XMQuaternionInverse(chestAsMade), chestNow));
+                const float run = GaitRun;
+                const XMVECTOR chestHeld = XMQuaternionMultiply(XMQuaternionSlerp(XMLoadFloat4(&ChestHeld[0]), XMLoadFloat4(&ChestHeld[1]), run), bowed);
+                const bool spread = s->WingOpen > 0 && HasWingsLevel && WingsLevel.LocalJoints.size() == out.LocalJoints.size();
+                for (int k = 0; k < 2; ++k)
+                {
+                    const int* j = WingJoint[k];
+                    XMVECTOR to = XMQuaternionMultiply(XMQuaternionSlerp(XMLoadFloat4(&WingHeldRoot[0][k]), XMLoadFloat4(&WingHeldRoot[1][k]), run), bowed);
+                    if (spread) to = XMQuaternionSlerp(to, XMQuaternionMultiply(XMLoadFloat4(&WingsLevel.LocalJoints[j[0]].Rotation), chestHeld), s->WingOpen);
+                    const XMVECTOR now = XMQuaternionSlerp(turnOf(j[0]), to, w);
+                    XMStoreFloat4(&out.LocalJoints[j[0]].Rotation, XMQuaternionNormalize(XMQuaternionMultiply(now, XMQuaternionInverse(chestNow))));
+                    for (int e = 0; e < 2; ++e)
+                    {
+                        XMVECTOR held = XMQuaternionSlerp(XMLoadFloat4(&WingHeldOuter[0][k][e]), XMLoadFloat4(&WingHeldOuter[1][k][e]), run);
+                        if (spread) held = XMQuaternionSlerp(held, XMLoadFloat4(&WingsLevel.LocalJoints[j[e + 1]].Rotation), s->WingOpen);
+                        XMStoreFloat4(&out.LocalJoints[j[e + 1]].Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&out.LocalJoints[j[e + 1]].Rotation), held, w)));
+                    }
+                }
+                XMStoreFloat4(&StyleChestTurn, bowed);
+                StyleHold = w;
+                changed = true;
+            }
+            else if (s->WingOpen > 0 && HasWingsLevel && WingsLevel.LocalJoints.size() == out.LocalJoints.size())
+            {   // her wings opened toward their spread in flight (where Fly's beat down has them level)
+                const float open = s->WingOpen * w;
+                for (const auto& wing : WingJoint)
+                    for (const int j : wing)
+                        if (j >= 0)
+                            XMStoreFloat4(&out.LocalJoints[j].Rotation, XMQuaternionNormalize(XMQuaternionSlerp(XMLoadFloat4(&out.LocalJoints[j].Rotation),
+                                                                                                                  XMLoadFloat4(&WingsLevel.LocalJoints[j].Rotation), open)));
+                changed = true;
+            }
+            if (std::abs(StyleArc) > 1e-4f && Hips >= 0)
+            {   // her body up in her flight, her feet with it
+                XMVECTOR by = XMVectorSet(0, StyleArc / (std::max)(.01f, scale), 0, 0);
+                if (const int above = Skeleton.Joints[Hips].ParentIndex; above >= 0)
+                    by = XMVector3TransformNormal(by, XMMatrixInverse(nullptr, XMLoadFloat4x4(&out.ModelSpaceMatrices[above])));
+                XMStoreFloat3(&out.LocalJoints[Hips].Translation, XMLoadFloat3(&out.LocalJoints[Hips].Translation) + by);
+                changed = true;
+            }
+            if (changed) EvaluateDoorwaysSkeletonPoseMatrices(Skeleton, out, nullptr);
+        }
         bool SampleMove(float phase, DoorwaysSkeletonPose& out, std::string* error) const
         {
             const auto walk = Clips.find("Walk"), run = Clips.find("Run");
@@ -2349,6 +2786,53 @@ namespace Doorways
                 else GuardTurn[g] = SquareGuard(GuardClip(g), gs.Clip, gs.At);
             }
         }
+        // Her soul's clips (Q), made at load of her own (each track: s into the clip made, s into hers; a next one blended
+        // in where they overlap): its leaving, Skill_Soul (THREAD STEP, as the owner chose it: one long stride in a blink,
+        // down on her feet 6 m on, on guard: SoulFar, SoulOutFrom, SoulOutTo), and its way back, Soul_Back (pulled
+        // through the air, played over however long her way back takes). Each of her clips is taken by shares of its own
+        // length.
+        void MakeSoul()
+        {
+            const auto of = [&](const char* clip, float share) { return share * (std::max)(Duration(clip), .01f); };
+            const auto make = [&](const char* name, float seconds, const std::vector<StyleTrack>& tracks)
+            {
+                if (!MakeSpliced(name, seconds, tracks)) OutputDebugStringA((std::string("[WARN] Nyxara: her soul's ") + name + " could not be made\n").c_str());
+            };
+            make(SoulClip, .62f, {{"Run", {{0, of("Run", .05f)}, {.24f, of("Run", .42f)}}},
+                                  {"Fly_Land", {{.18f, of("Fly_Land", .55f)}, {.44f, of("Fly_Land", 1.f)}}},
+                                  {"Idle", {{.38f, 0}, {.62f, .24f}}}});
+            make(SoulBackClip, 1.f, {{"Jump", {{0, of("Jump", .42f)}, {.7f, of("Jump", .6f)}}},
+                                     {"Fly_Land", {{.6f, of("Fly_Land", .6f)}, {1.f, of("Fly_Land", 1.f)}}}});
+        }
+        // Where her soul's strings are tied on a body of hers (NyxaraSoul::Tie), in the world: a pose whose model matrices
+        // are made, its picture placed so; feet: the ground under it
+        NyxaraSoul::Body SoulTies(const DoorwaysSkeletonPose& pose, const XMMATRIX& place, const XMFLOAT3& feet) const
+        {
+            NyxaraSoul::Body out;
+            const auto at = [&](int j)
+            {
+                if (j < 0 || j >= static_cast<int>(pose.ModelSpaceMatrices.size())) return XMVectorSet(0, 1, 0, 1);
+                const auto& m = pose.ModelSpaceMatrices[static_cast<size_t>(j)];
+                return XMVectorSet(m._41, m._42, m._43, 1);
+            };
+            const auto put = [&](NyxaraSoul::Tie tie, XMVECTOR v) { XMStoreFloat3(&out.At[tie], XMVector3TransformCoord(v, place)); };
+            put(NyxaraSoul::Chest, at(Spine2 >= 0 ? Spine2 : Spine));
+            put(NyxaraSoul::Head, at(HeadJoint));
+            put(NyxaraSoul::Hips, at(Hips));
+            put(NyxaraSoul::HandL, at(ArmChain[0][3]));
+            put(NyxaraSoul::HandR, at(ArmChain[1][3]));
+            for (int side = 0; side < 2; ++side)
+            {   // (her left wing first: WingRightIs says which of the two is on her right; its feathers reach past its last bone)
+                const int k = (WingRightIs > 0) == (side == 1) ? 1 : 0;
+                const XMVECTOR c = at(WingJoint[k][1]), e = at(WingJoint[k][2]);
+                put(side ? NyxaraSoul::WingR : NyxaraSoul::WingL, at(WingJoint[k][0]));
+                put(side ? NyxaraSoul::TipR : NyxaraSoul::TipL, XMVectorSetW(e + (e - c) * 1.1f, 1));
+            }
+            put(NyxaraSoul::FootL, at(FootJoint[0]));
+            put(NyxaraSoul::FootR, at(FootJoint[1]));
+            out.Feet = feet;
+            return out;
+        }
         // A guard turned about her up so that her shoulders face as they do on guard (Idle): some of its moments are taken
         // from a spin, and held as they were she stood with her back or her side to what she guards against. Its hips are
         // turned (and where they are, about her feet's middle); all the rest of her goes with them. The turn (radians).
@@ -2918,6 +3402,7 @@ namespace Doorways
             if (Air) return DashSpeed;
             if (Cast == 4) return world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight ? 0.f : CastRootGo;
             if (Cast == 5) return 0.f;
+            if (Soul == 1 && Attack == SoulClip) return SoulGo(AttackTime) * AttackRate * Pace;   // (her soul left: thrown on)
             const auto found = NyxaraClips::Attacks.find(Attack);
             if (found == NyxaraClips::Attacks.end() || found->second.Forward.size() < 2) return 0;
             const auto& path = found->second.Forward;
@@ -2976,7 +3461,7 @@ namespace Doorways
             float blow = WingKnown ? climb - WingClimb : 0.f;      // her rise changed at once: she jumped off, or landed
             if (std::abs(blow) < 3) blow = 0;
             WingClimb = climb; WingKnown = true;
-            const float flapTo = WingShare * (climb < 0 ? (std::min)(.45f, -climb * .03f) : -(std::min)(.14f, climb * .015f)) + WingAimFlap;
+            const float flapTo = WingShare * (climb < 0 ? (std::min)(.45f, -climb * .03f) : -(std::min)(.14f, climb * .015f)) + WingAimFlap + StyleWingFlap;
             const auto at = [&](int j) { const auto& m = out.ModelSpaceMatrices[j]; return XMVectorSet(m._41, m._42, m._43, 0); };
             const auto turnOf = [&](int j) { XMVECTOR s, q, t; XMMatrixDecompose(&s, &q, &t, XMLoadFloat4x4(&out.ModelSpaceMatrices[j])); return XMQuaternionNormalize(q); };
             // Her chest's own right, up and forward, from the two wing roots and her spine: a wing is lifted and swept
@@ -2988,6 +3473,16 @@ namespace Doorways
             right = XMVectorGetX(XMVector3LengthSq(right)) < 1e-6f ? XMVectorSet(1, 0, 0, 0) : XMVector3Normalize(right);
             const int chest = Skeleton.Joints[WingJoint[0][0]].ParentIndex, under = chest >= 0 ? Skeleton.Joints[chest].ParentIndex : -1;
             XMVECTOR up = under >= 0 ? at(chest) - at(under) : XMVectorSet(0, 1, 0, 0);
+            if (StyleHold > 1e-3f && WingsHeldKnown)
+            {   // (her wings held in her way of going: lifted and swept about her chest as it stands on average, its bow with it,
+                // not as it twists in her stride: StylePose)
+                const XMVECTOR chestTurn = XMLoadFloat4(&StyleChestTurn);   // (not turn: SwingWings' own turn is her turning)
+                const XMVECTOR heldRight = XMVector3Rotate(XMVectorLerp(XMLoadFloat3(&WingRightHeld[0]), XMLoadFloat3(&WingRightHeld[1]), GaitRun), chestTurn);
+                const XMVECTOR heldUp = XMVector3Rotate(XMVectorLerp(XMLoadFloat3(&WingUpHeld[0]), XMLoadFloat3(&WingUpHeld[1]), GaitRun), chestTurn);
+                right = XMVector3Normalize(XMVectorLerp(right, XMVector3Normalize(heldRight), StyleHold));
+                if (XMVectorGetX(XMVector3LengthSq(up)) > 1e-8f) up = XMVector3Normalize(up);
+                up = XMVectorLerp(up, XMVector3Normalize(heldUp), StyleHold);
+            }
             up = up - right * XMVectorGetX(XMVector3Dot(up, right));
             up = XMVectorGetX(XMVector3LengthSq(up)) < 1e-6f ? XMVectorSet(0, 1, 0, 0) : XMVector3Normalize(up);
             const XMVECTOR forward = XMVector3Normalize(XMVector3Cross(right, up));
@@ -3001,7 +3496,7 @@ namespace Doorways
                 const float side = (k ? 1.f : -1.f) * WingRightIs;       // the wing on her +x side, or the other
                 const XMVECTOR outward = right * side;
                 const XMVECTOR liftAxis = XMVector3Cross(outward, up), sweepAxis = XMVector3Cross(forward, outward);   // (turning it up, and back)
-                const float backTo = WingShare * std::clamp(-side * turn * .13f, -.3f, .3f) + WingAimBack;
+                const float backTo = WingShare * std::clamp(-side * turn * .13f, -.3f, .3f) + WingAimBack + StyleWingBack;
                 w.FlapGo -= WingShare * blow * .14f;
                 for (float left = dt; left > 1e-6f;)
                 {
@@ -3453,7 +3948,7 @@ namespace Doorways
                 FootPitch[k] += (pitchTo[k] - FootPitch[k]) * ease;
                 for (int i = 0; i < 2; ++i) FootSlide[k][i] += (slideTo[k][i] - FootSlide[k][i]) * slideEase;
                 // in her own space: up, and the slide turned from the world into her axes
-                const float raise = (FeetRaise[k] + Squat) / scale;      // (her knees taking a landing: her body is let down, her feet stay)
+                const float raise = (FeetRaise[k] + Squat + StyleLow * FeetOn) / scale;      // (her knees taking a landing, or bent in her way of going: her body is let down, her feet stay)
                 const float sx = (FootSlide[k][0] * c - FootSlide[k][1] * sn) / scale, sz = (FootSlide[k][0] * sn + FootSlide[k][1] * c) / scale;
                 const float drawnIn = (StrideScale - 1) * FeetOn;     // short steps: each foot drawn in under its hip, along her way
                 // A foot that is down is held where it came down (2026-11-19). Her clips carry a standing foot back under
@@ -3588,9 +4083,9 @@ namespace Doorways
             {   // for the log: how far each sole is over the ground under the middle of its foot, as she is drawn
                 const XMVECTOR A = at(FootJoint[k]), mid = ToeJoint[k] >= 0 ? (A + at(ToeJoint[k])) * .5f : A;
                 const float g = surface(mid);
-                SoleGap[k] = AnkleRest[k] > 1e8f || !std::isfinite(g) ? std::numeric_limits<float>::quiet_NaN() : XMVectorGetY(A) * scale + FeetDrop - Squat - AnkleRest[k] - g;
+                SoleGap[k] = AnkleRest[k] > 1e8f || !std::isfinite(g) ? std::numeric_limits<float>::quiet_NaN() : XMVectorGetY(A) * scale + FeetDrop - Squat - StyleLow * FeetOn - AnkleRest[k] - g;
             }
-            return FeetDrop - Squat;
+            return FeetDrop - Squat - StyleLow * FeetOn;
         }
         // Which way the sword bones' axes came through the importer is found: of the eight mirrorings, the one that in
         // Idle puts the handle in her fist and the blade's point up.
@@ -3740,10 +4235,16 @@ namespace Doorways
             LeadMost = (std::max)(std::abs(lead), LeadMost * std::exp(-dt * 1.5f));
             const float moving = ramp(ArmPace, .15f, .9f);
             const float stride = std::clamp(lead / (std::max)(LeadMost, .35f * leg), -1.f, 1.f) * moving;
-            const float swing = XMConvertToRadians(armed ? 4 + 4 * GaitRun : 13 + 6 * GaitRun), bent = armed ? 0.f : XMConvertToRadians(3 + 8 * GaitRun) * moving;
+            // (and as her way of going has them, GaitStyle, unless they hold her swords: swung more or less, bent, carried
+            // back, held out)
+            const float styleArms = armed || !StyleNow ? 0.f : StyleShare;
+            const float swing = XMConvertToRadians(armed ? 4 + 4 * GaitRun : 13 + 6 * GaitRun) * (1 + (styleArms > 0 ? StyleNow->ArmSwing - 1 : 0.f) * styleArms);
+            const float bent = armed ? 0.f : XMConvertToRadians(3 + 8 * GaitRun) * moving + (styleArms > 0 ? XMConvertToRadians(StyleNow->ArmBend) * styleArms : 0.f);
+            const float armOut = styleArms > 0 ? XMConvertToRadians(StyleNow->ArmOut) * styleArms : 0.f;
             if (!was) ArmLag = 0;
             ArmLag += (std::clamp(-Gain * .012f, -.14f, .14f) - ArmLag) * (std::min)(1.f, dt * 6);
-            const float behind = armed ? ArmLag * .5f : ArmLag - XMConvertToRadians(2 + 7 * GaitRun) * moving;
+            const float behind = (armed ? ArmLag * .5f : ArmLag - XMConvertToRadians(2 + 7 * GaitRun) * moving) -
+                                 (styleArms > 0 ? XMConvertToRadians(StyleNow->ArmBack) * styleArms : 0.f);
             for (int s = 0; s < 2; ++s)
             {
                 const int ua = ArmChain[s][1], fa = ArmChain[s][2], ha = ArmChain[s][3], above = Skeleton.Joints[ua].ParentIndex;
@@ -3765,11 +4266,18 @@ namespace Doorways
                 }
                 // (an elbow bends one way, and no further than it does; a guard is held: it gives a little, no more)
                 const float least = armed ? arm - XMConvertToRadians(12) : arm + XMConvertToRadians(3) - (tilt2 - tilt1);
-                const float most = armed ? arm + XMConvertToRadians(12) : arm + XMConvertToRadians(75) - (tilt2 - tilt1);
+                const float most = armed ? arm + XMConvertToRadians(12) : arm + XMConvertToRadians(75) + (std::max)(0.f, bent - XMConvertToRadians(11)) - (tilt2 - tilt1);
                 if (ForeAt[s] < least) { ForeAt[s] = least; ForeGo[s] = (std::max)(ForeGo[s], 0.f); }
                 if (ForeAt[s] > most) { ForeAt[s] = most; ForeGo[s] = (std::min)(ForeGo[s], 0.f); }
-                const XMVECTOR want1 = XMVectorSet(r1.x, -across1 * std::cos(tilt1 + arm), across1 * std::sin(tilt1 + arm), 0);
-                const XMVECTOR want2 = XMVectorSet(r2.x, -across2 * std::cos(tilt2 + ForeAt[s]), across2 * std::sin(tilt2 + ForeAt[s]), 0);
+                XMVECTOR want1 = XMVectorSet(r1.x, -across1 * std::cos(tilt1 + arm), across1 * std::sin(tilt1 + arm), 0);
+                XMVECTOR want2 = XMVectorSet(r2.x, -across2 * std::cos(tilt2 + ForeAt[s]), across2 * std::sin(tilt2 + ForeAt[s]), 0);
+                if (armOut != 0)
+                {   // (held out from her side: turned about her forward line, away from her other arm)
+                    const float outSide = XMVectorGetX(at(ua)) < XMVectorGetX(at(ArmChain[1 - s][1])) ? -1.f : 1.f;
+                    const XMMATRIX outTurn = XMMatrixRotationZ(armOut * outSide);
+                    want1 = XMVector3TransformNormal(want1, outTurn);
+                    want2 = XMVector3TransformNormal(want2, outTurn);
+                }
                 const XMVECTOR qAbove = turnOf(above), qArm = turnOf(ua), qFore = turnOf(fa);
                 const XMVECTOR turn1 = ArcTurn(d1, XMVector3Normalize(want1)), newArm = XMQuaternionMultiply(qArm, turn1);
                 const XMVECTOR turn2 = ArcTurn(XMVector3Rotate(d2, turn1), XMVector3Normalize(want2)), newFore = XMQuaternionMultiply(XMQuaternionMultiply(qFore, turn1), turn2);
@@ -4204,6 +4712,10 @@ namespace Doorways
         { error = "her thrown swords' way and backflip could not be made from her clips (" + bundle.string() + ")"; return false; }
         b.MakeFinishes();
         b.MakeStyles();   // (after every fix of her clips: the styles' moves are made of them as they are then)
+        b.MakeSoul();     // (her soul's leaving and way back: Q)
+        b.LearnSoles();   // (where her feet are down in her walk and her run: her ways of going, GaitStyle)
+        b.LearnWings();   // (her wings as her walk and her run have them on average: held so in her ways of going)
+        if (!mSoul) mSoul = std::make_unique<NyxaraSoul>();   // (its picture: its textures are loaded as it is first drawn)
         for (int which = 1; which <= 3; ++which)
             if (b.Duration(Finishes[which].Clip) <= 0) { error = std::string("her finishing kill ") + Finishes[which].Clip + " could not be made from her clips (" + bundle.string() + ")"; return false; }
         char log[MAX_PATH] = {};
@@ -4498,6 +5010,64 @@ namespace Doorways
     bool NyxaraKit::FlairOn() const { return mFlair && mFlair->On(); }
     bool NyxaraKit::FlairPlain() const { return mFlair && mFlair->Chosen() && mFlair->Plain(); }
     bool NyxaraKit::FlairLit() const { return mFlair && mFlair->Lit(); }
+    void NyxaraKit::LetSoulGo()
+    {
+        if (mBody && mBody->Soul != 0) { mBody->Soul = 0; mSoulCooldown = SoulCooldownSeconds * mCooldownScale; }   // (its skill over: Q rests)
+        if (mSoul) mSoul->Drop();
+    }
+    int NyxaraKit::SoulState() const { return mBody ? mBody->Soul : 0; }
+    float NyxaraKit::SoulApart() const
+    {
+        return mBody && mBody->Soul != 0 ? std::hypot(mHerPlace.x - mBody->SoulAt.x, mHerPlace.z - mBody->SoulAt.z) : 0.f;
+    }
+    float NyxaraKit::SoulLastWay() const { return mBody ? mBody->SoulLastWay : 0.f; }
+    float NyxaraKit::SoulLastBack() const { return mBody ? mBody->SoulLastBack : 0.f; }
+    float NyxaraKit::SoulLastMiss() const { return mBody ? mBody->SoulLastMiss : 0.f; }
+    float NyxaraKit::SoulLastHeld() const { return mBody ? mBody->SoulLastHeld : 0.f; }
+    const std::string& NyxaraKit::SoulLastOutOf() const
+    {
+        static const std::string none;
+        return mBody ? mBody->SoulOutOf : none;
+    }
+    int NyxaraKit::SoulQuads() const { return mSoul ? mSoul->QuadsDrawn() : 0; }
+    // Her soul each frame (Update, her pose made; not while her window shows her): its own body (she as she left it,
+    // held), her body now for its threads, her afterimages on her ways out and back (one every so many metres she goes:
+    // none where she stands).
+    // ---- her ways of going on foot (GaitStyles, before Body)
+    int NyxaraKit::GaitStyleCount() { return static_cast<int>(std::size(GaitStyles)); }
+    const char* NyxaraKit::GaitStyleName(int style) { return GaitStyles[std::clamp(style, 0, GaitStyleCount() - 1)].Name; }
+    const char* NyxaraKit::GaitStyleLine(int style) { return GaitStyles[std::clamp(style, 0, GaitStyleCount() - 1)].Line; }
+    void NyxaraKit::SetGaitStyle(int style) { mGaitStyle = std::clamp(style, 0, GaitStyleCount() - 1); }
+    std::string NyxaraKit::GaitNote() const { return mBody ? mBody->SoleNote + (mBody->WingsHeldKnown ? "; wings held steady in a style" : "; wings NOT held (not learned)") : std::string(); }
+
+    void NyxaraKit::UpdateSoul(WorldState& world, const DoorwaysSkeletonPose& pose, float dt)
+    {
+        auto& b = *mBody;
+        const auto& p = world.MainPlayer;
+        DoorwaysSkeletonPose now = pose;
+        if (!EvaluateDoorwaysSkeletonPoseMatrices(b.Skeleton, now, nullptr)) return;
+        const XMMATRIX place = BuildDoorwaysCharacterWorldMatrix(p.Position, p.Yaw, world.AnimatedPlayerVisual);
+        XMFLOAT4X4 placed;
+        XMStoreFloat4x4(&placed, place);
+        const NyxaraSoul::Body her = b.SoulTies(now, place, p.Position);
+        if (b.Soul != 0)
+        {
+            if (b.SoulLeaving) { mSoul->Leave(now, placed, her); b.SoulGhostWay = 0; b.SoulGhostWas = p.Position; }
+            b.SoulLeaving = false;
+            const bool going = b.Soul == 3 || (b.Soul == 1 && b.AttackTime > SoulOutFrom - .02f && b.AttackTime < SoulOutTo + .03f);
+            b.SoulGhostWay += std::hypot(p.Position.x - b.SoulGhostWas.x, p.Position.y - b.SoulGhostWas.y, p.Position.z - b.SoulGhostWas.z);
+            b.SoulGhostWas = p.Position;
+            const float every = NyxaraSoul::GhostEvery(b.Soul == 3);
+            if (!going) b.SoulGhostWay = 0;
+            else if (b.SoulGhostWay >= every)
+            {   // her afterimages on her way out and back
+                b.SoulGhostWay = std::fmod(b.SoulGhostWay, every);
+                mSoul->Ghost(now, placed, NyxaraSoul::GhostSeconds(b.Soul == 3));
+            }
+        }
+        const float pull = b.Soul == 3 ? std::clamp(b.SoulTime / (std::max)(b.SoulBack, .01f), 0.f, 1.f) : -1.f;
+        mSoul->Update(dt, her, pull);
+    }
     int NyxaraKit::FlairMotes() const { return mFlair ? mFlair->Motes() : 0; }
     int NyxaraKit::FlairQuads() const { return mFlair ? mFlair->Quads() : 0; }
     bool NyxaraKit::ComboMade(int combo) const
@@ -4529,7 +5099,7 @@ namespace Doorways
         if (GameSession().Unattended && mAutoKeys) return *mAutoKeys; // the journey's test pilot
         if (GameSession().Unattended)
         {   // CAUCASIAN_EAGLE_NYXARA_KEYS="<seconds>:<key>,...": each key is down for a tenth of a second from that moment
-            // of her clock (L, R the mouse buttons, F, V, C, E, J for Space). Never reads the desktop.
+            // of her clock (L, R the mouse buttons, F, V, C, E, J for Space, Q her soul). Never reads the desktop.
             static const std::vector<std::pair<float, char>> script = []
             {
                 std::vector<std::pair<float, char>> out;
@@ -4546,6 +5116,7 @@ namespace Doorways
                     {
                     case 'L': k.Lmb = true; break; case 'R': k.Rmb = true; break; case 'F': k.K1 = true; break;
                     case 'V': k.K2 = true; break; case 'C': k.K3 = true; break; case 'E': k.E = true; break; case 'J': k.Space = true; break;
+                    case 'Q': k.Q = true; break;
                     default: break;
                     }
             return k;
@@ -4553,7 +5124,7 @@ namespace Doorways
         if (!inputAllowed) return k;
         const auto down = [](int vk) { return IsDoorwaysKeyDown(vk); };   // the key, or the controller button bound to it
         k.Lmb = down(VK_LBUTTON); k.Rmb = down(VK_RBUTTON); k.E = down('E'); k.K1 = down('F'); k.K2 = down('V'); k.K3 = down('C');
-        k.Shift = down(VK_SHIFT); k.Space = down(VK_SPACE);
+        k.Shift = down(VK_SHIFT); k.Space = down(VK_SPACE); k.Q = down('Q');
         return k;
     }
 
@@ -5769,10 +6340,10 @@ namespace Doorways
 
     void NyxaraKit::Update(WorldState& world, WorldRenderer& worldRenderer, CombatSystem& combat, float dt, float realDt, bool inputAllowed)
     {
-        (void)worldRenderer;
+        mWorldRenderer = &worldRenderer;
         if (!mReady) return;
         auto& b = *mBody;
-        b.Pace = b.Attack == "Skill_Slide" ? SlidePace : mHiggsfieldTrial ? mTrialPace : 1.f;   // (F, her slide: its own, a dash's)
+        b.Pace = b.Attack == "Skill_Slide" ? SlidePace : b.Attack == Body::SoulClip ? 1 / AttackRate : mHiggsfieldTrial ? mTrialPace : 1.f;   // (F, her slide: its own, a dash's; her soul's leaving: as made)
         const bool flair = mFlair && mFlair->On();
         const float flairDt = dt > 0 ? mFlairDt : 0.f;
         if (flair && !b.Skill())
@@ -5810,6 +6381,10 @@ namespace Doorways
         const auto pressed = [](bool now, bool before) { return now && !before; };
         const bool clickL = pressed(k.Lmb, mPrev.Lmb), clickR = pressed(k.Rmb, mPrev.Rmb), keyF = pressed(k.K1, mPrev.K1),
                    keyV = mSkillsVC && pressed(k.K2, mPrev.K2), keyC = mSkillsVC && pressed(k.K3, mPrev.K3);   // (V and C: SetSkillsVC)
+        // (Q, her soul: one held as a window closes, the kit let go of again, is no Q: it waits to be let go, as her blade does)
+        if (mInputBlocked) mQWaits = true;
+        else if (!k.Q) mQWaits = false;
+        const bool keyQ = !mQWaits && pressed(k.Q, mPrev.Q);
         const bool scriptedSpace = unattended && mRealJump > 0 && s.ScriptedJump;
         const bool space = pressed(k.Space, mPrev.Space) || pressed(scriptedSpace, mScriptedSpaceWas);
         mScriptedSpaceWas = scriptedSpace;
@@ -5915,16 +6490,95 @@ namespace Doorways
         // ---- the clocks of the game around her moves
         for (auto& c : mSkillCooldown) c = (std::max)(0.f, c - dt);
         mGuardCooldown = (std::max)(0.f, mGuardCooldown - dt);
+        mSoulCooldown = (std::max)(0.f, mSoulCooldown - dt);   // (Q, her soul)
         // ---- dead: she falls and lies; everything she was doing ends
         if (!alive && !b.Dead)
         {
             b.Dead = true; b.DeathTime = 0; b.Attack.clear(); b.Queued = 0; b.Jumping = false; b.Air = 0; b.Rise = b.Touch = -1;
             b.Cast = 0; b.SwordsOut = false; b.Pushed = -1; mGuarding = false;
             b.Finish = 0; b.FinishTarget = -1; b.FinishLiftNow = 0; b.FinishGo = {0, 0};
+            if (b.Soul != 0) { b.Soul = 0; mSoulCooldown = SoulCooldownSeconds * mCooldownScale; if (mSoul) mSoul->Drop(); }   // (her soul goes with her life; Q rests)
             b.Log(world, "death");
         }
         else if (alive && b.Dead) { b.Dead = false; b.Log(world, "alive"); }
         if (b.Dead) b.DeathTime += dt;
+
+        // ---- her soul (Q). Put elsewhere by the game (more than SoulPutAway m from where the kit last left her: a nest,
+        // the start), she lets it go. It stands still while the game does (a map, her menu: Update's deltaTime 0) and
+        // while her window shows her (SetShowcase: she stands over the summit then). The second Q takes her back to it
+        // along its strings, from wherever she is (in the air too), whatever she is doing but finishing one or V; on her
+        // way back she does nothing else and nothing touches her (Hurt). She is put on her way (not moved by the world:
+        // her way is the strings', through what stands between), and stands where she left it, turned as it stands.
+        const bool soulLive = dt > 0 && !mShowcase;
+        if (soulLive && b.Soul != 0 && b.SoulSeenKnown &&
+            std::hypot(p.Position.x - b.SoulSeen.x, p.Position.y - b.SoulSeen.y, p.Position.z - b.SoulSeen.z) > SoulPutAway)
+        {
+            LetSoulGo();
+            b.Log(world, "soul let go: she was put elsewhere");
+        }
+        if (b.SoulMissDue)
+        {   // (how far from it she ended, a frame after)
+            b.SoulMissDue = false;
+            b.SoulLastMiss = std::hypot(p.Position.x - b.SoulAt.x, p.Position.y - b.SoulAt.y, p.Position.z - b.SoulAt.z);
+            b.Log(world, ("soul joined, off it " + std::to_string(b.SoulLastMiss) + " m").c_str());
+        }
+        if (b.Soul != 0) b.SoulClock += dt;
+        // Its leaving's throw over (SoulOutTo: 6 m on, on her feet), what is left of it, her coming to her guard, is given
+        // up at once for her way (W, S, A, D; a scripted run's move or turn), a cut (clicked as it threw her too: kept,
+        // below), a skill, a jump, or Q (back to it at once). The owner, 2026-11-26: "after Q character slightly has delay
+        // before she continues to walk - let it be able to fight right after Q right away": it held her to its end, 0.36 s more.
+        if (b.Soul == 1 && b.Attack == Body::SoulClip && b.AttackTime >= SoulOutTo && alive && !b.Dead)
+        {
+            const bool way = (s.Unattended && (s.ScriptedMove != 0 || s.ScriptedSteer != 0)) ||
+                             (live && (IsDoorwaysKeyDown('W') || IsDoorwaysKeyDown('S') || IsDoorwaysKeyDown('A') || IsDoorwaysKeyDown('D')));
+            if (way || clickL || clickR || b.Queued != 0 || space || keyF || keyV || keyC || keyQ)
+            {
+                b.Attack.clear();
+                b.Log(world, way ? "soul's leaving given up for her way" : "soul's leaving given up");
+            }
+        }
+        if (b.Soul == 1 && b.Attack != Body::SoulClip) b.SoulGone(world);
+        if (keyQ && b.Soul == 2 && mSoul && alive && !b.Dead && !b.Finish && !b.Cast)
+        {
+            if (b.InMove()) { b.EndMove(world, "move given up for her soul"); b.ComboButton = -1; }
+            b.Attack.clear(); b.Queued = 0; b.Jumping = false; b.JumpReal = false; b.Air = 0; b.Rise = b.Touch = -1;
+            if (flying)
+            {   // (out of the air: on foot again as she goes, as when her wings are spent)
+                p.TraversalMode = DoorwaysPlayerTraversalMode::Ground; p.JumpFlight.Active = false;
+                s.FreeFlightEnd = false; s.FreeFlightLandSpeed = 0; s.FreeFlightTakeoff = false;
+                flying = false; mFalling = false; b.WasFlying = false;
+            }
+            const float apart = std::hypot(b.SoulAt.x - p.Position.x, b.SoulAt.y - p.Position.y, b.SoulAt.z - p.Position.z);
+            b.Soul = 3; b.SoulTime = 0; b.SoulFrom = p.Position; b.SoulFromYaw = p.Yaw; b.SoulGhostWay = 0; b.SoulGhostWas = p.Position;
+            b.SoulBack = std::clamp(SoulBackLeast + SoulBackPer * apart, SoulBackShortest, SoulBackMost);
+            {   // (pulled at her chest: her body is thrown the way it pulls, back if it is behind her)
+                const float ahead = (b.SoulAt.x - p.Position.x) * std::sin(p.Yaw) + (b.SoulAt.z - p.Position.z) * std::cos(p.Yaw);
+                b.FlinchGo += ahead >= 0 ? SoulFlinch : -1.25f * SoulFlinch;
+            }
+            mSoul->Recall();
+            CaucasianEagle::Sound::Play("nyxara/skill", .6f);
+            b.Log(world, ("soul recalled from " + std::to_string(apart) + " m, " + std::to_string(b.SoulBack) + " s").c_str());
+        }
+        if (b.Soul == 3 && soulLive)
+        {
+            b.SoulTime += dt;
+            const float t = std::clamp(b.SoulTime / b.SoulBack, 0.f, 1.f), u = t * t * (3 - 2 * t);
+            p.Position = Lerp(b.SoulFrom, b.SoulAt, u); p.VerticalVelocity = 0; s.ImpulseX = s.ImpulseZ = 0;
+            {   // (her facing: as she was as she set off, turned as it stands over the last third of the way, so that she is
+                // in it again as it stood)
+                const auto turning = [](float v) { v = std::clamp(v, 0.f, 1.f); return v * v * (3 - 2 * v); };
+                p.Yaw = std::remainder(b.SoulFromYaw + std::remainder(b.SoulYaw - b.SoulFromYaw, XM_2PI) * turning((t - .67f) / .33f), XM_2PI);
+            }
+            if (t >= 1)
+            {   // in it again
+                p.Position = b.SoulAt; p.Yaw = b.SoulYaw;
+                b.Soul = 0; mSoulCooldown = SoulCooldownSeconds * mCooldownScale; b.SoulLastBack = b.SoulTime; b.SoulMissDue = true;   // (its skill over: Q rests)
+                if (mSoul) mSoul->Join();
+                mShake = (std::max)(mShake, .16f);
+                CaucasianEagle::Sound::Play("nyxara/guard", .7f);
+            }
+        }
+        if (soulLive) { b.SoulSeen = p.Position; b.SoulSeenKnown = true; }
 
         // ---- leaving the ground and coming down (the owner takes her up and lands her: R in the journey)
         b.FlyTime += dt;
@@ -5952,7 +6606,7 @@ namespace Doorways
             else if (b.Touch >= b.Duration("Fly_Land")) b.Touch = -1;
         }
         b.WasFlying = flying;
-        const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0;   // leaving the ground or coming down, finishing one: nothing else
+        const bool busy = b.Rise >= 0 || b.Touch >= 0 || b.Air != 0 || b.Dead || b.Finish != 0 || b.Soul == 3;   // leaving the ground or coming down, finishing one: nothing else
 
         // ---- her wing shield: E pressed, ShieldSeconds round her whatever she does (ShieldSeconds, above)
         {
@@ -6174,7 +6828,30 @@ namespace Doorways
                 CaucasianEagle::Sound::Play("nyxara/skill", .85f);
             }
         }
-        if (b.Skill()) b.Queued = 0;
+        // ---- Q, her soul (THREAD STEP): on foot, free, she leaves it where she stands and is thrown on; her leaving over,
+        // she is away from it. Out of her cuts and combos at any moment of them, and out of her slide (the owner, 2026-11-26:
+        // "Q can be pressed anytime while fighting/combo"); not in the air, nor out of V's thrown swords or C's storm (a leap)
+        if (keyQ && b.Soul == 0)
+        {
+            const bool fighting = b.InMove() || b.Attack == "Skill_Slide";
+            if (flying) { mNotice = L"THREAD STEP: FROM THE GROUND"; mNoticeTimer = .7f; }
+            else if (!mSoul || b.Duration(Body::SoulClip) <= 0) { mNotice = L"THREAD STEP: NOT MADE"; mNoticeTimer = .7f; }
+            else if (mSoulCooldown > 0) { mNotice = L"SKILL RECOVERING"; mNoticeTimer = .5f; }
+            else if (free && !b.Jumping && (fighting || !b.Carried()))
+            {
+                b.SoulOutOf = b.Attack;
+                if (b.InMove()) { b.EndMove(world, "move given up for her soul"); b.ComboButton = -1; }
+                b.Soul = 1; b.SoulLeaving = true; b.SoulClock = 0; b.SoulGhostWay = 0; b.SoulGhostWas = p.Position;
+                b.SoulAt = p.Position; b.SoulYaw = p.Yaw;
+                b.SkillReach = 1;
+                b.StartAttack(world, Body::SoulClip); b.SkillStrike = 1e9f; b.Pace = 1 / AttackRate;
+                mNotice = NyxaraSoul::Name; mNoticeTimer = .8f;
+                CaucasianEagle::Sound::Play("nyxara/dash", .8f);
+                b.Log(world, b.SoulOutOf.empty() ? "soul left" : ("soul left, out of " + b.SoulOutOf).c_str());
+            }
+        }
+        if (b.Soul == 1 && b.Attack != Body::SoulClip) b.SoulGone(world);
+        if (b.Skill() && b.Attack != Body::SoulClip) b.Queued = 0;   // (but clicked as her soul's leaving throws her: the cut as its throw is over)
         // (with an attack style, on foot: each click its button's move, aimed at the creature most before her and nearest)
         // (with a combo: its button's string, going on from the move before it if that was of this string and now or a
         // moment ago, ComboWindow, played; else from its first)
@@ -6737,7 +7414,7 @@ namespace Doorways
             b.Gain += (std::clamp(gained, -30.f, 30.f) - b.Gain) * soon;
             const bool afoot = !flying && p.IsGrounded && !b.Dead && !b.Carried() && !b.Cast && !b.Finish && b.Rise < 0 && b.Touch < 0;
             const float roll = afoot ? std::clamp(-b.TurnRate * b.Speed * .035f, -.22f, .22f) : 0.f;
-            const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f : 0.f;   // (and she bows a little into a landing)
+            const float pitch = afoot ? std::clamp(b.Gain * .010f, -.05f, .09f) + b.Squat * .45f + b.StyleLean : 0.f;   // (and she bows a little into a landing; and leans as her way of going has her)
             {   // Struck, she is knocked back a little and comes upright again (2026-11-19: a blow took her health and
                 // did nothing else to her), and her wings start up (below, with her guard). Away from the blow, as hard
                 // as it was (2026-11-20: every blow tipped her back by the same 7 degrees, a Chinka's claw as a giant's
@@ -6799,7 +7476,7 @@ namespace Doorways
         float impulse = !b.Dead && dt > 0 ? b.ForwardSpeed(world) : 0.f;
         s.ImpulseX = std::sin(p.Yaw) * impulse;
         s.ImpulseZ = std::cos(p.Yaw) * impulse;
-        s.LongMovePiece = b.Attack == "Skill_Slide" ? SlideStep : 0.f;   // (F, her slide: up a climb as on the level)
+        s.LongMovePiece = b.Attack == "Skill_Slide" || b.Soul == 1 ? SlideStep : !flying && mFootPace > 1 ? FootStep : 0.f;   // (F, her slide, and her going at a faster pace: up a climb as on the level)
         if (b.Finish) { s.ImpulseX = b.FinishGo.x; s.ImpulseZ = b.FinishGo.y; }   // (a finisher's plan: UpdateFinish)
         else if (b.InMove()) { s.ImpulseX = b.MoveVel.x; s.ImpulseZ = b.MoveVel.y; }   // (a style's move: its way, above)
         b.WasAt = {p.Position.x, p.Position.z};
@@ -6868,7 +7545,7 @@ namespace Doorways
             else if (wants)
             {
                 const float gliding = (std::max)(std::hypot(b.Glide.x, b.Glide.y), carriedHad) / (std::max)(.5f, b.FullSpeed);
-                b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, gliding}) + dt / GatherSeconds, 0.f, 1.f);
+                b.Throttle = std::clamp((std::max)({b.Throttle, StartShare, gliding}) + dt * mFootPace / GatherSeconds, 0.f, 1.f);   // (at a faster pace, sooner: SetFootPace)
                 // (and this frame, before her own speed reaches the engine, what the move gave her carries her)
                 if (b.Freed) { s.ImpulseX += b.CarriedGo.x; s.ImpulseZ += b.CarriedGo.y; }
                 b.Glide = {0, 0}; b.Went = {p.ActualVelocity.x, p.ActualVelocity.z};
@@ -6881,8 +7558,11 @@ namespace Doorways
                 {
                     b.Glide = b.Went; b.Went = {0, 0};   // (the engine has stopped her already this frame)
                     float had = std::hypot(b.Glide.x, b.Glide.y);
-                    if (had > CaucasianEagle::FootRunSpeed) { b.Glide.x *= CaucasianEagle::FootRunSpeed / had; b.Glide.y *= CaucasianEagle::FootRunSpeed / had; had = CaucasianEagle::FootRunSpeed; }
-                    b.GlideLose = had / (.12f + .025f * had);
+                    const float fastest = CaucasianEagle::FootRunSpeed * mFootPace;
+                    if (had > fastest) { b.Glide.x *= fastest / had; b.Glide.y *= fastest / had; had = fastest; }
+                    // (lost in .12 s and .025 s a m/s she had; at a faster pace (SetFootPace) as at the pace as made, that
+                    // much sooner: as far as then)
+                    b.GlideLose = had * mFootPace / (.12f + .025f * had / mFootPace);
                 }
                 b.Throttle = 0;
                 // (in the air nothing stops her: the key let go in a jump, she flies on as she went, and loses it on the ground)
@@ -6899,9 +7579,12 @@ namespace Doorways
             const float most = (live && IsDoorwaysKeyDown(VK_SHIFT)) ? StairRunPace : StairPace;
             if (mSpeedScale > 0 && p.MoveSpeed > most) mSpeedScale *= 1 + ((most / p.MoveSpeed) - 1) * b.OnStair;
         }
-        p.MoveSpeed *= mSpeedScale;
-        s.SlowWalkSpeed = rooted ? 0.f : WalkPace * (flying ? 1.f : b.Throttle > 0 ? b.Throttle : .3f);
-        if (rooted && flying)
+        p.MoveSpeed *= mSpeedScale * (flying ? 1.f : mFootPace);   // (her pace on foot: SetFootPace)
+        s.SlowWalkSpeed = rooted ? 0.f : WalkPace * (flying ? 1.f : (b.Throttle > 0 ? b.Throttle : .3f) * mFootPace);
+        // (not her take-off, Fly_Rise: she flies from its first moment, forward and up as the keys say; owner 2026-11-26:
+        // "can she start flying up right away after 1sec")
+        const bool heldInAir = rooted && !(b.Rise >= 0 && !carried && b.Touch < 0 && b.Cast == 0 && b.Air == 0 && !b.Dead && b.Finish == 0);
+        if (heldInAir && flying)
         {   // in the air a move carries her itself
             if (!b.FlightHeld) { b.FlightSaved = p.FlightSpeed; b.FlightHeld = true; }
             p.FlightSpeed = 0;
@@ -6961,8 +7644,13 @@ namespace Doorways
                 const float u = (p.Position.y - .15f) / NyxaraClips::StairsRise - NyxaraClips::StairsShift;
                 b.Phase = u / 2 - std::floor(u / 2);
             }
-            else b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), b.Back, poseDt);   // (the frame the key is let go the engine has her at rest; she is carried on from the next)
+            else if (mGaitStyle > 0)   // (in a way of going, GaitStyle: its own stride, at her own speed)
+                b.StyleStride(GaitStyles[mGaitStyle], (std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), mFootPace, b.Back, poseDt);
+            else   // (the frame the key is let go the engine has her at rest; she is carried on from the next. At a faster
+                   // pace (SetFootPace) the stride of the pace as made, stepped that many times as often)
+                b.Stride((std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)) / mFootPace, b.Back, poseDt * mFootPace);
         }
+        b.StyleFrame(mGaitStyle > 0 ? &GaitStyles[mGaitStyle] : nullptr, striding, (std::max)(b.Speed, std::hypot(b.Glide.x, b.Glide.y)), poseDt);
         {   // Turning on the spot she steps (2026-11-19: she was turned as a statue on a plate). Her legs are the walk's,
             // stepping in place (her stride drawn in to nothing), her body goes on standing.
             const bool turning = !moving && !b.Dead && !flying && p.IsGrounded && b.Attack.empty() && !b.Cast && !b.Jumping && !carried &&
@@ -6985,6 +7673,10 @@ namespace Doorways
             time = mPreviewTime >= 0 ? (std::min)(mPreviewTime, b.Duration(clip)) : std::fmod(mPreviewClock, b.Duration(clip));
         }
         else if (b.Dead) { clip = "Death"; time = b.DeathTime; }
+        else if (b.Soul == 3 && b.Duration(Body::SoulBackClip) > 0)
+        {   // her way back to her soul, played over however long it takes
+            clip = Body::SoulBackClip; time = std::clamp(b.SoulTime / b.SoulBack, 0.f, 1.f) * b.Duration(clip);
+        }
         else if (b.Finish) { clip = Finishes[b.Finish].Clip; time = b.FinishTime; }
         else if (b.Rise >= 0) { clip = "Fly_Rise"; time = b.Rise; }
         else if (b.Touch >= 0) { clip = "Fly_Land"; time = b.Touch; }
@@ -7006,6 +7698,8 @@ namespace Doorways
             const bool planted = !flying && p.IsGrounded && !b.Dead && !b.Jumping && b.Rise < 0 && b.Touch < 0 && !b.Cast && !b.Air && !b.Carried() &&
                                  !b.Finish && std::abs(b.LiftNow) < .05f && !previewing;
             const bool composed = b.Compose(world, clip, time, poseDt, pose, &error);
+            b.StyleHold = 0;
+            if (composed && !flying && !b.Dead && !previewing) b.StylePose(pose, poseDt, clip == "Move", world.AnimatedPlayerVisual.Scale.y);   // (her way of going)
             const float planting = composed ? b.PlantFeet(world, mFootGround, mStairTread, pose, poseDt, planted) : 0.f;
             if (composed && !b.BodyMove) world.AnimatedPlayerVisual.Translation.y = b.LiftNow + planting;
             if (!b.BodyMove)
@@ -7059,7 +7753,7 @@ namespace Doorways
             if (composed)
                 b.SwingWings(pose, poseDt, !p.IsGrounded && !flying ? p.VerticalVelocity : 0.f, flying ? 0.f : b.Back ? -b.Gain : b.Gain, b.TurnRate,
                              b.Dead || b.Cast || b.Air ? 0.f : b.Finish ? .6f : flying || b.Rise >= 0 || b.Touch >= 0 ? .35f : 1.f,
-                             clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? .75f - .6f * b.GaitRun : 0.f);
+                             clip == "Stand" ? (b.Stretch >= 0 ? 0.f : 1.f) : clip == "Move" ? b.StyleFold(.75f - .6f * b.GaitRun) : 0.f);
             b.WingLineKnown = false;
             if (composed && b.WingClose > .02f && pose.ModelSpaceMatrices.size() == pose.LocalJoints.size() && b.WingJoint[0][2] >= 0 && b.WingJoint[1][2] >= 0)
             {   // where her wings are in the world, for the shield's lights (Draw); and its sparks
@@ -7158,6 +7852,7 @@ namespace Doorways
                 for (int side = 0; side < 2; ++side)
                     if (const int j = b.WingJoint[side][0]; j >= 0 && j < static_cast<int>(pose.LocalJoints.size()))
                         pose.LocalJoints[static_cast<size_t>(j)].Scale = {mWingScale, mWingScale, mWingScale};
+            if (composed && mSoul && !mShowcase && (b.Soul != 0 || mSoul->Out())) UpdateSoul(world, pose, poseDt);   // (her soul: Q; not while her window shows her)
             if (!composed || !world.ImportedAnimatedCharacter.ApplyGamePresentationPose(b.Skeleton, pose, &error))
             {
                 static int told = 0;
@@ -7302,7 +7997,7 @@ namespace Doorways
 
     bool NyxaraKit::Hurt(WorldState& world, CombatSystem& combat, int damage, const XMFLOAT3* from)
     {
-        if (mMercy > 0 || !combat.PlayerActionsAllowed() || mBody->Finish) return false;   // (finishing one, nothing touches her)
+        if (mMercy > 0 || !combat.PlayerActionsAllowed() || mBody->Finish || mBody->Soul == 3) return false;   // (finishing one, nothing touches her)
         mMercy = CaucasianEagle::MercySeconds;
         if (mTrainingMode) ++mTrainingPlayerHits;
         else combat.ApplyIncomingDamage(world, damage);
@@ -7422,8 +8117,10 @@ namespace Doorways
         };
         const bool flying = world.MainPlayer.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         hud.ActionStatus = std::wstring(L"NYXARA  TWO SWORDS  |  ") + (flying ? L"F DASH " : L"F SLIDE ") + skill(0) + L"  V SWORDS " + skill(1) + L"  C STORM " + skill(2) +
+            L"  Q SOUL " + (mBody && mBody->Soul != 0 ? std::wstring(L"AWAY") : mSoulCooldown <= 0 ? std::wstring(L"READY")
+                                                                                  : std::to_wstring(static_cast<int>(std::ceil(mSoulCooldown))) + L"s") +
             (mBoosting ? L"  |  WING BOOST" : L"");
-        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE  V THROWN SWORDS  C FEATHER STORM  E BARRIER  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB (HELD 1.5 S: FLY)  CTRL+SPACE SINK  R LAND";
+        hud.Controls = L"LMB/RMB LEFT / RIGHT SWORD  F SLIDE  V THROWN SWORDS  C FEATHER STORM  E BARRIER  Q SOUL  A/D TURN  SHIFT RUN / BOOST  SPACE JUMP / CLIMB (HELD 1.5 S: FLY)  CTRL+SPACE SINK  R LAND";
         if (mNoticeTimer > 0) { hud.ActionNotice = mNotice; hud.ActionNoticeTimer = mNoticeTimer; }
 
         auto& h = NyxaraHud();   // the graphical HUD (DrawNyxaraHud)
@@ -7433,7 +8130,9 @@ namespace Doorways
         for (int i = 0; i < 3; ++i) { h.Cooldown[i] = mSkillCooldown[i]; h.CooldownMax[i] = SkillCooldown[i] * mCooldownScale; }
         const auto& b = *mBody;
         h.ComboOpen = false; h.ComboWindow = 0; h.ComboLeft = L""; h.ComboRight = L"";
-        h.Action = b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH" : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
+        h.Action = b.Soul == 3 ? L"TO HER SOUL" : b.Soul == 1 ? NyxaraSoul::Name : b.InMove() ? b.MoveOf->Name : b.Cast ? L"THROWN SWORDS" : b.Air == 1 ? L"TWISTED DASH"
+                 : b.Attack == "Skill_Storm" ? L"FEATHER STORM" : b.Attack == "Skill_Slide" ? L"SLIDE" : L"";
+        h.SoulOut = b.Soul != 0; h.SoulRest = mSoulCooldown; h.SoulRestMax = SoulCooldownSeconds * mCooldownScale;   // (her soul, Q: its slot, its rest)
         h.SkillsVC = mSkillsVC; h.Guarding = mGuarding; h.GuardCooldown = mGuarding ? 0.f : mGuardCooldown; h.GuardCooldownMax = ShieldRestSeconds * mCooldownScale;
         h.GuardLeft = mGuarding ? (std::max)(0.f, 1 - mGuardHeld / ShieldSeconds) : 0.f; h.Boosting = mBoosting; h.Swapped = false;
         h.Bow = false; h.Aim = 0; h.Shooting = false; h.OnTarget = false; h.HitMark = 0; h.HitKill = false; h.TargetVisible = false;
@@ -7817,6 +8516,13 @@ namespace Doorways
         }
         renderer.ResetDefaultWorldRenderState();
         renderer.BindDoorwaysSkinningDisabled();
+        if (mSoul && mWorldRenderer)
+        {   // her soul (Q), before her flair; nothing of it while her window shows her (she stands over the summit then)
+            if (!mSoul->Loaded() && !mSoul->Failed() && !mSoul->Load(renderer, mSoulError))
+                OutputDebugStringA(("[WARN] Nyxara: her soul's picture could not be loaded: " + mSoulError + "\n").c_str());
+            if (mSoul->Loaded())   // (her flair, on, sets the picture's glow itself)
+                mSoul->Draw(renderer, *mWorldRenderer, world.ImportedAnimatedCharacter, eye, viewProjection, mFlair && mFlair->On(), mShowcase);
+        }
         if (mFlair)
         {   // her flair, over all the rest (none of it unless the Character Lab asked: SetFlair)
             if (mFlair->Chosen() && !mFlair->Loaded() && !mFlair->Failed()) mFlair->Load(renderer, mFlairError);

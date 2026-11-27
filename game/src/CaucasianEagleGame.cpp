@@ -49,11 +49,13 @@ namespace CaucasianEagle
     {
         auto& session = GameSession();
         session.SlowWalk = true; session.SlowWalkSpeed = WalkSpeed; // hold Ctrl to walk
+        GetNyxaraKit().SetFootPace(FootPace); GetNyxaraKit().SetGaitStyle(GaitStyle);   // her pace on foot and her way of going (GameConstants.h)
         session.FastMultiplier = WingBoostMultiplier;               // Shift wing boost
         session.FreeFlight = true;                                  // R takes her up and lands her (Journey)
         session.FreeFlightCeiling = FlightCeiling;
         session.FreeFlightHoldSeconds = 1.0e9f; session.FreeFlightKeyClimb = true; session.FreeFlightKeepAloft = true;   // Space never takes off (on foot it jumps); in flight Space climbs, X sinks
         session.FreeFlightTakeoffHeight = FlightTakeoffHeight; session.FreeFlightTakeoffSeconds = FlightTakeoffSeconds;
+        session.FreeFlightTakeoffSprung = true;                     // (sprung up off the ground, her climb kept while Space is held)
         session.FreeFlightSlowJumpSinks = true;                     // Ctrl + Space flies her down, as Space flies her up (owner, 2026-11-18)
         session.FreeFlightSteer = true; session.FreeFlightLevelPitch = CameraPitch; session.FreeFlightSteerGain = FlightSteerGain;
         session.OrbitCamera = true;
@@ -89,7 +91,7 @@ namespace CaucasianEagle
         // A jump / fly, B dodge, X slash, Y heavy, LT wing boost, left stick click walk, Start pause.
         // Nyxara's own keys go on what is left.
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightShoulder, 'F');    // the slide / the twisted dash
-        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'V');     // the thrown swords
+        BindDoorwaysGamepadButton(DoorwaysGamepadButton::RightTrigger, 'Q');     // her soul (THREAD STEP; V, the thrown swords, is not in the game)
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadUp, 'C');           // the feather storm
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::LeftShoulder, 'E');     // sword barrier
         BindDoorwaysGamepadButton(DoorwaysGamepadButton::DpadRight, 'M');        // world map

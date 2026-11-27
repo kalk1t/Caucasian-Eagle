@@ -11,8 +11,9 @@
 # mountain's walls). The same verdicts; compare its runs with a run without it, place by place.
 # -Ahead: one run a place, up the way itself ("ahead") in place of the two off it: with -Dash and -Trace, her slide up
 # the way's stairs and climbs as the player's camera follows it.
-# -Jog: at her easy pace (W alone, 3.2 m/s) in place of her run (Shift, 5.4 m/s); a run then has 14 s. Her height
-# follows the ground the closer the slower she goes, and her easy pace climbs slopes her run stops at.
+# -Jog: at her easy pace (W alone, 9.6 m/s; 3.2 before her shadow dash, 0.5.4) in place of her run (Shift, 16.2 m/s;
+# 5.4); a run then has 14 s. At her pace as made her height followed the ground the closer the slower she went, and
+# her easy pace climbed slopes her run stopped at; going in pieces now (NyxaraKit's FootStep) she runs up them too.
 # -SlowMs <n>: every frame waits n thousandths of a second more, as on a slow computer
 #   (16: about 31 frames a second, 33: about 21, 60: about 12, where the test runs at 200 and more; 100 and more: 10,
 #   the engine's longest frame: slower than that the game plays slowly).

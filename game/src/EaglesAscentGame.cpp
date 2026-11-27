@@ -114,6 +114,7 @@ namespace CaucasianEagle
         session.SteepGroundBlocks = Env("CAUCASIAN_EAGLE_STEEP_WALLS") != "0";
         mMap.RockRules = Env("CAUCASIAN_EAGLE_ROCK_RULES") != "0";
         mMap.LongSteps = Env("CAUCASIAN_EAGLE_LONG_STEPS") != "0";   // (a test's baseline: EaglesAscent::LongSteps)
+        mMap.SoulPuts = Env("CAUCASIAN_EAGLE_SOUL_PUT") != "0";     // (a test's baseline: EaglesAscent::SoulPuts)
         GetNyxaraKit().SetRealJump(EaglesAscent::JumpSpeed);   // Space on foot is a real jump here
         auto& camera = host.World.MainCamera;
         camera.FarZ = EaglesAscent::FarPlane; camera.NearZ = .25f;   // the summit must be in view from the shore
@@ -155,6 +156,7 @@ namespace CaucasianEagle
         mBossFilm = Env(DemoEnvironmentVariable) == "12";    // a boss filmed as it fights her (BossFilm)
         mCameraTest = Env(DemoEnvironmentVariable) == "13";  // the camera's pitch swept along the way (CameraTest)
         mSideWalk = Env(DemoEnvironmentVariable) == "14";    // she runs off the way to both sides along it (SideWalk)
+        mSoulTest = Env(DemoEnvironmentVariable) == "15";    // her soul (Q) at places along the way (SoulTest)
         if (!Env(DemoEnvironmentVariable).empty()) mSlowMs = std::clamp(std::atoi(Env("CAUCASIAN_EAGLE_SLOW_MS").c_str()), 0, 200);   // (a test's slow frames)
         mTrees.SeeThroughOff = Env("CAUCASIAN_EAGLE_CAMERA_OLD") == "1";   // (tests: the trees as they were before 2026-11-22)
         mLog = Env(AscentLogEnvironmentVariable);
@@ -227,6 +229,16 @@ namespace CaucasianEagle
             if (mSideDash) GetNyxaraKit().SetAutoKeys(&mSideKeys);
             mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
         }
+        if (mSoulTest)
+        {   // (a new climb, its save beside its evidence; no creatures to come at her; Q pressed by the test)
+            mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
+            if (!mSaveTest) { mSavePath = std::filesystem::path(mLog).parent_path() / "soul.sav"; mSaveTest = true; }
+            std::error_code ignored; std::filesystem::remove(mSavePath, ignored);
+            if (const std::string t = Env("CAUCASIAN_EAGLE_SOUL_EVERY"); !t.empty()) mSoulEvery = std::max(20.f, static_cast<float>(std::atof(t.c_str())));
+            if (const std::string t = Env("CAUCASIAN_EAGLE_SOUL_FROM"); !t.empty()) mSoulFrom = static_cast<float>(std::atof(t.c_str()));
+            GetNyxaraKit().SetAutoKeys(&mSoulKeys);
+            mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
+        }
         if (mPointerTest || mLedger || mQuestTest)
         {   // a new climb, its save beside its evidence (never a player's)
             mSavedNest = 0; mSavedBeaten.clear(); mSavedGrowth = {}; mSavedJars.clear();
@@ -236,7 +248,7 @@ namespace CaucasianEagle
         if (const std::string gear = Env("CAUCASIAN_EAGLE_GEAR"); !gear.empty()) mSavedGrowth.Gear = std::atoi(gear.c_str());   // (a test's gear)
         mGrowth = mSavedGrowth; AscentGrowth::Clamp(mGrowth); mFormShown = AscentGrowth::Form(mGrowth);
         mWaysideOn = !mSmoke && !mClimb && !mTour;   // (the map's and the creatures' tests: no jars)
-        mCreaturesOn = !mMap.Placements.empty() && Env(AscentCreaturesEnvironmentVariable) != "0" && !mSmoke && !mClimb && !mPointerTest && !mQuestTest && !mCameraTest && !mSideWalk;   // (the quests' test counts its creatures itself: none to come at her while it stands still)
+        mCreaturesOn = !mMap.Placements.empty() && Env(AscentCreaturesEnvironmentVariable) != "0" && !mSmoke && !mClimb && !mPointerTest && !mQuestTest && !mCameraTest && !mSideWalk && !mSoulTest;   // (the quests' test counts its creatures itself: none to come at her while it stands still)
         if (mCreaturesOn)
         {
             if (!mCreatures.InitializeMountain(host.Render, error)) { error = "The Eagle's Ascent's creatures: " + error; return false; }
@@ -300,7 +312,7 @@ namespace CaucasianEagle
             mFlairBlue = Env("CAUCASIAN_EAGLE_NYXARA_FLAIR") == "blue";   // (to compare: before her first gear SKY WHEEL in her own blue, as it was for a day)
         }
         if (mNature || mShowTest || mQuestTest || mBossFilm) mTourShots = Env("CAUCASIAN_EAGLE_TOUR_SHOTS");
-        if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger || mShowTest || mMapTest || mQuestTest || mBossFilm || mCameraTest || mSideWalk)
+        if (mSmoke || mClimb || mTour || mWays || mNature || mGround || mPointerTest || mLedger || mShowTest || mMapTest || mQuestTest || mBossFilm || mCameraTest || mSideWalk || mSoulTest)
         {
             session.Unattended = true;
             std::ofstream(mLog) << "seconds\tevent\tstation\tx\ty\tz\tgrounded\tmissing_ground\tflight\n";
@@ -1531,6 +1543,224 @@ namespace CaucasianEagle
         if (mSideAhead || ++mSideSide > 1) { mSideSide = 0; mSideAlong += mSideEvery; }
     }
 
+    // The soul test (CAUCASIAN_EAGLE_DEMO=15): her soul, Q (THREAD STEP), at places along the way (EaglesAscentGame.h).
+    // Its steps, each on its own clock: stood on the way; (the first place) Q in flight; settled; Q, her leaving; her run
+    // on; (the first place) her window opened and closed; Q, her way back; on her feet; (the first place) put at a nest.
+    void EaglesAscentGame::SoulTest(DoorwaysGameHost& host, float dt)
+    {
+        auto& world = host.World; auto& session = GameSession(); auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
+        if (mClock < 3 || !world.RuntimeScene || !world.RuntimeScene->Loaded || mMap.Trail.empty()) return;
+        host.Combat.RestorePlayerHealth(world, 10000);   // (she is kept whole)
+        const auto table = std::filesystem::path(mLog).parent_path() / "soul.tsv";
+        const float end = static_cast<float>(mMap.Trail.size() - 1) * EaglesAscent::TrailStep;
+        const auto trailAt = [&](float along) { return mMap.Trail[static_cast<size_t>(std::clamp(along / EaglesAscent::TrailStep, 0.f, static_cast<float>(mMap.Trail.size() - 1)))]; };
+        const auto flown = [&](float along) { for (const auto& f : mMap.FlyStretches) if (along > f.From - 10.f && along < f.To + 10.f) return true; return false; };
+        const auto fail = [&](const char* why) { mSoulWhy += (mSoulWhy.empty() ? "" : ",") + std::string(why); };
+        const auto shot = [&](const wchar_t* what)
+        {
+            if (mTourShots.empty() || mSoulPlace >= 3) return;
+            wchar_t name[64]; swprintf_s(name, L"soul_%05d_%s", static_cast<int>(mSoulAlong), what); mTourShot = name;
+        };
+        enum : int { AtPlace, AtFly, AtSettle, AtCut, AtLeave, AtRun, AtWindow, AtAir, AtBack, AtStand, AtRest, AtNest, AtNext };
+        const auto go = [&](int step) { mSoulStep = step; mSoulClock = 0; mSoulOnce = 0; };
+        if (mSoulStep < 0)
+        {
+            std::ofstream(table, std::ios::trunc) << "along\tway_m\theld_s\tout_of\tapart_m\tback_s\tmiss_m\tquads\tresult\n";
+            mSoulAlong = std::max(mSoulFrom, 10.f); go(AtPlace);
+        }
+        mSoulKeys.Q = mSoulKeys.Lmb = false;   // (each down for a frame)
+        mSoulClock += dt;
+        const float t = mSoulClock;
+        if (mSoulStep == AtBack || mSoulStep == AtStand)
+        {   // every frame of her way back and of the check after it (here: after the engine's step and the Ascent's rules,
+            // before the kit's): her place, the engine's ground for her, her soul's state, the rules' holds so far
+            const auto trace = std::filesystem::path(mLog).parent_path() / "soul-trace.tsv";
+            if (!std::filesystem::exists(trace))
+                std::ofstream(trace) << "along\tstep\tt\tx\ty\tz\tgrounded\tvy\tground_state\tground_y\ttarget_ground_y\tmissing_ground\tsoul\tinto_holds\twall_holds\tsteep_held\tland_low\tdrawn_top\n";
+            char row[400];
+            std::snprintf(row, sizeof row, "%.0f\t%s\t%.3f\t%.2f\t%.2f\t%.2f\t%d\t%.2f\t%d\t%.2f\t%.2f\t%d\t%d\t%d\t%d\t%d\t%.2f\t%.2f\n",
+                          static_cast<double>(mSoulAlong), mSoulStep == AtBack ? "back" : "stand", static_cast<double>(t),
+                          static_cast<double>(p.Position.x), static_cast<double>(p.Position.y), static_cast<double>(p.Position.z), p.IsGrounded ? 1 : 0,
+                          static_cast<double>(p.VerticalVelocity), static_cast<int>(p.GroundState), static_cast<double>(p.GroundY), static_cast<double>(p.TargetGroundY),
+                          p.MissingAuthoritativeGround ? 1 : 0, kit.SoulState(), mMap.IntoHolds, mMap.WallHolds, static_cast<int>(GetDoorwaysRuntimeSteepGroundStats().HeldMoves),
+                          static_cast<double>(mMap.LandLow(p.Position.x, p.Position.z)), static_cast<double>(mMap.DrawnTop(p.Position.x, p.Position.z)));
+            std::ofstream(trace, std::ios::app) << row;
+        }
+        const bool firstPlace = mSoulPlace == 0;
+        const auto face = [&] { p.Yaw = mSoulYaw; world.MainCamera.Yaw = mSoulYaw; world.MainCamera.Pitch = -.12f; };
+        const bool pictures = !mTourShots.empty();
+        const auto picture = [&](const char* name) { std::ofstream(table, std::ios::app) << "picture\t" << name << '\n'; };   // (the window with its HUD: soul-test.ps1 takes it)
+        switch (mSoulStep)
+        {
+        case AtPlace:
+        {   // the next place: on the way, facing up it
+            while (mSoulAlong <= end - 10.f && flown(mSoulAlong)) mSoulAlong += mSoulEvery;
+            if (mSoulAlong > end - 10.f)
+            {
+                session.ScriptedMove = 0; kit.LetSoulGo();
+                std::ofstream out(table, std::ios::app);
+                out << "places\t" << mSoulPlace << "\nshort_ways\t" << mSoulShort << '\n' << (mSoulBad == 0 ? "SOUL_PASS" : "SOUL_FAIL") << "\tbad=" << mSoulBad << '\n';
+                out.close();
+                Evidence(world, mSoulBad == 0 ? "SOUL_PASS" : "SOUL_FAIL"); mSoulTest = false; PostQuitMessage(mSoulBad == 0 ? 0 : 2);
+                return;
+            }
+            const XMFLOAT3 a = trailAt(mSoulAlong - 4.f), b = trailAt(mSoulAlong + 4.f);
+            XMFLOAT3 at = trailAt(mSoulAlong); float y = at.y;
+            if (Standable(*world.RuntimeScene, at, y)) at.y = y;
+            mSoulYaw = std::atan2(b.x - a.x, b.z - a.z);
+            kit.LetSoulGo(); kit.ResetCooldowns();
+            Put(host, at, mSoulYaw);
+            session.ScriptedMove = 0; mSoulKeys = {}; mSoulStart = at; mSoulWhy.clear();
+            mSoulWay = mSoulApart = mSoulBack = mSoulMiss = mSoulHeld = 0; mSoulQuads = 0; mSoulOutOf.clear();
+            go(firstPlace ? AtFly : AtSettle);
+            return;
+        }
+        case AtFly:   // (the first place) in flight, Q does nothing: she is flying as the kit reads Q
+            if (t >= .5f && mSoulOnce == 0) { p.TraversalMode = DoorwaysPlayerTraversalMode::Flight; p.Position.y += 2.f; mSoulKeys.Q = true; mSoulOnce = 1; }
+            if (t >= 1.f)
+            {
+                if (kit.SoulState() != 0) fail("FLIGHT_LEFT");
+                kit.LetSoulGo(); Put(host, mSoulStart, mSoulYaw); go(AtSettle);
+            }
+            return;
+        case AtSettle:
+            face();
+            if (pictures && firstPlace && t >= .5f && mSoulOnce == 0) { mSoulOnce = 1; picture("soul_hud_ready"); }
+            if (t >= (pictures && firstPlace ? 2.5f : 1.f) && p.IsGrounded) { mSoulKeys.Lmb = true; go(AtCut); }
+            else if (t >= 4.f) { fail("NOT_GROUNDED"); go(AtNext); }
+            return;
+        case AtCut:   // a cut clicked as this step began (her gear's first move); 0.15 s into it, Q (the owner, 2026-11-26: "Q can
+                      // be pressed anytime while fighting/combo")
+            if (t >= .15f) { mSoulAt = p.Position; mSoulKeys.Q = true; go(AtLeave); }
+            return;
+        case AtLeave:   // Q pressed as this step began: her leaving, out of the cut; W held from 0.1 s, as its throw carries her (as
+                        // the throw is over she runs: no longer held to the end of its leaving; the owner, 2026-11-26)
+            face();
+            session.ScriptedMove = t >= .1f ? 'W' : 0; session.ScriptedFast = true;
+            if (t >= .5f && mSoulOnce == 0) { mSoulOnce = 1; shot(L"left"); if (kit.SoulState() == 0) { fail("NO_LEAVE"); go(AtNext); return; } }
+            if (t >= 1.4f)
+            {
+                if (kit.SoulState() != 2) { fail("NOT_AWAY"); go(AtNext); return; }
+                mSoulWay = kit.SoulLastWay(); mSoulHeld = kit.SoulLastHeld(); mSoulOutOf = kit.SoulLastOutOf();
+                if (mSoulWay < .5f || mSoulWay > 7.5f) fail("WAY");
+                else if (mSoulWay < 4.5f) ++mSoulShort;
+                if (mSoulOutOf.empty()) fail("NOT_OUT_OF_CUT");
+                if (mSoulHeld <= 0 || mSoulHeld > .35f) fail("HELD");
+                go(AtRun);
+            }
+            return;
+        case AtRun:   // she runs on, away from it
+            face();
+            session.ScriptedMove = t < 3.f ? 'W' : 0; session.ScriptedFast = true;
+            mSoulQuads = std::max(mSoulQuads, kit.SoulQuads());
+            if (pictures && firstPlace && t >= .4f && mSoulOnce == 0) { mSoulOnce = 1; picture("soul_hud_away"); }
+            if (t >= 2.6f && mSoulOnce < 2) { mSoulOnce = 2; shot(L"away"); }
+            if (t >= 3.3f)
+            {
+                session.ScriptedMove = 0; mSoulApart = kit.SoulApart();
+                if (kit.SoulState() != 2) { fail("LOST"); go(AtNext); return; }
+                if (mSoulQuads < 50) fail("NOT_DRAWN");
+                if (firstPlace) go(AtWindow);
+                else if (mSoulPlace == 1) go(AtAir);   // (the second place: back to it from the air)
+                else { go(AtBack); mSoulKeys.Q = true; }
+            }
+            return;
+        case AtWindow:   // (the first place) her window opened and closed, her soul away (with pictures: held open for one)
+        {
+            const float shut = pictures ? 3.6f : 1.6f;
+            if (t >= .3f && mSoulOnce == 0) { mSoulOnce = 1; mSoulWas = p.Position; mGrowthOpen = true; }
+            if (pictures && t >= .8f && mSoulOnce == 1) { mSoulOnce = 2; picture("soul_window"); }
+            if (t >= shut && (mSoulOnce == 1 || mSoulOnce == 2)) { mSoulOnce = 3; mGrowthOpen = false; session.FreeCursor = false; }
+            if (t >= shut + .6f)
+            {
+                if (kit.SoulState() != 2 || std::hypot(p.Position.x - mSoulWas.x, p.Position.y - mSoulWas.y, p.Position.z - mSoulWas.z) > .05f) fail("WINDOW");
+                mSoulKeys.Q = true; go(AtBack);
+            }
+            return;
+        }
+        case AtAir:   // (the second place) away from it she takes wing (the game's take-off: 6 m up in 0.8 s); 2 m up, Q
+                      // again takes her back to it from the air
+            if (mSoulOnce == 0)
+            {
+                mSoulOnce = 1; mSoulWas = p.Position;
+                session.FreeFlightEnd = false; session.FreeFlightLandSpeed = 0; session.FreeFlightTakeoff = true;
+            }
+            if (p.TraversalMode == DoorwaysPlayerTraversalMode::Flight && !p.IsGrounded && p.Position.y > mSoulWas.y + 2.f)
+            {
+                if (kit.SoulState() != 2) { fail("NOT_AWAY_IN_AIR"); go(AtNext); return; }
+                mSoulKeys.Q = true; go(AtBack);
+            }
+            else if (t >= 5.f) { fail("NOT_IN_AIR"); go(AtNext); }
+            return;
+        case AtBack:   // Q pressed as this step began: her way back
+            if (t >= .3f && mSoulOnce == 0) { mSoulOnce = 1; shot(L"back"); if (kit.SoulState() != 3 && kit.SoulState() != 0) { fail("NO_RECALL"); go(AtNext); return; } }
+            if (t >= 1.8f)
+            {
+                mSoulBack = kit.SoulLastBack(); mSoulMiss = kit.SoulLastMiss();
+                if (kit.SoulState() != 0) fail("NO_JOIN");
+                else
+                {
+                    if (mSoulBack < .6f || mSoulBack > 1.3f) fail("BACK_TIME");
+                    if (mSoulMiss > .15f) fail("MISS");
+                }
+                go(AtStand);
+            }
+            return;
+        case AtStand:   // in it again: on her feet, where she stood
+            if (t >= .1f && mSoulOnce == 0) { mSoulOnce = 1; shot(L"joined"); }
+            if (t >= .8f)
+            {
+                if (!p.IsGrounded || p.Position.y < mSoulAt.y - 1.f || std::hypot(p.Position.x - mSoulAt.x, p.Position.z - mSoulAt.z) > 1.f)
+                {   // (and where she is: how far from where she stood, how much higher, on the ground or not)
+                    char why[96];
+                    std::snprintf(why, sizeof why, "FELL(%.2f m off, %+.2f m, ground %d)", static_cast<double>(std::hypot(p.Position.x - mSoulAt.x, p.Position.z - mSoulAt.z)),
+                                  static_cast<double>(p.Position.y - mSoulAt.y), p.IsGrounded ? 1 : 0);
+                    fail(why);
+                }
+                if (firstPlace) { mSoulKeys.Q = true; go(AtRest); } else go(AtNext);
+            }
+            return;
+        case AtRest:   // (the first place) Q pressed as this step began, 0.8 s after she was in it again: nothing, it rests (15 s
+                       // from her return: the owner, 2026-11-26, "give it a 15second cooldown for a skill"); with pictures, its
+                       // slot counting down. Then ready again (a test's) and Q: she leaves it again
+            if (t >= .5f && mSoulOnce == 0)
+            {
+                mSoulOnce = 1; mSoulRest = kit.SoulCooldownLeft();
+                std::ofstream(table, std::ios::app) << "resting\t" << mSoulRest << '\n';
+                if (kit.SoulState() != 0) { fail("LEFT_RESTING"); go(AtNext); return; }
+                if (mSoulRest < 11.f || mSoulRest > 15.f) fail("NOT_RESTING");
+                if (pictures) picture("soul_hud_resting");
+            }
+            if (t >= (pictures ? 2.5f : .8f)) { kit.ResetCooldowns(); mSoulKeys.Q = true; go(AtNest); }
+            return;
+        case AtNest:   // (the first place) she leaves it again and is put at a nest more than 30 m off: she lets it go
+            if (t >= 1.2f && mSoulOnce == 0)
+            {
+                mSoulOnce = 1;
+                if (kit.SoulState() != 2) { fail("NOT_AWAY_2"); go(AtNext); return; }
+                for (const auto& n : mMap.Nests)
+                    if (std::hypot(n.P.x - p.Position.x, n.P.z - p.Position.z) > 30.f) { mMap.Visit(host, n.Station); mSoulOnce = 2; break; }
+                if (mSoulOnce != 2) go(AtNext);
+            }
+            if (t >= 1.6f && mSoulOnce == 2) { if (kit.SoulState() != 0) fail("NEST_KEPT"); go(AtNext); }
+            return;
+        case AtNext:
+        {
+            session.ScriptedMove = 0;
+            const bool bad = !mSoulWhy.empty();
+            mSoulBad += bad ? 1 : 0;
+            char line[260];
+            std::snprintf(line, sizeof line, "%.0f\t%.2f\t%.2f\t%s\t%.1f\t%.2f\t%.3f\t%d\t%s\n", mSoulAlong, mSoulWay, mSoulHeld, mSoulOutOf.empty() ? "-" : mSoulOutOf.c_str(),
+                          mSoulApart, mSoulBack, mSoulMiss, mSoulQuads, bad ? mSoulWhy.c_str() : "ok");
+            std::ofstream(table, std::ios::app) << line;
+            if (bad && !mTourShots.empty()) { wchar_t name[64]; swprintf_s(name, L"soul_%05d_FAIL", static_cast<int>(mSoulAlong)); mTourShot = name; }
+            ++mSoulPlace; mSoulAlong += mSoulEvery; go(AtPlace);
+            return;
+        }
+        default: return;
+        }
+    }
+
     void EaglesAscentGame::BossFilm(DoorwaysGameHost& host, float dt)
     {
         auto& world = host.World; auto& her = world.MainPlayer;
@@ -2046,9 +2276,16 @@ namespace CaucasianEagle
         auto& session = GameSession(); auto& world = host.World; auto& p = world.MainPlayer; auto& kit = GetNyxaraKit();
         const bool flying = p.TraversalMode == DoorwaysPlayerTraversalMode::Flight;
         const bool alive = host.Combat.PlayerActionsAllowed();
-        mMap.KeepOutOfRock(p, flying, dt, world.RuntimeScene);
+        // (Not on her way back to her soul, Q: the kit puts her on it, a straight line through all. Where it went into the
+        // land, off the ground, the rule that she does not walk into the mountain put her back where she last stood (no
+        // ground under her there to stand her on), frame after frame as the kit carried her on; more than the kit's
+        // SoulPutAway (25 m) from where it had left her, the kit let her soul go as if the game had put her elsewhere: in
+        // the soul test with her run three times as fast, 73 m from her soul, she was left so 44 to 73 m from it at 7
+        // places of 17 (2026-11-27, soul-trace.tsv). The map's rescue (Air) is off then too, below.)
+        if (!(mMap.SoulPuts && kit.SoulState() == 3)) mMap.KeepOutOfRock(p, flying, dt, world.RuntimeScene);
         if (mPointerTest) PointerTest(host, realDt);
         if (mQuestTest) QuestTest(host, realDt);
+        if (mSoulTest) SoulTest(host, realDt);   // (here: it opens and closes her window too)
         mMouse = ReadMouse(inputAllowed);   // (her menu and her window read it)
 
         // Esc: the pause panel (DrawHud); its keys
@@ -2378,7 +2615,13 @@ namespace CaucasianEagle
         if (mWays) Ways(host, realDt);
         if (mNature) Nature(host, realDt);
         if (mLedger) Ledger(host);
+        const bool soulBack = kit.SoulState() == 3;   // (on her way back to her soul as this frame began)
         kit.Update(world, host.WorldRender, host.Combat, dt, realDt, allowed);
+        // Her soul's way back (Q) puts her where it goes: after each frame of it, and the one she is in it again, the
+        // map's rules (above: not on it) judge her next step from where the kit put her, not from where she set off
+        // (a way back of a few metres, under PutStep, would be taken for a step of hers, and what stood between would
+        // hold her short of her soul), and put her back there if they must, not where she stood before it.
+        if (mMap.SoulPuts && (soulBack || kit.SoulState() == 3)) mMap.PutHere(p.Position);
         if (mCreaturesOn)
         {   // the creatures after her (as in the Character Lab): they wake, wait, fight, go home and sleep
             mCreatures.UpdateMountain(world, host.Combat, dt);
@@ -2404,7 +2647,7 @@ namespace CaucasianEagle
         // the map: where she is, the air, the checkpoints, the safety nets
         mMap.Locate(p.Position);
         const int before = mMap.Checkpoint;
-        if (const char* net = mMap.Air(host, dt, flying, !mSmoke && !mTour && !mSideWalk && mClock > 5 && alive))
+        if (const char* net = mMap.Air(host, dt, flying, !mSmoke && !mTour && !mSideWalk && mClock > 5 && alive && kit.SoulState() != 3))   // (her way back to her soul goes through the mountain)
         {
             Notify(BackTitle(), L"The mountain did not hold her: she is back at " + Words(mMap.Stations[static_cast<size_t>(mMap.Checkpoint)].Name) + L".", 4);
             if (mClimb) { Evidence(host.World, net); Evidence(host.World, "CLIMB_FAIL"); mClimb = false; PostQuitMessage(2); }

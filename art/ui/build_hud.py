@@ -645,6 +645,17 @@ def icon_armour():                      # a breastplate
     return m * (1 - .7 * cut)
 
 
+def icon_soul():                        # her soul (Q): a hollow orb left on its mark, threads from it to her, gone on
+    s = Shape()
+    s.arc(.30, .46, .185, 0, 360, .065)                                  # her soul, where she stood
+    s.circle(.30, .46, .06)
+    s.d.ellipse([.07 * s.S, .71 * s.S, .53 * s.S, .84 * s.S], outline=255, width=max(1, int(.045 * s.S)))   # the ring it stands on
+    s.circle(.78, .29, .135)                                             # her
+    for a, b in (((.46, .37), (.66, .25)), ((.48, .46), (.65, .31)), ((.46, .55), (.66, .37))):
+        s.line([a, b], .036)                                             # its threads
+    return s.arr()
+
+
 def shade_icon(m):
     n = m.shape[0]
     L = Layer(n, n)
@@ -670,7 +681,7 @@ SPRITES = [
     ("IconArrow", icon_arrow), ("IconChevron", icon_chevron), ("IconSwords", icon_swords),
     ("IconGrapes", icon_grapes), ("IconBaths", icon_baths), ("IconCross", icon_cross), ("IconFort", icon_fort),
     ("IconFleece", icon_fleece), ("IconAnchor", icon_anchor), ("IconTower", icon_tower),
-    ("IconCrystal", icon_crystal), ("IconPotion", icon_potion), ("IconArmour", icon_armour)]]
+    ("IconCrystal", icon_crystal), ("IconPotion", icon_potion), ("IconArmour", icon_armour), ("IconSoul", icon_soul)]]
 
 
 def main():

@@ -82,6 +82,8 @@ void Doorways::DrawNyxaraHud(CaucasianEagle::Ui& ui, const DoorwaysHudRenderCont
         {Ui::KeyLabel(L"F", 'F'), hud.Flying && hud.FlightDash ? L"DASH" : L"SLIDE", &HudArt::IconDash, hud.Cooldown[0], hud.CooldownMax[0], false, false, Soul, 1, noSlide},
         {Ui::KeyLabel(L"V", 'V'), L"SWORDS", &HudArt::IconStorm, hud.Cooldown[1], hud.CooldownMax[1], false, false, Soul, 1},
         {Ui::KeyLabel(L"C", 'C'), L"STORM", &HudArt::IconLeap, hud.Cooldown[2], hud.CooldownMax[2], false, false, Soul, 1},   // the feather storm (a leap)
+        {Ui::KeyLabel(L"Q", 'Q'), hud.SoulOut ? L"RETURN" : L"SOUL", &HudArt::IconSoul, hud.SoulRest, hud.SoulRestMax, hud.SoulOut, false, Soul, 1,
+         hud.Flying && !hud.SoulOut},   // her soul (THREAD STEP): lit while it stands away from her (Q takes her back); left from the ground only
         {Ui::KeyLabel(L"E", 'E'), L"SHIELD", &HudArt::IconGuard, hud.GuardCooldown, hud.GuardCooldownMax, hud.Guarding, false, Moon, 2},
         {Ui::KeyLabel(L"SHIFT", VK_SHIFT), L"BOOST", &HudArt::IconBoost, 0, 1, hud.Boosting, false, Moon, 2}};
     std::vector<Slot> shown;   // (V and C only when she has them)

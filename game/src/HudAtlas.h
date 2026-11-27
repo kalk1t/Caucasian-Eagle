@@ -15,10 +15,10 @@ namespace CaucasianEagle::HudArt
     inline constexpr Sprite Slot{192, 368, 144, 144, 0, 12};
     inline constexpr Sprite SlotGlow{832, 8, 176, 176, 0, 28};
     inline constexpr Sprite Medallion{8, 368, 176, 176, 0, 8};
-    inline constexpr Sprite BarFrame{360, 864, 96, 48, 24, 8};
-    inline constexpr Sprite BarFrameThin{464, 864, 96, 34, 24, 8};
-    inline constexpr Sprite BarFill{568, 864, 16, 32, 0, 0};
-    inline constexpr Sprite Keycap{288, 864, 64, 56, 22, 4};
+    inline constexpr Sprite BarFrame{464, 864, 96, 48, 24, 8};
+    inline constexpr Sprite BarFrameThin{568, 864, 96, 34, 24, 8};
+    inline constexpr Sprite BarFill{672, 864, 16, 32, 0, 0};
+    inline constexpr Sprite Keycap{392, 864, 64, 56, 22, 4};
     inline constexpr Sprite Divider{8, 968, 512, 32, 0, 0};
     inline constexpr Sprite Glow{480, 368, 128, 128, 0, 0};
     inline constexpr Sprite GradH{632, 968, 128, 8, 0, 0};
@@ -26,7 +26,7 @@ namespace CaucasianEagle::HudArt
     inline constexpr Sprite Vignette{368, 8, 256, 256, 0, 0};
     inline constexpr Sprite Diamond{528, 968, 32, 32, 0, 0};
     inline constexpr Sprite Pip{568, 968, 32, 32, 0, 0};
-    inline constexpr Sprite Marker{216, 864, 64, 64, 0, 0};
+    inline constexpr Sprite Marker{320, 864, 64, 64, 0, 0};
     inline constexpr Sprite Corner{632, 368, 128, 128, 0, 0};
     inline constexpr Sprite Pixel{608, 968, 16, 16, 0, 0};
     inline constexpr Sprite MapDisc{632, 8, 192, 192, 0, 8};
@@ -62,4 +62,5 @@ namespace CaucasianEagle::HudArt
     inline constexpr Sprite IconCrystal{840, 760, 96, 96, 0, 0};
     inline constexpr Sprite IconPotion{8, 864, 96, 96, 0, 0};
     inline constexpr Sprite IconArmour{112, 864, 96, 96, 0, 0};
+    inline constexpr Sprite IconSoul{216, 864, 96, 96, 0, 0};
 }

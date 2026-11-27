@@ -342,12 +342,21 @@ namespace CaucasianEagle
     // R changes between two ways of going: on the wing (the camera aims her) and on foot (she walks and runs;
     // Space jumps).
     constexpr float FlightTakeoffHeight = 6.f;  // m she rises by herself when R takes her up
-    constexpr float FlightTakeoffSeconds = 3.f; // s that rise takes
+    constexpr float FlightTakeoffSeconds = .8f; // s that rise takes, sprung (FreeFlightTakeoffSprung: fastest off the ground);
+                                                // 3 s at one speed until 2026-11-26 (the owner: "can she start flying up right
+                                                // away after 1sec"); her Fly_Rise's spring and beat take 0.8 s from the lift
     constexpr float FlightLandReach = 6.f;      // m over the ground within which R lands her; higher, R only says "too high"
     constexpr float FlightLandSeconds = 3.f;    // s the landing takes
     constexpr float FlightLandMinSpeed = .05f;  // m/s, the slowest she comes down (the landing always takes FlightLandSeconds)
     constexpr float FootSpeed = 3.2f;           // m/s on foot: an easy jog (the Run clip at 0.7 of its pace, so her legs match the ground)
     constexpr float FootRunSpeed = 5.4f;        // m/s on foot with Shift (the Run clip at 1.17). Ctrl walks at WalkSpeed, the Walk clip's own pace
+    // In the game she goes three times as fast as her paces above were made for (FootPace: Ctrl 5.0 m/s, W 9.6, Shift
+    // 16.2, her stride stepped to them: NyxaraKit::SetFootPace), in the way of going SHADOW DASH (GaitStyle 4,
+    // NyxaraKit::SetGaitStyle: low and fast, crouched, bowed far forward, her arms swept straight back, her wings flat
+    // to her back). The owner, 2026-11-26, having tried them in the Character Lab: "i like 4th walk style - i like the
+    // speeded up also - implement it ingame". (1 and 0 until then: her walk and run as made.)
+    constexpr float FootPace = 3.f;
+    constexpr int GaitStyle = 4;
     constexpr float FlightSway = .11f;          // m she rides up and down in the air
     constexpr float FlightSwayRate = 1.9f;      // rad/s of that
     constexpr float FlightRock = .035f;         // rad her body rocks in the air (pitch; the roll is 0.8 of it, slower)
